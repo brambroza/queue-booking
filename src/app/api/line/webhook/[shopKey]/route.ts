@@ -11,6 +11,19 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+async function fetchLineProfile(token: string, userId: string) {
+  const res = await fetch(`https://api.line.me/v2/bot/profile/${userId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  const json = await res.json() as { displayName?: string; pictureUrl?: string; statusMessage?: string };
+  return {
+    display_name: json.displayName ?? null,
+    picture_url: json.pictureUrl ?? null,
+    status_message: json.statusMessage ?? null,
+  };
+}
+
 async function getShopAndConfig(shopKey: string) {
   const admin = createAdminClient();
   const { data: shop } = await admin
@@ -27,9 +40,17 @@ async function handleTextEvent(admin: ReturnType<typeof createAdminClient>, shop
   const text = event.message?.text ?? '';
   if (!userId || !replyToken) return;
 
+  const profile = await fetchLineProfile(token, userId);
   const { data: lineUser } = await admin
     .from('line_users')
-    .upsert({ company_id: shop.company_id, shop_id: shop.id, line_user_id: userId }, { onConflict: 'shop_id,line_user_id' })
+    .upsert({
+      company_id: shop.company_id,
+      shop_id: shop.id,
+      line_user_id: userId,
+      display_name: profile?.display_name ?? undefined,
+      picture_url: profile?.picture_url ?? undefined,
+      status_message: profile?.status_message ?? undefined,
+    }, { onConflict: 'shop_id,line_user_id' })
     .select('id')
     .single();
 
@@ -113,6 +134,39 @@ async function handleTextEvent(admin: ReturnType<typeof createAdminClient>, shop
   await replyMessage(token, replyToken, [fallbackMessage()]);
 }
 
+async function handleNonTextMessageEvent(
+  admin: ReturnType<typeof createAdminClient>,
+  shop: { id: string; company_id: string },
+  event: LineWebhookEvent,
+  token: string,
+) {
+  const userId = event.source?.userId;
+  if (!userId || event.type !== 'message') return;
+  const profile = await fetchLineProfile(token, userId);
+  const { data: lineUser } = await admin
+    .from('line_users')
+    .upsert({
+      company_id: shop.company_id,
+      shop_id: shop.id,
+      line_user_id: userId,
+      display_name: profile?.display_name ?? undefined,
+      picture_url: profile?.picture_url ?? undefined,
+      status_message: profile?.status_message ?? undefined,
+    }, { onConflict: 'shop_id,line_user_id' })
+    .select('id')
+    .single();
+
+  await admin.from('line_messages').insert({
+    company_id: shop.company_id,
+    shop_id: shop.id,
+    line_user_id: lineUser?.id,
+    direction: 'inbound',
+    message_type: event.message?.type ?? 'unknown',
+    message_text: event.message?.type === 'text' ? event.message.text : null,
+    payload: event as unknown as Record<string, unknown>,
+  });
+}
+
 export async function POST(req: Request, { params }: { params: Promise<{ shopKey: string }> }) {
   const { shopKey } = await params;
   const rawBody = await req.text();
@@ -142,6 +196,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     (body.events ?? []).map(async (event) => {
       if (event.type === 'message' && event.message?.type === 'text') {
         await handleTextEvent(admin, { id: shop.id, company_id: shop.company_id, shop_key: shop.shop_key, name: shop.name }, event, channelToken);
+      } else if (event.type === 'message') {
+        await handleNonTextMessageEvent(admin, { id: shop.id, company_id: shop.company_id }, event, channelToken);
       }
     }),
   );
