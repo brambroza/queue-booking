@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 
 export async function GET(req: Request, { params }: { params: Promise<{ shopKey: string }> }) {
   const { shopKey } = await params;
@@ -13,7 +14,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
   }
 
   const admin = createAdminClient();
-  const { data: shop } = await admin.from('shops').select('id').eq('shop_key', shopKey).single();
+  const shop = await resolveShopByKeyOrId(admin, shopKey);
   if (!shop) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
 
   const { data, error } = await admin.rpc('get_available_slots', {

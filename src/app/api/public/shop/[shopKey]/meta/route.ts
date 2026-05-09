@@ -1,16 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 
 export async function GET(_: Request, { params }: { params: Promise<{ shopKey: string }> }) {
   const { shopKey } = await params;
   const admin = createAdminClient();
-
-  const { data: shop } = await admin
-    .from('shops')
-    .select('id,name,shop_key,liff_id')
-    .eq('shop_key', shopKey)
-    .eq('is_deleted', false)
-    .single();
+  const shop = await resolveShopByKeyOrId(admin, shopKey);
 
   if (!shop) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
 

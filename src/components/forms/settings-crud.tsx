@@ -3,6 +3,16 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 
+type ShopProfile = {
+  id: string;
+  name: string;
+  shop_key: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  logo_url: string | null;
+};
+
 type SettingRow = {
   id: string;
   key: string;
@@ -25,6 +35,10 @@ const initialForm: FormState = {
 
 export function SettingsCrud() {
   const { push } = useToast();
+  const [shop, setShop] = useState<ShopProfile | null>(null);
+  const [shopSaving, setShopSaving] = useState(false);
+  const [shopLogoFile, setShopLogoFile] = useState<File | null>(null);
+  const [removeLogo, setRemoveLogo] = useState(false);
   const [rows, setRows] = useState<SettingRow[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -42,7 +56,40 @@ export function SettingsCrud() {
     setRows(json.data ?? []);
   }
 
-  useEffect(() => { void load(); }, []);
+  async function loadShop() {
+    const res = await fetch('/api/shop-profile', { cache: 'no-store' });
+    const json = await res.json();
+    if (!res.ok) return push(json.error ?? 'โหลดโปรไฟล์ร้านไม่สำเร็จ', 'error');
+    setShop(json.data ?? null);
+  }
+
+  useEffect(() => {
+    void load();
+    void loadShop();
+  }, []);
+
+  async function saveShopProfile() {
+    if (!shop) return;
+    if (!shop.name.trim()) return push('กรุณาระบุชื่อร้าน', 'error');
+
+    setShopSaving(true);
+    const form = new FormData();
+    form.set('name', shop.name.trim());
+    form.set('phone', shop.phone?.trim() ?? '');
+    form.set('email', shop.email?.trim() ?? '');
+    form.set('address', shop.address?.trim() ?? '');
+    form.set('remove_logo', removeLogo ? 'true' : 'false');
+    if (shopLogoFile) form.set('logo', shopLogoFile);
+
+    const res = await fetch('/api/shop-profile', { method: 'PATCH', body: form });
+    const json = await res.json();
+    setShopSaving(false);
+    if (!res.ok) return push(json.error ?? 'บันทึกโปรไฟล์ร้านไม่สำเร็จ', 'error');
+    push('บันทึกโปรไฟล์ร้านแล้ว');
+    setShopLogoFile(null);
+    setRemoveLogo(false);
+    void loadShop();
+  }
 
   function openAdd() {
     setForm(initialForm);
@@ -116,6 +163,70 @@ export function SettingsCrud() {
 
   return (
     <div className="space-y-4">
+      <div className="card p-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-800">Shop Profile</h3>
+            <p className="text-sm text-slate-500">จัดการข้อมูลร้านค้าและโลโก้</p>
+          </div>
+          <button className="btn-primary" onClick={() => void saveShopProfile()} disabled={!shop || shopSaving}>
+            {shopSaving ? 'กำลังบันทึก...' : 'บันทึกโปรไฟล์'}
+          </button>
+        </div>
+
+        {!shop ? (
+          <p className="text-sm text-slate-500">กำลังโหลดข้อมูลร้าน...</p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="text-sm">
+              <span className="mb-1 block text-slate-600">ชื่อร้าน</span>
+              <input className="input" value={shop.name} onChange={(e) => setShop((p) => (p ? { ...p, name: e.target.value } : p))} />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-slate-600">Shop Key</span>
+              <input className="input bg-slate-50" value={shop.shop_key} readOnly />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-slate-600">เบอร์โทร</span>
+              <input className="input" value={shop.phone ?? ''} onChange={(e) => setShop((p) => (p ? { ...p, phone: e.target.value } : p))} />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-slate-600">อีเมล</span>
+              <input className="input" type="email" value={shop.email ?? ''} onChange={(e) => setShop((p) => (p ? { ...p, email: e.target.value } : p))} />
+            </label>
+            <label className="text-sm md:col-span-2">
+              <span className="mb-1 block text-slate-600">ที่อยู่</span>
+              <textarea className="input min-h-20" value={shop.address ?? ''} onChange={(e) => setShop((p) => (p ? { ...p, address: e.target.value } : p))} />
+            </label>
+
+            <div className="md:col-span-2">
+              <span className="mb-2 block text-sm text-slate-600">โลโก้ร้าน</span>
+              <div className="flex flex-wrap items-center gap-3">
+                {shop.logo_url && !removeLogo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={shop.logo_url} alt="Shop logo" className="h-16 w-16 rounded-xl border border-slate-200 object-cover" />
+                ) : (
+                  <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-dashed border-slate-300 text-xs text-slate-400">No Logo</div>
+                )}
+                <input
+                  className="input max-w-sm"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  onChange={(e) => setShopLogoFile(e.target.files?.[0] ?? null)}
+                />
+                {shop.logo_url ? (
+                  <label className="inline-flex items-center gap-2 text-sm text-slate-600">
+                    <input type="checkbox" checked={removeLogo} onChange={(e) => setRemoveLogo(e.target.checked)} />
+                    ลบโลโก้ปัจจุบัน
+                  </label>
+                ) : null}
+              </div>
+              {shopLogoFile ? <p className="mt-2 text-xs text-slate-500">ไฟล์ใหม่: {shopLogoFile.name}</p> : null}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-slate-700">Settings</h3>
         <div className="flex items-center gap-2">

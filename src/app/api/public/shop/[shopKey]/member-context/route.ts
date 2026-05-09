@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 
 const schema = z.object({
   line_user_id: z.string().min(1),
@@ -14,12 +15,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   if (!parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
 
   const admin = createAdminClient();
-  const { data: shop } = await admin
-    .from('shops')
-    .select('id,company_id')
-    .eq('shop_key', shopKey)
-    .eq('is_deleted', false)
-    .single();
+  const shop = await resolveShopByKeyOrId(admin, shopKey);
 
   if (!shop) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
 
@@ -44,18 +40,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     return NextResponse.json({ error: lineUserError?.message ?? 'line user upsert failed' }, { status: 400 });
   }
 
-  const { data: existingCustomer, error: customerFindError } = await admin
+  const { data: existingCustomers, error: customerFindError } = await admin
     .from('customers')
     .select('id,full_name,phone,line_user_id')
     .eq('shop_id', shop.id)
     .eq('line_user_id', lineUser.id)
     .eq('is_deleted', false)
-    .maybeSingle();
+    .order('updated_at', { ascending: false })
+    .limit(5);
 
   if (customerFindError) {
     return NextResponse.json({ error: customerFindError.message }, { status: 400 });
   }
 
+  const existingCustomer = (existingCustomers ?? [])[0] ?? null;
   if (existingCustomer) {
     return NextResponse.json({
       data: {

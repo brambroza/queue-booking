@@ -39,6 +39,65 @@ export function bookingConfirmMessage(payload: { queueNumber: string; branch: st
   };
 }
 
+export function bookingConfirmFlex(payload: {
+  shopName: string;
+  queueNumber: string;
+  branch: string;
+  service: string;
+  date: string;
+  time: string;
+}) {
+  return {
+    type: 'flex',
+    altText: `จองคิวสำเร็จ เลขคิว ${payload.queueNumber}`,
+    contents: {
+      type: 'bubble',
+      size: 'kilo',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: '#73c088',
+        paddingAll: '16px',
+        contents: [
+          { type: 'text', text: payload.shopName, color: '#ffffffcc', size: 'xs' },
+          { type: 'text', text: 'จองคิวสำเร็จ', color: '#ffffff', weight: 'bold', size: 'xl', margin: 'sm' },
+        ],
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'sm',
+        contents: [
+          { type: 'text', text: `เลขคิว ${payload.queueNumber}`, weight: 'bold', size: 'lg', color: '#111827' },
+          {
+            type: 'box',
+            layout: 'vertical',
+            margin: 'md',
+            spacing: 'sm',
+            contents: [
+              { type: 'text', text: `สาขา: ${payload.branch}`, size: 'sm', color: '#374151', wrap: true },
+              { type: 'text', text: `บริการ: ${payload.service}`, size: 'sm', color: '#374151', wrap: true },
+              { type: 'text', text: `วันที่: ${payload.date}`, size: 'sm', color: '#374151' },
+              { type: 'text', text: `เวลา: ${payload.time}`, size: 'sm', color: '#374151' },
+            ],
+          },
+          {
+            type: 'box',
+            layout: 'vertical',
+            margin: 'lg',
+            backgroundColor: '#f3f4f6',
+            cornerRadius: '10px',
+            paddingAll: '10px',
+            contents: [
+              { type: 'text', text: 'กรุณามาก่อนเวลาประมาณ 10 นาที', size: 'xs', color: '#4b5563', wrap: true },
+            ],
+          },
+        ],
+      },
+    },
+  };
+}
+
 export function liffEntryMessage(url: string) {
   return {
     type: 'text',
