@@ -156,13 +156,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
             time: timeLabel,
             liffUrl,
           }),
-          bookingConfirmMessage({
+        /*   bookingConfirmMessage({
             queueNumber,
             branch: branchName,
             service: serviceName,
             date: dateLabel,
             time: timeLabel,
-          }),
+          }), */
         ]);
         linePushSent = true;
       } catch (e) {

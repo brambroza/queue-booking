@@ -35,6 +35,8 @@ export const bookingSchema = z.object({
   service_id: z.string().uuid(),
   customer_name: z.string().min(2),
   customer_phone: z.string().min(8),
+  line_user_pk: z.string().uuid().optional(),
+  line_user_external_id: z.string().optional(),
   booking_date: z.string(),
   start_time: z.string(),
   note: z.string().optional().default(''),

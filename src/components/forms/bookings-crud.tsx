@@ -3,23 +3,29 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 
+type LineUser = { id: string; line_user_id: string; display_name: string | null; picture_url?: string | null };
+
 export function BookingsCrud() {
   const { push } = useToast();
   const [bookings, setBookings] = useState<Record<string, unknown>[]>([]);
   const [branches, setBranches] = useState<Record<string, unknown>[]>([]);
   const [services, setServices] = useState<Record<string, unknown>[]>([]);
+  const [lineUsers, setLineUsers] = useState<LineUser[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedLineUser, setSelectedLineUser] = useState('');
 
   async function load() {
-    const [bRes, brRes, sRes] = await Promise.all([
+    const [bRes, brRes, sRes, uRes] = await Promise.all([
       fetch('/api/bookings', { cache: 'no-store' }),
       fetch('/api/branches', { cache: 'no-store' }),
       fetch('/api/services', { cache: 'no-store' }),
+      fetch('/api/chat-inbox?page_size=100', { cache: 'no-store' }),
     ]);
-    const [b, br, s] = await Promise.all([bRes.json(), brRes.json(), sRes.json()]);
+    const [b, br, s, u] = await Promise.all([bRes.json(), brRes.json(), sRes.json(), uRes.json()]);
     setBookings(b.data ?? []);
     setBranches(br.data ?? []);
     setServices(s.data ?? []);
+    setLineUsers(u.data?.users ?? []);
   }
 
   useEffect(() => { void load(); }, []);
@@ -27,19 +33,32 @@ export function BookingsCrud() {
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
-    const payload = Object.fromEntries(new FormData(form).entries());
+    const payload = Object.fromEntries(new FormData(form).entries()) as Record<string, FormDataEntryValue>;
+    const selected = lineUsers.find((x) => x.id === selectedLineUser);
+    if (selected) {
+      payload.line_user_pk = selected.id;
+      payload.line_user_external_id = selected.line_user_id;
+      if (!String(payload.customer_name ?? '').trim() && selected.display_name) payload.customer_name = selected.display_name;
+    }
     const res = await fetch('/api/bookings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+    const j = await res.json();
     if (!res.ok) {
-      const j = await res.json();
       push(j.error ?? 'เพิ่มคิวไม่สำเร็จ', 'error');
       return;
     }
-    push('เพิ่มคิวสำเร็จ');
+    if (j.data?.line_push_sent) {
+      push('เพิ่มคิวสำเร็จ และส่งข้อความ LINE แล้ว');
+    } else if (selected) {
+      push(`เพิ่มคิวสำเร็จ แต่ส่ง LINE ไม่สำเร็จ: ${j.data?.line_push_error ?? '-'}`, 'error');
+    } else {
+      push('เพิ่มคิวสำเร็จ');
+    }
     form.reset();
+    setSelectedLineUser('');
     setDrawerOpen(false);
     void load();
   }
@@ -92,6 +111,15 @@ export function BookingsCrud() {
             </div>
 
             <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2">
+              <label className="sm:col-span-2 text-sm space-y-1">
+                <span className="text-slate-600">LINE User (สำหรับส่งยืนยันอัตโนมัติ)</span>
+                <select className="input" value={selectedLineUser} onChange={(e) => setSelectedLineUser(e.target.value)}>
+                  <option value="">ไม่เลือก</option>
+                  {lineUsers.map((u) => (
+                    <option key={u.id} value={u.id}>{u.display_name || 'LINE User'} ({u.line_user_id})</option>
+                  ))}
+                </select>
+              </label>
               <select className="input" name="branch_id" required>
                 <option value="">เลือกสาขา</option>
                 {branches.map((b) => <option key={String(b.id)} value={String(b.id)}>{String(b.branch_name)}</option>)}

@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { bookingSchema } from '@/lib/booking/schemas';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { pushMessage } from '@/lib/line/client';
+import { bookingConfirmFlex, bookingConfirmMessage } from '@/lib/line/messages';
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
@@ -60,24 +63,47 @@ export async function POST(req: Request) {
 
     if (countError) throw countError;
     const queueNumber = `A${String((count ?? 0) + 1).padStart(3, '0')}`;
+    const lineUserPk = payload.line_user_pk ?? null;
 
-    const { data: customer, error: customerError } = await supabase
-      .from('customers')
-      .upsert(
-        {
-          company_id: profile.company_id,
-          shop_id: profile.shop_id,
-          full_name: payload.customer_name,
-          phone: payload.customer_phone,
-          created_by: user.id,
-          updated_by: user.id,
-        },
-        { onConflict: 'shop_id,phone' },
-      )
-      .select('id')
-      .single();
+    let customerId: string | null = null;
+    if (lineUserPk) {
+      const { data: existingByLine } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('shop_id', profile.shop_id)
+        .eq('line_user_id', lineUserPk)
+        .eq('is_deleted', false)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+      customerId = existingByLine?.[0]?.id ?? null;
+    }
 
-    if (customerError || !customer) throw customerError ?? new Error('Customer upsert failed');
+    if (!customerId) {
+      const { data: customer, error: customerError } = await supabase
+        .from('customers')
+        .upsert(
+          {
+            company_id: profile.company_id,
+            shop_id: profile.shop_id,
+            line_user_id: lineUserPk,
+            full_name: payload.customer_name,
+            phone: payload.customer_phone,
+            created_by: user.id,
+            updated_by: user.id,
+          },
+          { onConflict: 'shop_id,phone' },
+        )
+        .select('id')
+        .single();
+      if (customerError || !customer) throw customerError ?? new Error('Customer upsert failed');
+      customerId = customer.id;
+    } else {
+      await supabase
+        .from('customers')
+        .update({ full_name: payload.customer_name, phone: payload.customer_phone, updated_by: user.id })
+        .eq('id', customerId)
+        .eq('shop_id', profile.shop_id);
+    }
 
     const { data: inserted, error } = await supabase
       .from('bookings')
@@ -86,7 +112,8 @@ export async function POST(req: Request) {
         shop_id: profile.shop_id,
         branch_id: payload.branch_id,
         service_id: payload.service_id,
-        customer_id: customer.id,
+        customer_id: customerId,
+        line_user_id: lineUserPk,
         booking_date: payload.booking_date,
         start_time: payload.start_time,
         queue_number: queueNumber,
@@ -110,7 +137,51 @@ export async function POST(req: Request) {
       updated_by: user.id,
     });
 
-    return NextResponse.json({ data: true });
+    let linePushSent = false;
+    let linePushError: string | null = null;
+    if (payload.line_user_external_id) {
+      const admin = createAdminClient();
+      const [{ data: shop }, { data: branch }, { data: service }] = await Promise.all([
+        admin.from('shops').select('name,shop_key,line_channel_access_token').eq('id', profile.shop_id).maybeSingle(),
+        admin.from('branches').select('branch_name').eq('id', payload.branch_id).maybeSingle(),
+        admin.from('services').select('service_name').eq('id', payload.service_id).maybeSingle(),
+      ]);
+
+      const token = shop?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+      if (token) {
+        const dateLabel = new Date(`${payload.booking_date}T00:00:00+07:00`).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+        const timeLabel = payload.start_time.slice(0, 5);
+        const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
+        const liffUrl = shop?.shop_key && appUrl ? `${appUrl}/liff/${encodeURIComponent(shop.shop_key)}` : undefined;
+        try {
+          await pushMessage(token, payload.line_user_external_id, [
+            bookingConfirmFlex({
+              shopName: shop?.name ?? 'Queue Booking',
+              queueNumber,
+              branch: branch?.branch_name ?? '-',
+              service: service?.service_name ?? '-',
+              date: dateLabel,
+              time: timeLabel,
+              liffUrl,
+            }),
+           /*  bookingConfirmMessage({
+              queueNumber,
+              branch: branch?.branch_name ?? '-',
+              service: service?.service_name ?? '-',
+              date: dateLabel,
+              time: timeLabel,
+            }), */
+          ]);
+          linePushSent = true;
+        } catch (e) {
+          linePushError = e instanceof Error ? e.message : 'LINE push failed';
+        }
+      } else {
+        linePushError = 'LINE token not configured';
+      }
+    }
+
+    return NextResponse.json({ data: { ok: true, queue_number: queueNumber, line_push_sent: linePushSent, line_push_error: linePushError } });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });
   }
