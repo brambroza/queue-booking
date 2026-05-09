@@ -58,12 +58,13 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [lineUserId, setLineUserId] = useState('');
-  const [memberReady, setMemberReady] = useState(false);
   const [queueNo, setQueueNo] = useState('');
   const [loading, setLoading] = useState(false);
+  const [memberReady, setMemberReady] = useState(false);
+  const [step, setStep] = useState<1 | 2>(1);
 
   const canLoadSlots = branchId && serviceId && date;
-  const canBook = memberReady && branchId && serviceId && date && selectedTime && customerName && customerPhone;
+  const canBook = memberReady && branchId && serviceId && date && selectedTime && customerName.trim().length >= 2 && customerPhone.trim().length >= 8;
 
   useEffect(() => {
     void (async () => {
@@ -123,7 +124,7 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
 
         if (memberJson.data?.customer?.full_name) setCustomerName(memberJson.data.customer.full_name);
         if (memberJson.data?.customer?.phone) setCustomerPhone(memberJson.data.customer.phone);
-        if (memberJson.data?.was_registered) push('สมัครสมาชิกกับร้านสำเร็จแล้ว กรุณากรอกเบอร์โทรเพื่อจองคิว', 'success');
+        if (memberJson.data?.was_registered) push('สมัครสมาชิกกับร้านสำเร็จแล้ว กรุณายืนยันข้อมูลก่อนจองคิว', 'success');
         setMemberReady(true);
       } catch (e) {
         push(e instanceof Error ? e.message : 'LIFF init failed', 'error');
@@ -185,30 +186,55 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
 
   return (
     <main className="min-h-screen p-4">
-      <section className="card mx-auto max-w-md p-4 space-y-3">
-        <h1 className="text-xl font-bold">จองคิวผ่าน LINE</h1>
-        <select className="input" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-          {branches.map((b) => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
-        </select>
-        <select className="input" value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
-          {services.map((s) => <option key={s.id} value={s.id}>{s.service_name} ({s.duration_minutes} นาที)</option>)}
-        </select>
-        <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <button className="btn-primary w-full" onClick={() => void loadSlots()} disabled={!canLoadSlots || loading}>{loading ? 'กำลังโหลด...' : 'ดูเวลาว่าง'}</button>
-
-        <div className="grid grid-cols-2 gap-2">
-          {slots.map((s) => {
-            const t = s.slot_time.slice(0, 5);
-            const active = selectedTime === t;
-            return <button key={s.slot_time} className={active ? 'btn-primary' : 'btn-outline'} onClick={() => setSelectedTime(t)}>{t}</button>;
-          })}
+      <section className="card mx-auto max-w-md p-4 space-y-4">
+        <div className="space-y-1">
+          <h1 className="text-xl font-bold">จองคิวผ่าน LINE</h1>
+          <p className="text-xs text-slate-500">{shop?.name ?? 'ร้านค้า'} • Step {step}/2</p>
         </div>
 
-        <input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="ชื่อผู้จอง" />
-        <input className="input" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="เบอร์โทร" />
+        <div className="grid grid-cols-2 gap-2">
+          <button className={step === 1 ? 'btn-primary' : 'btn-outline'} disabled>1) ข้อมูลสมาชิก</button>
+          <button className={step === 2 ? 'btn-primary' : 'btn-outline'} disabled>2) เลือกคิว</button>
+        </div>
 
-        {!memberReady ? <p className="text-xs text-slate-500">กำลังตรวจสอบสมาชิกของร้าน...</p> : null}
-        <button className="btn-primary w-full" onClick={() => void bookNow()} disabled={!canBook || loading}>{loading ? 'กำลังบันทึก...' : 'ยืนยันจองคิว'}</button>
+        {step === 1 ? (
+          <div className="space-y-3">
+            {!memberReady ? <p className="text-xs text-slate-500">กำลังตรวจสอบสมาชิกของร้าน...</p> : null}
+            <input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="ชื่อผู้จอง" />
+            <input className="input" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="เบอร์โทร" />
+            <button
+              className="btn-primary w-full"
+              disabled={!memberReady || customerName.trim().length < 2 || customerPhone.trim().length < 8}
+              onClick={() => setStep(2)}
+            >
+              ถัดไป: เลือกคิว
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <select className="input" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+              {branches.map((b) => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
+            </select>
+            <select className="input" value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
+              {services.map((s) => <option key={s.id} value={s.id}>{s.service_name} ({s.duration_minutes} นาที)</option>)}
+            </select>
+            <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <button className="btn-primary w-full" onClick={() => void loadSlots()} disabled={!canLoadSlots || loading}>{loading ? 'กำลังโหลด...' : 'ดูเวลาว่าง'}</button>
+
+            <div className="grid grid-cols-2 gap-2">
+              {slots.map((s) => {
+                const t = s.slot_time.slice(0, 5);
+                const active = selectedTime === t;
+                return <button key={s.slot_time} className={active ? 'btn-primary' : 'btn-outline'} onClick={() => setSelectedTime(t)}>{t}</button>;
+              })}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button className="btn-outline" onClick={() => setStep(1)}>ย้อนกลับ</button>
+              <button className="btn-primary" onClick={() => void bookNow()} disabled={!canBook || loading}>{loading ? 'กำลังบันทึก...' : 'ยืนยันจองคิว'}</button>
+            </div>
+          </div>
+        )}
       </section>
     </main>
   );
