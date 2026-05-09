@@ -61,7 +61,7 @@ export default async function PortalLayout({ children }: { children: React.React
       <aside className="hidden border-r border-slate-200 bg-white/90 p-4 backdrop-blur md:block">
         <div className="mb-4">
           <p className="text-xs text-slate-500">Portal</p>
-          <h2 className="font-semibold">LINE Queue Booking</h2>
+          <h2 className="font-semibold">Queue Booking</h2>
         </div>
         <PortalNav />
       </aside>

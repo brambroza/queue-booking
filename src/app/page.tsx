@@ -14,7 +14,7 @@ export default function HomePage() {
           <div className="grid gap-8 p-6 sm:p-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
             <div>
               <p className="inline-flex rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-600">
-                LINE Queue Booking SaaS
+               Queue Booking
               </p>
               <h1 className="mt-4 text-3xl font-semibold leading-tight sm:text-5xl">
                 ระบบจองคิวที่

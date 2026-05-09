@@ -6,7 +6,7 @@ import { Manrope } from 'next/font/google';
 const manrope = Manrope({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
-  title: 'LINE Queue Booking SaaS',
+  title: 'Queue Booking',
   description: 'Queue booking platform for LINE OA',
 };
 

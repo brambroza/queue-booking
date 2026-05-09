@@ -12,7 +12,7 @@ type LiffApi = {
   init: (x: { liffId: string }) => Promise<void>;
   isLoggedIn: () => boolean;
   login: () => void;
-  getProfile: () => Promise<{ userId: string; displayName: string }>;
+  getProfile: () => Promise<{ userId: string; displayName: string; pictureUrl?: string }>;
 };
 
 function normalizeLiffId(input?: string | null): string {
@@ -58,11 +58,12 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [lineUserId, setLineUserId] = useState('');
+  const [memberReady, setMemberReady] = useState(false);
   const [queueNo, setQueueNo] = useState('');
   const [loading, setLoading] = useState(false);
 
   const canLoadSlots = branchId && serviceId && date;
-  const canBook = branchId && serviceId && date && selectedTime && customerName && customerPhone;
+  const canBook = memberReady && branchId && serviceId && date && selectedTime && customerName && customerPhone;
 
   useEffect(() => {
     void (async () => {
@@ -103,11 +104,32 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
         const profile = await liff.getProfile();
         setLineUserId(profile.userId);
         if (!customerName) setCustomerName(profile.displayName);
+
+        const memberRes = await fetch(`/api/public/shop/${shopKey}/member-context`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            line_user_id: profile.userId,
+            display_name: profile.displayName,
+            picture_url: profile.pictureUrl,
+          }),
+        });
+
+        const memberJson = await memberRes.json();
+        if (!memberRes.ok) {
+          push(memberJson.error ?? 'ตรวจสอบสมาชิกไม่สำเร็จ', 'error');
+          return;
+        }
+
+        if (memberJson.data?.customer?.full_name) setCustomerName(memberJson.data.customer.full_name);
+        if (memberJson.data?.customer?.phone) setCustomerPhone(memberJson.data.customer.phone);
+        if (memberJson.data?.was_registered) push('สมัครสมาชิกกับร้านสำเร็จแล้ว กรุณากรอกเบอร์โทรเพื่อจองคิว', 'success');
+        setMemberReady(true);
       } catch (e) {
         push(e instanceof Error ? e.message : 'LIFF init failed', 'error');
       }
     })();
-  }, [shop, customerName, push]);
+  }, [shop, customerName, push, shopKey]);
 
   async function loadSlots() {
     if (!canLoadSlots) return;
@@ -185,6 +207,7 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
         <input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="ชื่อผู้จอง" />
         <input className="input" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="เบอร์โทร" />
 
+        {!memberReady ? <p className="text-xs text-slate-500">กำลังตรวจสอบสมาชิกของร้าน...</p> : null}
         <button className="btn-primary w-full" onClick={() => void bookNow()} disabled={!canBook || loading}>{loading ? 'กำลังบันทึก...' : 'ยืนยันจองคิว'}</button>
       </section>
     </main>
