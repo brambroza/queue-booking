@@ -1,5 +1,10 @@
 import { PageShell } from '@/components/ui/page-shell';
+import { CustomersCrud } from '@/components/forms/customers-crud';
 
-export default function Page() {
-  return <PageShell title="customers" description="Phase 1: Placeholder page" ><div className="card p-4 text-sm text-slate-600">จะพัฒนาเต็มใน Phase ถัดไป</div></PageShell>;
+export default function CustomersPage() {
+  return (
+    <PageShell title="Customers" description="จัดการข้อมูลลูกค้าแบบมืออาชีพ">
+      <CustomersCrud />
+    </PageShell>
+  );
 }

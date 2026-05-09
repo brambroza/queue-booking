@@ -3,14 +3,15 @@
 @tailwind utilities;
 
 :root {
-  --bg: #f4f6f8;
+  --bg: #f6f7f9;
   --surface: #ffffff;
-  --surface-soft: #f8fafb;
-  --text: #111827;
-  --muted: #6b7280;
-  --line: #e5e7eb;
+  --surface-soft: #f9fbfa;
+  --text: #1f2937;
+  --muted: #758294;
+  --line: #e7ebf0;
   --brand: #73c088;
   --brand-soft: #5ea875;
+  --brand-tint: #eaf6ee;
 }
 
 * {
@@ -24,15 +25,12 @@ body {
 
 body {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
-  background:
-    radial-gradient(1200px 500px at 100% -100px, #e5e7eb55, transparent 60%),
-    radial-gradient(900px 400px at -100px 40%, #cbd5e130, transparent 60%),
-    var(--bg);
+  background: var(--bg);
   color: var(--text);
 }
 
 .card {
-  @apply rounded-2xl border bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.08)];
+  @apply rounded-2xl border bg-white shadow-[0_1px_2px_rgba(16,24,40,0.03),0_1px_3px_rgba(16,24,40,0.05)];
 }
 
 .input {
@@ -54,4 +52,26 @@ body {
 
 .btn-outline {
   @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+}
+
+.portal-shell {
+  @apply min-h-screen;
+  background: #f6f7f9;
+}
+
+.portal-sidebar {
+  @apply border-r p-4;
+  background: #fff;
+  border-color: var(--line);
+}
+
+.portal-header {
+  @apply sticky top-0 z-20 border-b backdrop-blur;
+  background: #ffffffde;
+  border-color: var(--line);
+}
+
+.portal-panel {
+  @apply rounded-2xl border bg-white;
+  border-color: var(--line);
 }

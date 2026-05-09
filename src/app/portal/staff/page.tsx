@@ -1,5 +1,10 @@
 import { PageShell } from '@/components/ui/page-shell';
+import { StaffCrud } from '@/components/forms/staff-crud';
 
-export default function Page() {
-  return <PageShell title="staff" description="Phase 1: Placeholder page" ><div className="card p-4 text-sm text-slate-600">จะพัฒนาเต็มใน Phase ถัดไป</div></PageShell>;
+export default function StaffPage() {
+  return (
+    <PageShell title="Staff" description="จัดการพนักงานและสาขาที่รับผิดชอบ">
+      <StaffCrud />
+    </PageShell>
+  );
 }

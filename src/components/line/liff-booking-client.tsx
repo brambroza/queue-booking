@@ -61,6 +61,8 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
   const [queueNo, setQueueNo] = useState('');
   const [loading, setLoading] = useState(false);
   const [memberReady, setMemberReady] = useState(false);
+  const [memberStatus, setMemberStatus] = useState<'idle' | 'checking' | 'ready' | 'error'>('idle');
+  const [memberError, setMemberError] = useState('');
   const [step, setStep] = useState<1 | 2>(1);
 
   const canLoadSlots = branchId && serviceId && date;
@@ -83,21 +85,32 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
     if (!shop) return;
 
     void (async () => {
+      setMemberStatus('checking');
+      setMemberError('');
       try {
         const liffId = normalizeLiffId(shop.liff_id ?? process.env.NEXT_PUBLIC_LIFF_ID);
         if (!liffId) {
           push('ยังไม่ได้ตั้งค่า LIFF ID ของร้าน', 'error');
+          setMemberStatus('error');
+          setMemberError('ยังไม่ได้ตั้งค่า LIFF ID ของร้าน');
           return;
         }
 
         const liff = await ensureLiffLoaded();
         if (!liff) {
           push('โหลด LIFF SDK ไม่สำเร็จ', 'error');
+          setMemberStatus('error');
+          setMemberError('โหลด LIFF SDK ไม่สำเร็จ');
           return;
         }
 
-        await liff.init({ liffId });
+        await Promise.race([
+          liff.init({ liffId }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('LIFF init timeout')), 12000)),
+        ]);
         if (!liff.isLoggedIn()) {
+          setMemberStatus('error');
+          setMemberError('ไม่ได้เปิดผ่าน LINE App หรือยังไม่ได้ login LIFF');
           liff.login();
           return;
         }
@@ -119,6 +132,8 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
         const memberJson = await memberRes.json();
         if (!memberRes.ok) {
           push(memberJson.error ?? 'ตรวจสอบสมาชิกไม่สำเร็จ', 'error');
+          setMemberStatus('error');
+          setMemberError(memberJson.error ?? 'ตรวจสอบสมาชิกไม่สำเร็จ');
           return;
         }
 
@@ -126,11 +141,23 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
         if (memberJson.data?.customer?.phone) setCustomerPhone(memberJson.data.customer.phone);
         if (memberJson.data?.was_registered) push('สมัครสมาชิกกับร้านสำเร็จแล้ว กรุณายืนยันข้อมูลก่อนจองคิว', 'success');
         setMemberReady(true);
+        setMemberStatus('ready');
       } catch (e) {
-        push(e instanceof Error ? e.message : 'LIFF init failed', 'error');
+        const msg = e instanceof Error ? e.message : 'LIFF init failed';
+        push(msg, 'error');
+        setMemberStatus('error');
+        setMemberError(msg);
       }
     })();
   }, [shop, customerName, push, shopKey]);
+
+  function retryMemberCheck() {
+    setMemberReady(false);
+    setMemberStatus('idle');
+    setMemberError('');
+    // trigger by cloning object reference
+    setShop((prev) => (prev ? { ...prev } : prev));
+  }
 
   async function loadSlots() {
     if (!canLoadSlots) return;
@@ -199,12 +226,18 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
 
         {step === 1 ? (
           <div className="space-y-3">
-            {!memberReady ? <p className="text-xs text-slate-500">กำลังตรวจสอบสมาชิกของร้าน...</p> : null}
+            {memberStatus === 'checking' ? <p className="text-xs text-slate-500">กำลังตรวจสอบสมาชิกของร้าน...</p> : null}
+            {memberStatus === 'error' ? (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+                <p>{memberError || 'ตรวจสอบสมาชิกไม่สำเร็จ'}</p>
+                <button className="btn-outline mt-2" onClick={retryMemberCheck}>ลองใหม่</button>
+              </div>
+            ) : null}
             <input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="ชื่อผู้จอง" />
             <input className="input" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="เบอร์โทร" />
             <button
               className="btn-primary w-full"
-              disabled={!memberReady || customerName.trim().length < 2 || customerPhone.trim().length < 8}
+              disabled={memberStatus !== 'ready' || customerName.trim().length < 2 || customerPhone.trim().length < 8}
               onClick={() => setStep(2)}
             >
               ถัดไป: เลือกคิว

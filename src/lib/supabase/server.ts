@@ -10,7 +10,15 @@ export async function createClient() {
         return cookieStore.getAll();
       },
       setAll(cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }>) {
-        cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+        // In Server Components, Next.js blocks cookie mutation.
+        // Supabase may still call setAll during refresh flow, so we no-op safely.
+        cookiesToSet.forEach(({ name, value, options }) => {
+          try {
+            cookieStore.set(name, value, options);
+          } catch {
+            // Ignore outside Server Action / Route Handler.
+          }
+        });
       },
     },
   });
