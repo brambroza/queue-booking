@@ -6,10 +6,48 @@ import { useToast } from '@/components/ui/toast';
 type Branch = { id: string; branch_name: string };
 type Service = { id: string; service_name: string; duration_minutes: number };
 type Slot = { slot_time: string; remaining_capacity: number };
+type ShopMeta = { id: string; name: string; shop_key: string; liff_id?: string | null };
+
+type LiffApi = {
+  init: (x: { liffId: string }) => Promise<void>;
+  isLoggedIn: () => boolean;
+  login: () => void;
+  getProfile: () => Promise<{ userId: string; displayName: string }>;
+};
+
+function normalizeLiffId(input?: string | null): string {
+  if (!input) return '';
+  const raw = input.trim();
+  const m = raw.match(/liff\.line\.me\/(.+)$/);
+  return m?.[1] ?? raw;
+}
+
+async function ensureLiffLoaded(): Promise<LiffApi | null> {
+  const w = window as Window & { liff?: LiffApi };
+  if (w.liff) return w.liff;
+
+  const existed = document.querySelector('script[data-liff-sdk="1"]') as HTMLScriptElement | null;
+  if (!existed) {
+    const s = document.createElement('script');
+    s.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
+    s.async = true;
+    s.dataset.liffSdk = '1';
+    document.head.appendChild(s);
+    await new Promise<void>((resolve, reject) => {
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('Unable to load LIFF SDK'));
+    });
+  } else if (!(window as Window & { liff?: LiffApi }).liff) {
+    await new Promise((r) => setTimeout(r, 300));
+  }
+
+  return (window as Window & { liff?: LiffApi }).liff ?? null;
+}
 
 export function LiffBookingClient({ shopKey }: { shopKey: string }) {
   const { push } = useToast();
 
+  const [shop, setShop] = useState<ShopMeta | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [branchId, setBranchId] = useState('');
@@ -31,6 +69,7 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
       const res = await fetch(`/api/public/shop/${shopKey}/meta`);
       const json = await res.json();
       if (!res.ok) return push(json.error ?? 'โหลดข้อมูลร้านไม่สำเร็จ', 'error');
+      setShop(json.data.shop ?? null);
       setBranches(json.data.branches ?? []);
       setServices(json.data.services ?? []);
       if (json.data.branches?.[0]) setBranchId(json.data.branches[0].id);
@@ -39,20 +78,36 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
   }, [shopKey, push]);
 
   useEffect(() => {
-    const w = window as Window & { liff?: { init: (x: { liffId: string }) => Promise<void>; isLoggedIn: () => boolean; login: () => void; getProfile: () => Promise<{ userId: string; displayName: string }> } };
-    if (!w.liff || !process.env.NEXT_PUBLIC_LIFF_ID) return;
+    if (!shop) return;
 
     void (async () => {
-      await w.liff!.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
-      if (!w.liff!.isLoggedIn()) {
-        w.liff!.login();
-        return;
+      try {
+        const liffId = normalizeLiffId(shop.liff_id ?? process.env.NEXT_PUBLIC_LIFF_ID);
+        if (!liffId) {
+          push('ยังไม่ได้ตั้งค่า LIFF ID ของร้าน', 'error');
+          return;
+        }
+
+        const liff = await ensureLiffLoaded();
+        if (!liff) {
+          push('โหลด LIFF SDK ไม่สำเร็จ', 'error');
+          return;
+        }
+
+        await liff.init({ liffId });
+        if (!liff.isLoggedIn()) {
+          liff.login();
+          return;
+        }
+
+        const profile = await liff.getProfile();
+        setLineUserId(profile.userId);
+        if (!customerName) setCustomerName(profile.displayName);
+      } catch (e) {
+        push(e instanceof Error ? e.message : 'LIFF init failed', 'error');
       }
-      const profile = await w.liff!.getProfile();
-      setLineUserId(profile.userId);
-      if (!customerName) setCustomerName(profile.displayName);
     })();
-  }, [customerName]);
+  }, [shop, customerName, push]);
 
   async function loadSlots() {
     if (!canLoadSlots) return;

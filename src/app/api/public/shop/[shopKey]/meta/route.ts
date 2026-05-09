@@ -7,7 +7,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ shopKey: s
 
   const { data: shop } = await admin
     .from('shops')
-    .select('id,name,shop_key')
+    .select('id,name,shop_key,liff_id')
     .eq('shop_key', shopKey)
     .eq('is_deleted', false)
     .single();
