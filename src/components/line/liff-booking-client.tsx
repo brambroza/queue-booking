@@ -11,7 +11,10 @@ type ShopMeta = { id: string; name: string; shop_key: string; liff_id?: string |
 type LiffApi = {
   init: (x: { liffId: string }) => Promise<void>;
   isLoggedIn: () => boolean;
+  isInClient?: () => boolean;
   login: () => void;
+  closeWindow?: () => void;
+  sendMessages?: (messages: object[]) => Promise<void>;
   getProfile: () => Promise<{ userId: string; displayName: string; pictureUrl?: string }>;
 };
 
@@ -190,7 +193,27 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
     setLoading(false);
     if (!res.ok) return push(json.error ?? 'จองคิวไม่สำเร็จ', 'error');
     setQueueNo(json.data.queue_number);
+    if (!json.data?.line_push_sent) {
+      const d = json.data?.booking_date ? new Date(`${json.data.booking_date}T00:00:00+07:00`) : null;
+      const dateLabel = d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : (json.data?.booking_date ?? date);
+      const text = `จองคิวสำเร็จค่ะ\nเลขคิว: ${json.data?.queue_number ?? '-'}\nสาขา: ${json.data?.branch_name ?? selectedBranch?.branch_name ?? '-'}\nบริการ: ${json.data?.service_name ?? selectedService?.service_name ?? '-'}\nวันที่: ${dateLabel}\nเวลา: ${json.data?.booking_time ?? selectedTime}\n\nกรุณามาก่อนเวลาประมาณ 10 นาทีค่ะ`;
+      try {
+        const liff = await ensureLiffLoaded();
+        if (liff?.sendMessages) await liff.sendMessages([{ type: 'text', text }]);
+      } catch {
+        // fallback silently
+      }
+    }
+
     push('จองคิวสำเร็จ');
+    try {
+      const liff = await ensureLiffLoaded();
+      if (liff?.isInClient?.() && liff?.closeWindow) {
+        setTimeout(() => liff.closeWindow?.(), 600);
+      }
+    } catch {
+      // no-op
+    }
   }
 
   const selectedBranch = useMemo(() => branches.find((b) => b.id === branchId), [branches, branchId]);

@@ -125,6 +125,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     description: `Created booking ${queueNumber}`,
   });
 
+  let linePushSent = false;
+  let linePushError: string | null = null;
+
   // Non-blocking LINE confirmation message to customer.
   if (payload.line_user_id) {
     const { data: shopLine } = await admin
@@ -161,16 +164,31 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
             time: timeLabel,
           }),
         ]);
+        linePushSent = true;
       } catch (e) {
+        linePushError = e instanceof Error ? e.message : 'unknown error';
         await admin.from('activity_logs').insert({
           company_id: shop.company_id,
           shop_id: shop.id,
           action: 'line_push_booking_failed',
-          description: e instanceof Error ? e.message : 'unknown error',
+          description: linePushError,
         });
       }
+    } else {
+      linePushError = 'LINE channel access token is missing';
     }
   }
 
-  return NextResponse.json({ data: { booking_id: booking.id, queue_number: booking.queue_number } });
+  return NextResponse.json({
+    data: {
+      booking_id: booking.id,
+      queue_number: booking.queue_number,
+      booking_date: payload.booking_date,
+      booking_time: payload.start_time.slice(0, 5),
+      branch_name: branch.branch_name,
+      service_name: service.service_name,
+      line_push_sent: linePushSent,
+      line_push_error: linePushError,
+    },
+  });
 }

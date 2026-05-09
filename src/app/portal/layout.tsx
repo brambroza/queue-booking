@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { PortalNav } from '@/components/layout/portal-nav';
 import { NotificationsMenu } from '@/components/layout/notifications-menu';
+import { TopbarUserMenu } from '@/components/layout/topbar-user-menu';
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -52,12 +53,7 @@ export default async function PortalLayout({ children }: { children: React.React
 
   const logoUrl = shop?.logo_url ?? null;
 
-  async function signOut() {
-    'use server';
-    const supabase = await createClient();
-    await supabase.auth.signOut();
-    redirect('/login');
-  }
+  const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || 'v0.1.0';
 
   return (
     <div className="portal-shell md:grid md:grid-cols-[280px_1fr]">
@@ -93,10 +89,7 @@ export default async function PortalLayout({ children }: { children: React.React
             </div>
             <div className="flex items-center gap-2">
               <NotificationsMenu />
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">{profile?.full_name ?? user.email}</span>
-              <form action={signOut}>
-                <button className="btn-primary">Logout</button>
-              </form>
+              <TopbarUserMenu initialName={profile?.full_name} email={user.email} appVersion={appVersion} />
             </div>
           </div>
           <div className="overflow-x-auto border-t border-slate-200 px-2 py-2 md:hidden">
