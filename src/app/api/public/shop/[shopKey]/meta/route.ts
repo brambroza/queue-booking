@@ -1,0 +1,23 @@
+import { NextResponse } from 'next/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+
+export async function GET(_: Request, { params }: { params: Promise<{ shopKey: string }> }) {
+  const { shopKey } = await params;
+  const admin = createAdminClient();
+
+  const { data: shop } = await admin
+    .from('shops')
+    .select('id,name,shop_key')
+    .eq('shop_key', shopKey)
+    .eq('is_deleted', false)
+    .single();
+
+  if (!shop) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
+
+  const [{ data: branches }, { data: services }] = await Promise.all([
+    admin.from('branches').select('id,branch_name').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
+    admin.from('services').select('id,service_name,duration_minutes').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
+  ]);
+
+  return NextResponse.json({ data: { shop, branches: branches ?? [], services: services ?? [] } });
+}
