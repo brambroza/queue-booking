@@ -5,6 +5,12 @@ import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { pushMessage } from '@/lib/line/client';
 import { bookingConfirmFlex, bookingConfirmMessage } from '@/lib/line/messages';
 
+function formatThaiDate(isoDate: string) {
+  const d = new Date(`${isoDate}T00:00:00+07:00`);
+  if (Number.isNaN(d.getTime())) return isoDate;
+  return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 const bookSchema = z.object({
   branch_id: z.string().uuid(),
   service_id: z.string().uuid(),
@@ -129,10 +135,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
 
     const token = shopLine?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
     if (token) {
-      const dateLabel = payload.booking_date;
+      const dateLabel = formatThaiDate(payload.booking_date);
       const timeLabel = payload.start_time.slice(0, 5);
       const branchName = branch?.branch_name ?? '-';
       const serviceName = service?.service_name ?? '-';
+      const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
+      const liffUrl = appUrl ? `${appUrl}/liff/${encodeURIComponent(shop.shop_key)}` : undefined;
 
       try {
         await pushMessage(token, payload.line_user_id, [
@@ -143,6 +151,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
             service: serviceName,
             date: dateLabel,
             time: timeLabel,
+            liffUrl,
           }),
           bookingConfirmMessage({
             queueNumber,

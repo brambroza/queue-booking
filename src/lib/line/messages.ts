@@ -46,7 +46,32 @@ export function bookingConfirmFlex(payload: {
   service: string;
   date: string;
   time: string;
+  liffUrl?: string;
 }) {
+  const footerButtons: Array<Record<string, unknown>> = [
+    {
+      type: 'button',
+      style: 'secondary',
+      height: 'sm',
+      action: { type: 'message', label: 'ดูคิวของฉัน', text: 'เช็คคิวของฉัน' },
+    },
+    {
+      type: 'button',
+      style: 'secondary',
+      height: 'sm',
+      action: { type: 'message', label: 'ยกเลิกคิว', text: 'ยกเลิกคิว' },
+    },
+  ];
+  if (payload.liffUrl) {
+    footerButtons.push({
+      type: 'button',
+      style: 'primary',
+      color: '#73c088',
+      height: 'sm',
+      action: { type: 'uri', label: 'เปิด LIFF อีกครั้ง', uri: payload.liffUrl },
+    });
+  }
+
   return {
     type: 'flex',
     altText: `จองคิวสำเร็จ เลขคิว ${payload.queueNumber}`,
@@ -93,6 +118,12 @@ export function bookingConfirmFlex(payload: {
             ],
           },
         ],
+      },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'sm',
+        contents: footerButtons,
       },
     },
   };
