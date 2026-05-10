@@ -53,6 +53,13 @@ function buildLiffOpenUrl(liffId: string, shopKey: string, tab: 'booking' | 'acc
   return `https://liff.line.me/${encodeURIComponent(liffId)}?${params.toString()}`;
 }
 
+function getLiffCandidates(shopLiffId?: string | null) {
+  const fromShop = normalizeLiffId(shopLiffId);
+  const fromEnv = normalizeLiffId(process.env.NEXT_PUBLIC_LIFF_ID);
+  const all = [fromShop, fromEnv].filter((v) => isLikelyLiffId(v));
+  return Array.from(new Set(all));
+}
+
 async function ensureLiffLoaded(): Promise<LiffApi | null> {
   const w = window as Window & { liff?: LiffApi };
   if (w.liff) return w.liff;
@@ -103,6 +110,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const [accountLoading, setAccountLoading] = useState(false);
   const [liffOpenUrl, setLiffOpenUrl] = useState('');
   const [resolvedLiffId, setResolvedLiffId] = useState('');
+  const [shopMetaError, setShopMetaError] = useState('');
 
   const canLoadSlots = branchId && serviceId && date;
   const canBook = memberReady && branchId && serviceId && date && selectedTime && customerName.trim().length >= 2 && customerPhone.trim().length >= 8;
@@ -133,14 +141,25 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
 
   useEffect(() => {
     void (async () => {
-      const res = await fetch(`/api/public/shop/${shopKey}/meta`);
-      const json = await res.json();
-      if (!res.ok) return push(json.error ?? 'โหลดข้อมูลร้านไม่สำเร็จ', 'error');
-      setShop(json.data.shop ?? null);
-      setBranches(json.data.branches ?? []);
-      setServices(json.data.services ?? []);
-      if (json.data.branches?.[0]) setBranchId(json.data.branches[0].id);
-      if (json.data.services?.[0]) setServiceId(json.data.services[0].id);
+      setShopMetaError('');
+      try {
+        const res = await fetch(`/api/public/shop/${encodeURIComponent(shopKey)}/meta`, { cache: 'no-store' });
+        const json = await res.json();
+        if (!res.ok) {
+          const msg = json.error ?? 'โหลดข้อมูลร้านไม่สำเร็จ';
+          setShopMetaError(msg);
+          return push(msg, 'error');
+        }
+        setShop(json.data.shop ?? null);
+        setBranches(json.data.branches ?? []);
+        setServices(json.data.services ?? []);
+        if (json.data.branches?.[0]) setBranchId(json.data.branches[0].id);
+        if (json.data.services?.[0]) setServiceId(json.data.services[0].id);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Network error';
+        setShopMetaError(msg);
+        push(`โหลดข้อมูลร้านไม่สำเร็จ: ${msg}`, 'error');
+      }
     })();
   }, [shopKey, push]);
 
@@ -151,9 +170,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       setMemberStatus('checking');
       setMemberError('');
       try {
-        const liffId = resolveLiffId(shop.liff_id);
-        setResolvedLiffId(liffId);
-        if (!liffId) {
+        const liffCandidates = getLiffCandidates(shop.liff_id);
+        setResolvedLiffId(liffCandidates[0] ?? '');
+        if (!liffCandidates.length) {
           push('LIFF ID ไม่ถูกต้องหรือยังไม่ได้ตั้งค่าในร้าน/ENV', 'error');
           setMemberStatus('error');
           setMemberError('LIFF ID ไม่ถูกต้องหรือยังไม่ได้ตั้งค่าในร้าน/ENV');
@@ -168,12 +187,26 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
           return;
         }
 
-        await Promise.race([
-          liff.init({ liffId }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('LIFF init timeout')), 12000)),
-        ]);
+        let activeLiffId = '';
+        let lastInitError: Error | null = null;
+        for (const candidate of liffCandidates) {
+          try {
+            await Promise.race([
+              liff.init({ liffId: candidate }),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('LIFF init timeout')), 12000)),
+            ]);
+            activeLiffId = candidate;
+            setResolvedLiffId(candidate);
+            lastInitError = null;
+            break;
+          } catch (e) {
+            lastInitError = e instanceof Error ? e : new Error('LIFF init failed');
+          }
+        }
+        if (!activeLiffId) throw (lastInitError ?? new Error('invalid liff id'));
+
         if (!liff.isLoggedIn()) {
-          const openUrl = buildLiffOpenUrl(liffId, shopKey, initialTab);
+          const openUrl = buildLiffOpenUrl(activeLiffId, shopKey, initialTab);
           setLiffOpenUrl(openUrl);
           setMemberStatus('error');
           setMemberError('กรุณาเปิดหน้านี้ผ่าน LINE LIFF');
@@ -329,6 +362,11 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
           <h1 className="text-xl font-bold">จองคิวผ่าน LINE</h1>
           <p className="text-xs text-slate-500">{shop?.name ?? 'ร้านค้า'}</p>
         </div>
+        {shopMetaError ? (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+            โหลดข้อมูลร้านไม่สำเร็จ: {shopMetaError}
+          </div>
+        ) : null}
 
         {initialTab === 'booking' ? (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
