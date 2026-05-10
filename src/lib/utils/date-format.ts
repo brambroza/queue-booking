@@ -39,6 +39,21 @@ export function formatDateDMY(input?: string | null): string {
   return `${day}/${month}/${year}`;
 }
 
+export function formatDateDD(input?: string | null): string {
+  if (!input) return '-';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(input)) {
+    const [year, month, day] = input.split('-');
+    return `${day}/${month}/${year}`;
+  }
+
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return input;
+  const { day, month, year } = getPartsInBangkok(d);
+  return `${day}`;
+}
+
+
+
 export function formatDateTimeDMY(input?: string | null): string {
   if (!input) return '-';
   const d = new Date(input);

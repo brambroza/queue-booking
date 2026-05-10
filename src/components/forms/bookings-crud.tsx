@@ -91,15 +91,24 @@ export function BookingsCrud() {
       <div className="card p-4 overflow-x-auto">
         {bookings.length === 0 ? <p className="text-sm text-slate-500">ยังไม่มีคิว</p> : (
           <table className="min-w-full text-sm">
-            <thead><tr><th>Queue</th><th>วันที่</th><th>เวลา</th><th>ลูกค้า</th><th>สถานะ</th><th>Action</th></tr></thead>
+            <thead>
+              <tr>
+                <th className="px-2 py-2 text-left">Queue</th>
+                <th className="px-2 py-2 text-left">วันที่</th>
+                <th className="px-2 py-2 text-left">เวลา</th>
+                <th className="px-2 py-2 text-left">ลูกค้า</th>
+                <th className="px-2 py-2 text-left">สถานะ</th>
+                <th className="px-2 py-2 text-left">Action</th>
+              </tr>
+            </thead>
             <tbody>{pagedRows.map((b) => (
               <tr key={String(b.id)} className="border-t border-slate-100">
-                <td>{String(b.queue_number)}</td>
-                <td>{formatDateDMY(String(b.booking_date ?? ''))}</td>
-                <td>{String(b.start_time)}</td>
-                <td>{String((b.customers as { full_name?: string } | null)?.full_name ?? '-')}</td>
-                <td>{String(b.status)}</td>
-                <td>
+                <td className="px-2 py-2">{String(b.queue_number)}</td>
+                <td className="px-2 py-2">{formatDateDMY(String(b.booking_date ?? ''))}</td>
+                <td className="px-2 py-2">{String(b.start_time)}</td>
+                <td className="px-2 py-2">{String((b.customers as { full_name?: string } | null)?.full_name ?? '-')}</td>
+                <td className="px-2 py-2">{String(b.status)}</td>
+                <td className="px-2 py-2">
                   <ActionIconGroup
                     actions={[
                       {

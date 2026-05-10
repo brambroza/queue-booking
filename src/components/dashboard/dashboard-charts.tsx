@@ -47,6 +47,12 @@ export function DashboardCharts() {
   }, [push, t]);
 
   const max = useMemo(() => Math.max(...(data?.by_day.map((x) => x.count) ?? [1]), 1), [data]);
+  const dayLabelStep = useMemo(() => {
+    const n = data?.by_day.length ?? 0;
+    if (n > 18) return 3;
+    if (n > 10) return 2;
+    return 1;
+  }, [data]);
 
   const statusTotal = useMemo(
     () => (data?.by_status ?? []).reduce((sum, x) => sum + x.count, 0),
@@ -95,13 +101,20 @@ export function DashboardCharts() {
             <Typography fontWeight={700} mb={1}>{t('today_booking_overview', 'Today Booking Overview')}</Typography>
             <Box sx={{ mt: 1, borderRadius: 2, p: 1.5, bgcolor: '#f8fafc' }}>
               <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(data.by_day.length, 1)}, minmax(0, 1fr))`, gap: 1.2, alignItems: 'end', height: 220 }}>
-                {data.by_day.map((d) => {
+                {data.by_day.map((d, idx) => {
                   const h = Math.max(8, Math.round((d.count / max) * 170));
+                  const dd = d.date.slice(8, 10);
                   return (
                     <Stack key={d.date} spacing={0.5} alignItems="center" justifyContent="flex-end">
                       <Typography variant="caption" sx={{ fontSize: 10, color: 'text.secondary' }}>{d.count}</Typography>
                       <Box sx={{ width: '100%', maxWidth: 24, height: h, borderRadius: 2, bgcolor: '#73c088' }} />
-                      <Typography variant="caption" sx={{ fontSize: 10, color: 'text.secondary' }}>{formatDateDMY(d.date)}</Typography>
+                      <Typography
+                        variant="caption"
+                        title={formatDateDMY(d.date)}
+                        sx={{ fontSize: 10, color: 'text.secondary', minHeight: 14 }}
+                      >
+                        {(idx % dayLabelStep === 0) ? dd : ''}
+                      </Typography>
                     </Stack>
                   );
                 })}
