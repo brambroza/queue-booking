@@ -53,10 +53,18 @@ function buildLiffOpenUrl(liffId: string, shopKey: string, tab: 'booking' | 'acc
   return `https://liff.line.me/${encodeURIComponent(liffId)}?${params.toString()}`;
 }
 
-function getLiffCandidates(shopLiffId?: string | null) {
+function getLiffCandidates(shopLiffId?: string | null, initialTab: 'booking' | 'account' = 'booking') {
   const fromShop = normalizeLiffId(shopLiffId);
   const fromEnv = normalizeLiffId(process.env.NEXT_PUBLIC_LIFF_ID);
-  const all = [fromShop, fromEnv].filter((v) => isLikelyLiffId(v));
+  const fromMemberEnv = normalizeLiffId(process.env.NEXT_PUBLIC_LIFF_MEMBER_ID);
+  const fromBookingEnv = normalizeLiffId(process.env.NEXT_PUBLIC_LIFF_BOOKING_ID);
+
+  const ordered =
+    initialTab === 'account'
+      ? [fromMemberEnv, fromShop, fromEnv, fromBookingEnv]
+      : [fromBookingEnv, fromShop, fromEnv, fromMemberEnv];
+
+  const all = ordered.filter((v) => isLikelyLiffId(v));
   return Array.from(new Set(all));
 }
 
@@ -170,7 +178,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       setMemberStatus('checking');
       setMemberError('');
       try {
-        const liffCandidates = getLiffCandidates(shop.liff_id);
+        const liffCandidates = getLiffCandidates(shop.liff_id, initialTab);
         setResolvedLiffId(liffCandidates[0] ?? '');
         if (!liffCandidates.length) {
           push('LIFF ID ไม่ถูกต้องหรือยังไม่ได้ตั้งค่าในร้าน/ENV', 'error');
