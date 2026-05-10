@@ -2,6 +2,10 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
+import DoneAllIcon from '@mui/icons-material/DoneAll';
+import { ActionIconGroup } from '@/components/ui/action-icon-group';
+import { formatDateDMY } from '@/lib/utils/date-format';
 
 type LineUser = { id: string; line_user_id: string; display_name: string | null; picture_url?: string | null };
 
@@ -13,6 +17,8 @@ export function BookingsCrud() {
   const [lineUsers, setLineUsers] = useState<LineUser[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedLineUser, setSelectedLineUser] = useState('');
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   async function load() {
     const [bRes, brRes, sRes, uRes] = await Promise.all([
@@ -27,6 +33,7 @@ export function BookingsCrud() {
     setServices(s.data ?? []);
     setLineUsers(u.data?.users ?? []);
   }
+  const pagedRows = bookings.slice((page - 1) * rowsPerPage, page * rowsPerPage);
 
   useEffect(() => { void load(); }, []);
 
@@ -85,20 +92,40 @@ export function BookingsCrud() {
         {bookings.length === 0 ? <p className="text-sm text-slate-500">ยังไม่มีคิว</p> : (
           <table className="min-w-full text-sm">
             <thead><tr><th>Queue</th><th>วันที่</th><th>เวลา</th><th>ลูกค้า</th><th>สถานะ</th><th>Action</th></tr></thead>
-            <tbody>{bookings.map((b) => (
+            <tbody>{pagedRows.map((b) => (
               <tr key={String(b.id)} className="border-t border-slate-100">
                 <td>{String(b.queue_number)}</td>
-                <td>{String(b.booking_date)}</td>
+                <td>{formatDateDMY(String(b.booking_date ?? ''))}</td>
                 <td>{String(b.start_time)}</td>
                 <td>{String((b.customers as { full_name?: string } | null)?.full_name ?? '-')}</td>
                 <td>{String(b.status)}</td>
                 <td>
-                  <button className="btn-outline" onClick={() => void updateStatus(String(b.id), 'completed')}>Complete</button>
+                  <ActionIconGroup
+                    actions={[
+                      {
+                        key: 'complete',
+                        icon: <DoneAllIcon fontSize="small" />,
+                        labelKey: 'bookings.complete',
+                        fallbackLabel: 'Complete',
+                        color: 'success',
+                        onClick: () => void updateStatus(String(b.id), 'completed'),
+                      },
+                    ]}
+                  />
                 </td>
               </tr>
             ))}</tbody>
           </table>
         )}
+        {bookings.length > 0 ? (
+          <TablePaginationControls
+            page={page}
+            rowsPerPage={rowsPerPage}
+            total={bookings.length}
+            onPageChange={setPage}
+            onRowsPerPageChange={(v) => { setRowsPerPage(v); setPage(1); }}
+          />
+        ) : null}
       </div>
 
       {drawerOpen ? (

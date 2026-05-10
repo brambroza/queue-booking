@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 
 type LineUser = { id: string; line_user_id: string; display_name: string | null };
 type CustomerRow = {
@@ -37,8 +38,11 @@ export function CustomersCrud() {
   const [saving, setSaving] = useState(false);
   const [q, setQ] = useState('');
   const [form, setForm] = useState<FormState>(initialForm);
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const editing = Boolean(form.id);
+  const pagedRows = rows.slice((page - 1) * rowsPerPage, page * rowsPerPage);
 
   async function load() {
     const params = new URLSearchParams();
@@ -142,7 +146,7 @@ export function CustomersCrud() {
           <tbody>
             {rows.length === 0 ? (
               <tr><td className="px-3 py-4 text-slate-500" colSpan={5}>ยังไม่มีลูกค้า</td></tr>
-            ) : rows.map((r) => (
+            ) : pagedRows.map((r) => (
               <tr key={r.id} className="border-t border-slate-100">
                 <td className="px-3 py-2">{r.full_name}</td>
                 <td className="px-3 py-2">{r.phone}</td>
@@ -156,6 +160,15 @@ export function CustomersCrud() {
             ))}
           </tbody>
         </table>
+        {rows.length > 0 ? (
+          <TablePaginationControls
+            page={page}
+            rowsPerPage={rowsPerPage}
+            total={rows.length}
+            onPageChange={setPage}
+            onRowsPerPageChange={(v) => { setRowsPerPage(v); setPage(1); }}
+          />
+        ) : null}
       </div>
 
       {drawerOpen ? (

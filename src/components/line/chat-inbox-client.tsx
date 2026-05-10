@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { formatDateTimeDMY } from '@/lib/utils/date-format';
 
 type LineUser = { id: string; line_user_id: string; display_name: string | null; picture_url?: string | null };
 type ChatMsg = {
@@ -9,9 +10,31 @@ type ChatMsg = {
   direction: string;
   message_type: string;
   message_text: string | null;
-  payload?: { sticker_package_id?: string; sticker_id?: string } | null;
+  payload?: {
+    sticker_package_id?: string;
+    sticker_id?: string;
+    media_url?: string;
+    media_name?: string;
+    media_type?: string;
+  } | null;
   created_at: string;
 };
+
+type StickerPreset = {
+  emoji: string;
+  label: string;
+  packageId: string;
+  stickerId: string;
+};
+
+const STICKER_PRESETS: StickerPreset[] = [
+  { emoji: '😀', label: 'Happy', packageId: '11537', stickerId: '52002734' },
+  { emoji: '😍', label: 'Love', packageId: '11537', stickerId: '52002735' },
+  { emoji: '🙏', label: 'Thanks', packageId: '11537', stickerId: '52002736' },
+  { emoji: '👍', label: 'OK', packageId: '11537', stickerId: '52002737' },
+  { emoji: '🎉', label: 'Congrats', packageId: '11537', stickerId: '52002739' },
+  { emoji: '😅', label: 'Sorry', packageId: '11537', stickerId: '52002740' },
+];
 
 export function ChatInboxClient() {
   const { push } = useToast();
@@ -19,9 +42,10 @@ export function ChatInboxClient() {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [selected, setSelected] = useState<LineUser | null>(null);
   const [text, setText] = useState('');
-  const [sendType, setSendType] = useState<'text' | 'sticker'>('text');
-  const [stickerPackageId, setStickerPackageId] = useState('11537');
-  const [stickerId, setStickerId] = useState('52002734');
+  const [file, setFile] = useState<File | null>(null);
+  const [showStickerPanel, setShowStickerPanel] = useState(false);
+  const [stickerPackageId, setStickerPackageId] = useState('');
+  const [stickerId, setStickerId] = useState('');
 
   const loadUsers = useCallback(async () => {
     const res = await fetch('/api/chat-inbox', { cache: 'no-store' });
@@ -39,25 +63,41 @@ export function ChatInboxClient() {
 
   useEffect(() => { void loadUsers(); }, [loadUsers]);
 
+  function pickSticker(preset: StickerPreset) {
+    setStickerPackageId(preset.packageId);
+    setStickerId(preset.stickerId);
+    setShowStickerPanel(false);
+  }
+
   async function sendMessage(e: FormEvent) {
     e.preventDefault();
     if (!selected) return;
-    if (sendType === 'text' && !text.trim()) return;
-    if (sendType === 'sticker' && (!stickerPackageId || !stickerId)) return;
-    const res = await fetch('/api/chat-inbox', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        line_user_id: selected.line_user_id,
-        message_type: sendType,
-        message: sendType === 'text' ? text.trim() : undefined,
-        sticker_package_id: sendType === 'sticker' ? stickerPackageId : undefined,
-        sticker_id: sendType === 'sticker' ? stickerId : undefined,
-      }),
-    });
+    const hasText = text.trim().length > 0;
+    const hasSticker = Boolean(stickerPackageId && stickerId);
+    const hasFile = Boolean(file);
+    if (!hasText && !hasSticker && !hasFile) return;
+
+    const form = new FormData();
+    form.set('line_user_id', selected.line_user_id);
+    if (hasText) {
+      form.set('message_type', 'text');
+      form.set('message', text.trim());
+    }
+    if (hasSticker) {
+      form.set('message_type', 'sticker');
+      form.set('sticker_package_id', stickerPackageId);
+      form.set('sticker_id', stickerId);
+    }
+    if (hasFile && file) form.set('file', file);
+
+    const res = await fetch('/api/chat-inbox', { method: 'POST', body: form });
     const json = await res.json();
     if (!res.ok) return push(json.error ?? 'ส่งข้อความไม่สำเร็จ', 'error');
+
     setText('');
+    setFile(null);
+    setStickerPackageId('');
+    setStickerId('');
     push('ส่งข้อความแล้ว');
     await loadMessages(selected.id);
   }
@@ -84,7 +124,6 @@ export function ChatInboxClient() {
                 )}
                 <div className="min-w-0">
                   <div className="truncate font-medium text-slate-800">{u.display_name || 'LINE User'}</div>
-                  <div className="truncate text-xs text-slate-500">{u.line_user_id}</div>
                 </div>
               </div>
             </button>
@@ -109,36 +148,102 @@ export function ChatInboxClient() {
                 <div className="text-xs text-slate-500">{selected.line_user_id}</div>
               </div>
             </div>
-            <div className="h-[460px] overflow-y-auto space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+
+            <div className="h-[460px] space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
               {messages.length === 0 ? <p className="text-sm text-slate-500">ยังไม่มีข้อความ</p> : messages.map((m) => (
                 <div key={m.id} className={`max-w-[82%] rounded-xl px-3 py-2 text-sm shadow-sm ${m.direction === 'outbound' ? 'ml-auto bg-[#73c088] text-white' : 'bg-white text-slate-800'}`}>
-                  <p>
-                    {m.message_type === 'sticker'
-                      ? `Sticker (${m.payload?.sticker_package_id ?? '-'}:${m.payload?.sticker_id ?? '-'})`
-                      : (m.message_text || '-')}
-                  </p>
-                  <p className={`mt-1 text-[10px] ${m.direction === 'outbound' ? 'text-blue-100' : 'text-slate-500'}`}>{new Date(m.created_at).toLocaleString()}</p>
+                  {m.message_type === 'image' && m.payload?.media_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={m.payload.media_url} alt={m.payload.media_name || 'chat image'} className="max-h-64 w-auto rounded-lg object-contain" />
+                  ) : null}
+                  {m.message_type === 'video' && m.payload?.media_url ? (
+                    <a className={`underline ${m.direction === 'outbound' ? 'text-white' : 'text-slate-700'}`} href={m.payload.media_url} target="_blank" rel="noreferrer">
+                      🎬 {m.payload.media_name || 'Video'}
+                    </a>
+                  ) : null}
+                  {m.message_type === 'file' && m.payload?.media_url ? (
+                    <a className={`underline ${m.direction === 'outbound' ? 'text-white' : 'text-slate-700'}`} href={m.payload.media_url} target="_blank" rel="noreferrer">
+                      📎 {m.payload.media_name || 'File'}
+                    </a>
+                  ) : null}
+                  {m.message_type === 'sticker' ? (
+                    <p>Sticker ({m.payload?.sticker_package_id ?? '-'}:{m.payload?.sticker_id ?? '-'})</p>
+                  ) : null}
+                  {m.message_type === 'text' ? <p>{m.message_text || '-'}</p> : null}
+                  {!['text', 'sticker', 'image', 'video', 'file'].includes(m.message_type) ? <p>{m.message_text || m.message_type}</p> : null}
+                  <p className={`mt-1 text-[10px] ${m.direction === 'outbound' ? 'text-blue-100' : 'text-slate-500'}`}>{formatDateTimeDMY(m.created_at)}</p>
                 </div>
               ))}
             </div>
 
             <form onSubmit={sendMessage} className="mt-3 space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <button type="button" className={sendType === 'text' ? 'btn-primary' : 'btn-outline'} onClick={() => setSendType('text')}>Text</button>
-                <button type="button" className={sendType === 'sticker' ? 'btn-primary' : 'btn-outline'} onClick={() => setSendType('sticker')}>Sticker</button>
+              {showStickerPanel ? (
+                <div className="rounded-xl border border-slate-200 bg-white p-2">
+                  <div className="grid grid-cols-6 gap-2">
+                    {STICKER_PRESETS.map((s) => (
+                      <button
+                        key={`${s.packageId}-${s.stickerId}`}
+                        type="button"
+                        title={s.label}
+                        className="rounded-lg border border-slate-200 p-2 text-xl hover:bg-slate-50"
+                        onClick={() => pickSticker(s)}
+                      >
+                        {s.emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {file ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                  แนบไฟล์: {file.name}
+                  <button type="button" className="ml-2 text-rose-600 underline" onClick={() => setFile(null)}>ลบ</button>
+                </div>
+              ) : null}
+
+              {stickerPackageId && stickerId ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                  เลือกสติกเกอร์แล้ว ({stickerPackageId}:{stickerId})
+                  <button
+                    type="button"
+                    className="ml-2 underline"
+                    onClick={() => {
+                      setStickerPackageId('');
+                      setStickerId('');
+                    }}
+                  >
+                    ล้าง
+                  </button>
+                </div>
+              ) : null}
+
+              <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-2">
+                <label className="cursor-pointer rounded-lg px-2 py-1 text-lg hover:bg-slate-100" title="แนบไฟล์">
+                  📎
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt"
+                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className={`rounded-lg px-2 py-1 text-lg hover:bg-slate-100 ${showStickerPanel ? 'bg-slate-100' : ''}`}
+                  title="สติกเกอร์"
+                  onClick={() => setShowStickerPanel((v) => !v)}
+                >
+                  😊
+                </button>
+                <input
+                  className="input !h-10 !border-0 !bg-transparent focus:!ring-0"
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder="พิมพ์ข้อความ..."
+                />
+                <button className="btn-primary shrink-0" type="submit">ส่ง</button>
               </div>
-              {sendType === 'text' ? (
-                <div className="flex gap-2">
-                  <input className="input" value={text} onChange={(e) => setText(e.target.value)} placeholder="พิมพ์ข้อความ..." />
-                  <button className="btn-primary" type="submit">ส่ง</button>
-                </div>
-              ) : (
-                <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
-                  <input className="input" value={stickerPackageId} onChange={(e) => setStickerPackageId(e.target.value)} placeholder="Package ID" />
-                  <input className="input" value={stickerId} onChange={(e) => setStickerId(e.target.value)} placeholder="Sticker ID" />
-                  <button className="btn-primary" type="submit">ส่งสติกเกอร์</button>
-                </div>
-              )}
             </form>
           </>
         )}
@@ -146,3 +251,4 @@ export function ChatInboxClient() {
     </div>
   );
 }
+

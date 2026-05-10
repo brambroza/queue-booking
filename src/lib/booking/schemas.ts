@@ -12,8 +12,13 @@ export const branchSchema = z.object({
 
 export const serviceSchema = z.object({
   service_name: z.string().min(2),
-  duration_minutes: z.coerce.number().int().min(5),
-  capacity_per_slot: z.coerce.number().int().min(1),
+  booking_mode: z.enum(['fixed_slot', 'flexible_duration', 'capacity_based', 'walk_in', 'request_approval']).default('fixed_slot'),
+  duration_minutes: z.coerce.number().int().min(5).optional().nullable(),
+  min_duration_minutes: z.coerce.number().int().min(5).optional().nullable(),
+  max_duration_minutes: z.coerce.number().int().min(5).optional().nullable(),
+  capacity_per_slot: z.coerce.number().int().min(1).default(1),
+  requires_approval: z.coerce.boolean().default(false),
+  allow_walk_in: z.coerce.boolean().default(false),
   price: z.coerce.number().nonnegative(),
   active: z.coerce.boolean().default(true),
 });

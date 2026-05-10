@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { formatDateDMY } from '@/lib/utils/date-format';
 
 type Branch = { id: string; branch_name: string };
 type Service = { id: string; service_name: string; duration_minutes: number };
@@ -31,8 +32,20 @@ type LiffApi = {
 function normalizeLiffId(input?: string | null): string {
   if (!input) return '';
   const raw = input.trim();
-  const m = raw.match(/liff\.line\.me\/(.+)$/);
+  const m = raw.match(/liff\.line\.me\/([^/?#]+)/);
   return m?.[1] ?? raw;
+}
+
+function isLikelyLiffId(v: string) {
+  return /^[0-9]{6,}-[A-Za-z0-9_-]{4,}$/.test(v.trim());
+}
+
+function resolveLiffId(shopLiffId?: string | null) {
+  const fromShop = normalizeLiffId(shopLiffId);
+  if (isLikelyLiffId(fromShop)) return fromShop;
+  const fromEnv = normalizeLiffId(process.env.NEXT_PUBLIC_LIFF_ID);
+  if (isLikelyLiffId(fromEnv)) return fromEnv;
+  return '';
 }
 
 async function ensureLiffLoaded(): Promise<LiffApi | null> {
@@ -131,11 +144,11 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       setMemberStatus('checking');
       setMemberError('');
       try {
-        const liffId = normalizeLiffId(shop.liff_id ?? process.env.NEXT_PUBLIC_LIFF_ID);
+        const liffId = resolveLiffId(shop.liff_id);
         if (!liffId) {
-          push('ยังไม่ได้ตั้งค่า LIFF ID ของร้าน', 'error');
+          push('LIFF ID ไม่ถูกต้องหรือยังไม่ได้ตั้งค่าในร้าน/ENV', 'error');
           setMemberStatus('error');
-          setMemberError('ยังไม่ได้ตั้งค่า LIFF ID ของร้าน');
+          setMemberError('LIFF ID ไม่ถูกต้องหรือยังไม่ได้ตั้งค่าในร้าน/ENV');
           return;
         }
 
@@ -243,8 +256,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     if (!res.ok) return push(json.error ?? 'จองคิวไม่สำเร็จ', 'error');
     setQueueNo(json.data.queue_number);
     if (!json.data?.line_push_sent) {
-      const d = json.data?.booking_date ? new Date(`${json.data.booking_date}T00:00:00+07:00`) : null;
-      const dateLabel = d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : (json.data?.booking_date ?? date);
+      const dateLabel = formatDateDMY(json.data?.booking_date ?? date);
   /*     const text = `จองคิวสำเร็จค่ะ\nเลขคิว: ${json.data?.queue_number ?? '-'}\nสาขา: ${json.data?.branch_name ?? selectedBranch?.branch_name ?? '-'}\nบริการ: ${json.data?.service_name ?? selectedService?.service_name ?? '-'}\nวันที่: ${dateLabel}\nเวลา: ${json.data?.booking_time ?? selectedTime}\n\nกรุณามาก่อนเวลาประมาณ 10 นาทีค่ะ`;
       try {
         const liff = await ensureLiffLoaded();
@@ -291,7 +303,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
           <p>เลขคิว: <b>{queueNo}</b></p>
           <p>สาขา: {selectedBranch?.branch_name}</p>
           <p>บริการ: {selectedService?.service_name}</p>
-          <p>วันที่: {date}</p>
+          <p>วันที่: {formatDateDMY(date)}</p>
           <p>เวลา: {selectedTime}</p>
         </section>
       </main>
@@ -312,7 +324,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
           </div>
         ) : (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-            เมนูนี้สำหรับข้อมูลสมาชิก
+            ข้อมูลสมาชิก
           </div>
         )}
 
@@ -398,7 +410,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
               {upcoming.length === 0 ? <p className="text-xs text-slate-500">ไม่มีคิวที่กำลังใช้งาน</p> : upcoming.map((b) => (
                 <div key={b.id} className="rounded-xl border border-slate-200 p-3 text-sm">
                   <p className="font-semibold text-slate-800">{b.queue_number} • {String(b.status)}</p>
-                  <p className="text-slate-600">{b.booking_date} {String(b.start_time).slice(0, 5)}</p>
+                  <p className="text-slate-600">{formatDateDMY(b.booking_date)} {String(b.start_time).slice(0, 5)}</p>
                   <p className="text-slate-600">{b.branches?.branch_name ?? '-'} • {b.services?.service_name ?? '-'}</p>
                   {(b.status === 'pending' || b.status === 'confirmed' || b.status === 'waiting') ? (
                     <button className="btn-outline mt-2" onClick={() => void cancelBooking(b.id)}>ยกเลิกคิว</button>
@@ -412,7 +424,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
               {history.length === 0 ? <p className="text-xs text-slate-500">ยังไม่มีประวัติ</p> : history.map((b) => (
                 <div key={b.id} className="rounded-xl border border-slate-200 p-3 text-sm">
                   <p className="font-medium text-slate-800">{b.queue_number} • {String(b.status)}</p>
-                  <p className="text-slate-600">{b.booking_date} {String(b.start_time).slice(0, 5)}</p>
+                  <p className="text-slate-600">{formatDateDMY(b.booking_date)} {String(b.start_time).slice(0, 5)}</p>
                   <p className="text-slate-600">{b.branches?.branch_name ?? '-'} • {b.services?.service_name ?? '-'}</p>
                 </div>
               ))}

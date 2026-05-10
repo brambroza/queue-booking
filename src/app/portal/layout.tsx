@@ -1,11 +1,7 @@
-import Link from 'next/link';
-import Image from 'next/image';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { PortalNav } from '@/components/layout/portal-nav';
-import { NotificationsMenu } from '@/components/layout/notifications-menu';
-import { TopbarUserMenu } from '@/components/layout/topbar-user-menu';
+import { PortalFrame } from '@/components/layout/portal-frame';
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -52,58 +48,26 @@ export default async function PortalLayout({ children }: { children: React.React
     : { data: null };
 
   const logoUrl = shop?.logo_url ?? null;
+  const { data: roleRows } = await supabase
+    .from('user_roles')
+    .select('roles(code)')
+    .eq('user_id', user.id)
+    .eq('is_deleted', false);
+  const isSuperAdmin = (roleRows ?? []).some((r) => (r.roles as { code?: string } | null)?.code === 'super_admin');
 
   const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || 'v0.1.0';
 
   return (
-    <div className="portal-shell md:grid md:grid-cols-[280px_1fr]">
-      <aside className="portal-sidebar hidden md:block">
-        <div className="mb-6">
-          <div className="flex items-center gap-2">
-            {logoUrl ? (
-              <Image src={logoUrl} alt="Shop Logo" width={36} height={36} className="h-9 w-9 rounded-lg object-cover" />
-            ) : (
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-xs font-bold text-white">QB</div>
-            )}
-            <div>
-              <p className="text-xs text-slate-400">Portal</p>
-              <h2 className="font-semibold text-slate-800">Queue Booking</h2>
-            </div>
-          </div>
-        </div>
-        <PortalNav />
-      </aside>
-      <div>
-        <header className="portal-header">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-3">
-              {logoUrl ? (
-                <Image src={logoUrl} alt="Shop Logo" width={28} height={28} className="h-7 w-7 rounded-md object-cover" />
-              ) : (
-                <div className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-900 text-[10px] font-bold text-white">QB</div>
-              )}
-              <div>
-                <p className="text-xs text-slate-400">Shop</p>
-                <p className="text-sm font-semibold text-slate-800">{shop?.name ? `${shop.name} (${shop.id})` : `Shop ID: ${resolvedShopId ?? '-'}`}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <NotificationsMenu />
-              <TopbarUserMenu initialName={profile?.full_name} email={user.email} appVersion={appVersion} />
-            </div>
-          </div>
-          <div className="overflow-x-auto border-t border-slate-200 px-2 py-2 md:hidden">
-            <div className="flex gap-2 min-w-max">
-              <Link className="btn-outline" href="/portal/dashboard">Dashboard</Link>
-              <Link className="btn-outline" href="/portal/bookings">Bookings</Link>
-              <Link className="btn-outline" href="/portal/branches">Branches</Link>
-              <Link className="btn-outline" href="/portal/services">Services</Link>
-              <Link className="btn-outline" href="/portal/working-hours">Working Hours</Link>
-            </div>
-          </div>
-        </header>
-        <main className="mx-auto max-w-7xl p-4 md:p-6">{children}</main>
-      </div>
-    </div>
+    <PortalFrame
+      logoUrl={logoUrl}
+      shopName={shop?.name}
+      shopId={resolvedShopId}
+      fullName={profile?.full_name}
+      email={user.email}
+      appVersion={appVersion}
+      isSuperAdmin={isSuperAdmin}
+    >
+      {children}
+    </PortalFrame>
   );
 }

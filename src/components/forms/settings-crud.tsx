@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
+import { formatDateTimeDMY } from '@/lib/utils/date-format';
 
 type ShopProfile = {
   id: string;
@@ -44,8 +46,11 @@ export function SettingsCrud() {
   const [saving, setSaving] = useState(false);
   const [q, setQ] = useState('');
   const [form, setForm] = useState<FormState>(initialForm);
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const editing = Boolean(form.id);
+  const pagedRows = rows.slice((page - 1) * rowsPerPage, page * rowsPerPage);
 
   async function load() {
     const params = new URLSearchParams();
@@ -249,11 +254,11 @@ export function SettingsCrud() {
           <tbody>
             {rows.length === 0 ? (
               <tr><td className="px-3 py-4 text-slate-500" colSpan={4}>ยังไม่มี settings</td></tr>
-            ) : rows.map((r) => (
+            ) : pagedRows.map((r) => (
               <tr key={r.id} className="border-t border-slate-100 align-top">
                 <td className="px-3 py-2 font-medium">{r.key}</td>
                 <td className="px-3 py-2"><pre className="whitespace-pre-wrap text-xs text-slate-700">{JSON.stringify(r.value, null, 2)}</pre></td>
-                <td className="px-3 py-2 text-xs text-slate-600">{new Date(r.updated_at).toLocaleString()}</td>
+                <td className="px-3 py-2 text-xs text-slate-600">{formatDateTimeDMY(r.updated_at)}</td>
                 <td className="px-3 py-2 flex gap-2">
                   <button className="btn-outline" onClick={() => openEdit(r)}>Edit</button>
                   <button className="btn-outline" onClick={() => void onDelete(r.id)}>Delete</button>
@@ -262,6 +267,15 @@ export function SettingsCrud() {
             ))}
           </tbody>
         </table>
+        {rows.length > 0 ? (
+          <TablePaginationControls
+            page={page}
+            rowsPerPage={rowsPerPage}
+            total={rows.length}
+            onPageChange={setPage}
+            onRowsPerPageChange={(v) => { setRowsPerPage(v); setPage(1); }}
+          />
+        ) : null}
       </div>
 
       {drawerOpen ? (

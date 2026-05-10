@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
+import { formatDateDMY } from '@/lib/utils/date-format';
 
 type Row = {
   id: string;
@@ -23,6 +25,8 @@ export function CalendarClient() {
   const [from, setFrom] = useState(first);
   const [to, setTo] = useState(last);
   const [rows, setRows] = useState<Row[]>([]);
+  const [pageByDate, setPageByDate] = useState<Record<string, number>>({});
+  const [rowsPerPageByDate, setRowsPerPageByDate] = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/calendar?from=${from}&to=${to}`, { cache: 'no-store' });
@@ -43,6 +47,14 @@ export function CalendarClient() {
     return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [rows]);
 
+  function getPage(date: string) {
+    return pageByDate[date] ?? 1;
+  }
+
+  function getRowsPerPage(date: string) {
+    return rowsPerPageByDate[date] ?? 10;
+  }
+
   return (
     <div className="space-y-4">
       <div className="card p-4 flex flex-wrap gap-2 items-end">
@@ -53,12 +65,14 @@ export function CalendarClient() {
       <div className="space-y-3">
         {grouped.length === 0 ? <div className="card p-4 text-sm text-slate-500">ไม่มีคิวในช่วงวันที่เลือก</div> : grouped.map(([date, list]) => (
           <section key={date} className="card p-4">
-            <h3 className="font-semibold">{date} ({list.length} คิว)</h3>
+            <h3 className="font-semibold">{formatDateDMY(date)} ({list.length} คิว)</h3>
             <div className="mt-3 overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead><tr><th className="text-left">เวลา</th><th className="text-left">คิว</th><th className="text-left">ลูกค้า</th><th className="text-left">สาขา</th><th className="text-left">บริการ</th><th className="text-left">สถานะ</th></tr></thead>
                 <tbody>
-                  {list.map((r) => (
+                  {list
+                    .slice((getPage(date) - 1) * getRowsPerPage(date), getPage(date) * getRowsPerPage(date))
+                    .map((r) => (
                     <tr key={r.id} className="border-t border-slate-100">
                       <td>{String(r.start_time).slice(0, 5)}</td>
                       <td>{r.queue_number}</td>
@@ -70,6 +84,16 @@ export function CalendarClient() {
                   ))}
                 </tbody>
               </table>
+              <TablePaginationControls
+                page={getPage(date)}
+                rowsPerPage={getRowsPerPage(date)}
+                total={list.length}
+                onPageChange={(p) => setPageByDate((prev) => ({ ...prev, [date]: p }))}
+                onRowsPerPageChange={(v) => {
+                  setRowsPerPageByDate((prev) => ({ ...prev, [date]: v }));
+                  setPageByDate((prev) => ({ ...prev, [date]: 1 }));
+                }}
+              />
             </div>
           </section>
         ))}

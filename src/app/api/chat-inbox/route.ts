@@ -2,9 +2,25 @@ import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { createAdminClient } from '@/lib/supabase/admin';
 
+const MEDIA_BUCKET = 'chat-media';
+
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
+
+function safeFileName(name: string) {
+  return name.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+async function ensureBucket(admin: ReturnType<typeof createAdminClient>) {
+  const { data: bucket } = await admin.storage.getBucket(MEDIA_BUCKET);
+  if (bucket) return;
+  const { error } = await admin.storage.createBucket(MEDIA_BUCKET, {
+    public: true,
+    fileSizeLimit: 50 * 1024 * 1024,
+  });
+  if (error) throw error;
 }
 
 export async function GET(req: Request) {
@@ -58,12 +74,33 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const { profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
-    const body = await req.json();
-    const lineUserId = body.line_user_id as string;
-    const messageType = (body.message_type as string | undefined) ?? 'text';
-    const message = body.message as string | undefined;
-    const stickerPackageId = body.sticker_package_id as string | undefined;
-    const stickerId = body.sticker_id as string | undefined;
+    const contentType = req.headers.get('content-type') ?? '';
+
+    let lineUserId = '';
+    let messageType: string = 'text';
+    let message: string | undefined;
+    let stickerPackageId: string | undefined;
+    let stickerId: string | undefined;
+    let mediaFile: File | null = null;
+
+    if (contentType.includes('multipart/form-data')) {
+      const form = await req.formData();
+      lineUserId = String(form.get('line_user_id') ?? '');
+      message = String(form.get('message') ?? '').trim() || undefined;
+      messageType = String(form.get('message_type') ?? 'text');
+      stickerPackageId = String(form.get('sticker_package_id') ?? '') || undefined;
+      stickerId = String(form.get('sticker_id') ?? '') || undefined;
+      const file = form.get('file');
+      mediaFile = file instanceof File && file.size > 0 ? file : null;
+    } else {
+      const body = await req.json();
+      lineUserId = String(body.line_user_id ?? '');
+      messageType = (body.message_type as string | undefined) ?? 'text';
+      message = body.message as string | undefined;
+      stickerPackageId = body.sticker_package_id as string | undefined;
+      stickerId = body.sticker_id as string | undefined;
+    }
+
     if (!lineUserId) return NextResponse.json({ error: 'Missing line_user_id' }, { status: 400 });
     if (messageType === 'text' && !message?.trim()) return NextResponse.json({ error: 'Missing message' }, { status: 400 });
     if (messageType === 'sticker' && (!stickerPackageId || !stickerId)) {
@@ -77,9 +114,55 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'LINE token not configured' }, { status: 400 });
     }
 
-    const linePayloadMessage = messageType === 'sticker'
-      ? [{ type: 'sticker', packageId: stickerPackageId, stickerId }]
-      : [{ type: 'text', text: message!.trim() }];
+    let payloadForDb: Record<string, unknown> | null = null;
+    let linePayloadMessage: Array<Record<string, unknown>>;
+
+    if (mediaFile) {
+      await ensureBucket(admin);
+      const kind = mediaFile.type.startsWith('image/')
+        ? 'image'
+        : mediaFile.type.startsWith('video/')
+          ? 'video'
+          : 'file';
+
+      const ext = mediaFile.name.includes('.') ? mediaFile.name.split('.').pop() : 'bin';
+      const path = `${profile.shop_id}/${Date.now()}-${safeFileName(mediaFile.name || `file.${ext ?? 'bin'}`)}`;
+      const bytes = Buffer.from(await mediaFile.arrayBuffer());
+      const { error: uploadError } = await admin.storage.from(MEDIA_BUCKET).upload(path, bytes, {
+        upsert: false,
+        contentType: mediaFile.type || 'application/octet-stream',
+      });
+      if (uploadError) throw uploadError;
+
+      const { data: publicData } = admin.storage.from(MEDIA_BUCKET).getPublicUrl(path);
+      const mediaUrl = publicData.publicUrl;
+
+      if (kind === 'image') {
+        messageType = 'image';
+        linePayloadMessage = [{ type: 'image', originalContentUrl: mediaUrl, previewImageUrl: mediaUrl }];
+      } else {
+        messageType = kind;
+        linePayloadMessage = [{
+          type: 'text',
+          text: kind === 'video'
+            ? `วิดีโอจากร้าน: ${mediaFile.name}\n${mediaUrl}`
+            : `ไฟล์จากร้าน: ${mediaFile.name}\n${mediaUrl}`,
+        }];
+      }
+
+      payloadForDb = {
+        media_url: mediaUrl,
+        media_name: mediaFile.name,
+        media_size: mediaFile.size,
+        media_type: mediaFile.type,
+        storage_path: path,
+      };
+    } else if (messageType === 'sticker') {
+      linePayloadMessage = [{ type: 'sticker', packageId: stickerPackageId, stickerId }];
+      payloadForDb = { sticker_package_id: stickerPackageId, sticker_id: stickerId };
+    } else {
+      linePayloadMessage = [{ type: 'text', text: message!.trim() }];
+    }
 
     const pushRes = await fetch('https://api.line.me/v2/bot/message/push', {
       method: 'POST',
@@ -104,7 +187,7 @@ export async function POST(req: Request) {
       direction: 'outbound',
       message_type: messageType,
       message_text: messageType === 'text' ? message!.trim() : null,
-      payload: messageType === 'sticker' ? { sticker_package_id: stickerPackageId, sticker_id: stickerId } : null,
+      payload: payloadForDb,
     });
 
     return NextResponse.json({ data: true });

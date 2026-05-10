@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 
 type RefUser = { id: string; full_name: string | null; email: string | null; phone: string | null };
 type RefBranch = { id: string; branch_name: string };
@@ -32,6 +33,8 @@ export function StaffCrud() {
   const [saving, setSaving] = useState(false);
   const [q, setQ] = useState('');
   const [form, setForm] = useState<FormState>(initialForm);
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const editing = Boolean(form.id);
 
@@ -49,6 +52,7 @@ export function StaffCrud() {
   useEffect(() => { void load(); }, []);
 
   const selectedUser = useMemo(() => users.find((u) => u.id === form.user_id), [users, form.user_id]);
+  const pagedRows = rows.slice((page - 1) * rowsPerPage, page * rowsPerPage);
 
   function openAdd() {
     setForm(initialForm);
@@ -142,7 +146,7 @@ export function StaffCrud() {
           <tbody>
             {rows.length === 0 ? (
               <tr><td className="px-3 py-4 text-slate-500" colSpan={5}>ยังไม่มีพนักงาน</td></tr>
-            ) : rows.map((r) => {
+            ) : pagedRows.map((r) => {
               const user = users.find((u) => u.id === r.user_id);
               return (
                 <tr key={r.id} className="border-t border-slate-100">
@@ -159,6 +163,15 @@ export function StaffCrud() {
             })}
           </tbody>
         </table>
+        {rows.length > 0 ? (
+          <TablePaginationControls
+            page={page}
+            rowsPerPage={rowsPerPage}
+            total={rows.length}
+            onPageChange={setPage}
+            onRowsPerPageChange={(v) => { setRowsPerPage(v); setPage(1); }}
+          />
+        ) : null}
       </div>
 
       {drawerOpen ? (

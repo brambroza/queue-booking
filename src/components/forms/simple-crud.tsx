@@ -2,6 +2,9 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import { ActionIconGroup } from '@/components/ui/action-icon-group';
 
 type Column = { key: string; label: string; type?: 'text' | 'number' | 'time' | 'date' | 'checkbox' };
 
@@ -21,12 +24,15 @@ export function SimpleCrud({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const load = useCallback(async () => {
     setLoading(true);
     const res = await fetch(endpoint, { cache: 'no-store' });
     const json = await res.json();
     setRows(json.data ?? []);
+    setPage(1);
     setLoading(false);
   }, [endpoint]);
 
@@ -74,6 +80,8 @@ export function SimpleCrud({
     void load();
   }
 
+  const pagedRows = rows.slice((page - 1) * rowsPerPage, page * rowsPerPage);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -94,15 +102,40 @@ export function SimpleCrud({
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
+                {pagedRows.map((row) => (
                   <tr key={String(row.id)} className="border-t border-slate-100">
                     {columns.map((c) => <td key={c.key} className="px-3 py-2">{String(row[c.key] ?? '-')}</td>)}
-                    <td className="px-3 py-2"><button onClick={() => void onDelete(String(row.id))} className="btn-outline">Delete</button></td>
+                    <td className="px-3 py-2">
+                      <ActionIconGroup
+                        actions={[
+                          {
+                            key: 'delete',
+                            icon: <DeleteOutlineIcon fontSize="small" />,
+                            labelKey: 'common.delete',
+                            fallbackLabel: 'Delete',
+                            color: 'error',
+                            onClick: () => void onDelete(String(row.id)),
+                            confirmBeforeClick: true,
+                            confirmTitle: 'Delete',
+                            confirmMessage: 'ยืนยันการลบรายการนี้?',
+                          },
+                        ]}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+        ) : null}
+        {!loading && rows.length > 0 ? (
+          <TablePaginationControls
+            page={page}
+            rowsPerPage={rowsPerPage}
+            total={rows.length}
+            onPageChange={setPage}
+            onRowsPerPageChange={(v) => { setRowsPerPage(v); setPage(1); }}
+          />
         ) : null}
       </div>
 

@@ -2,12 +2,15 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 
 export function WorkingHoursCrud() {
   const { push } = useToast();
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [branches, setBranches] = useState<Record<string, unknown>[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   async function load() {
     const [hrsRes, brRes] = await Promise.all([fetch('/api/working-hours', { cache: 'no-store' }), fetch('/api/branches', { cache: 'no-store' })]);
@@ -17,6 +20,7 @@ export function WorkingHoursCrud() {
   }
 
   useEffect(() => { void load(); }, []);
+  const pagedRows = rows.slice((page - 1) * rowsPerPage, page * rowsPerPage);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -50,7 +54,7 @@ export function WorkingHoursCrud() {
         {rows.length === 0 ? <p className="text-sm text-slate-500">ยังไม่มีข้อมูล</p> : (
           <table className="min-w-full text-sm">
             <thead><tr><th className="text-left">สาขา</th><th className="text-left">weekday</th><th className="text-left">เวลา</th><th className="text-left">slot</th></tr></thead>
-            <tbody>{rows.map((r) => (
+            <tbody>{pagedRows.map((r) => (
               <tr key={String(r.id)} className="border-t border-slate-100">
                 <td>{String((r.branches as { branch_name?: string } | null)?.branch_name ?? '-')}</td>
                 <td>{String(r.weekday)}</td>
@@ -60,6 +64,15 @@ export function WorkingHoursCrud() {
             ))}</tbody>
           </table>
         )}
+        {rows.length > 0 ? (
+          <TablePaginationControls
+            page={page}
+            rowsPerPage={rowsPerPage}
+            total={rows.length}
+            onPageChange={setPage}
+            onRowsPerPageChange={(v) => { setRowsPerPage(v); setPage(1); }}
+          />
+        ) : null}
       </div>
 
       {drawerOpen ? (
