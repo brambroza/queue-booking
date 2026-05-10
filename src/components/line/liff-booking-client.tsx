@@ -90,6 +90,16 @@ async function ensureLiffLoaded(): Promise<LiffApi | null> {
   return (window as Window & { liff?: LiffApi }).liff ?? null;
 }
 
+function bookingStatusStyle(status: string) {
+  if (status === 'completed') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  if (status === 'serving') return 'bg-cyan-50 text-cyan-700 border-cyan-200';
+  if (status === 'waiting') return 'bg-amber-50 text-amber-700 border-amber-200';
+  if (status === 'confirmed') return 'bg-blue-50 text-blue-700 border-blue-200';
+  if (status === 'pending') return 'bg-orange-50 text-orange-700 border-orange-200';
+  if (status === 'cancelled') return 'bg-rose-50 text-rose-700 border-rose-200';
+  return 'bg-slate-50 text-slate-600 border-slate-200';
+}
+
 export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey: string; initialTab?: 'booking' | 'account' }) {
   const { push } = useToast();
 
@@ -476,12 +486,29 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
             <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
               <h3 className="text-sm font-semibold text-slate-800">คิวที่จองอยู่</h3>
               {upcoming.length === 0 ? <p className="text-xs text-slate-500">ไม่มีคิวที่กำลังใช้งาน</p> : upcoming.map((b) => (
-                <div key={b.id} className="rounded-xl border border-slate-200 p-3 text-sm">
-                  <p className="font-semibold text-slate-800">{b.queue_number} • {String(b.status)}</p>
-                  <p className="text-slate-600">{formatDateDMY(b.booking_date)} {String(b.start_time).slice(0, 5)}</p>
-                  <p className="text-slate-600">{b.branches?.branch_name ?? '-'} • {b.services?.service_name ?? '-'}</p>
+                <div key={b.id} className="rounded-2xl border border-slate-200 bg-white p-3.5 text-sm shadow-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-semibold tracking-tight text-slate-900">{b.queue_number}</p>
+                    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${bookingStatusStyle(String(b.status))}`}>
+                      {String(b.status)}
+                    </span>
+                  </div>
+                  <div className="mt-2 space-y-1.5">
+                    <p className="text-slate-700">
+                      <span className="text-slate-500">เวลา</span>{' '}
+                      {formatDateDMY(b.booking_date)} • {String(b.start_time).slice(0, 5)}
+                    </p>
+                    <p className="text-slate-700">
+                      <span className="text-slate-500">สาขา</span>{' '}
+                      {b.branches?.branch_name ?? '-'}
+                    </p>
+                    <p className="text-slate-700">
+                      <span className="text-slate-500">บริการ</span>{' '}
+                      {b.services?.service_name ?? '-'}
+                    </p>
+                  </div>
                   {(b.status === 'pending' || b.status === 'confirmed' || b.status === 'waiting') ? (
-                    <button className="btn-outline mt-2" onClick={() => void cancelBooking(b.id)}>ยกเลิกคิว</button>
+                    <button className="btn-outline mt-3 w-full" onClick={() => void cancelBooking(b.id)}>ยกเลิกคิว</button>
                   ) : null}
                 </div>
               ))}
@@ -490,9 +517,14 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
             <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
               <h3 className="text-sm font-semibold text-slate-800">ประวัติการจอง</h3>
               {history.length === 0 ? <p className="text-xs text-slate-500">ยังไม่มีประวัติ</p> : history.map((b) => (
-                <div key={b.id} className="rounded-xl border border-slate-200 p-3 text-sm">
-                  <p className="font-medium text-slate-800">{b.queue_number} • {String(b.status)}</p>
-                  <p className="text-slate-600">{formatDateDMY(b.booking_date)} {String(b.start_time).slice(0, 5)}</p>
+                <div key={b.id} className="rounded-2xl border border-slate-200 bg-white p-3.5 text-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-medium text-slate-900">{b.queue_number}</p>
+                    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${bookingStatusStyle(String(b.status))}`}>
+                      {String(b.status)}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-slate-700">{formatDateDMY(b.booking_date)} • {String(b.start_time).slice(0, 5)}</p>
                   <p className="text-slate-600">{b.branches?.branch_name ?? '-'} • {b.services?.service_name ?? '-'}</p>
                 </div>
               ))}
