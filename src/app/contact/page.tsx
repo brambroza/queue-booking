@@ -10,6 +10,14 @@ export const metadata: Metadata = {
   title: 'ติดต่อเรา | LINE Queue Booking SaaS',
   description:
     'ติดต่อทีมงานเพื่อเริ่มใช้งานระบบจองคิวผ่าน LINE OA สำหรับธุรกิจของคุณ',
+  alternates: { canonical: '/contact' },
+  openGraph: {
+    title: 'ติดต่อเรา | LINE Queue Booking SaaS',
+    description: 'ติดต่อทีมงานเพื่อรับเดโมและเริ่มใช้งานระบบจองคิวผ่าน LINE OA',
+    url: '/contact',
+    type: 'website',
+    locale: 'th_TH',
+  },
 };
 
 export default function ContactPage() {

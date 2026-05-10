@@ -18,7 +18,7 @@ import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
 import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
 import ApartmentRoundedIcon from '@mui/icons-material/ApartmentRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
-import { features, pricingPlans, testimonials } from './content';
+import { features, pricingPlans, testimonials, useCases as useCaseCards } from './content';
 
 const painCards = [
   { title: 'ลูกค้าทักถามคิวซ้ำ ๆ', desc: 'พนักงานต้องตอบข้อความเดิมซ้ำหลายสิบครั้งต่อวัน เสียเวลามาก', color: '#E24B4A' },
@@ -36,17 +36,6 @@ const solutionCards = [
   { title: 'จัดการคิวหลังบ้าน', desc: 'Dashboard ครบ ดู แก้ ยกเลิก คิวได้ทันที', icon: <DashboardRoundedIcon sx={{ color: '#639922' }} />, bg: '#EAF3DE' },
   { title: 'รองรับหลายสาขา', desc: 'บริหารหลายร้านหลายสาขาในที่เดียว', icon: <ApartmentRoundedIcon sx={{ color: '#854F0B' }} />, bg: '#FAEEDA' },
   { title: 'รายงานและสถิติ', desc: 'วิเคราะห์ข้อมูลเพื่อพัฒนาธุรกิจ', icon: <InsightsRoundedIcon sx={{ color: '#A32D2D' }} />, bg: '#FCEBEB' },
-];
-
-const useCases = [
-  ['✂️', 'ร้านตัดผม', 'Fixed Slot 30 นาที'],
-  ['🏥', 'คลินิก', 'Request Approval'],
-  ['💅', 'ร้านทำเล็บ', 'Flexible Duration'],
-  ['🍽️', 'ร้านอาหาร', 'Capacity Based'],
-  ['📱', 'ร้านซ่อมมือถือ', 'Walk-in + Fixed'],
-  ['🚗', 'ร้านซ่อมรถ', 'Flexible Duration'],
-  ['🏛️', 'งานราชการ', 'Queue Number'],
-  ['🔧', 'ทีมช่างติดตั้ง', 'Request Approval'],
 ];
 
 export function HeroSection() {
@@ -68,6 +57,7 @@ export function HeroSection() {
               <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#639922', '&:hover': { bgcolor: '#3B6D11' } }}>เริ่มใช้งานฟรี</Button>
               <Button component={Link} href="/pricing" variant="outlined" sx={{ borderColor: '#639922', color: '#639922' }}>ดูแผนราคา</Button>
               <Button component={Link} href="/contact" variant="outlined" color="inherit">ติดต่อเรา</Button>
+              <Button component={Link} href="/blog" variant="text" color="inherit">อ่านบทความ</Button>
             </Stack>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 3 }}>
               {['ทดลองฟรี 14 วัน', 'ไม่ต้องใส่บัตรเครดิต', 'ตั้งค่าง่ายใน 5 นาที'].map((x) => (
@@ -124,7 +114,7 @@ export function HeroSection() {
 
 export function PainPointSection() {
   return (
-    <SectionWrap title="ปัญหาที่ร้านค้าพบเจอทุกวัน" sub="ถ้าคุณเจอปัญหาเหล่านี้ เราช่วยได้" tag="ปัญหาที่พบ" bg="#f6f7f9">
+    <SectionWrap id="pain-points" title="ปัญหาที่ร้านค้าพบเจอทุกวัน" sub="ถ้าคุณเจอปัญหาเหล่านี้ เราช่วยได้" tag="ปัญหาที่พบ" bg="#f6f7f9">
       <Grid container spacing={2}>
         {painCards.map((p) => (
           <Grid key={p.title} size={{ xs: 12, md: 4 }}>
@@ -138,7 +128,7 @@ export function PainPointSection() {
 
 export function SolutionSection() {
   return (
-    <SectionWrap title="จัดการคิวทั้งหมดผ่านระบบเดียว" sub="ระบบครบวงจรเชื่อมต่อ LINE OA ของคุณโดยตรง" tag="โซลูชัน" bg="#fff">
+    <SectionWrap id="features" title="จัดการคิวทั้งหมดผ่านระบบเดียว" sub="ระบบครบวงจรเชื่อมต่อ LINE OA ของคุณโดยตรง" tag="โซลูชัน" bg="#fff">
       <Grid container spacing={2}>
         {solutionCards.map((s) => (
           <Grid key={s.title} size={{ xs: 12, md: 4 }}>
@@ -157,14 +147,28 @@ export function SolutionSection() {
 
 export function ShowcaseSection() {
   return (
-    <SectionWrap title="ใช้ได้กับหลายธุรกิจ" sub="รองรับทุกรูปแบบการนัดหมายและจองคิว" tag="Use Cases" bg="#f6f7f9">
+    <SectionWrap id="showcase" title="ใช้ได้กับหลายธุรกิจ" sub="รองรับทุกรูปแบบการนัดหมายและจองคิว" tag="Use Cases" bg="#f6f7f9">
       <Grid container spacing={1.5}>
-        {useCases.map(([icon, title, desc]) => (
-          <Grid key={title} size={{ xs: 6, md: 3 }}>
-            <Card sx={{ textAlign: 'center', borderRadius: 3 }}><CardContent sx={{ py: 2.2 }}><Typography sx={{ fontSize: 28 }}>{icon}</Typography><Typography fontWeight={700} sx={{ fontSize: 14 }}>{title}</Typography><Typography variant="caption" color="text.secondary">{desc}</Typography></CardContent></Card>
+        {useCaseCards.slice(0, 8).map((item) => {
+          const Icon = item.icon;
+          return (
+          <Grid key={item.slug} size={{ xs: 6, md: 3 }}>
+            <Card sx={{ textAlign: 'center', borderRadius: 3 }}>
+              <CardContent sx={{ py: 2.2 }}>
+                <Icon sx={{ fontSize: 30, color: '#639922' }} />
+                <Typography fontWeight={700} sx={{ fontSize: 14, mt: 0.6 }}>{item.title}</Typography>
+                <Typography variant="caption" color="text.secondary">{item.mode}</Typography>
+              </CardContent>
+            </Card>
           </Grid>
-        ))}
+          );
+        })}
       </Grid>
+      <Stack alignItems="center" sx={{ mt: 2.5 }}>
+        <Button component={Link} href="/use-cases" variant="outlined" sx={{ borderColor: '#639922', color: '#639922' }}>
+          ดูตัวอย่างธุรกิจทั้งหมด
+        </Button>
+      </Stack>
     </SectionWrap>
   );
 }
@@ -196,7 +200,7 @@ export function HowItWorksSection() {
 
 export function PricingPreviewSection() {
   return (
-    <SectionWrap id="PricingPreview" title="เลือกแผนที่เหมาะกับธุรกิจของคุณ" sub="เริ่มจากแผนเล็กและขยายได้ตามจำนวนคิว" tag="Pricing" bg="#fff">
+    <SectionWrap id="pricing" title="เลือกแผนที่เหมาะกับธุรกิจของคุณ" sub="เริ่มจากแผนเล็กและขยายได้ตามจำนวนคิว" tag="Pricing" bg="#fff">
       <Grid container spacing={2}>
         {pricingPlans.map((p) => (
           <Grid key={p.name} size={{ xs: 12, md: 4 }}>

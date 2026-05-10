@@ -11,7 +11,15 @@ const colorMap: Record<string, 'primary' | 'warning' | 'info' | 'secondary' | 'e
   request_approval: 'error',
 };
 
+const thaiModeLabel: Record<string, string> = {
+  fixed_slot: 'จองตามเวลาที่แน่นอน',
+  flexible_duration: 'เวลายืดหยุ่น',
+  capacity_based: 'รับจำนวนต่อรอบ',
+  walk_in: 'Walk-in',
+  request_approval: 'ต้องยืนยันก่อน',
+};
+
 export function BookingModeChip({ mode }: { mode: string }) {
   const { t } = useTranslation('booking_mode');
-  return <Chip size="small" label={t(mode, mode)} color={colorMap[mode] ?? 'default'} variant="outlined" />;
+  return <Chip size="small" label={t(mode, thaiModeLabel[mode] ?? mode)} color={colorMap[mode] ?? 'default'} variant="outlined" />;
 }

@@ -6,7 +6,8 @@ const navs = [
   { label: 'หน้าแรก', href: '/' },
   { label: 'ฟีเจอร์', href: '/#features' },
   { label: 'ตัวอย่างการใช้งาน', href: '/#showcase' },
-  { label: 'ราคา', href: '/#PricingPreview' },
+  { label: 'บทความ', href: '/blog' },
+  { label: 'ราคา', href: '/#pricing' },
   { label: 'ติดต่อเรา', href: '/#contact' },
 ];
 

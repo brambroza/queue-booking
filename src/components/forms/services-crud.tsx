@@ -51,6 +51,13 @@ type Template = {
 };
 
 const BOOKING_MODES = ['fixed_slot', 'flexible_duration', 'capacity_based', 'walk_in', 'request_approval'] as const;
+const BOOKING_MODE_LABELS: Record<(typeof BOOKING_MODES)[number], string> = {
+  fixed_slot: 'จองตามเวลาที่แน่นอน',
+  flexible_duration: 'เวลายืดหยุ่น',
+  capacity_based: 'รับจำนวนต่อรอบ',
+  walk_in: 'Walk-in',
+  request_approval: 'ต้องยืนยันก่อน',
+};
 
 export function ServicesCrud() {
   const { push } = useToast();
@@ -260,7 +267,7 @@ export function ServicesCrud() {
               <FormControl fullWidth size="small">
                 <InputLabel>Booking Mode</InputLabel>
                 <Select value={bookingMode} label="Booking Mode" onChange={(e: SelectChangeEvent) => setBookingMode(e.target.value as Template['booking_mode'])}>
-                  {BOOKING_MODES.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                  {BOOKING_MODES.map((m) => <MenuItem key={m} value={m}>{BOOKING_MODE_LABELS[m]}</MenuItem>)}
                 </Select>
               </FormControl>
             </Grid>

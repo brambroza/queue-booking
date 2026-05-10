@@ -11,6 +11,14 @@ export const metadata: Metadata = {
   title: 'แผนราคา | LINE Queue Booking SaaS',
   description:
     'เลือกแผนการใช้งานระบบจองคิวผ่าน LINE OA สำหรับร้านค้า คลินิก ร้านอาหาร ศูนย์บริการ และธุรกิจบริการ',
+  alternates: { canonical: '/pricing' },
+  openGraph: {
+    title: 'แผนราคา | LINE Queue Booking SaaS',
+    description: 'เลือกแผนการใช้งานระบบจองคิวผ่าน LINE OA ให้เหมาะกับธุรกิจของคุณ',
+    url: '/pricing',
+    type: 'website',
+    locale: 'th_TH',
+  },
 };
 
 export default function PricingPage() {

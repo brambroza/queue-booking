@@ -14,6 +14,8 @@ export function PublicFooter() {
             <Stack spacing={1}>
               <Typography fontWeight={700}>เมนู</Typography>
               <Link href="/">หน้าแรก</Link>
+              <Link href="/use-cases">ตัวอย่างการใช้งาน</Link>
+              <Link href="/blog">บทความ</Link>
               <Link href="/pricing">ราคา</Link>
               <Link href="/contact">ติดต่อเรา</Link>
             </Stack>

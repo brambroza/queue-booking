@@ -8,6 +8,7 @@ import { MuiAppProvider } from '@/components/theme/mui-provider';
 const manrope = Manrope({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://queue-booking-line.vercel.app'),
   title: 'Queue Booking',
   description: 'Queue booking platform for LINE OA',
 };
