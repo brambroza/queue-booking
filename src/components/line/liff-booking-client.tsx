@@ -102,6 +102,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const [history, setHistory] = useState<MyBooking[]>([]);
   const [accountLoading, setAccountLoading] = useState(false);
   const [liffOpenUrl, setLiffOpenUrl] = useState('');
+  const [resolvedLiffId, setResolvedLiffId] = useState('');
 
   const canLoadSlots = branchId && serviceId && date;
   const canBook = memberReady && branchId && serviceId && date && selectedTime && customerName.trim().length >= 2 && customerPhone.trim().length >= 8;
@@ -151,6 +152,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       setMemberError('');
       try {
         const liffId = resolveLiffId(shop.liff_id);
+        setResolvedLiffId(liffId);
         if (!liffId) {
           push('LIFF ID ไม่ถูกต้องหรือยังไม่ได้ตั้งค่าในร้าน/ENV', 'error');
           setMemberStatus('error');
@@ -350,6 +352,11 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
             {memberStatus === 'error' ? (
               <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
                 <p>{memberError || 'ตรวจสอบสมาชิกไม่สำเร็จ'}</p>
+                {resolvedLiffId ? (
+                  <p className="mt-2 font-mono text-[11px] text-rose-800">
+                    LIFF ID: {resolvedLiffId}
+                  </p>
+                ) : null}
                 {liffOpenUrl ? (
                   <a className="btn-outline mt-2 inline-flex" href={liffOpenUrl}>
                     เปิดผ่าน LINE

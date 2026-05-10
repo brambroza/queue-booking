@@ -1,7 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import HourglassBottomRoundedIcon from '@mui/icons-material/HourglassBottomRounded';
+import PlayCircleRoundedIcon from '@mui/icons-material/PlayCircleRounded';
+import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded';
 import { useToast } from '@/components/ui/toast';
+import { ActionIconGroup } from '@/components/ui/action-icon-group';
 
 type Booking = {
   id: string;
@@ -54,10 +58,38 @@ export function QueueBoardClient() {
                   <p className="font-semibold">{r.queue_number}</p>
                   <p>{String(r.start_time).slice(0, 5)} - {r.customers?.full_name ?? '-'}</p>
                   <p className="text-xs text-slate-600">{r.services?.service_name ?? '-'}</p>
-                  <div className="mt-2 flex gap-1">
-                    {col !== 'waiting' ? <button className="btn-outline" onClick={() => void setStatus(r.id, 'waiting')}>Waiting</button> : null}
-                    {col !== 'serving' ? <button className="btn-outline" onClick={() => void setStatus(r.id, 'serving')}>Serving</button> : null}
-                    {col !== 'completed' ? <button className="btn-primary" onClick={() => void setStatus(r.id, 'completed')}>Complete</button> : null}
+                  <div className="mt-2 flex justify-end">
+                    <ActionIconGroup
+                      actions={[
+                        {
+                          key: 'waiting',
+                          hidden: col === 'waiting',
+                          icon: <HourglassBottomRoundedIcon fontSize="small" />,
+                          labelKey: 'status.waiting',
+                          fallbackLabel: 'Waiting',
+                          color: 'warning',
+                          onClick: () => void setStatus(r.id, 'waiting'),
+                        },
+                        {
+                          key: 'serving',
+                          hidden: col === 'serving',
+                          icon: <PlayCircleRoundedIcon fontSize="small" />,
+                          labelKey: 'status.serving',
+                          fallbackLabel: 'Serving',
+                          color: 'info',
+                          onClick: () => void setStatus(r.id, 'serving'),
+                        },
+                        {
+                          key: 'completed',
+                          hidden: col === 'completed',
+                          icon: <DoneAllRoundedIcon fontSize="small" />,
+                          labelKey: 'bookings.complete',
+                          fallbackLabel: 'Complete',
+                          color: 'success',
+                          onClick: () => void setStatus(r.id, 'completed'),
+                        },
+                      ]}
+                    />
                   </div>
                 </article>
               ))}
