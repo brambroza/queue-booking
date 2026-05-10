@@ -7,6 +7,16 @@ type Branch = { id: string; branch_name: string };
 type Service = { id: string; service_name: string; duration_minutes: number };
 type Slot = { slot_time: string; remaining_capacity: number };
 type ShopMeta = { id: string; name: string; shop_key: string; liff_id?: string | null };
+type MyBooking = {
+  id: string;
+  queue_number: string;
+  booking_date: string;
+  start_time: string;
+  status: string;
+  note?: string | null;
+  branches?: { branch_name?: string } | null;
+  services?: { service_name?: string } | null;
+};
 
 type LiffApi = {
   init: (x: { liffId: string }) => Promise<void>;
@@ -47,7 +57,7 @@ async function ensureLiffLoaded(): Promise<LiffApi | null> {
   return (window as Window & { liff?: LiffApi }).liff ?? null;
 }
 
-export function LiffBookingClient({ shopKey }: { shopKey: string }) {
+export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey: string; initialTab?: 'booking' | 'account' }) {
   const { push } = useToast();
 
   const [shop, setShop] = useState<ShopMeta | null>(null);
@@ -61,15 +71,45 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [lineUserId, setLineUserId] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [pictureUrl, setPictureUrl] = useState('');
   const [queueNo, setQueueNo] = useState('');
   const [loading, setLoading] = useState(false);
   const [memberReady, setMemberReady] = useState(false);
   const [memberStatus, setMemberStatus] = useState<'idle' | 'checking' | 'ready' | 'error'>('idle');
   const [memberError, setMemberError] = useState('');
   const [step, setStep] = useState<1 | 2>(1);
+  const [tab, setTab] = useState<'booking' | 'account'>(initialTab);
+  const [upcoming, setUpcoming] = useState<MyBooking[]>([]);
+  const [history, setHistory] = useState<MyBooking[]>([]);
+  const [accountLoading, setAccountLoading] = useState(false);
 
   const canLoadSlots = branchId && serviceId && date;
   const canBook = memberReady && branchId && serviceId && date && selectedTime && customerName.trim().length >= 2 && customerPhone.trim().length >= 8;
+
+  async function loadMe(opts?: { mode?: 'view' | 'update' }) {
+    if (!lineUserId) return;
+    setAccountLoading(true);
+    const res = await fetch(`/api/public/shop/${shopKey}/me`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        line_user_id: lineUserId,
+        display_name: displayName || undefined,
+        picture_url: pictureUrl || undefined,
+        full_name: customerName || undefined,
+        phone: customerPhone || undefined,
+        mode: opts?.mode ?? 'view',
+      }),
+    });
+    const json = await res.json();
+    setAccountLoading(false);
+    if (!res.ok) return push(json.error ?? 'โหลดข้อมูลสมาชิกไม่สำเร็จ', 'error');
+    if (json.data?.customer?.full_name) setCustomerName(json.data.customer.full_name);
+    if (json.data?.customer?.phone) setCustomerPhone(json.data.customer.phone);
+    setUpcoming(json.data?.upcoming ?? []);
+    setHistory(json.data?.history ?? []);
+  }
 
   useEffect(() => {
     void (async () => {
@@ -120,6 +160,8 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
 
         const profile = await liff.getProfile();
         setLineUserId(profile.userId);
+        setDisplayName(profile.displayName);
+        setPictureUrl(profile.pictureUrl ?? '');
         if (!customerName) setCustomerName(profile.displayName);
 
         const memberRes = await fetch(`/api/public/shop/${shopKey}/member-context`, {
@@ -145,6 +187,7 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
         if (memberJson.data?.was_registered) push('สมัครสมาชิกกับร้านสำเร็จแล้ว กรุณายืนยันข้อมูลก่อนจองคิว', 'success');
         setMemberReady(true);
         setMemberStatus('ready');
+        void loadMe();
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'LIFF init failed';
         push(msg, 'error');
@@ -153,6 +196,12 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
       }
     })();
   }, [shop, customerName, push, shopKey]);
+
+  useEffect(() => {
+    if (!lineUserId || memberStatus !== 'ready') return;
+    void loadMe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineUserId, memberStatus]);
 
   function retryMemberCheck() {
     setMemberReady(false);
@@ -205,6 +254,7 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
     }
 
     push('จองคิวสำเร็จ');
+    void loadMe();
     try {
       const liff = await ensureLiffLoaded();
       if (liff?.isInClient?.() && liff?.closeWindow) {
@@ -217,6 +267,21 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
 
   const selectedBranch = useMemo(() => branches.find((b) => b.id === branchId), [branches, branchId]);
   const selectedService = useMemo(() => services.find((s) => s.id === serviceId), [services, serviceId]);
+
+  async function cancelBooking(bookingId: string) {
+    if (!lineUserId) return;
+    const ok = window.confirm('ยืนยันยกเลิกคิวนี้?');
+    if (!ok) return;
+    const res = await fetch(`/api/public/shop/${shopKey}/cancel-booking`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ line_user_id: lineUserId, booking_id: bookingId }),
+    });
+    const json = await res.json();
+    if (!res.ok) return push(json.error ?? 'ยกเลิกคิวไม่สำเร็จ', 'error');
+    push('ยกเลิกคิวแล้ว');
+    void loadMe();
+  }
 
   if (queueNo) {
     return (
@@ -238,15 +303,26 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
       <section className="card mx-auto max-w-md p-4 space-y-4">
         <div className="space-y-1">
           <h1 className="text-xl font-bold">จองคิวผ่าน LINE</h1>
-          <p className="text-xs text-slate-500">{shop?.name ?? 'ร้านค้า'} • Step {step}/2</p>
+          <p className="text-xs text-slate-500">{shop?.name ?? 'ร้านค้า'}</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <button className={step === 1 ? 'btn-primary' : 'btn-outline'} disabled>1) ข้อมูลสมาชิก</button>
-          <button className={step === 2 ? 'btn-primary' : 'btn-outline'} disabled>2) เลือกคิว</button>
-        </div>
+        {initialTab === 'booking' ? (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+            เมนูนี้สำหรับจองคิว
+          </div>
+        ) : (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+            เมนูนี้สำหรับข้อมูลสมาชิก
+          </div>
+        )}
 
-        {step === 1 ? (
+        {tab === 'booking' ? (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <button className={step === 1 ? 'btn-primary' : 'btn-outline'} disabled>1) ข้อมูลสมาชิก</button>
+              <button className={step === 2 ? 'btn-primary' : 'btn-outline'} disabled>2) เลือกคิว</button>
+            </div>
+            {step === 1 ? (
           <div className="space-y-3">
             {memberStatus === 'checking' ? <p className="text-xs text-slate-500">กำลังตรวจสอบสมาชิกของร้าน...</p> : null}
             {memberStatus === 'error' ? (
@@ -265,7 +341,7 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
               ถัดไป: เลือกคิว
             </button>
           </div>
-        ) : (
+            ) : (
           <div className="space-y-3">
             <select className="input" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
               {branches.map((b) => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
@@ -287,6 +363,59 @@ export function LiffBookingClient({ shopKey }: { shopKey: string }) {
             <div className="grid grid-cols-2 gap-2">
               <button className="btn-outline" onClick={() => setStep(1)}>ย้อนกลับ</button>
               <button className="btn-primary" onClick={() => void bookNow()} disabled={!canBook || loading}>{loading ? 'กำลังบันทึก...' : 'ยืนยันจองคิว'}</button>
+            </div>
+          </div>
+            )}
+          </>
+        ) : (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-3">
+              <div className="flex items-center gap-3">
+                {pictureUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={pictureUrl} alt={displayName || customerName} className="h-12 w-12 rounded-full object-cover" />
+                ) : (
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-200 font-semibold text-slate-600">
+                    {(displayName || customerName || 'U').slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-800">{displayName || customerName || 'LINE User'}</p>
+                  <p className="truncate text-xs text-slate-500">{lineUserId || '-'}</p>
+                </div>
+              </div>
+              <div className="mt-3 grid gap-2">
+                <input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="ชื่อผู้จอง" />
+                <input className="input" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="เบอร์โทร" />
+                <button className="btn-primary" disabled={accountLoading} onClick={() => void loadMe({ mode: 'update' })}>
+                  {accountLoading ? 'กำลังบันทึก...' : 'บันทึกข้อมูลส่วนตัว'}
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
+              <h3 className="text-sm font-semibold text-slate-800">คิวที่จองอยู่</h3>
+              {upcoming.length === 0 ? <p className="text-xs text-slate-500">ไม่มีคิวที่กำลังใช้งาน</p> : upcoming.map((b) => (
+                <div key={b.id} className="rounded-xl border border-slate-200 p-3 text-sm">
+                  <p className="font-semibold text-slate-800">{b.queue_number} • {String(b.status)}</p>
+                  <p className="text-slate-600">{b.booking_date} {String(b.start_time).slice(0, 5)}</p>
+                  <p className="text-slate-600">{b.branches?.branch_name ?? '-'} • {b.services?.service_name ?? '-'}</p>
+                  {(b.status === 'pending' || b.status === 'confirmed' || b.status === 'waiting') ? (
+                    <button className="btn-outline mt-2" onClick={() => void cancelBooking(b.id)}>ยกเลิกคิว</button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
+              <h3 className="text-sm font-semibold text-slate-800">ประวัติการจอง</h3>
+              {history.length === 0 ? <p className="text-xs text-slate-500">ยังไม่มีประวัติ</p> : history.map((b) => (
+                <div key={b.id} className="rounded-xl border border-slate-200 p-3 text-sm">
+                  <p className="font-medium text-slate-800">{b.queue_number} • {String(b.status)}</p>
+                  <p className="text-slate-600">{b.booking_date} {String(b.start_time).slice(0, 5)}</p>
+                  <p className="text-slate-600">{b.branches?.branch_name ?? '-'} • {b.services?.service_name ?? '-'}</p>
+                </div>
+              ))}
             </div>
           </div>
         )}
