@@ -21,6 +21,15 @@ export async function resolveShopByKeyOrId(admin: SupabaseClient, shopRef: strin
   const byKey = await admin.from('shops').select(baseSelect).eq('shop_key', ref).eq('is_deleted', false).maybeSingle();
   if (byKey.data) return byKey.data as ResolvedShop;
 
+  // Fallback: handle shop_key case mismatch from external links/rich menu.
+  const byKeyInsensitive = await admin
+    .from('shops')
+    .select(baseSelect)
+    .ilike('shop_key', ref)
+    .eq('is_deleted', false)
+    .limit(1);
+  if (byKeyInsensitive.data?.[0]) return byKeyInsensitive.data[0] as ResolvedShop;
+
   if (looksLikeUuid(ref)) {
     const byId = await admin.from('shops').select(baseSelect).eq('id', ref).eq('is_deleted', false).maybeSingle();
     if (byId.data) return byId.data as ResolvedShop;
