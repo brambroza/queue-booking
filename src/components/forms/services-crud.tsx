@@ -224,7 +224,7 @@ export function ServicesCrud() {
           <CardContent>
             <Typography variant="subtitle2" mb={1}>Service Templates</Typography>
             <Grid container spacing={1.2}>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Business Category</InputLabel>
                   <Select value={category} label="Business Category" onChange={(e: SelectChangeEvent) => setCategory(String(e.target.value))}>
@@ -233,7 +233,7 @@ export function ServicesCrud() {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Template</InputLabel>
                   <Select value="" label="Template" onChange={(e: SelectChangeEvent) => {
@@ -253,10 +253,10 @@ export function ServicesCrud() {
 
         <Box component="form" onSubmit={onSubmit}>
           <Grid container spacing={1.5}>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField label="Service Name" value={serviceName} onChange={(e: ChangeEvent<HTMLInputElement>) => setServiceName(e.target.value)} fullWidth size="small" required />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Booking Mode</InputLabel>
                 <Select value={bookingMode} label="Booking Mode" onChange={(e: SelectChangeEvent) => setBookingMode(e.target.value as Template['booking_mode'])}>
@@ -264,24 +264,24 @@ export function ServicesCrud() {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField label="Price" type="number" value={price} onChange={(e: ChangeEvent<HTMLInputElement>) => setPrice(e.target.value)} fullWidth size="small" />
             </Grid>
 
             {bookingMode === 'fixed_slot' ? (
-              <Grid item xs={12} sm={6}><TextField label="Duration Minutes" type="number" value={duration} onChange={(e: ChangeEvent<HTMLInputElement>) => setDuration(e.target.value)} fullWidth size="small" /></Grid>
+              <Grid size={{ xs: 12, sm: 6 }}><TextField label="Duration Minutes" type="number" value={duration} onChange={(e: ChangeEvent<HTMLInputElement>) => setDuration(e.target.value)} fullWidth size="small" /></Grid>
             ) : null}
             {bookingMode === 'flexible_duration' ? (
               <>
-                <Grid item xs={12} sm={6}><TextField label="Min Duration" type="number" value={minDuration} onChange={(e: ChangeEvent<HTMLInputElement>) => setMinDuration(e.target.value)} fullWidth size="small" /></Grid>
-                <Grid item xs={12} sm={6}><TextField label="Max Duration" type="number" value={maxDuration} onChange={(e: ChangeEvent<HTMLInputElement>) => setMaxDuration(e.target.value)} fullWidth size="small" /></Grid>
+                <Grid size={{ xs: 12, sm: 6 }}><TextField label="Min Duration" type="number" value={minDuration} onChange={(e: ChangeEvent<HTMLInputElement>) => setMinDuration(e.target.value)} fullWidth size="small" /></Grid>
+                <Grid size={{ xs: 12, sm: 6 }}><TextField label="Max Duration" type="number" value={maxDuration} onChange={(e: ChangeEvent<HTMLInputElement>) => setMaxDuration(e.target.value)} fullWidth size="small" /></Grid>
               </>
             ) : null}
-            <Grid item xs={12} sm={6}><TextField label="Capacity / Slot" type="number" value={capacity} onChange={(e: ChangeEvent<HTMLInputElement>) => setCapacity(e.target.value)} fullWidth size="small" /></Grid>
+            <Grid size={{ xs: 12, sm: 6 }}><TextField label="Capacity / Slot" type="number" value={capacity} onChange={(e: ChangeEvent<HTMLInputElement>) => setCapacity(e.target.value)} fullWidth size="small" /></Grid>
 
-            <Grid item xs={12} sm={6}><FormControlLabel control={<Switch checked={active} onChange={(e: ChangeEvent<HTMLInputElement>) => setActive(e.target.checked)} />} label="Active" /></Grid>
-            <Grid item xs={12} sm={6}><FormControlLabel control={<Switch checked={requiresApproval} onChange={(e: ChangeEvent<HTMLInputElement>) => setRequiresApproval(e.target.checked)} />} label="Require Staff Confirm" /></Grid>
-            <Grid item xs={12} sm={6}><FormControlLabel control={<Switch checked={allowWalkIn} onChange={(e: ChangeEvent<HTMLInputElement>) => setAllowWalkIn(e.target.checked)} />} label="Allow Walk-in" /></Grid>
+            <Grid size={{ xs: 12, sm: 6 }}><FormControlLabel control={<Switch checked={active} onChange={(e: ChangeEvent<HTMLInputElement>) => setActive(e.target.checked)} />} label="Active" /></Grid>
+            <Grid size={{ xs: 12, sm: 6 }}><FormControlLabel control={<Switch checked={requiresApproval} onChange={(e: ChangeEvent<HTMLInputElement>) => setRequiresApproval(e.target.checked)} />} label="Require Staff Confirm" /></Grid>
+            <Grid size={{ xs: 12, sm: 6 }}><FormControlLabel control={<Switch checked={allowWalkIn} onChange={(e: ChangeEvent<HTMLInputElement>) => setAllowWalkIn(e.target.checked)} />} label="Allow Walk-in" /></Grid>
           </Grid>
           <Stack direction="row" spacing={1} mt={3}>
             <Button variant="contained" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save Service'}</Button>
