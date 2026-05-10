@@ -4,24 +4,24 @@ import { notFound } from 'next/navigation';
 import { Box, Chip, Container, Divider, Stack, Typography } from '@mui/material';
 import { PublicNavbar } from '@/components/public/public-navbar';
 import { PublicFooter } from '@/components/public/public-footer';
-import { blogPosts, getBlogBySlug } from '@/components/public/blog-content';
+import { blogPostsEn, getBlogBySlugEn } from '@/components/public/blog-content-en';
 import { formatDateDMY } from '@/lib/utils/date-format';
 
 type Params = { slug: string };
 
 export function generateStaticParams() {
-  return blogPosts.map((p) => ({ slug: p.slug }));
+  return blogPostsEn.map((p) => ({ slug: p.slug }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { slug } = await params;
-  const post = getBlogBySlug(slug);
+  const post = getBlogBySlugEn(slug);
   if (!post) return {};
   return {
     title: `${post.title} | LINE Queue Booking SaaS`,
     description: post.description,
     alternates: {
-      canonical: `/blog/${post.slug}`,
+      canonical: `/en/blog/${post.slug}`,
       languages: {
         'th-TH': `/blog/${post.slug}`,
         'en-US': `/en/blog/${post.slug}`,
@@ -31,16 +31,16 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
     openGraph: {
       title: post.title,
       description: post.description,
-      url: `/blog/${post.slug}`,
+      url: `/en/blog/${post.slug}`,
       type: 'article',
-      locale: 'th_TH',
+      locale: 'en_US',
     },
   };
 }
 
-export default async function BlogDetailPage({ params }: { params: Promise<Params> }) {
+export default async function BlogDetailEnPage({ params }: { params: Promise<Params> }) {
   const { slug } = await params;
-  const post = getBlogBySlug(slug);
+  const post = getBlogBySlugEn(slug);
   if (!post) notFound();
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://queue-booking-line.vercel.app';
@@ -51,7 +51,7 @@ export default async function BlogDetailPage({ params }: { params: Promise<Param
     description: post.description,
     datePublished: `${post.publishedAt}T00:00:00+07:00`,
     dateModified: `${post.publishedAt}T00:00:00+07:00`,
-    inLanguage: 'th-TH',
+    inLanguage: 'en-US',
     author: {
       '@type': 'Organization',
       name: 'QueueBooking LINE',
@@ -60,7 +60,7 @@ export default async function BlogDetailPage({ params }: { params: Promise<Param
       '@type': 'Organization',
       name: 'QueueBooking LINE',
     },
-    mainEntityOfPage: `${appUrl}/blog/${post.slug}`,
+    mainEntityOfPage: `${appUrl}/en/blog/${post.slug}`,
   };
 
   return (
@@ -72,7 +72,7 @@ export default async function BlogDetailPage({ params }: { params: Promise<Param
           <Chip label={post.category} size="small" sx={{ width: 'fit-content' }} />
           <Typography variant="h3" fontWeight={800}>{post.title}</Typography>
           <Typography color="text.secondary">
-            {formatDateDMY(post.publishedAt)} • เวลาอ่านประมาณ {post.readingMinutes} นาที
+            {formatDateDMY(post.publishedAt)} • {post.readingMinutes} min read
           </Typography>
         </Stack>
         <Divider sx={{ my: 3 }} />
@@ -92,10 +92,10 @@ export default async function BlogDetailPage({ params }: { params: Promise<Param
 
         <Box sx={{ mt: 4 }}>
           <Typography>
-            <Link href="/register">เริ่มใช้งานฟรี</Link> หรือ <Link href="/contact">ปรึกษาทีมงาน</Link>
+            <Link href="/register">Start free trial</Link> or <Link href="/en/contact">Contact sales</Link>
           </Typography>
           <Typography sx={{ mt: 1 }}>
-            <Link href="/blog">← กลับไปหน้าบทความทั้งหมด</Link>
+            <Link href="/en/blog">← Back to all articles</Link>
           </Typography>
         </Box>
       </Container>
@@ -103,3 +103,4 @@ export default async function BlogDetailPage({ params }: { params: Promise<Param
     </main>
   );
 }
+

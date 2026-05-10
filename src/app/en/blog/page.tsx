@@ -3,14 +3,14 @@ import Link from 'next/link';
 import { Card, CardContent, Chip, Container, Grid, Stack, Typography } from '@mui/material';
 import { PublicNavbar } from '@/components/public/public-navbar';
 import { PublicFooter } from '@/components/public/public-footer';
-import { blogPosts } from '@/components/public/blog-content';
+import { blogPostsEn } from '@/components/public/blog-content-en';
 import { formatDateDMY } from '@/lib/utils/date-format';
 
 export const metadata: Metadata = {
-  title: 'บทความ | LINE Queue Booking SaaS',
-  description: 'บทความเกี่ยวกับระบบจองคิวผ่าน LINE OA, LIFF, การลด no-show และแนวทางเพิ่มประสิทธิภาพงานบริการ',
+  title: 'Blog | LINE Queue Booking SaaS',
+  description: 'Guides and best practices for LINE OA queue booking, LIFF setup, and no-show reduction.',
   alternates: {
-    canonical: '/blog',
+    canonical: '/en/blog',
     languages: {
       'th-TH': '/blog',
       'en-US': '/en/blog',
@@ -19,25 +19,25 @@ export const metadata: Metadata = {
   },
 };
 
-export default function BlogPage() {
+export default function BlogEnPage() {
   return (
     <main>
       <PublicNavbar />
       <Container maxWidth="lg" sx={{ py: 8 }}>
-        <Typography variant="h3" fontWeight={800}>บทความและแนวทางใช้งานระบบจองคิว</Typography>
+        <Typography variant="h3" fontWeight={800}>Blog & Practical Guides</Typography>
         <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
-          รวมวิธีใช้งานจริงและ best practices สำหรับธุรกิจบริการที่ใช้ LINE OA
+          Learn queue operations and implementation patterns for LINE-first service businesses.
         </Typography>
 
         <Grid container spacing={2}>
-          {blogPosts.map((post) => (
+          {blogPostsEn.map((post) => (
             <Grid key={post.slug} size={{ xs: 12, md: 6 }}>
               <Card sx={{ borderRadius: 1, height: '100%' }}>
                 <CardContent>
                   <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
                     <Chip label={post.category} size="small" />
                     <Typography variant="caption" color="text.secondary">
-                      {formatDateDMY(post.publishedAt)} • {post.readingMinutes} นาที
+                      {formatDateDMY(post.publishedAt)} • {post.readingMinutes} min read
                     </Typography>
                   </Stack>
                   <Typography variant="h6" fontWeight={700}>{post.title}</Typography>
@@ -46,7 +46,7 @@ export default function BlogPage() {
                     {post.keywords.slice(0, 3).map((k) => <Chip key={k} label={k} size="small" variant="outlined" />)}
                   </Stack>
                   <Typography sx={{ mt: 1.8 }}>
-                    <Link href={`/blog/${post.slug}`}>อ่านบทความ</Link>
+                    <Link href={`/en/blog/${post.slug}`}>Read article</Link>
                   </Typography>
                 </CardContent>
               </Card>
@@ -58,3 +58,4 @@ export default function BlogPage() {
     </main>
   );
 }
+

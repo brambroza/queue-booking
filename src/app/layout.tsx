@@ -13,14 +13,90 @@ const kanit = Kanit({
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://queue-booking-line.vercel.app'),
-  title: 'Queue Booking',
-  description: 'Queue booking platform for LINE OA',
+  title: {
+    default: 'QueueBooking LINE | ระบบจองคิวผ่าน LINE OA',
+    template: '%s | QueueBooking LINE',
+  },
+  description: 'ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ | LINE OA queue booking platform for modern service businesses.',
+  applicationName: 'QueueBooking LINE',
+  keywords: [
+    'ระบบจองคิวผ่าน line oa',
+    'ระบบจองคิว',
+    'line oa booking',
+    'liff booking',
+    'queue booking saas',
+    'booking management',
+  ],
+  authors: [{ name: 'QueueBooking LINE Team' }],
+  creator: 'QueueBooking LINE',
+  publisher: 'QueueBooking LINE',
+  alternates: {
+    canonical: '/',
+    languages: {
+      'th-TH': '/',
+      'en-US': '/en',
+      'x-default': '/',
+    },
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'th_TH',
+    alternateLocale: ['en_US'],
+    siteName: 'QueueBooking LINE',
+    title: 'QueueBooking LINE | ระบบจองคิวผ่าน LINE OA',
+    description: 'ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ | LINE OA queue booking platform for modern service businesses.',
+    url: '/',
+    images: [{ url: '/og-image', width: 1200, height: 630, alt: 'QueueBooking LINE' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'QueueBooking LINE | ระบบจองคิวผ่าน LINE OA',
+    description: 'ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ | LINE OA queue booking platform.',
+    images: ['/twitter-image'],
+  },
+  verification: {
+    google: '8H0SNuIjr6ZY-tLBzBf85s3jZzY12koKu-ACp7SLNXg',
+  },
 };
 
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const base = process.env.NEXT_PUBLIC_APP_URL || 'https://queue-booking-line.vercel.app';
+  const orgSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'QueueBooking LINE',
+    url: base,
+    contactPoint: [
+      {
+        '@type': 'ContactPoint',
+        contactType: 'sales',
+        email: 'amnart.gl@gmail.com',
+        telephone: '+66-85-608-3298',
+        areaServed: 'TH',
+        availableLanguage: ['th', 'en'],
+      },
+    ],
+  };
+
+  const websiteSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'QueueBooking LINE',
+    url: base,
+    inLanguage: ['th-TH', 'en-US'],
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: `${base}/blog?q={search_term_string}`,
+      'query-input': 'required name=search_term_string',
+    },
+  };
+
   return (
     <html lang="th">
       <body className={kanit.variable}>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }} />
         <I18nProvider>
           <MuiAppProvider>
             <ToastProvider>{children}</ToastProvider>

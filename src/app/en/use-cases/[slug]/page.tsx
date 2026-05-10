@@ -5,6 +5,7 @@ import { Box, Button, Card, CardContent, Container, Stack, Typography } from '@m
 import { PublicNavbar } from '@/components/public/public-navbar';
 import { PublicFooter } from '@/components/public/public-footer';
 import { useCases } from '@/components/public/content';
+import { useCasesEnBySlug } from '@/components/public/use-cases-content-en';
 
 type Params = { slug: string };
 
@@ -16,11 +17,12 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const { slug } = await params;
   const found = useCases.find((u) => u.slug === slug);
   if (!found) return {};
+  const en = useCasesEnBySlug[found.slug];
   return {
-    title: `${found.title} | ระบบจองคิวผ่าน LINE OA`,
-    description: `${found.title}: ${found.summary}`,
+    title: `${en?.title ?? found.title} | LINE Queue Booking SaaS`,
+    description: en?.summary ?? found.summary,
     alternates: {
-      canonical: `/use-cases/${found.slug}`,
+      canonical: `/en/use-cases/${found.slug}`,
       languages: {
         'th-TH': `/use-cases/${found.slug}`,
         'en-US': `/en/use-cases/${found.slug}`,
@@ -30,10 +32,11 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   };
 }
 
-export default async function UseCaseDetailPage({ params }: { params: Promise<Params> }) {
+export default async function UseCaseDetailEnPage({ params }: { params: Promise<Params> }) {
   const { slug } = await params;
   const item = useCases.find((u) => u.slug === slug);
   if (!item) notFound();
+  const en = useCasesEnBySlug[item.slug];
   const Icon = item.icon;
 
   return (
@@ -45,24 +48,24 @@ export default async function UseCaseDetailPage({ params }: { params: Promise<Pa
             <Icon sx={{ color: '#639922' }} />
           </Box>
           <div>
-            <Typography variant="h4" fontWeight={800}>{item.title}</Typography>
-            <Typography color="text.secondary">{item.mode}</Typography>
+            <Typography variant="h4" fontWeight={800}>{en?.title ?? item.title}</Typography>
+            <Typography color="text.secondary">{en?.mode ?? item.mode}</Typography>
           </div>
         </Stack>
 
         <Card sx={{ borderRadius: 3 }}>
           <CardContent>
-            <Typography variant="body1" color="text.secondary">{item.summary}</Typography>
-            <Typography fontWeight={700} sx={{ mt: 2 }}>ตัวอย่างบริการที่แนะนำ</Typography>
+            <Typography variant="body1" color="text.secondary">{en?.summary ?? item.summary}</Typography>
+            <Typography fontWeight={700} sx={{ mt: 2 }}>Suggested services</Typography>
             <Stack spacing={0.8} sx={{ mt: 1 }}>
-              {item.services.map((s) => (
+              {(en?.services ?? item.services).map((s) => (
                 <Typography key={s}>• {s}</Typography>
               ))}
             </Stack>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 3 }}>
-              <Button component={Link} href="/register" variant="contained">เริ่มใช้งานฟรี</Button>
-              <Button component={Link} href="/contact" variant="outlined">ปรึกษาทีมงาน</Button>
-              <Button component={Link} href="/use-cases" variant="text">กลับหน้าตัวอย่างธุรกิจ</Button>
+              <Button component={Link} href="/register" variant="contained">Start free trial</Button>
+              <Button component={Link} href="/en/contact" variant="outlined">Contact sales</Button>
+              <Button component={Link} href="/en/use-cases" variant="text">Back to use cases</Button>
             </Stack>
           </CardContent>
         </Card>
@@ -71,3 +74,4 @@ export default async function UseCaseDetailPage({ params }: { params: Promise<Pa
     </main>
   );
 }
+

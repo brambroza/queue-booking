@@ -8,10 +8,17 @@ import { FaqSection } from '@/components/public/faq-section';
 import { PricingCard } from '@/components/public/pricing-card';
 
 export const metadata: Metadata = {
-  title: 'แผนราคา | LINE Queue Booking SaaS',
+  title: 'แผนราคา | LINE Queue Booking SaaS Pricing',
   description:
-    'เลือกแผนการใช้งานระบบจองคิวผ่าน LINE OA สำหรับร้านค้า คลินิก ร้านอาหาร ศูนย์บริการ และธุรกิจบริการ',
-  alternates: { canonical: '/pricing' },
+    'เลือกแผนการใช้งานระบบจองคิวผ่าน LINE OA สำหรับร้านค้า คลินิก ร้านอาหาร ศูนย์บริการ | Pricing for LINE OA queue booking SaaS.',
+  alternates: {
+    canonical: '/pricing',
+    languages: {
+      'th-TH': '/pricing',
+      'en-US': '/en/pricing',
+      'x-default': '/pricing',
+    },
+  },
   openGraph: {
     title: 'แผนราคา | LINE Queue Booking SaaS',
     description: 'เลือกแผนการใช้งานระบบจองคิวผ่าน LINE OA ให้เหมาะกับธุรกิจของคุณ',
@@ -22,8 +29,22 @@ export const metadata: Metadata = {
 };
 
 export default function PricingPage() {
+  const faqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map((f) => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: f.a,
+      },
+    })),
+  };
+
   return (
     <main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
       <PublicNavbar />
       <Container maxWidth="xl" sx={{ py: 8 }}>
         <Typography variant="h3" fontWeight={800}>Pricing Plans</Typography>

@@ -4,12 +4,13 @@ import { Box, Card, CardContent, Container, Grid, Stack, Typography } from '@mui
 import { PublicNavbar } from '@/components/public/public-navbar';
 import { PublicFooter } from '@/components/public/public-footer';
 import { useCases } from '@/components/public/content';
+import { useCasesEnBySlug } from '@/components/public/use-cases-content-en';
 
 export const metadata: Metadata = {
-  title: 'ตัวอย่างการใช้งาน | LINE Queue Booking SaaS',
-  description: 'ตัวอย่างธุรกิจที่ใช้ระบบจองคิวผ่าน LINE OA เช่น ร้านตัดผม คลินิก ร้านอาหาร และศูนย์บริการ',
+  title: 'Use Cases | LINE Queue Booking SaaS',
+  description: 'Explore practical queue booking setups for barbers, clinics, restaurants, and service teams.',
   alternates: {
-    canonical: '/use-cases',
+    canonical: '/en/use-cases',
     languages: {
       'th-TH': '/use-cases',
       'en-US': '/en/use-cases',
@@ -18,19 +19,20 @@ export const metadata: Metadata = {
   },
 };
 
-export default function UseCasesPage() {
+export default function UseCasesEnPage() {
   return (
     <main>
       <PublicNavbar />
       <Container maxWidth="xl" sx={{ py: 8 }}>
-        <Typography variant="h3" fontWeight={800}>ตัวอย่างการใช้งานตามประเภทธุรกิจ</Typography>
+        <Typography variant="h3" fontWeight={800}>Use Cases by Industry</Typography>
         <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
-          เลือกรูปแบบคิวและบริการที่เหมาะกับธุรกิจของคุณ พร้อมเริ่มใช้งานได้ทันที
+          Pick queue logic and service formats that fit your business model.
         </Typography>
 
         <Grid container spacing={2}>
           {useCases.map((item) => {
             const Icon = item.icon;
+            const en = useCasesEnBySlug[item.slug];
             return (
               <Grid key={item.slug} size={{ xs: 12, md: 6, lg: 4 }}>
                 <Card sx={{ borderRadius: 3, height: '100%' }}>
@@ -39,21 +41,21 @@ export default function UseCasesPage() {
                       <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: '#eaf3de', display: 'grid', placeItems: 'center' }}>
                         <Icon sx={{ color: '#639922' }} />
                       </Box>
-                      <Typography fontWeight={700}>{item.title}</Typography>
+                      <Typography fontWeight={700}>{en?.title ?? item.title}</Typography>
                     </Stack>
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                      {item.mode}
+                      {en?.mode ?? item.mode}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1.2 }}>
-                      {item.summary}
+                      {en?.summary ?? item.summary}
                     </Typography>
                     <Stack spacing={0.4} sx={{ mt: 1.2 }}>
-                      {item.services.map((s) => (
+                      {(en?.services ?? item.services).map((s) => (
                         <Typography key={s} variant="body2">• {s}</Typography>
                       ))}
                     </Stack>
                     <Box sx={{ mt: 1.8 }}>
-                      <Link href={`/use-cases/${item.slug}`}>ดูรายละเอียดเพิ่มเติม</Link>
+                      <Link href={`/en/use-cases/${item.slug}`}>View details</Link>
                     </Box>
                   </CardContent>
                 </Card>
@@ -66,3 +68,4 @@ export default function UseCasesPage() {
     </main>
   );
 }
+

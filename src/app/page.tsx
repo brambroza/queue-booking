@@ -16,13 +16,20 @@ import {
 } from '@/components/public/sections';
 
 export const metadata: Metadata = {
-  title: 'ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ',
+  title: 'ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ | LINE OA Queue Booking Platform',
   description:
-    'ระบบจองคิวผ่าน LINE OA พร้อม Dashboard หลังบ้าน รองรับหลายร้าน หลายสาขา และคิวทั้งแบบ Fix เวลาและไม่ Fix เวลา',
-  alternates: { canonical: '/' },
+    'ระบบจองคิวผ่าน LINE OA พร้อม Dashboard หลังบ้าน รองรับหลายร้าน หลายสาขา | LINE OA queue booking platform with LIFF and back-office dashboard.',
+  alternates: {
+    canonical: '/',
+    languages: {
+      'th-TH': '/',
+      'en-US': '/en',
+      'x-default': '/',
+    },
+  },
   openGraph: {
-    title: 'ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ',
-    description: 'ให้ลูกค้าถามคิวว่างและจองคิวผ่าน LINE พร้อมระบบหลังบ้านครบวงจร',
+    title: 'ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ | QueueBooking LINE',
+    description: 'ให้ลูกค้าถามคิวว่างและจองคิวผ่าน LINE พร้อมระบบหลังบ้านครบวงจร | LINE OA queue booking with full dashboard.',
     url: '/',
     type: 'website',
     locale: 'th_TH',

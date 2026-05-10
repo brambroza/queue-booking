@@ -7,10 +7,17 @@ import { FaqSection } from '@/components/public/faq-section';
 import { faqs } from '@/components/public/content';
 
 export const metadata: Metadata = {
-  title: 'ติดต่อเรา | LINE Queue Booking SaaS',
+  title: 'ติดต่อเรา | Contact LINE Queue Booking SaaS',
   description:
-    'ติดต่อทีมงานเพื่อเริ่มใช้งานระบบจองคิวผ่าน LINE OA สำหรับธุรกิจของคุณ',
-  alternates: { canonical: '/contact' },
+    'ติดต่อทีมงานเพื่อเริ่มใช้งานระบบจองคิวผ่าน LINE OA สำหรับธุรกิจของคุณ | Contact us for demo and onboarding.',
+  alternates: {
+    canonical: '/contact',
+    languages: {
+      'th-TH': '/contact',
+      'en-US': '/en/contact',
+      'x-default': '/contact',
+    },
+  },
   openGraph: {
     title: 'ติดต่อเรา | LINE Queue Booking SaaS',
     description: 'ติดต่อทีมงานเพื่อรับเดโมและเริ่มใช้งานระบบจองคิวผ่าน LINE OA',
@@ -21,8 +28,23 @@ export const metadata: Metadata = {
 };
 
 export default function ContactPage() {
+  const contactFaqs = faqs.slice(0, 3);
+  const faqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: contactFaqs.map((f) => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: f.a,
+      },
+    })),
+  };
+
   return (
     <main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
       <PublicNavbar />
       <Container maxWidth="xl" sx={{ py: 8 }}>
         <Typography variant="h3" fontWeight={800}>ติดต่อเรา</Typography>
@@ -48,7 +70,7 @@ export default function ContactPage() {
           </Grid>
         </Grid>
       </Container>
-      <FaqSection items={faqs.slice(0, 3)} />
+      <FaqSection items={contactFaqs} />
       <PublicFooter />
     </main>
   );
