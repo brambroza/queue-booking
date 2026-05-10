@@ -4,12 +4,18 @@ import { redirect } from 'next/navigation';
 export default async function LiffBookingClientEntry({
   searchParams,
 }: {
-  searchParams: Promise<{ shopKey?: string; shop_key?: string; shopId?: string; shop_id?: string }>;
+  searchParams: Promise<{ shopKey?: string; shop_key?: string; shopId?: string; shop_id?: string; tab?: string; view?: string }>;
 }) {
   const qs = await searchParams;
   const ref = qs.shopKey ?? qs.shop_key ?? qs.shopId ?? qs.shop_id;
+  const tab = (qs.tab ?? qs.view ?? '').toLowerCase();
 
-  if (ref) redirect(`/liff/${encodeURIComponent(ref)}`);
+  if (ref) {
+    if (tab === 'account' || tab === 'member') {
+      redirect(`/liff/${encodeURIComponent(ref)}/member`);
+    }
+    redirect(`/liff/${encodeURIComponent(ref)}`);
+  }
 
   return (
     <main className="min-h-screen p-6">

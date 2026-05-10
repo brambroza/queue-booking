@@ -48,6 +48,11 @@ function resolveLiffId(shopLiffId?: string | null) {
   return '';
 }
 
+function buildLiffOpenUrl(liffId: string, shopKey: string, tab: 'booking' | 'account') {
+  const params = new URLSearchParams({ shop_key: shopKey, tab });
+  return `https://liff.line.me/${encodeURIComponent(liffId)}?${params.toString()}`;
+}
+
 async function ensureLiffLoaded(): Promise<LiffApi | null> {
   const w = window as Window & { liff?: LiffApi };
   if (w.liff) return w.liff;
@@ -96,6 +101,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const [upcoming, setUpcoming] = useState<MyBooking[]>([]);
   const [history, setHistory] = useState<MyBooking[]>([]);
   const [accountLoading, setAccountLoading] = useState(false);
+  const [liffOpenUrl, setLiffOpenUrl] = useState('');
 
   const canLoadSlots = branchId && serviceId && date;
   const canBook = memberReady && branchId && serviceId && date && selectedTime && customerName.trim().length >= 2 && customerPhone.trim().length >= 8;
@@ -165,9 +171,13 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
           new Promise((_, reject) => setTimeout(() => reject(new Error('LIFF init timeout')), 12000)),
         ]);
         if (!liff.isLoggedIn()) {
+          const openUrl = buildLiffOpenUrl(liffId, shopKey, initialTab);
+          setLiffOpenUrl(openUrl);
           setMemberStatus('error');
-          setMemberError('ไม่ได้เปิดผ่าน LINE App หรือยังไม่ได้ login LIFF');
-          liff.login();
+          setMemberError('กรุณาเปิดหน้านี้ผ่าน LINE LIFF');
+          if (typeof window !== 'undefined' && liff.isInClient?.()) {
+            liff.login();
+          }
           return;
         }
 
@@ -208,7 +218,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         setMemberError(msg);
       }
     })();
-  }, [shop, customerName, push, shopKey]);
+  }, [shop, customerName, push, shopKey, initialTab]);
 
   useEffect(() => {
     if (!lineUserId || memberStatus !== 'ready') return;
@@ -340,6 +350,11 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
             {memberStatus === 'error' ? (
               <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
                 <p>{memberError || 'ตรวจสอบสมาชิกไม่สำเร็จ'}</p>
+                {liffOpenUrl ? (
+                  <a className="btn-outline mt-2 inline-flex" href={liffOpenUrl}>
+                    เปิดผ่าน LINE
+                  </a>
+                ) : null}
                 <button className="btn-outline mt-2" onClick={retryMemberCheck}>ลองใหม่</button>
               </div>
             ) : null}
