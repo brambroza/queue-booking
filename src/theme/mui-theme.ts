@@ -8,7 +8,7 @@ export const muiTheme = createTheme({
   },
   shape: { borderRadius: 14 },
   typography: {
-    fontFamily: 'Inter, Public Sans, var(--font-sans), sans-serif',
+    fontFamily: 'var(--font-sans), sans-serif',
   },
   components: {
     MuiCard: {
@@ -31,4 +31,3 @@ export const muiTheme = createTheme({
     },
   },
 });
-

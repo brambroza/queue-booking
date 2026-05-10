@@ -8,6 +8,7 @@ import {
   HowItWorksSection,
   PainPointSection,
   PricingPreviewSection,
+  
  
   ShowcaseSection,
   SolutionSection,
@@ -72,6 +73,7 @@ export default function HomePage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }} />
       <PublicNavbar />
       <HeroSection />
+   {/*    <StatsSection /> */}
   
       <PainPointSection />
       <SolutionSection />

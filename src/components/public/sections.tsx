@@ -40,7 +40,7 @@ const solutionCards = [
 
 export function HeroSection() {
   return (
-    <Box sx={{ background: 'linear-gradient(160deg,#EAF3DE 0%,#f8fdf4 50%,#f6f7f9 100%)', py: { xs: 8, md: 10 } }}>
+    <Box sx={{ background: '#fff', py: { xs: 8, md: 10 }, borderBottom: '1px solid', borderColor: 'divider' }}>
       <Container maxWidth="lg">
         <Grid container spacing={4} alignItems="center">
           <Grid size={{ xs: 12, md: 7 }}>
@@ -50,7 +50,7 @@ export function HeroSection() {
               <br />
               <Box component="span" sx={{ color: '#639922' }}>สำหรับทุกธุรกิจ</Box>
             </Typography>
-            <Typography color="text.secondary" sx={{ mt: 2, maxWidth: 640 }}>
+            <Typography color="text.secondary" sx={{ mt: 2, maxWidth: 560, lineHeight: 1.8 }}>
               ให้ลูกค้าถามคิวว่างและจองคิวได้ง่ายผ่าน LINE พร้อมระบบหลังบ้านสำหรับจัดการร้าน สาขา บริการ คิว พนักงาน และรายงานครบในที่เดียว
             </Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 3 }}>
@@ -71,19 +71,19 @@ export function HeroSection() {
 
           <Grid size={{ xs: 12, md: 5 }}>
             <Stack direction="row" spacing={1.5} alignItems="end">
-              <Paper sx={{ p: 1.5, borderRadius: 1, flex: 1 }}>
+              <Paper sx={{ p: 1.5, borderRadius: 1, flex: 1, border: '1px solid', borderColor: 'divider', boxShadow: '0 10px 28px rgba(15,23,42,0.06)' }}>
                 <Typography variant="caption" color="text.secondary">Dashboard</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
                   <Box sx={{ flex: 1, bgcolor: '#EAF3DE', borderRadius: 1, p: 1.2, textAlign: 'center' }}><Typography fontWeight={700} color="#3B6D11">48</Typography><Typography variant="caption">คิววันนี้</Typography></Box>
                   <Box sx={{ flex: 1, bgcolor: '#E6F1FB', borderRadius: 1, p: 1.2, textAlign: 'center' }}><Typography fontWeight={700} color="#185FA5">12</Typography><Typography variant="caption">รอดำเนินการ</Typography></Box>
                 </Stack>
-                <Box sx={{ mt: 1, p: 1.2, bgcolor: '#F1EFE8', borderRadius: 1 }}>
+                <Box sx={{ mt: 1, p: 1.2, bgcolor: '#F1EFE8', borderRadius: 2 }}>
                   <Typography variant="caption" color="text.secondary">คิวถัดไป</Typography>
                   <Typography variant="body2" fontWeight={600}>คุณสมชาย ใจดี</Typography>
                   <Typography variant="caption" color="text.secondary">ตัดผม 09:30</Typography>
                 </Box>
               </Paper>
-              <Box sx={{ width: 165, bgcolor: '#06C755', borderRadius: 1, p: 1.5, color: '#fff' }}>
+              <Box sx={{ width: 165, bgcolor: '#06C755', borderRadius: 1, p: 1.5, color: '#fff', boxShadow: '0 10px 28px rgba(6,199,85,0.28)' }}>
                 <Typography fontWeight={700} variant="caption">LINE Chat</Typography>
                 <Box sx={{ mt: 1, bgcolor: 'rgba(255,255,255,0.2)', borderRadius: '10px 10px 2px 10px', p: 1, fontSize: 12 }}>คิวว่างวันนี้มีไหมครับ?</Box>
                 <Box sx={{ mt: 0.8, bgcolor: 'rgba(255,255,255,0.92)', color: '#333', borderRadius: '2px 10px 10px 10px', p: 1, fontSize: 12 }}>มีว่าง 2 ช่วง เลือกเวลาได้เลยค่ะ</Box>
@@ -97,20 +97,29 @@ export function HeroSection() {
   );
 }
 
-/* export function StatsSection() {
-  const stats = [['500+', 'ร้านค้าที่ใช้งาน'], ['50,000+', 'การจองต่อเดือน'], ['99.9%', 'Uptime'], ['4.9 ⭐', 'คะแนนเฉลี่ย']];
+export function StatsSection() {
+  const stats = [['500+', 'ร้านค้าที่ใช้งาน'], ['50,000+', 'การจองต่อเดือน'], ['99.9%', 'Uptime'], ['4.9 ★', 'คะแนนเฉลี่ย']];
   return (
-    <Box sx={{ bgcolor: '#fff', py: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
+    <Box sx={{ bgcolor: '#f8faf9', py: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
       <Container maxWidth="lg">
-        <Stack direction={{ xs: 'column', md: 'row' }} divider={<Divider orientation="vertical" flexItem />} spacing={2} justifyContent="center" alignItems="center">
+        <Stack
+          direction={{ xs: 'column', md: 'row' }}
+          divider={<Divider orientation="vertical" flexItem />}
+          spacing={1.5}
+          justifyContent="center"
+          alignItems="center"
+        >
           {stats.map(([n, l]) => (
-            <Box key={l} sx={{ textAlign: 'center', px: 3 }}><Typography sx={{ fontSize: 26, fontWeight: 700, color: '#639922' }}>{n}</Typography><Typography variant="body2" color="text.secondary">{l}</Typography></Box>
+            <Box key={l} sx={{ textAlign: 'center', px: { xs: 1, md: 3 }, py: 0.6 }}>
+              <Typography sx={{ fontSize: 26, fontWeight: 700, color: '#639922', lineHeight: 1.1 }}>{n}</Typography>
+              <Typography variant="caption" color="text.secondary">{l}</Typography>
+            </Box>
           ))}
         </Stack>
       </Container>
     </Box>
   );
-} */
+}
 
 export function PainPointSection() {
   return (
@@ -153,7 +162,7 @@ export function ShowcaseSection() {
           const Icon = item.icon;
           return (
           <Grid key={item.slug} size={{ xs: 6, md: 3 }}>
-            <Card sx={{ textAlign: 'center', borderRadius: 3 }}>
+            <Card sx={{ textAlign: 'center', borderRadius: 1 }}>
               <CardContent sx={{ py: 2.2 }}>
                 <Icon sx={{ fontSize: 30, color: '#639922' }} />
                 <Typography fontWeight={700} sx={{ fontSize: 14, mt: 0.6 }}>{item.title}</Typography>
@@ -224,7 +233,7 @@ export function PricingPreviewSection() {
 export function TestimonialSection() {
   return (
     <SectionWrap title="ร้านค้าที่ใช้ระบบจัดการคิวได้ง่ายขึ้น" sub="เสียงตอบรับจากธุรกิจบริการ" tag="Testimonials" bg="#f6f7f9">
-      <Grid container spacing={2}>{testimonials.map((t) => <Grid key={t.name} size={{ xs: 12, md: 4 }}><Card sx={{ borderRadius: 3, height: '100%' }}><CardContent><Typography>“{t.quote}”</Typography><Typography fontWeight={700} sx={{ mt: 1.2 }}>{t.name}</Typography><Typography variant="caption" color="text.secondary">{t.type}</Typography></CardContent></Card></Grid>)}</Grid>
+      <Grid container spacing={2}>{testimonials.map((t) => <Grid key={t.name} size={{ xs: 12, md: 4 }}><Card sx={{ borderRadius: 1, height: '100%' }}><CardContent><Typography>“{t.quote}”</Typography><Typography fontWeight={700} sx={{ mt: 1.2 }}>{t.name}</Typography><Typography variant="caption" color="text.secondary">{t.type}</Typography></CardContent></Card></Grid>)}</Grid>
     </SectionWrap>
   );
 }
@@ -232,12 +241,54 @@ export function TestimonialSection() {
 export function CtaSection() {
   return (
     <Container id="contact" maxWidth="lg" sx={{ py: 8, scrollMarginTop: '96px' }}>
-      <Paper sx={{ p: { xs: 3, md: 5 }, borderRadius: 4, background: 'linear-gradient(145deg,#EAF3DE,#f8fdf4)' }}>
-        <Typography variant="h4" fontWeight={800}>พร้อมให้ลูกค้าจองคิวผ่าน LINE แล้วหรือยัง?</Typography>
-        <Typography color="text.secondary" sx={{ mt: 1 }}>เริ่มต้นสร้างระบบจองคิวของร้านคุณได้ภายในไม่กี่นาที</Typography>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 2.5 }}>
-          <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#639922', '&:hover': { bgcolor: '#3B6D11' } }}>เริ่มใช้งานฟรี</Button>
-          <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#639922', color: '#639922' }}>ติดต่อทีมงาน</Button>
+      <Paper
+        sx={{
+          p: { xs: 3, md: 5 },
+          borderRadius: 1,
+          border: '1px solid',
+          borderColor: 'divider',
+          background: 'linear-gradient(135deg,#ffffff 0%,#f6fbf8 100%)',
+          boxShadow: '0 14px 40px rgba(15,23,42,0.06)',
+        }}
+      >
+        <Stack spacing={2}>
+          <Box
+            sx={{
+              width: 'fit-content',
+              px: 1.4,
+              py: 0.5,
+              borderRadius: 10,
+              bgcolor: '#EAF3DE',
+              color: '#3B6D11',
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          >
+            พร้อมเริ่มใช้งาน
+          </Box>
+
+          <Typography sx={{ fontSize: { xs: 28, md: 38 }, lineHeight: 1.2, fontWeight: 800 }}>
+            พร้อมให้ลูกค้าจองคิวผ่าน LINE แล้วหรือยัง?
+          </Typography>
+
+          <Typography color="text.secondary" sx={{ maxWidth: 680 }}>
+            เริ่มต้นสร้างระบบจองคิวของร้านคุณได้ภายในไม่กี่นาที ลดงานตอบแชทซ้ำ และจัดการคิวได้เป็นระบบมากขึ้นทันที
+          </Typography>
+
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ pt: 0.5 }}>
+            <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#639922', '&:hover': { bgcolor: '#3B6D11' } }}>
+              เริ่มใช้งานฟรี
+            </Button>
+            <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#639922', color: '#639922' }}>
+              ติดต่อทีมงาน
+            </Button>
+            <Button component={Link} href="/pricing" variant="text" color="inherit">
+              ดูแผนราคา
+            </Button>
+          </Stack>
+          <Typography variant="caption" color="text.secondary">
+            ทดลองใช้ฟรี 14 วัน • ไม่ต้องใส่บัตรเครดิต • ตั้งค่าเริ่มต้นได้ใน 5 นาที
+          </Typography>
         </Stack>
       </Paper>
     </Container>

@@ -56,17 +56,17 @@ export const features = [
 ];
 
 export const useCases: UseCase[] = [
-  { icon: ContentCutRoundedIcon, slug: 'barber-shop', title: 'ร้านตัดผม', services: ['ตัดผมชาย: fixed_slot 30 นาที', 'ทำสีผม: flexible_duration 90-180 นาที'], mode: 'จองตามเวลาที่แน่นอน / เวลายืดหยุ่น', summary: 'เหมาะกับร้านที่มีทั้งงานเร็วและงานใช้เวลานาน ต้องการจัดคิวไม่ชนกัน' },
-  { icon: LocalHospitalRoundedIcon, slug: 'clinic', title: 'คลินิก', services: ['ตรวจทั่วไป: fixed_slot 15 นาที', 'พบแพทย์เฉพาะทาง: request_approval'], mode: 'จองตามเวลาที่แน่นอน / ต้องยืนยันก่อน', summary: 'จัดคิวตรวจทั่วไปและเคสเฉพาะทางที่ต้องอนุมัติจากทีมแพทย์' },
+  { icon: ContentCutRoundedIcon, slug: 'barber-shop', title: 'ร้านตัดผม', services: ['ตัดผมชาย: จองตามเวลาที่แน่นอน 30 นาที', 'ทำสีผม: เวลายืดหยุ่น 90-180 นาที'], mode: 'จองตามเวลาที่แน่นอน / เวลายืดหยุ่น', summary: 'เหมาะกับร้านที่มีทั้งงานเร็วและงานใช้เวลานาน ต้องการจัดคิวไม่ชนกัน' },
+  { icon: LocalHospitalRoundedIcon, slug: 'clinic', title: 'คลินิก', services: ['ตรวจทั่วไป: จองตามเวลาที่แน่นอน 15 นาที', 'พบแพทย์เฉพาะทาง: ต้องยืนยันก่อน'], mode: 'จองตามเวลาที่แน่นอน / ต้องยืนยันก่อน', summary: 'จัดคิวตรวจทั่วไปและเคสเฉพาะทางที่ต้องอนุมัติจากทีมแพทย์' },
   { icon: BackHandRoundedIcon, slug: 'nail-salon', title: 'ร้านทำเล็บ', services: ['ทำเล็บเจล', 'ต่อเล็บ'], mode: 'จองตามเวลาที่แน่นอน', summary: 'ล็อกช่วงเวลาต่อคิวชัดเจน ลดคิวซ้อนในชั่วโมงพีค' },
   { icon: PhoneIphoneRoundedIcon, slug: 'mobile-repair', title: 'ร้านซ่อมมือถือ', services: ['เช็คอาการเครื่อง', 'ซ่อมด่วน'], mode: 'ต้องยืนยันก่อน', summary: 'รับคิวตรวจอาการก่อนซ่อมจริง และให้พนักงานยืนยันงานซ่อม' },
   { icon: DirectionsCarFilledRoundedIcon, slug: 'car-service', title: 'ร้านซ่อมรถ', services: ['เปลี่ยนยางรถ', 'เช็คระยะ'], mode: 'ต้องยืนยันก่อน', summary: 'จัดคิวงานบริการที่ต้องเช็คช่างว่างและอะไหล่ก่อนยืนยัน' },
-  { icon: RestaurantRoundedIcon, slug: 'restaurant', title: 'ร้านอาหาร', services: ['จองโต๊ะ: capacity_based', 'Walk-in: walk_in'], mode: 'รับจำนวนต่อรอบ / Walk-in', summary: 'รองรับจองโต๊ะตามความจุและคิว walk-in หน้าร้านพร้อมกัน' },
+  { icon: RestaurantRoundedIcon, slug: 'restaurant', title: 'ร้านอาหาร', services: ['จองโต๊ะ: รับจำนวนต่อรอบ', 'Walk-in: เข้ารับบริการหน้าร้าน'], mode: 'รับจำนวนต่อรอบ / Walk-in', summary: 'รองรับจองโต๊ะตามความจุและคิว walk-in หน้าร้านพร้อมกัน' },
   { icon: ApartmentRoundedIcon, slug: 'service-center', title: 'ศูนย์บริการ', services: ['รับเรื่องบริการ', 'รับคิวหน้างาน'], mode: 'จองตามเวลาที่แน่นอน', summary: 'บริหารคิวบริการหลายประเภทด้วยแดชบอร์ดเดียว' },
   { icon: AccountBalanceRoundedIcon, slug: 'government', title: 'งานราชการ', services: ['ติดต่อราชการ', 'ยื่นเอกสาร'], mode: 'ต้องยืนยันก่อน', summary: 'ลดความแออัดหน้าเคาน์เตอร์และจัดคิวตามประเภทงาน' },
   { icon: HealingRoundedIcon, slug: 'hospital', title: 'โรงพยาบาล', services: ['ตรวจทั่วไป', 'เฉพาะทาง'], mode: 'จองตามเวลาที่แน่นอน / ต้องยืนยันก่อน', summary: 'รองรับคิว OPD ทั่วไปและคิวนัดเฉพาะทางที่ต้องยืนยัน' },
   { icon: WorkspacesRoundedIcon, slug: 'consulting', title: 'Consult', services: ['ปรึกษาธุรกิจ', 'วางแผนโครงการ'], mode: 'เวลายืดหยุ่น', summary: 'กำหนดเวลานัดแบบยืดหยุ่นตามความซับซ้อนของเคส' },
-  { icon: BuildRoundedIcon, slug: 'installation-team', title: 'ทีมช่างติดตั้ง', services: ['ติดตั้งกล้องวงจรปิด: request_approval', 'ตรวจหน้างาน: flexible_duration'], mode: 'ต้องยืนยันก่อน / เวลายืดหยุ่น', summary: 'จัดคิวตรวจหน้างานและคิวติดตั้งจริงแบบยืดหยุ่น' },
+  { icon: BuildRoundedIcon, slug: 'installation-team', title: 'ทีมช่างติดตั้ง', services: ['ติดตั้งกล้องวงจรปิด: ต้องยืนยันก่อน', 'ตรวจหน้างาน: เวลายืดหยุ่น'], mode: 'ต้องยืนยันก่อน / เวลายืดหยุ่น', summary: 'จัดคิวตรวจหน้างานและคิวติดตั้งจริงแบบยืดหยุ่น' },
 ];
 
 export const pricingPlans = [
