@@ -417,9 +417,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
           <h1 className="text-base font-semibold">{tab === 'booking' ? 'เลือกบริการและเวลาจองคิว' : 'ข้อมูลสมาชิก'}</h1>
         </div>
         <div className="space-y-4 p-4">
-        <div className="space-y-1">
+     {/*    <div className="space-y-1">
           <p className="text-xs text-slate-500">รองรับร้านตัดผม • ร้านทำเล็บ • คลินิก • ร้านบุฟเฟ่ต์ • ห้องประชุม</p>
-        </div>
+        </div> */}
         {shopMetaError ? (
           <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
             โหลดข้อมูลร้านไม่สำเร็จ: {shopMetaError}
