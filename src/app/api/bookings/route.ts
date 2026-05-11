@@ -63,6 +63,7 @@ export async function POST(req: Request) {
 
     if (countError) throw countError;
     const queueNumber = `A${String((count ?? 0) + 1).padStart(3, '0')}`;
+    const partySize = payload.party_size ?? null;
     const lineUserPk = payload.line_user_pk ?? null;
 
     let customerId: string | null = null;
@@ -105,6 +106,54 @@ export async function POST(req: Request) {
         .eq('shop_id', profile.shop_id);
     }
 
+    const { data: service } = await supabase
+      .from('services')
+      .select('duration_minutes')
+      .eq('id', payload.service_id)
+      .eq('shop_id', profile.shop_id)
+      .maybeSingle();
+
+    const startLabel = payload.start_time.length === 5 ? `${payload.start_time}:00` : payload.start_time;
+    const startAt = new Date(`${payload.booking_date}T${startLabel}+07:00`);
+    const endAt = new Date(startAt.getTime() + Math.max(service?.duration_minutes ?? 30, 5) * 60000);
+    const endTime = `${String(endAt.getHours()).padStart(2, '0')}:${String(endAt.getMinutes()).padStart(2, '0')}:00`;
+
+    let assignedResource: { resource_id: string; resource_name: string; capacity: number } | null = null;
+    if (payload.resource_id) {
+      const { data: selectedResource } = await supabase
+        .from('booking_resources')
+        .select('id,resource_name,capacity')
+        .eq('id', payload.resource_id)
+        .eq('shop_id', profile.shop_id)
+        .eq('is_deleted', false)
+        .eq('active', true)
+        .maybeSingle();
+      if (selectedResource) {
+        assignedResource = {
+          resource_id: selectedResource.id as string,
+          resource_name: String(selectedResource.resource_name ?? '-'),
+          capacity: Number(selectedResource.capacity ?? 1),
+        };
+      }
+    } else if (partySize && partySize > 0) {
+      const { data: candidates } = await supabase.rpc('find_available_resources', {
+        p_shop_id: profile.shop_id,
+        p_branch_id: payload.branch_id,
+        p_resource_type: 'table',
+        p_party_size: partySize,
+        p_start_time: startAt.toISOString(),
+        p_end_time: endAt.toISOString(),
+      });
+      const top = candidates?.[0] as { resource_id?: string; resource_name?: string; capacity?: number } | undefined;
+      if (top?.resource_id) {
+        assignedResource = {
+          resource_id: top.resource_id,
+          resource_name: top.resource_name ?? '-',
+          capacity: Number(top.capacity ?? 1),
+        };
+      }
+    }
+
     const { data: inserted, error } = await supabase
       .from('bookings')
       .insert({
@@ -116,8 +165,13 @@ export async function POST(req: Request) {
         line_user_id: lineUserPk,
         booking_date: payload.booking_date,
         start_time: payload.start_time,
+        end_time: endTime,
         queue_number: queueNumber,
         status: payload.status,
+        party_size: partySize,
+        resource_id: assignedResource?.resource_id ?? null,
+        resource_name: assignedResource?.resource_name ?? null,
+        resource_capacity: assignedResource?.capacity ?? null,
         note: payload.note,
         created_by: user.id,
         updated_by: user.id,
@@ -136,6 +190,18 @@ export async function POST(req: Request) {
       created_by: user.id,
       updated_by: user.id,
     });
+
+    if (assignedResource?.resource_id) {
+      await supabase.from('booking_resource_assignments').insert({
+        company_id: profile.company_id,
+        shop_id: profile.shop_id,
+        branch_id: payload.branch_id,
+        booking_id: inserted.id,
+        resource_id: assignedResource.resource_id,
+        assigned_by: user.id,
+        note: payload.resource_id ? 'manual_assign' : 'auto_assign_by_party_size',
+      });
+    }
 
     let linePushSent = false;
     let linePushError: string | null = null;

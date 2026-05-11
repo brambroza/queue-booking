@@ -15,6 +15,7 @@ import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
 import ViewKanbanRoundedIcon from '@mui/icons-material/ViewKanbanRounded';
 import StoreRoundedIcon from '@mui/icons-material/StoreRounded';
 import DesignServicesRoundedIcon from '@mui/icons-material/DesignServicesRounded';
+import TableRestaurantRoundedIcon from '@mui/icons-material/TableRestaurantRounded';
 import ScheduleRoundedIcon from '@mui/icons-material/ScheduleRounded';
 import GroupRoundedIcon from '@mui/icons-material/GroupRounded';
 import PeopleRoundedIcon from '@mui/icons-material/PeopleRounded';
@@ -42,6 +43,7 @@ const groups: Array<{ titleKey: string; items: Array<{ labelKey: string; href: s
     items: [
       { labelKey: 'menu.branches', href: '/portal/branches', icon: <StoreRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.services', href: '/portal/services', icon: <DesignServicesRoundedIcon fontSize="small" /> },
+      { labelKey: 'menu.resources', href: '/portal/resources', icon: <TableRestaurantRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.working_hours', href: '/portal/working-hours', icon: <ScheduleRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.staff', href: '/portal/staff', icon: <GroupRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.customers', href: '/portal/customers', icon: <PeopleRoundedIcon fontSize="small" /> },

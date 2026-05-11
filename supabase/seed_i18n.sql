@@ -15,7 +15,9 @@ insert into public.translation_namespaces (code, name, description, active, sort
 ('status', 'Status', 'Booking status labels', true, 4),
 ('booking_mode', 'Booking Mode', 'Booking mode labels', true, 5),
 ('validation', 'Validation', 'Validation messages', true, 6),
-('bookings', 'Bookings', 'Booking actions and labels', true, 7)
+('bookings', 'Bookings', 'Booking actions and labels', true, 7),
+('resource', 'Resource', 'Resource labels', true, 8),
+('line', 'Line', 'LINE message templates', true, 9)
 on conflict (code) do update
 set name = excluded.name,
     description = excluded.description,
@@ -88,6 +90,8 @@ seed(lang, ns_code, k, v) as (
   ('en','menu','branches','Branches'),
   ('th','menu','services','บริการ'),
   ('en','menu','services','Services'),
+  ('th','menu','resources','ทรัพยากร'),
+  ('en','menu','resources','Resources'),
   ('th','menu','working_hours','เวลาทำการ'),
   ('en','menu','working_hours','Working Hours'),
   ('th','menu','staff','พนักงาน'),
@@ -184,7 +188,33 @@ seed(lang, ns_code, k, v) as (
   ('en','validation','phone_invalid','Invalid phone number'),
 
   ('th','bookings','complete','จบคิว'),
-  ('en','bookings','complete','Complete booking')
+  ('en','bookings','complete','Complete booking'),
+
+  ('th','resource','table','โต๊ะ'),
+  ('en','resource','table','Table'),
+  ('th','resource','meeting_room','ห้องประชุม'),
+  ('en','resource','meeting_room','Meeting Room'),
+  ('th','resource','capacity','ความจุ'),
+  ('en','resource','capacity','Capacity'),
+  ('th','resource','party_size','จำนวนคน'),
+  ('en','resource','party_size','Party Size'),
+  ('th','resource','meeting_size','จำนวนผู้เข้าร่วม'),
+  ('en','resource','meeting_size','Attendees'),
+  ('th','resource','title','จัดการทรัพยากร'),
+  ('en','resource','title','Resource Management'),
+  ('th','resource','add_new','เพิ่มทรัพยากร'),
+  ('en','resource','add_new','Add Resource'),
+  ('th','resource','quick_create','สร้างหลายรายการ'),
+  ('en','resource','quick_create','Quick Create'),
+
+  ('th','line','queue_called','ถึงคิวของคุณแล้วค่ะ\nเลขคิว: {{queue_no}}\nบริการ: {{service_name}}\nกรุณาไปที่จุดบริการภายใน {{minutes}} นาทีค่ะ'),
+  ('en','line','queue_called','Your queue is now being called.\nQueue No: {{queue_no}}\nService: {{service_name}}\nPlease proceed to the service point within {{minutes}} minutes.'),
+  ('th','line','queue_near','ใกล้ถึงคิวของคุณแล้วค่ะ\nเลขคิว: {{queue_no}}\nมีคิวก่อนหน้าคุณประมาณ {{count}} คิว\nกรุณาเตรียมตัวค่ะ'),
+  ('en','line','queue_near','Your queue is coming soon.\nQueue No: {{queue_no}}\nThere are about {{count}} queues before you.\nPlease get ready.'),
+  ('th','line','table_ready','ถึงคิวของคุณแล้วค่ะ\nเลขคิว: {{queue_no}}\nโต๊ะ: {{resource_name}}\nกรุณาติดต่อพนักงานหน้าร้านค่ะ'),
+  ('en','line','table_ready','Your table is ready.\nQueue No: {{queue_no}}\nTable: {{resource_name}}\nPlease contact our staff.'),
+  ('th','line','meeting_room_reminder','ใกล้ถึงเวลาจองห้องประชุมของคุณแล้วค่ะ\nห้อง: {{resource_name}}\nเวลา: {{start_time}}-{{end_time}}'),
+  ('en','line','meeting_room_reminder','Your meeting room booking is coming soon.\nRoom: {{resource_name}}\nTime: {{start_time}}-{{end_time}}')
 )
 insert into public.translations (namespace_id, language_code, translation_key, translation_value, active)
 select ns.id, seed.lang, seed.k, seed.v, true

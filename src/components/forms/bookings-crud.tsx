@@ -8,6 +8,7 @@ import { ActionIconGroup } from '@/components/ui/action-icon-group';
 import { formatDateDMY } from '@/lib/utils/date-format';
 
 type LineUser = { id: string; line_user_id: string; display_name: string | null; picture_url?: string | null };
+type Resource = { id: string; resource_name: string; resource_code?: string | null; capacity: number; resource_type: string; branch_id?: string | null };
 
 export function BookingsCrud() {
   const { push } = useToast();
@@ -15,23 +16,26 @@ export function BookingsCrud() {
   const [branches, setBranches] = useState<Record<string, unknown>[]>([]);
   const [services, setServices] = useState<Record<string, unknown>[]>([]);
   const [lineUsers, setLineUsers] = useState<LineUser[]>([]);
+  const [resources, setResources] = useState<Resource[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedLineUser, setSelectedLineUser] = useState('');
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   async function load() {
-    const [bRes, brRes, sRes, uRes] = await Promise.all([
+    const [bRes, brRes, sRes, uRes, rRes] = await Promise.all([
       fetch('/api/bookings', { cache: 'no-store' }),
       fetch('/api/branches', { cache: 'no-store' }),
       fetch('/api/services', { cache: 'no-store' }),
       fetch('/api/chat-inbox?page_size=100', { cache: 'no-store' }),
+      fetch('/api/resources?page_size=500', { cache: 'no-store' }),
     ]);
-    const [b, br, s, u] = await Promise.all([bRes.json(), brRes.json(), sRes.json(), uRes.json()]);
+    const [b, br, s, u, r] = await Promise.all([bRes.json(), brRes.json(), sRes.json(), uRes.json(), rRes.json()]);
     setBookings(b.data ?? []);
     setBranches(br.data ?? []);
     setServices(s.data ?? []);
     setLineUsers(u.data?.users ?? []);
+    setResources(r.data ?? []);
   }
   const pagedRows = bookings.slice((page - 1) * rowsPerPage, page * rowsPerPage);
 
@@ -97,6 +101,7 @@ export function BookingsCrud() {
                 <th className="px-2 py-2 text-left">วันที่</th>
                 <th className="px-2 py-2 text-left">เวลา</th>
                 <th className="px-2 py-2 text-left">ลูกค้า</th>
+                <th className="px-2 py-2 text-left">Resource</th>
                 <th className="px-2 py-2 text-left">สถานะ</th>
                 <th className="px-2 py-2 text-left">Action</th>
               </tr>
@@ -107,6 +112,7 @@ export function BookingsCrud() {
                 <td className="px-2 py-2">{formatDateDMY(String(b.booking_date ?? ''))}</td>
                 <td className="px-2 py-2">{String(b.start_time)}</td>
                 <td className="px-2 py-2">{String((b.customers as { full_name?: string } | null)?.full_name ?? '-')}</td>
+                <td className="px-2 py-2">{String(b.resource_name ?? '-')}</td>
                 <td className="px-2 py-2">{String(b.status)}</td>
                 <td className="px-2 py-2">
                   <ActionIconGroup
@@ -168,6 +174,15 @@ export function BookingsCrud() {
               <input className="input" name="customer_phone" placeholder="เบอร์โทร" required />
               <input className="input" name="booking_date" type="date" required />
               <input className="input" name="start_time" type="time" required />
+              <input className="input" name="party_size" type="number" min={1} max={200} placeholder="จำนวนคน (Party Size)" />
+              <select className="input" name="resource_id">
+                <option value="">เลือกทรัพยากร (ถ้ามี)</option>
+                {resources.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.resource_code ? `${r.resource_code} • ` : ''}{r.resource_name} ({r.resource_type}, cap {r.capacity})
+                  </option>
+                ))}
+              </select>
               <input className="input sm:col-span-2" name="note" placeholder="หมายเหตุ" />
               <div className="sm:col-span-2 flex gap-2 pt-2">
                 <button className="btn-primary">เพิ่มคิว</button>

@@ -158,7 +158,7 @@ export function ShowcaseSection() {
   return (
     <SectionWrap id="showcase" title="ใช้ได้กับหลายธุรกิจ" sub="รองรับทุกรูปแบบการนัดหมายและจองคิว" tag="Use Cases" bg="#f6f7f9">
       <Grid container spacing={1.5}>
-        {useCaseCards.slice(0, 8).map((item) => {
+        {useCaseCards.map((item) => {
           const Icon = item.icon;
           return (
           <Grid key={item.slug} size={{ xs: 6, md: 3 }}>
@@ -209,18 +209,26 @@ export function HowItWorksSection() {
 
 export function PricingPreviewSection() {
   return (
-    <SectionWrap id="pricing" title="เลือกแผนที่เหมาะกับธุรกิจของคุณ" sub="เริ่มจากแผนเล็กและขยายได้ตามจำนวนคิว" tag="Pricing" bg="#fff">
+    <SectionWrap id="pricing" title="เลือกแผนที่เหมาะกับธุรกิจของคุณ" sub="มีทั้งแพ็กเกจมาตรฐานและแบบ Custom สำหรับร้านอาหาร บุฟเฟ่ต์ และห้องประชุม" tag="Pricing" bg="#fff">
       <Grid container spacing={2}>
         {pricingPlans.map((p) => (
-          <Grid key={p.name} size={{ xs: 12, md: 4 }}>
+          <Grid key={p.name} size={{ xs: 12, md: 6, lg: 3 }}>
             <Card sx={{ borderRadius: 1, border: p.highlight ? '2px solid #73c088' : undefined, height: '100%' }}>
               <CardContent>
                 <Typography fontWeight={700}>{p.name}</Typography>
                 <Typography sx={{ fontSize: 34, fontWeight: 800, mt: 0.5 }}>{p.price}</Typography>
-                <Typography variant="caption" color="text.secondary">บาท / เดือน</Typography>
+                <Typography variant="caption" color="text.secondary">{p.name === 'Custom' ? 'ติดต่อทีมขาย' : 'บาท / เดือน'}</Typography>
                 <Divider sx={{ my: 1.2 }} />
                 <Stack spacing={0.5}>{p.items.map((x) => <Typography key={x} variant="body2">• {x}</Typography>)}</Stack>
-                <Button component={Link} href="/register" variant="contained" fullWidth sx={{ mt: 2, bgcolor: '#639922', '&:hover': { bgcolor: '#3B6D11' } }}>เริ่มใช้งาน</Button>
+                <Button
+                  component={Link}
+                  href={p.name === 'Custom' ? '/contact' : '/register'}
+                  variant="contained"
+                  fullWidth
+                  sx={{ mt: 2, bgcolor: '#639922', '&:hover': { bgcolor: '#3B6D11' } }}
+                >
+                  {p.name === 'Custom' ? 'ขอใบเสนอราคา' : 'เริ่มใช้งาน'}
+                </Button>
               </CardContent>
             </Card>
           </Grid>

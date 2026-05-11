@@ -54,6 +54,7 @@ export default function HomePage() {
       { '@type': 'Offer', priceCurrency: 'THB', price: '590', name: 'Starter' },
       { '@type': 'Offer', priceCurrency: 'THB', price: '1490', name: 'Professional' },
       { '@type': 'Offer', priceCurrency: 'THB', price: '3990', name: 'Business' },
+      { '@type': 'Offer', name: 'Custom', priceSpecification: { '@type': 'PriceSpecification', priceCurrency: 'THB' } },
     ],
     description: 'ระบบจองคิวผ่าน LINE OA พร้อม LIFF และ Dashboard สำหรับจัดการคิวหลายสาขา',
     url: appUrl,

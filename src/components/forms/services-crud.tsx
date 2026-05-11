@@ -80,6 +80,18 @@ export function ServicesCrud() {
   const [requiresApproval, setRequiresApproval] = useState(false);
   const [allowWalkIn, setAllowWalkIn] = useState(false);
   const [category, setCategory] = useState('');
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+
+  const CATEGORY_LABELS: Record<string, string> = {
+    restaurant: 'ร้านอาหาร',
+    buffet: 'ร้านบุฟเฟ่ต์',
+    meeting_room: 'ห้องประชุม',
+    consult: 'ที่ปรึกษา',
+  };
+
+  function categoryLabel(input: string) {
+    return CATEGORY_LABELS[input] ?? input;
+  }
 
   const categories = useMemo(() => Array.from(new Set(templates.map((t) => t.business_category))).sort(), [templates]);
   const filteredTemplates = useMemo(() => (category ? templates.filter((t) => t.business_category === category) : templates), [templates, category]);
@@ -100,6 +112,7 @@ export function ServicesCrud() {
   useEffect(() => { void load(); }, []);
 
   function applyTemplate(t: Template) {
+    setSelectedTemplateId(t.id);
     setServiceName(t.service_name);
     setBookingMode(t.booking_mode);
     setDuration(String(t.duration_minutes ?? 30));
@@ -108,6 +121,7 @@ export function ServicesCrud() {
     setCapacity(String(t.capacity_per_slot ?? 1));
     setRequiresApproval(Boolean(t.requires_approval));
     setAllowWalkIn(Boolean(t.allow_walk_in));
+    setCategory(t.business_category);
   }
 
   async function onSubmit(e: FormEvent) {
@@ -134,6 +148,7 @@ export function ServicesCrud() {
     setSaving(false);
     if (!res.ok) return push(json.error ?? 'เพิ่มบริการไม่สำเร็จ', 'error');
     push('เพิ่มบริการสำเร็จ');
+    setSelectedTemplateId('');
     setDrawerOpen(false);
     await load();
   }
@@ -236,20 +251,21 @@ export function ServicesCrud() {
                   <InputLabel>Business Category</InputLabel>
                   <Select value={category} label="Business Category" onChange={(e: SelectChangeEvent) => setCategory(String(e.target.value))}>
                     <MenuItem value="">All</MenuItem>
-                    {categories.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                    {categories.map((c) => <MenuItem key={c} value={c}>{categoryLabel(c)}</MenuItem>)}
                   </Select>
                 </FormControl>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Template</InputLabel>
-                  <Select value="" label="Template" onChange={(e: SelectChangeEvent) => {
+                  <Select value={selectedTemplateId} label="Template" onChange={(e: SelectChangeEvent) => {
+                    setSelectedTemplateId(String(e.target.value));
                     const t = templates.find((x) => x.id === e.target.value);
                     if (t) applyTemplate(t);
                   }}>
                     <MenuItem value="">Select template</MenuItem>
                     {filteredTemplates.map((t) => (
-                      <MenuItem key={t.id} value={t.id}>{t.business_category} • {t.service_name}</MenuItem>
+                      <MenuItem key={t.id} value={t.id}>{categoryLabel(t.business_category)} • {t.service_name}</MenuItem>
                     ))}
                   </Select>
                 </FormControl>

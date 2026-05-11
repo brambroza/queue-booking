@@ -6,6 +6,7 @@ import PhoneIphoneRoundedIcon from '@mui/icons-material/PhoneIphoneRounded';
 import DirectionsCarFilledRoundedIcon from '@mui/icons-material/DirectionsCarFilledRounded';
 import RestaurantRoundedIcon from '@mui/icons-material/RestaurantRounded';
 import ApartmentRoundedIcon from '@mui/icons-material/ApartmentRounded';
+import MeetingRoomRoundedIcon from '@mui/icons-material/MeetingRoomRounded';
 import AccountBalanceRoundedIcon from '@mui/icons-material/AccountBalanceRounded';
 import HealingRoundedIcon from '@mui/icons-material/HealingRounded';
 import WorkspacesRoundedIcon from '@mui/icons-material/WorkspacesRounded';
@@ -62,6 +63,8 @@ export const useCases: UseCase[] = [
   { icon: PhoneIphoneRoundedIcon, slug: 'mobile-repair', title: 'ร้านซ่อมมือถือ', services: ['เช็คอาการเครื่อง', 'ซ่อมด่วน'], mode: 'ต้องยืนยันก่อน', summary: 'รับคิวตรวจอาการก่อนซ่อมจริง และให้พนักงานยืนยันงานซ่อม' },
   { icon: DirectionsCarFilledRoundedIcon, slug: 'car-service', title: 'ร้านซ่อมรถ', services: ['เปลี่ยนยางรถ', 'เช็คระยะ'], mode: 'ต้องยืนยันก่อน', summary: 'จัดคิวงานบริการที่ต้องเช็คช่างว่างและอะไหล่ก่อนยืนยัน' },
   { icon: RestaurantRoundedIcon, slug: 'restaurant', title: 'ร้านอาหาร', services: ['จองโต๊ะ: รับจำนวนต่อรอบ', 'Walk-in: เข้ารับบริการหน้าร้าน'], mode: 'รับจำนวนต่อรอบ / Walk-in', summary: 'รองรับจองโต๊ะตามความจุและคิว walk-in หน้าร้านพร้อมกัน' },
+  { icon: RestaurantRoundedIcon, slug: 'buffet', title: 'ร้านบุฟเฟ่ต์', services: ['จองรอบบุฟเฟ่ต์: รับจำนวนต่อรอบ', 'คิวหน้าร้านบุฟเฟ่ต์: Walk-in'], mode: 'รับจำนวนต่อรอบ / Walk-in', summary: 'รองรับการจองรอบเวลาและคิวหน้าร้าน พร้อมควบคุมจำนวนที่นั่งต่อรอบ' },
+  { icon: MeetingRoomRoundedIcon, slug: 'meeting-room', title: 'ห้องประชุม', services: ['จองห้องประชุมรายชั่วโมง', 'จองครึ่งวัน / เต็มวัน'], mode: 'จองตามเวลาที่แน่นอน', summary: 'เหมาะกับองค์กรและ coworking ที่ต้องจัดการห้องประชุมหลายห้องหลายช่วงเวลา' },
   { icon: ApartmentRoundedIcon, slug: 'service-center', title: 'ศูนย์บริการ', services: ['รับเรื่องบริการ', 'รับคิวหน้างาน'], mode: 'จองตามเวลาที่แน่นอน', summary: 'บริหารคิวบริการหลายประเภทด้วยแดชบอร์ดเดียว' },
   { icon: AccountBalanceRoundedIcon, slug: 'government', title: 'งานราชการ', services: ['ติดต่อราชการ', 'ยื่นเอกสาร'], mode: 'ต้องยืนยันก่อน', summary: 'ลดความแออัดหน้าเคาน์เตอร์และจัดคิวตามประเภทงาน' },
   { icon: HealingRoundedIcon, slug: 'hospital', title: 'โรงพยาบาล', services: ['ตรวจทั่วไป', 'เฉพาะทาง'], mode: 'จองตามเวลาที่แน่นอน / ต้องยืนยันก่อน', summary: 'รองรับคิว OPD ทั่วไปและคิวนัดเฉพาะทางที่ต้องยืนยัน' },
@@ -73,6 +76,7 @@ export const pricingPlans = [
   { name: 'Starter', price: '590', desc: 'เหมาะกับร้านเริ่มต้น', items: ['1 ร้าน', '1 สาขา', '3 บริการ', '300 bookings/เดือน', 'LINE Booking', 'Dashboard พื้นฐาน'] },
   { name: 'Professional', price: '1,490', desc: 'สำหรับร้านที่เติบโต', items: ['1 ร้าน', '5 สาขา', 'ไม่จำกัดบริการ', '2,000 bookings/เดือน', 'LINE Auto Reply', 'Calendar / Queue Board', 'Reports'], highlight: true },
   { name: 'Business', price: '3,990', desc: 'หลายสาขาและทีมใหญ่', items: ['หลายร้าน / หลายสาขา', 'ไม่จำกัดบริการ', '10,000 bookings/เดือน', 'Chat Inbox', 'Advanced Reports', 'Priority Support'] },
+  { name: 'Custom', price: 'Custom', desc: 'แพ็กเกจเฉพาะองค์กร', items: ['กำหนดเงื่อนไขได้ตามธุรกิจ', 'รองรับสาขาและทรัพยากรจำนวนมาก', 'SLA / Dedicated support', 'เชื่อมต่อระบบภายในองค์กร'] },
 ];
 
 export const testimonials = [
