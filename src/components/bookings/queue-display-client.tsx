@@ -86,7 +86,7 @@ export function QueueDisplayClient() {
   }, []);
 
   return (
-    <div ref={rootRef} className={`space-y-6 ${fullscreenMode ? 'bg-[#f6f7f9] p-4 md:p-8 min-h-screen' : ''}`}>
+    <div ref={rootRef} className={`space-y-6 ${fullscreenMode ? 'bg-[#f4f6f8] p-4 md:p-8 min-h-screen' : ''}`}>
       {!fullscreenMode ? (
       <section className="rounded-3xl border border-slate-200 bg-gradient-to-r from-white to-emerald-50/40 p-4 md:p-5">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -133,8 +133,12 @@ export function QueueDisplayClient() {
         </article>
       </div>
 
-      <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-xs font-semibold tracking-[0.14em] text-slate-400">NOW SERVING</p>
+      <article className="overflow-hidden rounded-3xl border border-slate-200 bg-white p-0 shadow-sm">
+        <div className="bg-[#4FA56A] px-6 py-4 text-white">
+          <p className="text-xs font-semibold tracking-[0.14em] text-white/85">NOW CALLING</p>
+          <h3 className="text-xl font-bold">เชิญคิวปัจจุบัน</h3>
+        </div>
+        <div className="p-6">
         {!data?.now_serving ? (
           <p className="mt-3 text-lg text-slate-500">ยังไม่มีคิวในขณะนี้</p>
         ) : (
@@ -147,10 +151,15 @@ export function QueueDisplayClient() {
             </div>
           </div>
         )}
+        </div>
       </article>
 
-      <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-xs font-semibold tracking-[0.14em] text-slate-400">NEXT 2 QUEUES</p>
+      <article className="overflow-hidden rounded-3xl border border-slate-200 bg-white p-0 shadow-sm">
+        <div className="bg-[#EAF7EF] px-6 py-4">
+          <p className="text-xs font-semibold tracking-[0.14em] text-[#2B6A3F]">NEXT QUEUES</p>
+          <h3 className="text-lg font-semibold text-[#2B6A3F]">คิวถัดไป</h3>
+        </div>
+        <div className="p-6">
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           {(data?.next_two ?? []).length === 0 ? (
             <p className="text-slate-500">ยังไม่มีคิวถัดไป</p>
@@ -170,6 +179,7 @@ export function QueueDisplayClient() {
               ) : null
             ))
           )}
+        </div>
         </div>
       </article>
 

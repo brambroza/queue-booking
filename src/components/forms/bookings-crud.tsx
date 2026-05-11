@@ -21,6 +21,20 @@ export function BookingsCrud() {
   const [selectedLineUser, setSelectedLineUser] = useState('');
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [lastResult, setLastResult] = useState<{ queueNo: string; branch: string; service: string; date: string; time: string } | null>(null);
+
+  const [draft, setDraft] = useState({
+    branch_id: '',
+    service_id: '',
+    booking_date: '',
+    start_time: '',
+    party_size: '',
+    resource_id: '',
+    customer_name: '',
+    customer_phone: '',
+    note: '',
+  });
 
   async function load() {
     const [bRes, brRes, sRes, uRes, rRes] = await Promise.all([
@@ -41,10 +55,8 @@ export function BookingsCrud() {
 
   useEffect(() => { void load(); }, []);
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const payload = Object.fromEntries(new FormData(form).entries()) as Record<string, FormDataEntryValue>;
+  async function submitBooking() {
+    const payload = { ...draft } as Record<string, FormDataEntryValue>;
     const selected = lineUsers.find((x) => x.id === selectedLineUser);
     if (selected) {
       payload.line_user_pk = selected.id;
@@ -68,9 +80,16 @@ export function BookingsCrud() {
     } else {
       push('เพิ่มคิวสำเร็จ');
     }
-    form.reset();
-    setSelectedLineUser('');
-    setDrawerOpen(false);
+    const branchName = String(branches.find((b) => String(b.id) === draft.branch_id)?.branch_name ?? '-');
+    const serviceName = String(services.find((s) => String(s.id) === draft.service_id)?.service_name ?? '-');
+    setLastResult({
+      queueNo: String(j.data?.queue_number ?? '-'),
+      branch: branchName,
+      service: serviceName,
+      date: draft.booking_date,
+      time: draft.start_time,
+    });
+    setStep(3);
     void load();
   }
 
@@ -89,7 +108,13 @@ export function BookingsCrud() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-700">รายการคิว</h3>
-        <button className="btn-primary" onClick={() => setDrawerOpen(true)}>Add New</button>
+        <button className="btn-primary" onClick={() => {
+          setDrawerOpen(true);
+          setStep(1);
+          setLastResult(null);
+          setDraft({ branch_id: '', service_id: '', booking_date: '', start_time: '', party_size: '', resource_id: '', customer_name: '', customer_phone: '', note: '' });
+          setSelectedLineUser('');
+        }}>Add New</button>
       </div>
 
       <div className="card p-4 overflow-x-auto">
@@ -152,7 +177,14 @@ export function BookingsCrud() {
               <button className="btn-outline" onClick={() => setDrawerOpen(false)}>Close</button>
             </div>
 
-            <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2">
+            <div className="mb-3 grid grid-cols-3 gap-2">
+              <button className={step === 1 ? 'btn-primary' : 'btn-outline'} disabled>1) Service</button>
+              <button className={step === 2 ? 'btn-primary' : 'btn-outline'} disabled>2) Date/Time</button>
+              <button className={step === 3 ? 'btn-primary' : 'btn-outline'} disabled>3) Result</button>
+            </div>
+
+            {step === 1 ? (
+              <div className="grid gap-3 sm:grid-cols-2">
               <label className="sm:col-span-2 text-sm space-y-1">
                 <span className="text-slate-600">LINE User (สำหรับส่งยืนยันอัตโนมัติ)</span>
                 <select className="input" value={selectedLineUser} onChange={(e) => setSelectedLineUser(e.target.value)}>
@@ -162,20 +194,35 @@ export function BookingsCrud() {
                   ))}
                 </select>
               </label>
-              <select className="input" name="branch_id" required>
+              <select className="input" value={draft.branch_id} onChange={(e) => setDraft((p) => ({ ...p, branch_id: e.target.value }))} required>
                 <option value="">เลือกสาขา</option>
                 {branches.map((b) => <option key={String(b.id)} value={String(b.id)}>{String(b.branch_name)}</option>)}
               </select>
-              <select className="input" name="service_id" required>
+              <select className="input" value={draft.service_id} onChange={(e) => setDraft((p) => ({ ...p, service_id: e.target.value }))} required>
                 <option value="">เลือกบริการ</option>
                 {services.map((s) => <option key={String(s.id)} value={String(s.id)}>{String(s.service_name)}</option>)}
               </select>
-              <input className="input" name="customer_name" placeholder="ชื่อลูกค้า" required />
-              <input className="input" name="customer_phone" placeholder="เบอร์โทร" required />
-              <input className="input" name="booking_date" type="date" required />
-              <input className="input" name="start_time" type="time" required />
-              <input className="input" name="party_size" type="number" min={1} max={200} placeholder="จำนวนคน (Party Size)" />
-              <select className="input" name="resource_id">
+              <input className="input" value={draft.customer_name} onChange={(e) => setDraft((p) => ({ ...p, customer_name: e.target.value }))} placeholder="ชื่อลูกค้า" required />
+              <input className="input" value={draft.customer_phone} onChange={(e) => setDraft((p) => ({ ...p, customer_phone: e.target.value }))} placeholder="เบอร์โทร" required />
+              <div className="sm:col-span-2 flex gap-2 pt-2">
+                <button
+                  className="btn-primary"
+                  disabled={!draft.branch_id || !draft.service_id || !draft.customer_name || !draft.customer_phone}
+                  onClick={() => setStep(2)}
+                >
+                  ถัดไป: Date/Time
+                </button>
+                <button type="button" className="btn-outline" onClick={() => setDrawerOpen(false)}>ยกเลิก</button>
+              </div>
+              </div>
+            ) : null}
+
+            {step === 2 ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+              <input className="input" value={draft.booking_date} onChange={(e) => setDraft((p) => ({ ...p, booking_date: e.target.value }))} type="date" required />
+              <input className="input" value={draft.start_time} onChange={(e) => setDraft((p) => ({ ...p, start_time: e.target.value }))} type="time" required />
+              <input className="input" value={draft.party_size} onChange={(e) => setDraft((p) => ({ ...p, party_size: e.target.value }))} type="number" min={1} max={200} placeholder="จำนวนคน (Party Size)" />
+              <select className="input" value={draft.resource_id} onChange={(e) => setDraft((p) => ({ ...p, resource_id: e.target.value }))}>
                 <option value="">เลือกทรัพยากร (ถ้ามี)</option>
                 {resources.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -183,12 +230,34 @@ export function BookingsCrud() {
                   </option>
                 ))}
               </select>
-              <input className="input sm:col-span-2" name="note" placeholder="หมายเหตุ" />
+              <input className="input sm:col-span-2" value={draft.note} onChange={(e) => setDraft((p) => ({ ...p, note: e.target.value }))} placeholder="หมายเหตุ" />
               <div className="sm:col-span-2 flex gap-2 pt-2">
-                <button className="btn-primary">เพิ่มคิว</button>
-                <button type="button" className="btn-outline" onClick={() => setDrawerOpen(false)}>ยกเลิก</button>
+                <button className="btn-outline" onClick={() => setStep(1)}>ย้อนกลับ</button>
+                <button
+                  className="btn-primary"
+                  disabled={!draft.booking_date || !draft.start_time}
+                  onClick={() => void submitBooking()}
+                >
+                  ยืนยันสร้างคิว
+                </button>
               </div>
-            </form>
+              </div>
+            ) : null}
+
+            {step === 3 ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
+                <h5 className="text-lg font-semibold text-slate-900">สร้างคิวสำเร็จ</h5>
+                <p className="mt-2">เลขคิว: <b>{lastResult?.queueNo ?? '-'}</b></p>
+                <p>บริการ: {lastResult?.service ?? '-'}</p>
+                <p>สาขา: {lastResult?.branch ?? '-'}</p>
+                <p>วันที่: {lastResult?.date ? formatDateDMY(lastResult.date) : '-'}</p>
+                <p>เวลา: {lastResult?.time ?? '-'}</p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button className="btn-outline" onClick={() => setStep(1)}>จองคิวใหม่</button>
+                  <button className="btn-primary" onClick={() => setDrawerOpen(false)}>เสร็จสิ้น</button>
+                </div>
+              </div>
+            ) : null}
           </aside>
         </>
       ) : null}

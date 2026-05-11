@@ -49,6 +49,17 @@ type Template = {
   requires_approval: boolean;
   allow_walk_in: boolean;
 };
+type Preset = {
+  key: string;
+  title: string;
+  subtitle: string;
+  category: string;
+  mode: Template['booking_mode'];
+  accent: string;
+  soft: string;
+  text: string;
+  defaults: { duration?: string; minDuration?: string; maxDuration?: string; capacity?: string };
+};
 
 const BOOKING_MODES = ['fixed_slot', 'flexible_duration', 'capacity_based', 'walk_in', 'request_approval'] as const;
 const BOOKING_MODE_LABELS: Record<(typeof BOOKING_MODES)[number], string> = {
@@ -81,6 +92,54 @@ export function ServicesCrud() {
   const [allowWalkIn, setAllowWalkIn] = useState(false);
   const [category, setCategory] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [presetKey, setPresetKey] = useState('');
+
+  const BUSINESS_PRESETS: Preset[] = [
+    {
+      key: 'restaurant',
+      title: 'ร้านอาหาร',
+      subtitle: 'จองโต๊ะ / Walk-in',
+      category: 'restaurant',
+      mode: 'capacity_based',
+      accent: '#4FA56A',
+      soft: '#EAF7EF',
+      text: '#2B6A3F',
+      defaults: { duration: '90', capacity: '10' },
+    },
+    {
+      key: 'buffet',
+      title: 'ร้านบุฟเฟ่ต์',
+      subtitle: 'จองรอบบุฟเฟ่ต์',
+      category: 'buffet',
+      mode: 'capacity_based',
+      accent: '#4FA56A',
+      soft: '#EAF7EF',
+      text: '#2B6A3F',
+      defaults: { duration: '120', capacity: '50' },
+    },
+    {
+      key: 'meeting_room',
+      title: 'ห้องประชุม',
+      subtitle: 'รายชั่วโมง / ครึ่งวัน / เต็มวัน',
+      category: 'meeting_room',
+      mode: 'fixed_slot',
+      accent: '#1C7D8D',
+      soft: '#E8F6F9',
+      text: '#145B67',
+      defaults: { duration: '60', capacity: '1' },
+    },
+    {
+      key: 'clinic',
+      title: 'คลินิก',
+      subtitle: 'ตรวจทั่วไป / แพทย์เฉพาะทาง',
+      category: 'คลินิก',
+      mode: 'fixed_slot',
+      accent: '#5E86D3',
+      soft: '#EAF0FD',
+      text: '#345695',
+      defaults: { duration: '15', capacity: '1' },
+    },
+  ];
 
   const CATEGORY_LABELS: Record<string, string> = {
     restaurant: 'ร้านอาหาร',
@@ -122,6 +181,17 @@ export function ServicesCrud() {
     setRequiresApproval(Boolean(t.requires_approval));
     setAllowWalkIn(Boolean(t.allow_walk_in));
     setCategory(t.business_category);
+  }
+
+  function applyPreset(preset: Preset) {
+    setPresetKey(preset.key);
+    setCategory(preset.category);
+    setBookingMode(preset.mode);
+    if (preset.defaults.duration) setDuration(preset.defaults.duration);
+    if (preset.defaults.minDuration) setMinDuration(preset.defaults.minDuration);
+    if (preset.defaults.maxDuration) setMaxDuration(preset.defaults.maxDuration);
+    if (preset.defaults.capacity) setCapacity(preset.defaults.capacity);
+    setSelectedTemplateId('');
   }
 
   async function onSubmit(e: FormEvent) {
@@ -241,6 +311,31 @@ export function ServicesCrud() {
 
       <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)} PaperProps={{ sx: { width: { xs: '100%', sm: '60%' }, p: 3 } }}>
         <Typography variant="h6" fontWeight={700} mb={2}>Add Service</Typography>
+
+        <Card variant="outlined" sx={{ mb: 2 }}>
+          <CardContent>
+            <Typography variant="subtitle2" mb={1}>Business Presets</Typography>
+            <Grid container spacing={1.2}>
+              {BUSINESS_PRESETS.map((p) => (
+                <Grid key={p.key} size={{ xs: 12, sm: 6 }}>
+                  <button
+                    type="button"
+                    className="w-full rounded-xl border px-3 py-2 text-left transition"
+                    style={{
+                      background: p.soft,
+                      borderColor: presetKey === p.key ? p.accent : '#dbe3ea',
+                      boxShadow: presetKey === p.key ? `0 0 0 1px ${p.accent} inset` : 'none',
+                    }}
+                    onClick={() => applyPreset(p)}
+                  >
+                    <div className="font-semibold" style={{ color: p.text }}>{p.title}</div>
+                    <div className="text-xs text-slate-600">{p.subtitle}</div>
+                  </button>
+                </Grid>
+              ))}
+            </Grid>
+          </CardContent>
+        </Card>
 
         <Card variant="outlined" sx={{ mb: 2 }}>
           <CardContent>
