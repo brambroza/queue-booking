@@ -17,6 +17,7 @@ import StoreRoundedIcon from '@mui/icons-material/StoreRounded';
 import DesignServicesRoundedIcon from '@mui/icons-material/DesignServicesRounded';
 import TableRestaurantRoundedIcon from '@mui/icons-material/TableRestaurantRounded';
 import ScheduleRoundedIcon from '@mui/icons-material/ScheduleRounded';
+import EventBusyRoundedIcon from '@mui/icons-material/EventBusyRounded';
 import GroupRoundedIcon from '@mui/icons-material/GroupRounded';
 import PeopleRoundedIcon from '@mui/icons-material/PeopleRounded';
 import SettingsEthernetRoundedIcon from '@mui/icons-material/SettingsEthernetRounded';
@@ -24,6 +25,7 @@ import ChatRoundedIcon from '@mui/icons-material/ChatRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import TranslateRoundedIcon from '@mui/icons-material/TranslateRounded';
+import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRounded';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@/components/i18n/i18n-provider';
 
@@ -45,6 +47,7 @@ const groups: Array<{ titleKey: string; items: Array<{ labelKey: string; href: s
       { labelKey: 'menu.services', href: '/portal/services', icon: <DesignServicesRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.resources', href: '/portal/resources', icon: <TableRestaurantRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.working_hours', href: '/portal/working-hours', icon: <ScheduleRoundedIcon fontSize="small" /> },
+      { labelKey: 'menu.holidays', href: '/portal/holidays', icon: <EventBusyRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.staff', href: '/portal/staff', icon: <GroupRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.customers', href: '/portal/customers', icon: <PeopleRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.line_settings', href: '/portal/line-settings', icon: <SettingsEthernetRoundedIcon fontSize="small" /> },
@@ -52,6 +55,7 @@ const groups: Array<{ titleKey: string; items: Array<{ labelKey: string; href: s
       { labelKey: 'menu.reports', href: '/portal/reports', icon: <InsightsRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.settings', href: '/portal/settings', icon: <SettingsRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.translations', href: '/portal/translations', icon: <TranslateRoundedIcon fontSize="small" /> },
+      { labelKey: 'menu.shop_packages', href: '/portal/shop-subscriptions', icon: <WorkspacePremiumRoundedIcon fontSize="small" /> },
     ],
   },
 ];
@@ -70,6 +74,7 @@ export function PortalNav({ isSuperAdmin = false }: { isSuperAdmin?: boolean }) 
           <List dense disablePadding>
             {g.items.map(({ labelKey, href, icon }) => {
               if (href === '/portal/translations' && !isSuperAdmin) return null;
+              if (href === '/portal/shop-subscriptions' && !isSuperAdmin) return null;
               const active = pathname === href;
               return (
                 <ListItemButton

@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { pushMessage } from '@/lib/line/client';
 import { bookingConfirmFlex, bookingConfirmMessage } from '@/lib/line/messages';
+import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 
 function formatThaiDate(isoDate: string) {
   const d = new Date(`${isoDate}T00:00:00+07:00`);
@@ -33,6 +34,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   if (!shop) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
 
   const payload = parsed.data;
+  const monthStart = `${payload.booking_date.slice(0, 7)}-01`;
+  const monthEnd = `${payload.booking_date.slice(0, 7)}-31`;
+  const { count: monthlyCount } = await admin
+    .from('bookings')
+    .select('id', { count: 'exact', head: true })
+    .eq('shop_id', shop.id)
+    .eq('is_deleted', false)
+    .gte('booking_date', monthStart)
+    .lte('booking_date', monthEnd);
+  await assertFeatureQuota(shop.id, 'bookings', monthlyCount ?? 0);
 
   const [{ data: branch }, { data: service }] = await Promise.all([
     admin.from('branches').select('id,branch_name').eq('id', payload.branch_id).eq('shop_id', shop.id).eq('is_deleted', false).maybeSingle(),

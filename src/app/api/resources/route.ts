@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { bookingResourceSchema } from '@/lib/booking/schemas';
+import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
@@ -48,6 +49,13 @@ export async function POST(req: Request) {
     const body = await req.json();
     const parsed = bookingResourceSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+
+    const { count: resourceCount } = await supabase
+      .from('booking_resources')
+      .select('id', { count: 'exact', head: true })
+      .eq('shop_id', profile.shop_id)
+      .eq('is_deleted', false);
+    await assertFeatureQuota(profile.shop_id, 'resources', resourceCount ?? 0);
 
     const { error } = await supabase.from('booking_resources').insert({
       company_id: profile.company_id,
@@ -124,4 +132,3 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });
   }
 }
-

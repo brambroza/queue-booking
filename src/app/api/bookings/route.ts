@@ -4,6 +4,7 @@ import { bookingSchema } from '@/lib/booking/schemas';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { pushMessage } from '@/lib/line/client';
 import { bookingConfirmFlex, bookingConfirmMessage } from '@/lib/line/messages';
+import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
@@ -53,6 +54,16 @@ export async function POST(req: Request) {
     if (!parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
 
     const payload = parsed.data;
+    const monthStart = `${payload.booking_date.slice(0, 7)}-01`;
+    const monthEnd = `${payload.booking_date.slice(0, 7)}-31`;
+    const { count: monthlyCount } = await supabase
+      .from('bookings')
+      .select('id', { count: 'exact', head: true })
+      .eq('shop_id', profile.shop_id)
+      .eq('is_deleted', false)
+      .gte('booking_date', monthStart)
+      .lte('booking_date', monthEnd);
+    await assertFeatureQuota(profile.shop_id, 'bookings', monthlyCount ?? 0);
 
     const { count, error: countError } = await supabase
       .from('bookings')

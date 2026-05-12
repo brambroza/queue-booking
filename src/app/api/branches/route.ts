@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { branchSchema } from '@/lib/booking/schemas';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
@@ -111,6 +112,13 @@ export async function POST(req: Request) {
     }
 
     const payload = parsed.data;
+    const { count: branchCount } = await createAdminClient()
+      .from('branches')
+      .select('id', { count: 'exact', head: true })
+      .eq('shop_id', targetShopId)
+      .eq('is_deleted', false);
+    await assertFeatureQuota(targetShopId, 'branches', branchCount ?? 0);
+
     const branchInsertPayload = {
       company_id: targetCompanyId,
       shop_id: targetShopId,

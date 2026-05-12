@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { serviceSchema } from '@/lib/booking/schemas';
+import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
@@ -40,6 +41,13 @@ export async function POST(req: Request) {
     const { supabase, user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
     const parsed = serviceSchema.safeParse(await req.json());
     if (!parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+
+    const { count: serviceCount } = await supabase
+      .from('services')
+      .select('id', { count: 'exact', head: true })
+      .eq('shop_id', profile.shop_id)
+      .eq('is_deleted', false);
+    await assertFeatureQuota(profile.shop_id, 'services', serviceCount ?? 0);
 
     const { data: category } = await supabase.from('service_categories').select('id').eq('shop_id', profile.shop_id).limit(1).maybeSingle();
 

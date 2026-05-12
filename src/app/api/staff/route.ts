@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
+import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 
 const staffSchema = z.object({
   user_id: z.string().uuid(),
@@ -94,6 +95,12 @@ export async function POST(req: Request) {
     if (!parsed.success) return NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues }, { status: 400 });
 
     const payload = parsed.data;
+    const { count: staffCount } = await supabase
+      .from('staff')
+      .select('id', { count: 'exact', head: true })
+      .eq('shop_id', profile.shop_id)
+      .eq('is_deleted', false);
+    await assertFeatureQuota(profile.shop_id, 'staff', staffCount ?? 0);
 
     const { data: existed } = await supabase
       .from('staff')
