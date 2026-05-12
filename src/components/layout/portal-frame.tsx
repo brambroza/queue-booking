@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import {
@@ -58,9 +57,10 @@ export function PortalFrame({
     <Box sx={{ p: 2 }}>
       <Stack direction="row" spacing={1.2} alignItems="center" sx={{ mb: 2.5 }}>
         {logoUrl ? (
-          <Image src={logoUrl} alt="Shop Logo" width={36} height={36} style={{ borderRadius: 10, objectFit: 'cover' }} />
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logoUrl} alt="Shop Logo" width={36} height={36} className="rounded-[10px] object-cover border border-slate-200" />
         ) : (
-          <Avatar sx={{ bgcolor: 'text.primary', width: 36, height: 36, fontSize: 12, fontWeight: 700 }}>QB</Avatar>
+          <Avatar sx={{ bgcolor: '#73c088', color: '#0f2a1b', width: 36, height: 36, fontSize: 12, fontWeight: 800 }}>QB</Avatar>
         )}
         <Box>
           <Typography variant="caption" color="text.secondary">{t('menu.portal')}</Typography>
