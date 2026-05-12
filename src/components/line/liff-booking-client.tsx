@@ -30,6 +30,8 @@ type UiTheme = {
   accentText: string;
   successTitle: string;
 };
+type ServiceKind = 'barber' | 'nail' | 'clinic' | 'buffet' | 'meeting' | 'default';
+type ServiceCardMeta = { icon: string; subtitle: string };
 
 type LiffApi = {
   init: (x: { liffId: string }) => Promise<void>;
@@ -127,6 +129,26 @@ function detectUiTheme(serviceName?: string): UiTheme {
     return { key: 'meeting', accent: '#4FA56A', accentSoft: '#EAF7EF', accentText: '#2B6A3F', successTitle: 'จองคิวสำเร็จ' };
   }
   return { key: 'default', accent: '#4FA56A', accentSoft: '#EAF7EF', accentText: '#2B6A3F', successTitle: 'จองคิวสำเร็จ' };
+}
+
+function detectServiceKind(serviceName?: string): ServiceKind {
+  const name = (serviceName || '').toLowerCase();
+  if (name.includes('ตัดผม') || name.includes('สระ') || name.includes('barber')) return 'barber';
+  if (name.includes('เล็บ') || name.includes('nail')) return 'nail';
+  if (name.includes('คลินิก') || name.includes('แพทย์') || name.includes('ตรวจ')) return 'clinic';
+  if (name.includes('บุฟเฟ่ต์') || name.includes('walk-in') || name.includes('โต๊ะ')) return 'buffet';
+  if (name.includes('ห้องประชุม') || name.includes('meeting')) return 'meeting';
+  return 'default';
+}
+
+function serviceMeta(s: Service): ServiceCardMeta {
+  const kind = detectServiceKind(s.service_name);
+  if (kind === 'barber') return { icon: '💈', subtitle: 'จองตามเวลาที่เลือกเอง' };
+  if (kind === 'nail') return { icon: '💅', subtitle: 'เวลาบริการยืดหยุ่น' };
+  if (kind === 'clinic') return { icon: '🩺', subtitle: 'จองตามเวลาที่นัดหมาย' };
+  if (kind === 'buffet') return { icon: '🍽️', subtitle: s.service_name.toLowerCase().includes('walk') ? 'Walk-in' : 'รับจำนวนตามรอบ' };
+  if (kind === 'meeting') return { icon: '🏢', subtitle: 'จองรายชั่วโมง/ครึ่งวัน' };
+  return { icon: '📌', subtitle: 'เลือกบริการที่ต้องการ' };
 }
 
 export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey: string; initialTab?: 'booking' | 'account' }) {
@@ -424,6 +446,16 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     void loadMe();
   }
 
+  async function closeLiffOrBack() {
+    try {
+      const liff = await ensureLiffLoaded();
+      if (liff?.isInClient?.() && liff?.closeWindow) return liff.closeWindow();
+    } catch {
+      // no-op
+    }
+    if (typeof window !== 'undefined') window.history.back();
+  }
+
   if (queueNo) {
     return (
       <main className="min-h-screen p-4" style={{ background: '#f4f6f8' }}>
@@ -503,18 +535,31 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
             ) : null}
             <input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="ชื่อผู้จอง" />
             <input className="input" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="เบอร์โทร" />
+            <p className="text-xs text-slate-500">กรุณาเลือกบริการที่ต้องการ</p>
             <div className="space-y-2">
-              {services.slice(0, 5).map((s) => (
+              {services.map((s) => {
+                const meta = serviceMeta(s);
+                return (
                 <button
                   key={`preset-${s.id}`}
-                  className={`w-full rounded-xl border px-3 py-2 text-left text-sm ${serviceId === s.id ? 'border-transparent text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}
+                  className={`w-full rounded-2xl border px-3 py-2.5 text-left text-sm transition ${
+                    serviceId === s.id ? 'border-transparent text-white shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
+                  }`}
                   style={serviceId === s.id ? { background: uiTheme.accent } : undefined}
                   onClick={() => setServiceId(s.id)}
                 >
-                  <div className="font-semibold">{s.service_name}</div>
-                  <div className={`text-xs ${serviceId === s.id ? 'text-white/90' : 'text-slate-500'}`}>{s.duration_minutes} นาที</div>
+                  <div className="flex items-start gap-2">
+                    <span className="mt-0.5 text-xl">{meta.icon}</span>
+                    <div>
+                      <div className="font-semibold">{s.service_name}</div>
+                      <div className={`text-xs ${serviceId === s.id ? 'text-white/90' : 'text-slate-500'}`}>
+                        {s.duration_minutes} นาที • {meta.subtitle}
+                      </div>
+                    </div>
+                  </div>
                 </button>
-              ))}
+                );
+              })}
             </div>
             <button
               className="btn-primary w-full"
@@ -524,9 +569,16 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
             >
               ถัดไป: เลือกคิว
             </button>
+            <button className="btn-outline w-full !bg-slate-100 !text-slate-700 !border-slate-200" onClick={() => void closeLiffOrBack()}>
+              ยกเลิก
+            </button>
           </div>
             ) : (
           <div className="space-y-3">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+              <p className="font-semibold text-slate-800">{selectedService?.service_name ?? '-'}</p>
+              <p>สาขา {selectedBranch?.branch_name ?? '-'} • ระยะเวลา {selectedService?.duration_minutes ?? '-'} นาที</p>
+            </div>
             <select className="input" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
               {branches.map((b) => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
             </select>
@@ -555,7 +607,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
               {slots.map((s) => {
                 const t = s.slot_time.slice(0, 5);
                 const active = selectedTime === t;
-                return <button key={s.slot_time} className={active ? 'btn-primary' : 'btn-outline'} style={active ? { background: uiTheme.accent } : undefined} onClick={() => setSelectedTime(t)}>{t}</button>;
+                return <button key={s.slot_time} className={active ? 'btn-primary !rounded-xl !py-2.5' : 'btn-outline !rounded-xl !py-2.5'} style={active ? { background: uiTheme.accent } : undefined} onClick={() => setSelectedTime(t)}>{t}</button>;
               })}
             </div>
 

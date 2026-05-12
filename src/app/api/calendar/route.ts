@@ -13,7 +13,7 @@ export async function GET(req: Request) {
 
     let query = supabase
       .from('bookings')
-      .select('id,booking_date,start_time,status,queue_number,branches(branch_name),services(service_name),customers(full_name)')
+      .select('id,booking_date,start_time,end_time,status,queue_number,resource_id,resource_name,branches(branch_name),services(service_name),customers(full_name)')
       .eq('shop_id', profile.shop_id)
       .eq('is_deleted', false)
       .order('booking_date', { ascending: true })
