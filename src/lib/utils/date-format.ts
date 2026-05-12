@@ -63,3 +63,8 @@ export function formatDateTimeDMY(input?: string | null): string {
   const mm = String(minute).padStart(2, '0');
   return `${day}/${month}/${year} ${hh}:${mm}`;
 }
+
+export function getTodayISOInBangkok(): string {
+  const { day, month, year } = getPartsInBangkok(new Date());
+  return `${year}-${month}-${day}`;
+}

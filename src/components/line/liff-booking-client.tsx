@@ -2,11 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
-import { formatDateDMY } from '@/lib/utils/date-format';
+import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 
 type Branch = { id: string; branch_name: string };
 type Service = { id: string; service_name: string; duration_minutes: number };
 type Slot = { slot_time: string; remaining_capacity: number };
+type SlotMeta = {
+  reason: 'ok' | 'holiday' | 'closed' | 'full';
+  hint?: string;
+};
 type ShopMeta = { id: string; name: string; shop_key: string; liff_id?: string | null };
 type MyBooking = {
   id: string;
@@ -133,8 +137,10 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const [services, setServices] = useState<Service[]>([]);
   const [branchId, setBranchId] = useState('');
   const [serviceId, setServiceId] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(getTodayISOInBangkok());
   const [slots, setSlots] = useState<Slot[]>([]);
+  const [slotHint, setSlotHint] = useState('');
+  const [slotMeta, setSlotMeta] = useState<SlotMeta>({ reason: 'ok' });
   const [selectedTime, setSelectedTime] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -315,13 +321,47 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   async function loadSlots() {
     if (!canLoadSlots) return;
     setLoading(true);
+    setSlotHint('');
+    setSlotMeta({ reason: 'ok' });
+    setSelectedTime('');
     const url = `/api/public/shop/${shopKey}/slots?branch_id=${branchId}&service_id=${serviceId}&date=${date}`;
-    const res = await fetch(url);
-    const json = await res.json();
-    setLoading(false);
-    if (!res.ok) return push(json.error ?? 'โหลดคิวว่างไม่สำเร็จ', 'error');
-    setSlots(json.data ?? []);
+    try {
+      const res = await fetch(url);
+      const json = await res.json();
+      setLoading(false);
+      if (!res.ok) {
+        const msg = json.error ?? 'โหลดคิวว่างไม่สำเร็จ';
+        setSlots([]);
+        setSlotHint(msg);
+        return push(msg, 'error');
+      }
+      const nextSlots = (json.data ?? []) as Slot[];
+      setSlots(nextSlots);
+      const nextMeta = (json.meta ?? { reason: 'ok' }) as SlotMeta;
+      setSlotMeta(nextMeta);
+      if (nextSlots.length === 0) {
+        setSlotHint(nextMeta.hint || 'ไม่พบเวลาว่างในวันที่เลือก');
+      }
+    } catch {
+      setLoading(false);
+      setSlots([]);
+      setSlotHint('โหลดคิวว่างไม่สำเร็จ กรุณาลองใหม่');
+      setSlotMeta({ reason: 'full' });
+    }
   }
+
+  useEffect(() => {
+    setSlots([]);
+    setSelectedTime('');
+    setSlotHint('');
+    setSlotMeta({ reason: 'ok' });
+  }, [branchId, serviceId, date]);
+
+  useEffect(() => {
+    if (step !== 2 || !canLoadSlots) return;
+    void loadSlots();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, branchId, serviceId, date]);
 
   async function bookNow() {
     if (!canBook) return;
@@ -495,6 +535,21 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
             </select>
             <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             <button className="btn-primary w-full" style={{ background: uiTheme.accent }} onClick={() => void loadSlots()} disabled={!canLoadSlots || loading}>{loading ? 'กำลังโหลด...' : 'ดูเวลาว่าง'}</button>
+
+            {slotMeta.reason !== 'ok' ? (
+              <div
+                className={`rounded-xl border px-3 py-2 text-xs ${
+                  slotMeta.reason === 'holiday'
+                    ? 'border-violet-200 bg-violet-50 text-violet-700'
+                    : slotMeta.reason === 'closed'
+                      ? 'border-slate-300 bg-slate-50 text-slate-700'
+                      : 'border-amber-200 bg-amber-50 text-amber-700'
+                }`}
+              >
+                {slotMeta.reason === 'holiday' ? 'วันหยุด' : slotMeta.reason === 'closed' ? 'ปิดทำการ' : 'คิวเต็ม'}
+              </div>
+            ) : null}
+            {slotHint ? <p className="text-xs text-amber-700">{slotHint}</p> : null}
 
             <div className="grid grid-cols-3 gap-2">
               {slots.map((s) => {

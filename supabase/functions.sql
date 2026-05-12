@@ -37,10 +37,11 @@ begin
   into v_open, v_close, v_break_start, v_break_end, v_interval, v_capacity
   from public.working_hours wh
   where wh.shop_id = p_shop_id
-    and wh.branch_id = p_branch_id
     and wh.weekday = v_weekday
     and wh.active = true
     and wh.is_deleted = false
+    and (wh.branch_id = p_branch_id or wh.branch_id is null)
+  order by case when wh.branch_id = p_branch_id then 0 else 1 end
   limit 1;
 
   if v_open is null then
