@@ -60,7 +60,7 @@ export default function ContactPage() {
                 <Typography variant="h6" fontWeight={700}>ข้อมูลบริษัท</Typography>
                 <Typography variant="body2">Phone: 085-608-3298</Typography>
                 <Typography variant="body2">Email: amnart.gl@gmail.com</Typography>
-                <Typography variant="body2">LINE OA: 0856083298</Typography>
+                <Typography variant="body2">LINE OA: @queuebooking</Typography>
                 <Typography variant="body2">Address: Bangkok, Thailand</Typography>
                 <Box sx={{ mt: 1, p: 2, borderRadius: 2, bgcolor: '#f4f6f8', textAlign: 'center' }}>
                   <Typography variant="caption" color="text.secondary">Google Map Placeholder</Typography>

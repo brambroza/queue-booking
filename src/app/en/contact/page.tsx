@@ -34,7 +34,7 @@ export default function ContactEnPage() {
                 <Typography variant="h6" fontWeight={700}>Company Info</Typography>
                 <Typography variant="body2">Phone: 085-608-3298</Typography>
                 <Typography variant="body2">Email: amnart.gl@gmail.com</Typography>
-                <Typography variant="body2">LINE OA: 0856083298</Typography>
+                <Typography variant="body2">LINE OA: @queuebooking</Typography>
                 <Typography variant="body2">Address: Bangkok, Thailand</Typography>
               </Stack>
             </Paper>

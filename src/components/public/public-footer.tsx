@@ -32,7 +32,7 @@ export function PublicFooter() {
               <Typography fontWeight={700}>ติดต่อ</Typography>
               <Typography variant="body2">Email: amnart.gl@gmail.com</Typography>
               <Typography variant="body2">Phone: 085-608-3298</Typography>
-              <Typography variant="body2">LINE OA: 0856083298</Typography>
+              <Typography variant="body2">LINE OA: @queuebooking</Typography>
             </Stack>
           </Grid>
         </Grid>
