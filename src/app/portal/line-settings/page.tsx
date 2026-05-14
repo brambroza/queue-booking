@@ -10,6 +10,7 @@ export default function LineSettingsPage() {
     line_channel_access_token: '',
     line_channel_secret: '',
     liff_id: '',
+    liff_id_login_shop: '',
     auto_reply_enabled: true,
     shop_key: '',
   });
@@ -23,6 +24,7 @@ export default function LineSettingsPage() {
         line_channel_access_token: json.data.line_channel_access_token ?? '',
         line_channel_secret: json.data.line_channel_secret ?? '',
         liff_id: json.data.liff_id ?? '',
+        liff_id_login_shop: json.data.liff_id_login_shop ?? '',
         auto_reply_enabled: Boolean(json.data.auto_reply_enabled),
         shop_key: json.data.shop_key ?? '',
       });
@@ -43,16 +45,40 @@ export default function LineSettingsPage() {
 
   return (
     <PageShell title="LINE Settings" description="ตั้งค่า LINE OA ต่อร้าน">
-      <form onSubmit={onSubmit} className="card max-w-2xl p-4 space-y-3">
-        <div className="text-sm text-slate-600">Webhook URL: <code>/api/line/webhook/{form.shop_key || '{shopKey}'}</code></div>
+      <section className="max-w-2xl rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
+        <h2 className="text-sm font-semibold text-slate-800">ลิงก์สำหรับตั้งค่าใน LINE Developer</h2>
+        <div className="mt-3 space-y-2 text-sm text-slate-600">
+          <p>Webhook URL</p>
+          <code className="block rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700">
+            https://queue-booking-line.vercel.app/api/line/webhook/{form.shop_key || '{shopKey}'}
+          </code>
+          <p>LIFF Booking URL</p>
+          <code className="block rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700">
+            https://queue-booking-line.vercel.app/liff/{form.shop_key || '{shopKey}'}
+          </code>
+          <p>LIFF Member URL</p>
+          <code className="block rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700">
+            https://queue-booking-line.vercel.app/liff/{form.shop_key || '{shopKey}'}/member
+          </code>
+        </div>
+      </section>
+
+      <form onSubmit={onSubmit} className="mt-4 max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+        <div className="border-b border-slate-100 pb-3">
+          <h3 className="text-sm font-semibold text-slate-800">ข้อมูลเชื่อมต่อ LINE OA</h3>
+          <p className="mt-1 text-xs text-slate-500">กรอกค่า Channel และ LIFF ID ให้ตรงกับร้านนี้</p>
+        </div>
         <input className="input" placeholder="LINE Channel Access Token" value={form.line_channel_access_token} onChange={(e) => setForm((s) => ({ ...s, line_channel_access_token: e.target.value }))} />
         <input className="input" placeholder="LINE Channel Secret" value={form.line_channel_secret} onChange={(e) => setForm((s) => ({ ...s, line_channel_secret: e.target.value }))} />
-        <input className="input" placeholder="LIFF ID" value={form.liff_id} onChange={(e) => setForm((s) => ({ ...s, liff_id: e.target.value }))} />
-        <label className="text-sm flex items-center gap-2">
+        <input className="input" placeholder="LIFF Booking ID (liff_id)" value={form.liff_id} onChange={(e) => setForm((s) => ({ ...s, liff_id: e.target.value }))} />
+        <input className="input" placeholder="LIFF Member/Login ID (liff_id_login_shop)" value={form.liff_id_login_shop} onChange={(e) => setForm((s) => ({ ...s, liff_id_login_shop: e.target.value }))} />
+        <label className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
           <input type="checkbox" checked={form.auto_reply_enabled} onChange={(e) => setForm((s) => ({ ...s, auto_reply_enabled: e.target.checked }))} />
           เปิด Auto Reply
         </label>
-        <button className="btn-primary">บันทึก</button>
+        <div className="pt-1">
+          <button className="btn-primary">บันทึก</button>
+        </div>
       </form>
     </PageShell>
   );

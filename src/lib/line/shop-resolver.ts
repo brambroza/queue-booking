@@ -6,6 +6,7 @@ export type ResolvedShop = {
   name: string;
   shop_key: string;
   liff_id: string | null;
+  liff_id_login_shop: string | null;
   is_deleted: boolean;
 };
 
@@ -17,7 +18,7 @@ export async function resolveShopByKeyOrId(admin: SupabaseClient, shopRef: strin
   const ref = shopRef.trim();
   if (!ref) return null;
 
-  const baseSelect = 'id,company_id,name,shop_key,liff_id,is_deleted';
+  const baseSelect = 'id,company_id,name,shop_key,liff_id,liff_id_login_shop,is_deleted';
   const byKey = await admin.from('shops').select(baseSelect).eq('shop_key', ref).eq('is_deleted', false).maybeSingle();
   if (byKey.data) return byKey.data as ResolvedShop;
 

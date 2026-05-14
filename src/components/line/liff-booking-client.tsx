@@ -11,7 +11,7 @@ type SlotMeta = {
   reason: 'ok' | 'holiday' | 'closed' | 'full';
   hint?: string;
 };
-type ShopMeta = { id: string; name: string; shop_key: string; liff_id?: string | null };
+type ShopMeta = { id: string; name: string; shop_key: string; liff_id?: string | null; liff_id_login_shop?: string | null };
 type MyBooking = {
   id: string;
   queue_number: string;
@@ -67,16 +67,17 @@ function buildLiffOpenUrl(liffId: string, shopKey: string, tab: 'booking' | 'acc
   return `https://liff.line.me/${encodeURIComponent(liffId)}?${params.toString()}`;
 }
 
-function getLiffCandidates(shopLiffId?: string | null, initialTab: 'booking' | 'account' = 'booking') {
+function getLiffCandidates(shopLiffId?: string | null, shopLoginLiffId?: string | null, initialTab: 'booking' | 'account' = 'booking') {
   const fromShop = normalizeLiffId(shopLiffId);
+  const fromShopLogin = normalizeLiffId(shopLoginLiffId);
   const fromEnv = normalizeLiffId(process.env.NEXT_PUBLIC_LIFF_ID);
   const fromMemberEnv = normalizeLiffId(process.env.NEXT_PUBLIC_LIFF_MEMBER_ID);
   const fromBookingEnv = normalizeLiffId(process.env.NEXT_PUBLIC_LIFF_BOOKING_ID);
 
   const ordered =
     initialTab === 'account'
-      ? [fromMemberEnv, fromShop, fromEnv, fromBookingEnv]
-      : [fromBookingEnv, fromShop, fromEnv, fromMemberEnv];
+      ? [fromShopLogin, fromMemberEnv, fromShop, fromEnv, fromBookingEnv]
+      : [fromBookingEnv, fromShop, fromEnv, fromShopLogin, fromMemberEnv];
 
   const all = ordered.filter((v) => isLikelyLiffId(v));
   return Array.from(new Set(all));
@@ -241,7 +242,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       setMemberStatus('checking');
       setMemberError('');
       try {
-        const liffCandidates = getLiffCandidates(shop.liff_id, initialTab);
+        const liffCandidates = getLiffCandidates(shop.liff_id, shop.liff_id_login_shop, initialTab);
         setResolvedLiffId(liffCandidates[0] ?? '');
         if (!liffCandidates.length) {
           push('LIFF ID ไม่ถูกต้องหรือยังไม่ได้ตั้งค่าในร้าน/ENV', 'error');

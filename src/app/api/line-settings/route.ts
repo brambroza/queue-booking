@@ -6,7 +6,7 @@ export async function GET() {
     const { supabase, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
     const { data, error } = await supabase
       .from('shops')
-      .select('id,name,shop_key,line_channel_access_token,line_channel_secret,liff_id,auto_reply_enabled')
+      .select('id,name,shop_key,line_channel_access_token,line_channel_secret,liff_id,liff_id_login_shop,auto_reply_enabled')
       .eq('id', profile.shop_id)
       .single();
     if (error) throw error;
@@ -26,6 +26,7 @@ export async function PATCH(req: Request) {
         line_channel_access_token: body.line_channel_access_token ?? null,
         line_channel_secret: body.line_channel_secret ?? null,
         liff_id: body.liff_id ?? null,
+        liff_id_login_shop: body.liff_id_login_shop ?? null,
         auto_reply_enabled: Boolean(body.auto_reply_enabled),
         updated_by: user.id,
       })
