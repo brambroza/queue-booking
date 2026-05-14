@@ -242,19 +242,43 @@ export function ResourcesCrud() {
               <button className="btn-outline" onClick={() => setDrawerOpen(false)}>Close</button>
             </div>
             <form onSubmit={submitSingle} className="grid gap-3 sm:grid-cols-2">
-              <select className="input" name="resource_type" defaultValue={editing?.resource_type || 'table'} required>
-                {RESOURCE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <select className="input" name="branch_id" defaultValue={editing?.branch_id || ''}>
-                <option value="">ทุกสาขา/ไม่ระบุ</option>
-                {branches.map((b) => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
-              </select>
-              <input className="input" name="resource_code" placeholder="resource code เช่น T01" defaultValue={editing?.resource_code ?? ''} />
-              <input className="input" name="resource_name" placeholder="resource name" defaultValue={editing?.resource_name ?? ''} required />
-              <input className="input" name="capacity" type="number" min={1} defaultValue={editing?.capacity ?? 1} required />
-              <input className="input" name="floor" placeholder="floor" defaultValue={editing?.floor ?? ''} />
-              <input className="input" name="zone" placeholder="zone" defaultValue={editing?.zone ?? ''} />
-              <input className="input sm:col-span-2" name="description" placeholder="description" defaultValue={editing?.description ?? ''} />
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">ประเภททรัพยากร</label>
+                <select className="input" name="resource_type" defaultValue={editing?.resource_type || 'table'} required>
+                  {RESOURCE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">สาขา</label>
+                <select className="input" name="branch_id" defaultValue={editing?.branch_id || ''}>
+                  <option value="">ทุกสาขา/ไม่ระบุ</option>
+                  {branches.map((b) => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">Resource Code</label>
+                <input className="input" name="resource_code" placeholder="เช่น T01, ROOM-A" defaultValue={editing?.resource_code ?? ''} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">ชื่อทรัพยากร</label>
+                <input className="input" name="resource_name" placeholder="เช่น โต๊ะ 1, ห้องประชุม A" defaultValue={editing?.resource_name ?? ''} required />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">ความจุ (Capacity)</label>
+                <input className="input" name="capacity" type="number" min={1} defaultValue={editing?.capacity ?? 1} required />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">ชั้น (Floor)</label>
+                <input className="input" name="floor" placeholder="เช่น 1, 2, 3" defaultValue={editing?.floor ?? ''} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">โซน (Zone)</label>
+                <input className="input" name="zone" placeholder="เช่น Indoor, Outdoor, VIP" defaultValue={editing?.zone ?? ''} />
+              </div>
+              <div className="space-y-1 sm:col-span-2">
+                <label className="text-xs font-medium text-slate-600">รายละเอียดเพิ่มเติม</label>
+                <input className="input" name="description" placeholder="รายละเอียดทรัพยากร (ถ้ามี)" defaultValue={editing?.description ?? ''} />
+              </div>
               <label className="sm:col-span-2 text-sm text-slate-600">
                 <input className="mr-2" type="checkbox" name="active" defaultChecked={editing?.active ?? true} />
                 Active
@@ -312,4 +336,3 @@ export function ResourcesCrud() {
     </div>
   );
 }
-

@@ -68,10 +68,22 @@ export default function LineSettingsPage() {
           <h3 className="text-sm font-semibold text-slate-800">ข้อมูลเชื่อมต่อ LINE OA</h3>
           <p className="mt-1 text-xs text-slate-500">กรอกค่า Channel และ LIFF ID ให้ตรงกับร้านนี้</p>
         </div>
-        <input className="input" placeholder="LINE Channel Access Token" value={form.line_channel_access_token} onChange={(e) => setForm((s) => ({ ...s, line_channel_access_token: e.target.value }))} />
-        <input className="input" placeholder="LINE Channel Secret" value={form.line_channel_secret} onChange={(e) => setForm((s) => ({ ...s, line_channel_secret: e.target.value }))} />
-        <input className="input" placeholder="LIFF Booking ID (liff_id)" value={form.liff_id} onChange={(e) => setForm((s) => ({ ...s, liff_id: e.target.value }))} />
-        <input className="input" placeholder="LIFF Member/Login ID (liff_id_login_shop)" value={form.liff_id_login_shop} onChange={(e) => setForm((s) => ({ ...s, liff_id_login_shop: e.target.value }))} />
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-slate-600">LINE Channel Access Token</label>
+          <input className="input" placeholder="ใส่ Channel Access Token (Long-lived)" value={form.line_channel_access_token} onChange={(e) => setForm((s) => ({ ...s, line_channel_access_token: e.target.value }))} />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-slate-600">LINE Channel Secret</label>
+          <input className="input" placeholder="ใส่ Channel Secret" value={form.line_channel_secret} onChange={(e) => setForm((s) => ({ ...s, line_channel_secret: e.target.value }))} />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-slate-600">LIFF Booking ID (`liff_id`)</label>
+          <input className="input" placeholder="เช่น 200xxxxxxx-ABCDEFG" value={form.liff_id} onChange={(e) => setForm((s) => ({ ...s, liff_id: e.target.value }))} />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-slate-600">LIFF Member/Login ID (`liff_id_login_shop`)</label>
+          <input className="input" placeholder="เช่น 200xxxxxxx-HIJKLMN" value={form.liff_id_login_shop} onChange={(e) => setForm((s) => ({ ...s, liff_id_login_shop: e.target.value }))} />
+        </div>
         <label className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
           <input type="checkbox" checked={form.auto_reply_enabled} onChange={(e) => setForm((s) => ({ ...s, auto_reply_enabled: e.target.checked }))} />
           เปิด Auto Reply

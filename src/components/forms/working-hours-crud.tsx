@@ -207,21 +207,45 @@ export function WorkingHoursCrud() {
             </div>
 
             <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2">
-              <select className="input" value={draft.branch_id} onChange={(e) => setDraft((p) => ({ ...p, branch_id: e.target.value }))} required>
-                <option value="">เลือกสาขา</option>
-                {branches.map((b) => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
-              </select>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">สาขา</label>
+                <select className="input" value={draft.branch_id} onChange={(e) => setDraft((p) => ({ ...p, branch_id: e.target.value }))} required>
+                  <option value="">เลือกสาขา</option>
+                  {branches.map((b) => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
+                </select>
+              </div>
 
-              <select className="input" value={draft.weekday} onChange={(e) => setDraft((p) => ({ ...p, weekday: e.target.value }))} required>
-                {WEEKDAYS.map((name, idx) => <option key={name} value={idx}>{name}</option>)}
-              </select>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">วันในสัปดาห์</label>
+                <select className="input" value={draft.weekday} onChange={(e) => setDraft((p) => ({ ...p, weekday: e.target.value }))} required>
+                  {WEEKDAYS.map((name, idx) => <option key={name} value={idx}>{name}</option>)}
+                </select>
+              </div>
 
-              <input className="input" type="time" value={draft.open_time} onChange={(e) => setDraft((p) => ({ ...p, open_time: e.target.value }))} required />
-              <input className="input" type="time" value={draft.close_time} onChange={(e) => setDraft((p) => ({ ...p, close_time: e.target.value }))} required />
-              <input className="input" type="time" value={draft.break_start} onChange={(e) => setDraft((p) => ({ ...p, break_start: e.target.value }))} />
-              <input className="input" type="time" value={draft.break_end} onChange={(e) => setDraft((p) => ({ ...p, break_end: e.target.value }))} />
-              <input className="input" type="number" min={5} max={180} value={draft.slot_interval_minutes} onChange={(e) => setDraft((p) => ({ ...p, slot_interval_minutes: e.target.value }))} required />
-              <input className="input" type="number" min={1} max={100} value={draft.capacity_per_slot} onChange={(e) => setDraft((p) => ({ ...p, capacity_per_slot: e.target.value }))} required />
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">เวลาเปิด</label>
+                <input className="input" type="time" value={draft.open_time} onChange={(e) => setDraft((p) => ({ ...p, open_time: e.target.value }))} required />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">เวลาปิด</label>
+                <input className="input" type="time" value={draft.close_time} onChange={(e) => setDraft((p) => ({ ...p, close_time: e.target.value }))} required />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">พักเริ่ม</label>
+                <input className="input" type="time" value={draft.break_start} onChange={(e) => setDraft((p) => ({ ...p, break_start: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">พักสิ้นสุด</label>
+                <input className="input" type="time" value={draft.break_end} onChange={(e) => setDraft((p) => ({ ...p, break_end: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">ช่วงเวลาต่อสล็อต (นาที)</label>
+                <input className="input" type="number" min={5} max={180} value={draft.slot_interval_minutes} onChange={(e) => setDraft((p) => ({ ...p, slot_interval_minutes: e.target.value }))} required />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">จำนวนคิวต่อสล็อต</label>
+                <input className="input" type="number" min={1} max={100} value={draft.capacity_per_slot} onChange={(e) => setDraft((p) => ({ ...p, capacity_per_slot: e.target.value }))} required />
+              </div>
 
               <label className="text-sm flex items-center gap-2 sm:col-span-2">
                 <input type="checkbox" checked={draft.active} onChange={(e) => setDraft((p) => ({ ...p, active: e.target.checked }))} />
