@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
+import { writeAuditLog } from '@/lib/audit/activity-log';
 
 const staffSchema = z.object({
   user_id: z.string().uuid(),
@@ -217,6 +218,16 @@ export async function DELETE(req: Request) {
       .eq('staff_id', id)
       .eq('shop_id', profile.shop_id)
       .eq('is_deleted', false);
+
+    await writeAuditLog({
+      companyId: profile.company_id,
+      shopId: profile.shop_id,
+      userId: user.id,
+      action: 'data_deleted',
+      targetTable: 'staff',
+      targetId: id,
+      payload: { soft_delete: true, cascade_soft_delete: ['staff_branches'] },
+    });
 
     return NextResponse.json({ data: true });
   } catch (e) {

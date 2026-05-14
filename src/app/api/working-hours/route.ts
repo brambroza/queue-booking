@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { workingHourSchema } from '@/lib/booking/schemas';
+import { writeAuditLog } from '@/lib/audit/activity-log';
 
 export async function GET(req: Request) {
   try {
@@ -62,6 +63,15 @@ export async function DELETE(req: Request) {
       .eq('shop_id', profile.shop_id);
 
     if (error) throw error;
+    await writeAuditLog({
+      companyId: profile.company_id,
+      shopId: profile.shop_id,
+      userId: user.id,
+      action: 'data_deleted',
+      targetTable: 'working_hours',
+      targetId: id,
+      payload: { soft_delete: true },
+    });
     return NextResponse.json({ data: true });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });

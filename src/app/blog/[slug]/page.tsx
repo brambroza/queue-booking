@@ -44,7 +44,7 @@ export default async function BlogDetailPage({ params }: { params: Promise<Param
   const post = getBlogBySlug(slug);
   if (!post) notFound();
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://queue-booking-line.vercel.app';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://queuebooking.com';
   const articleSchema = {
     '@context': 'https://schema.org',
     '@type': 'Article',

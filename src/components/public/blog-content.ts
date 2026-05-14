@@ -53,7 +53,7 @@ export const blogPosts: BlogPost[] = [
       {
         heading: '1) เตรียมค่าในระบบก่อนตั้งค่า LINE',
         body: [
-          'เตรียมโดเมน production เช่น https://queue-booking-line.vercel.app และ shop_key ของร้าน เช่น SHOP-TTLS2P.',
+          'เตรียมโดเมน production เช่น https://queuebooking.com และ shop_key ของร้าน เช่น SHOP-TTLS2P.',
           'ตรวจว่าระบบมี endpoint เหล่านี้: /api/line/webhook/{shopKey}, /liff/{shopKey}, /liff/{shopKey}/member.',
           'แนะนำใช้ LIFF 2 ตัวแยกกัน: ตัวจองคิว (booking) และตัวข้อมูลสมาชิก (member) เพื่อจัดการ scope และ URL ชัดเจน.',
         ],
@@ -62,7 +62,7 @@ export const blogPosts: BlogPost[] = [
         heading: '2) ตั้งค่า Messaging API และ Webhook',
         body: [
           'เข้า LINE Developers > Channel ของ OA > Messaging API แล้วคัดลอก Channel access token (long-lived) และ Channel secret มาใส่ระบบ.',
-          'Webhook URL ให้ตั้งเป็น https://queue-booking-line.vercel.app/api/line/webhook/{shopKey}.',
+          'Webhook URL ให้ตั้งเป็น https://queuebooking.com/api/line/webhook/{shopKey}.',
           'เปิด Use webhook = ON และกด Verify ต้องผ่าน.',
           'แนะนำปิด Auto-reply ของ LINE Official Account Manager เพื่อไม่ชนกับข้อความจากระบบ.',
         ],
@@ -71,7 +71,7 @@ export const blogPosts: BlogPost[] = [
         heading: '3) ตั้งค่า LIFF สำหรับหน้า Booking',
         body: [
           'สร้าง LIFF app ชื่อเช่น queuebooking, Size = Full.',
-          'Endpoint URL ตั้งเป็น https://queue-booking-line.vercel.app/liff/{shopKey}.',
+          'Endpoint URL ตั้งเป็น https://queuebooking.com/liff/{shopKey}.',
           'Scopes แนะนำ: openid, profile, chat_message.write.',
           'นำ LIFF ID ไปใส่ในระบบที่ฟิลด์ LIFF Booking ID หรือค่า NEXT_PUBLIC_LIFF_BOOKING_ID.',
         ],
@@ -80,7 +80,7 @@ export const blogPosts: BlogPost[] = [
         heading: '4) ตั้งค่า LIFF สำหรับหน้าข้อมูลสมาชิก',
         body: [
           'สร้าง LIFF app อีกตัวชื่อเช่น queuemember, Size = Full.',
-          'Endpoint URL ตั้งเป็น https://queue-booking-line.vercel.app/liff/{shopKey}/member.',
+          'Endpoint URL ตั้งเป็น https://queuebooking.com/liff/{shopKey}/member.',
           'ใช้ scope เหมือนหน้า booking ได้ (openid, profile, chat_message.write).',
           'นำ LIFF ID ไปใส่ LIFF Member ID หรือ NEXT_PUBLIC_LIFF_MEMBER_ID.',
         ],

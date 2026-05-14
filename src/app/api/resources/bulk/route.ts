@@ -7,13 +7,55 @@ function padNumber(n: number, length: number) {
   return String(n).padStart(length, '0');
 }
 
+function getErrorPayload(e: unknown) {
+  if (e && typeof e === 'object') {
+    const obj = e as { message?: string; code?: string; details?: string; hint?: string };
+    return {
+      error: obj.message ?? 'Unexpected error',
+      code: obj.code ?? null,
+      details: obj.details ?? null,
+      hint: obj.hint ?? null,
+    };
+  }
+  return { error: e instanceof Error ? e.message : 'Unexpected error', code: null, details: null, hint: null };
+}
+
 export async function POST(req: Request) {
   try {
     const { supabase, user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
-    const parsed = bookingResourceBulkSchema.safeParse(await req.json());
-    if (!parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    const body = await req.json();
+    const normalizedBody = {
+      ...body,
+      branch_id: typeof body.branch_id === 'string' && body.branch_id.trim() === '' ? null : body.branch_id,
+      floor: typeof body.floor === 'string' && body.floor.trim() === '' ? null : body.floor,
+      zone: typeof body.zone === 'string' && body.zone.trim() === '' ? null : body.zone,
+      prefix: typeof body.prefix === 'string' && body.prefix.trim() === '' ? null : body.prefix,
+      name_prefix: typeof body.name_prefix === 'string' && body.name_prefix.trim() === '' ? null : body.name_prefix,
+    };
+    const parsed = bookingResourceBulkSchema.safeParse(normalizedBody);
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          error: parsed.error.issues[0]?.message ?? 'Invalid payload',
+          issues: parsed.error.issues,
+        },
+        { status: 400 },
+      );
+    }
 
     const payload = parsed.data;
+    if (payload.branch_id) {
+      const { data: branch, error: branchError } = await supabase
+        .from('branches')
+        .select('id')
+        .eq('id', payload.branch_id)
+        .eq('shop_id', profile.shop_id)
+        .eq('is_deleted', false)
+        .maybeSingle();
+      if (branchError) throw branchError;
+      if (!branch) return NextResponse.json({ error: 'branch_id ไม่ถูกต้องหรือไม่อยู่ในร้านนี้' }, { status: 400 });
+    }
+
     const namePrefix = payload.name_prefix?.trim() || (payload.resource_type === 'meeting_room' ? 'Room' : 'โต๊ะ');
     const codes: string[] = [];
 
@@ -47,10 +89,17 @@ export async function POST(req: Request) {
     }));
 
     const { error } = await supabase.from('booking_resources').insert(rows);
-    if (error) throw error;
+    if (error) {
+      if (error.code === '23505') {
+        return NextResponse.json({ error: 'resource_code ซ้ำในสาขาเดียวกัน (บางรายการอาจซ้ำ)' }, { status: 400 });
+      }
+      if (error.code === '23503') {
+        return NextResponse.json({ error: 'ข้อมูลอ้างอิงไม่ถูกต้อง (branch/company/shop)' }, { status: 400 });
+      }
+      throw error;
+    }
     return NextResponse.json({ data: { created: rows.length } });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });
+    return NextResponse.json(getErrorPayload(e), { status: getErrorStatus(e) });
   }
 }
-

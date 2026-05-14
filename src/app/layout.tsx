@@ -12,7 +12,7 @@ const kanit = Kanit({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://queue-booking-line.vercel.app'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://queuebooking.com'),
   title: {
     default: 'QueueBooking LINE | ระบบจองคิวผ่าน LINE OA',
     template: '%s | QueueBooking LINE',
@@ -55,13 +55,13 @@ export const metadata: Metadata = {
     images: ['/twitter-image'],
   },
   verification: {
-    google: '8H0SNuIjr6ZY-tLBzBf85s3jZzY12koKu-ACp7SLNXg',
+    google: 'vSwRXNYx8325qISY5YeR3oEyPIOGDMHUBKVrrRGXAd4',
   },
 };
 
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const base = process.env.NEXT_PUBLIC_APP_URL || 'https://queue-booking-line.vercel.app';
+  const base = process.env.NEXT_PUBLIC_APP_URL || 'https://queuebooking.com';
   const orgSchema = {
     '@context': 'https://schema.org',
     '@type': 'Organization',

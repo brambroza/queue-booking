@@ -42,7 +42,7 @@ export const metadata: Metadata = {
 };
 
 export default function HomePage() {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://queue-booking-line.vercel.app';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://queuebooking.com';
   const softwareSchema = {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',

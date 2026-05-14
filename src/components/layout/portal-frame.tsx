@@ -85,7 +85,7 @@ export function PortalFrame({
           </IconButton>
           <Box sx={{ flex: 1 }}>
             <Typography variant="caption" color="text.secondary">{t('menu.shop_selector')}</Typography>
-            <Typography variant="body2" fontWeight={700}>{shopName ? `${shopName} (${shopId})` : `Shop ID: ${shopId ?? '-'}`}</Typography>
+            <Typography variant="body2" fontWeight={700}>{shopName ? `${shopName}  ` : '-'}</Typography>
             <Breadcrumbs aria-label="breadcrumb" sx={{ mt: 0.2 }}>
               <MLink underline="hover" color="inherit" href="/portal/dashboard">{t('menu.portal')}</MLink>
               {crumbs.map((c, idx) => (

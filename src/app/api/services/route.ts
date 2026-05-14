@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { serviceSchema } from '@/lib/booking/schemas';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
+import { writeAuditLog } from '@/lib/audit/activity-log';
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
@@ -103,6 +104,15 @@ export async function PATCH(req: Request) {
       .eq('shop_id', profile.shop_id);
 
     if (error) throw error;
+    await writeAuditLog({
+      companyId: profile.company_id,
+      shopId: profile.shop_id,
+      userId: user.id,
+      action: 'data_deleted',
+      targetTable: 'services',
+      targetId: id,
+      payload: { soft_delete: true },
+    });
     return NextResponse.json({ data: true });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });

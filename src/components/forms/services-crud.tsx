@@ -32,6 +32,7 @@ import {
 import type { SelectChangeEvent } from '@mui/material/Select';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import { useToast } from '@/components/ui/toast';
 import { BookingModeChip } from '@/components/shared/booking-mode-chip';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
@@ -93,6 +94,7 @@ export function ServicesCrud() {
   const [category, setCategory] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [presetKey, setPresetKey] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const BUSINESS_PRESETS: Preset[] = [
     {
@@ -170,6 +172,44 @@ export function ServicesCrud() {
 
   useEffect(() => { void load(); }, []);
 
+  function resetForm() {
+    setEditingId(null);
+    setPresetKey('');
+    setSelectedTemplateId('');
+    setServiceName('');
+    setBookingMode('fixed_slot');
+    setDuration('30');
+    setMinDuration('90');
+    setMaxDuration('180');
+    setCapacity('1');
+    setPrice('0');
+    setActive(true);
+    setRequiresApproval(false);
+    setAllowWalkIn(false);
+  }
+
+  function openCreate() {
+    resetForm();
+    setDrawerOpen(true);
+  }
+
+  function openEdit(row: Service) {
+    setEditingId(String(row.id));
+    setPresetKey('');
+    setSelectedTemplateId('');
+    setServiceName(String(row.service_name ?? ''));
+    setBookingMode(String(row.booking_mode ?? 'fixed_slot') as Template['booking_mode']);
+    setDuration(String(row.duration_minutes ?? 30));
+    setMinDuration(String(row.min_duration_minutes ?? 90));
+    setMaxDuration(String(row.max_duration_minutes ?? 180));
+    setCapacity(String(row.capacity_per_slot ?? 1));
+    setPrice(String(row.price ?? 0));
+    setActive(Boolean(row.active));
+    setRequiresApproval(Boolean(row.requires_approval));
+    setAllowWalkIn(Boolean(row.allow_walk_in));
+    setDrawerOpen(true);
+  }
+
   function applyTemplate(t: Template) {
     setSelectedTemplateId(t.id);
     setServiceName(t.service_name);
@@ -198,6 +238,7 @@ export function ServicesCrud() {
     e.preventDefault();
     setSaving(true);
     const payload = {
+      id: editingId ?? undefined,
       service_name: serviceName,
       booking_mode: bookingMode,
       duration_minutes: bookingMode === 'fixed_slot' ? Number(duration) : null,
@@ -210,15 +251,15 @@ export function ServicesCrud() {
       active,
     };
     const res = await fetch('/api/services', {
-      method: 'POST',
+      method: editingId ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
     const json = await res.json();
     setSaving(false);
-    if (!res.ok) return push(json.error ?? 'เพิ่มบริการไม่สำเร็จ', 'error');
-    push('เพิ่มบริการสำเร็จ');
-    setSelectedTemplateId('');
+    if (!res.ok) return push(json.error ?? (editingId ? 'แก้ไขบริการไม่สำเร็จ' : 'เพิ่มบริการไม่สำเร็จ'), 'error');
+    push(editingId ? 'แก้ไขบริการสำเร็จ' : 'เพิ่มบริการสำเร็จ');
+    resetForm();
     setDrawerOpen(false);
     await load();
   }
@@ -240,9 +281,8 @@ export function ServicesCrud() {
           <Stack direction="row" alignItems="center" justifyContent="space-between">
             <Box>
               <Typography variant="h6" fontWeight={700}>Service Management</Typography>
-              <Typography variant="body2" color="text.secondary">Business category, templates and booking modes</Typography>
-            </Box>
-            <Button startIcon={<AddRoundedIcon />} variant="contained" onClick={() => setDrawerOpen(true)}>Add Service</Button>
+             </Box>
+            <Button startIcon={<AddRoundedIcon />} variant="contained" onClick={openCreate}>เพิ่มบริการ</Button>
           </Stack>
         </CardContent>
       </Card>
@@ -252,12 +292,12 @@ export function ServicesCrud() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Service</TableCell>
-                <TableCell>Mode</TableCell>
-                <TableCell>Duration</TableCell>
-                <TableCell>Capacity</TableCell>
-                <TableCell>Price</TableCell>
-                <TableCell>Status</TableCell>
+                <TableCell>บริการ</TableCell>
+                <TableCell>ประเภท</TableCell>
+                <TableCell>เวลา/บริการ</TableCell>
+                <TableCell>จำนวน</TableCell>
+                <TableCell>ราคา</TableCell>
+                <TableCell>สถาน</TableCell>
                 <TableCell align="right">Action</TableCell>
               </TableRow>
             </TableHead>
@@ -279,6 +319,14 @@ export function ServicesCrud() {
                   <TableCell align="right">
                     <ActionIconGroup
                       actions={[
+                        {
+                          key: 'edit',
+                          icon: <EditOutlinedIcon fontSize="small" />,
+                          labelKey: 'common.edit',
+                          fallbackLabel: 'Edit',
+                          color: 'primary',
+                          onClick: () => openEdit(r),
+                        },
                         {
                           key: 'delete',
                           icon: <DeleteOutlineIcon fontSize="small" />,
@@ -310,7 +358,7 @@ export function ServicesCrud() {
       </Card>
 
       <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)} PaperProps={{ sx: { width: { xs: '100%', sm: '60%' }, p: 3 } }}>
-        <Typography variant="h6" fontWeight={700} mb={2}>Add Service</Typography>
+        <Typography variant="h6" fontWeight={700} mb={2}>{editingId ? 'Edit Service' : 'Add Service'}</Typography>
 
         <Card variant="outlined" sx={{ mb: 2 }}>
           <CardContent>
@@ -402,7 +450,7 @@ export function ServicesCrud() {
             <Grid size={{ xs: 12, sm: 6 }}><FormControlLabel control={<Switch checked={allowWalkIn} onChange={(e: ChangeEvent<HTMLInputElement>) => setAllowWalkIn(e.target.checked)} />} label="Allow Walk-in" /></Grid>
           </Grid>
           <Stack direction="row" spacing={1} mt={3}>
-            <Button variant="contained" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save Service'}</Button>
+            <Button variant="contained" type="submit" disabled={saving}>{saving ? 'Saving...' : (editingId ? 'Update Service' : 'Save Service')}</Button>
             <Button variant="outlined" onClick={() => setDrawerOpen(false)}>Cancel</Button>
           </Stack>
         </Box>

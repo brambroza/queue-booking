@@ -50,15 +50,15 @@ export default function LineSettingsPage() {
         <div className="mt-3 space-y-2 text-sm text-slate-600">
           <p>Webhook URL</p>
           <code className="block rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700">
-            https://queue-booking-line.vercel.app/api/line/webhook/{form.shop_key || '{shopKey}'}
+            https://queuebooking.com/api/line/webhook/{form.shop_key || '{shopKey}'}
           </code>
           <p>LIFF Booking URL</p>
           <code className="block rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700">
-            https://queue-booking-line.vercel.app/liff/{form.shop_key || '{shopKey}'}
+            https://queuebooking.com/liff/{form.shop_key || '{shopKey}'}
           </code>
           <p>LIFF Member URL</p>
           <code className="block rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700">
-            https://queue-booking-line.vercel.app/liff/{form.shop_key || '{shopKey}'}/member
+            https://queuebooking.com/liff/{form.shop_key || '{shopKey}'}/member
           </code>
         </div>
       </section>

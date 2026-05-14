@@ -3,7 +3,7 @@ import { useCases } from '@/components/public/content';
 import { blogPosts } from '@/components/public/blog-content';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = process.env.NEXT_PUBLIC_APP_URL || 'https://queue-booking-line.vercel.app';
+  const base = process.env.NEXT_PUBLIC_APP_URL || 'https://queuebooking.com';
   const now = new Date();
   const defaultDate = now.toISOString().slice(0, 10);
 

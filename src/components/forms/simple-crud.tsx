@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
 
 type Column = { key: string; label: string; type?: 'text' | 'number' | 'time' | 'date' | 'checkbox' };
@@ -24,6 +25,8 @@ export function SimpleCrud({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formSeed, setFormSeed] = useState<Record<string, string | number | boolean>>(defaults);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
@@ -38,6 +41,24 @@ export function SimpleCrud({
 
   useEffect(() => { void load(); }, [load]);
 
+  function openCreate() {
+    setEditingId(null);
+    setFormSeed(defaults);
+    setDrawerOpen(true);
+  }
+
+  function openEdit(row: Record<string, unknown>) {
+    const next: Record<string, string | number | boolean> = { ...defaults };
+    columns.forEach((c) => {
+      const v = row[c.key];
+      if (c.type === 'checkbox') next[c.key] = Boolean(v);
+      else next[c.key] = String(v ?? defaults[c.key] ?? '');
+    });
+    setEditingId(String(row.id));
+    setFormSeed(next);
+    setDrawerOpen(true);
+  }
+
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
@@ -48,10 +69,11 @@ export function SimpleCrud({
       if (c.type === 'checkbox') payload[c.key] = formData.get(c.key) === 'on';
       else payload[c.key] = formData.get(c.key);
     });
+    if (editingId) payload.id = editingId;
 
     setSaving(true);
     const res = await fetch(endpoint, {
-      method: 'POST',
+      method: editingId ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
@@ -65,6 +87,8 @@ export function SimpleCrud({
 
     push('บันทึกสำเร็จ');
     form.reset();
+    setEditingId(null);
+    setFormSeed(defaults);
     setDrawerOpen(false);
     void load();
   }
@@ -86,7 +110,7 @@ export function SimpleCrud({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-700">รายการ{title}</h3>
-        <button className="btn-primary" onClick={() => setDrawerOpen(true)}>Add New</button>
+        <button className="btn-primary" onClick={openCreate}>เพิ่ม{title}</button>
       </div>
 
       <div className="card overflow-hidden">
@@ -108,6 +132,14 @@ export function SimpleCrud({
                     <td className="px-3 py-2">
                       <ActionIconGroup
                         actions={[
+                          {
+                            key: 'edit',
+                            icon: <EditOutlinedIcon fontSize="small" />,
+                            labelKey: 'common.edit',
+                            fallbackLabel: 'Edit',
+                            color: 'primary',
+                            onClick: () => openEdit(row),
+                          },
                           {
                             key: 'delete',
                             icon: <DeleteOutlineIcon fontSize="small" />,
@@ -144,23 +176,23 @@ export function SimpleCrud({
           <button className="fixed inset-0 z-40 bg-slate-900/30" onClick={() => setDrawerOpen(false)} aria-label="Close drawer" />
           <aside className="fixed right-0 top-0 z-50 h-screen w-full bg-white p-5 shadow-2xl sm:w-[60%]">
             <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3">
-              <h4 className="text-lg font-semibold">เพิ่ม{title}</h4>
+              <h4 className="text-lg font-semibold">{editingId ? `แก้ไข${title}` : `เพิ่ม${title}`}</h4>
               <button className="btn-outline" onClick={() => setDrawerOpen(false)}>Close</button>
             </div>
 
-            <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2">
+            <form key={editingId ?? 'new'} onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2">
               {columns.map((c) => (
                 <label key={c.key} className="text-sm">
                   <span className="mb-1 block text-slate-600">{c.label}</span>
                   {c.type === 'checkbox' ? (
-                    <input type="checkbox" name={c.key} defaultChecked={Boolean(defaults[c.key])} />
+                    <input type="checkbox" name={c.key} defaultChecked={Boolean(formSeed[c.key])} />
                   ) : (
-                    <input className="input" name={c.key} type={c.type ?? 'text'} defaultValue={String(defaults[c.key] ?? '')} required />
+                    <input className="input" name={c.key} type={c.type ?? 'text'} defaultValue={String(formSeed[c.key] ?? '')} required />
                   )}
                 </label>
               ))}
               <div className="sm:col-span-2 flex gap-2 pt-2">
-                <button className="btn-primary" disabled={saving}>{saving ? 'กำลังบันทึก...' : `เพิ่ม ${title}`}</button>
+                <button className="btn-primary" disabled={saving}>{saving ? 'กำลังบันทึก...' : editingId ? `บันทึก${title}` : `เพิ่ม${title}`}</button>
                 <button type="button" className="btn-outline" onClick={() => setDrawerOpen(false)}>ยกเลิก</button>
               </div>
             </form>

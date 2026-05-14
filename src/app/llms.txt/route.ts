@@ -1,5 +1,5 @@
 export async function GET() {
-  const base = process.env.NEXT_PUBLIC_APP_URL || 'https://queue-booking-line.vercel.app';
+  const base = process.env.NEXT_PUBLIC_APP_URL || 'https://queuebooking.com';
   const body = [
     '# QueueBooking LINE',
     '',

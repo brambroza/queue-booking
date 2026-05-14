@@ -39,7 +39,7 @@ export const blogPostsEn: BlogPost[] = [
       {
         heading: '1) Prepare system values first',
         body: [
-          'Prepare your production domain, for example: https://queue-booking-line.vercel.app, and each shop key (e.g., SHOP-TTLS2P).',
+          'Prepare your production domain, for example: https://queuebooking.com, and each shop key (e.g., SHOP-TTLS2P).',
           'Confirm required endpoints exist: /api/line/webhook/{shopKey}, /liff/{shopKey}, /liff/{shopKey}/member.',
           'Use 2 LIFF apps: one for booking flow and one for member profile/history flow.',
         ],
@@ -48,7 +48,7 @@ export const blogPostsEn: BlogPost[] = [
         heading: '2) Configure Messaging API and Webhook',
         body: [
           'Open LINE Developers > your OA channel > Messaging API, then copy Channel access token (long-lived) and Channel secret to your system.',
-          'Set Webhook URL to https://queue-booking-line.vercel.app/api/line/webhook/{shopKey}.',
+          'Set Webhook URL to https://queuebooking.com/api/line/webhook/{shopKey}.',
           'Enable Use webhook and click Verify.',
           'Disable conflicting OA auto-replies so your system controls responses.',
         ],
@@ -57,7 +57,7 @@ export const blogPostsEn: BlogPost[] = [
         heading: '3) Configure LIFF for Booking',
         body: [
           'Create LIFF app (e.g., queuebooking), Size = Full.',
-          'Set Endpoint URL to https://queue-booking-line.vercel.app/liff/{shopKey}.',
+          'Set Endpoint URL to https://queuebooking.com/liff/{shopKey}.',
           'Recommended scopes: openid, profile, chat_message.write.',
           'Save LIFF ID into your booking LIFF setting / NEXT_PUBLIC_LIFF_BOOKING_ID.',
         ],
@@ -66,7 +66,7 @@ export const blogPostsEn: BlogPost[] = [
         heading: '4) Configure LIFF for Member page',
         body: [
           'Create a second LIFF app (e.g., queuemember), Size = Full.',
-          'Set Endpoint URL to https://queue-booking-line.vercel.app/liff/{shopKey}/member.',
+          'Set Endpoint URL to https://queuebooking.com/liff/{shopKey}/member.',
           'Use the same scopes if needed (openid, profile, chat_message.write).',
           'Save LIFF ID into member LIFF setting / NEXT_PUBLIC_LIFF_MEMBER_ID.',
         ],

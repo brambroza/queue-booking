@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
+import { writeAuditLog } from '@/lib/audit/activity-log';
 
 const holidaySchema = z.object({
   branch_id: z.string().uuid().optional().nullable(),
@@ -70,6 +71,15 @@ export async function PATCH(req: Request) {
       .eq('is_deleted', false);
 
     if (error) throw error;
+    await writeAuditLog({
+      companyId: profile.company_id,
+      shopId: profile.shop_id,
+      userId: user.id,
+      action: 'data_deleted',
+      targetTable: 'holidays',
+      targetId: id,
+      payload: { soft_delete: true },
+    });
     return NextResponse.json({ data: true });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { writeAuditLog } from '@/lib/audit/activity-log';
 
 const updateSchema = z.object({
   shop_id: z.string().uuid(),
@@ -53,6 +54,13 @@ export async function PATCH(req: Request) {
     const { data: shop, error: shopError } = await admin.from('shops').select('id,company_id').eq('id', payload.shop_id).eq('is_deleted', false).single();
     if (shopError || !shop) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
 
+    const { data: beforeSub } = await admin
+      .from('shop_subscriptions')
+      .select('id,plan_id,plan_code,expires_at,is_active,max_branches_override,max_services_override,max_staff_override,max_resources_override,max_monthly_bookings_override')
+      .eq('shop_id', payload.shop_id)
+      .eq('is_deleted', false)
+      .maybeSingle();
+
     const { error } = await admin.from('shop_subscriptions').upsert(
       {
         shop_id: payload.shop_id,
@@ -74,6 +82,31 @@ export async function PATCH(req: Request) {
     );
 
     if (error) throw error;
+
+    await writeAuditLog({
+      companyId: shop.company_id,
+      shopId: payload.shop_id,
+      userId: user.id,
+      action: 'subscription_plan_changed',
+      targetTable: 'shop_subscriptions',
+      targetId: String(beforeSub?.id ?? payload.shop_id),
+      payload: {
+        before: beforeSub ?? null,
+        after: {
+          plan_id: payload.plan_id ?? null,
+          plan_code: payload.plan_code ?? null,
+          expires_at: payload.expires_at ?? null,
+          is_active: payload.is_active,
+          max_branches_override: payload.max_branches_override ?? null,
+          max_services_override: payload.max_services_override ?? null,
+          max_staff_override: payload.max_staff_override ?? null,
+          max_resources_override: payload.max_resources_override ?? null,
+          max_monthly_bookings_override: payload.max_monthly_bookings_override ?? null,
+          note: payload.note ?? null,
+        },
+      },
+    });
+
     return NextResponse.json({ data: true });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });

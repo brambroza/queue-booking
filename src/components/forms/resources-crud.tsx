@@ -39,6 +39,21 @@ export function ResourcesCrud() {
   const [filterActive, setFilterActive] = useState('');
   const [q, setQ] = useState('');
 
+  function closeSingleDrawer() {
+    setDrawerOpen(false);
+    setEditing(null);
+  }
+
+  function openCreateDrawer() {
+    setEditing(null);
+    setDrawerOpen(true);
+  }
+
+  function openEditDrawer(row: Resource) {
+    setEditing(row);
+    setDrawerOpen(true);
+  }
+
   async function load() {
     const params = new URLSearchParams();
     if (filterType) params.set('resource_type', filterType);
@@ -89,8 +104,7 @@ export function ResourcesCrud() {
     const json = await res.json();
     if (!res.ok) return push(json.error ?? 'บันทึก resource ไม่สำเร็จ', 'error');
     push(isEdit ? 'อัปเดตทรัพยากรแล้ว' : 'เพิ่มทรัพยากรสำเร็จ');
-    setDrawerOpen(false);
-    setEditing(null);
+    closeSingleDrawer();
     form.reset();
     await load();
   }
@@ -163,8 +177,8 @@ export function ResourcesCrud() {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-700">ทรัพยากรร้าน</h3>
         <div className="flex gap-2">
-          <button className="btn-outline" onClick={() => setBulkOpen(true)}>Quick Create</button>
-          <button className="btn-primary" onClick={() => { setEditing(null); setDrawerOpen(true); }}>Add New</button>
+          <button className="btn-outline" onClick={() => setBulkOpen(true)}>เพิ่มด่วน</button>
+          <button className="btn-primary" onClick={openCreateDrawer}>เพิ่ม</button>
         </div>
       </div>
 
@@ -201,7 +215,7 @@ export function ResourcesCrud() {
                           icon: <EditIcon fontSize="small" />,
                           labelKey: 'common.edit',
                           fallbackLabel: 'Edit',
-                          onClick: () => { setEditing(r); setDrawerOpen(true); },
+                          onClick: () => openEditDrawer(r),
                         },
                         {
                           key: 'delete',
@@ -235,13 +249,13 @@ export function ResourcesCrud() {
 
       {drawerOpen ? (
         <>
-          <button className="fixed inset-0 z-40 bg-slate-900/30" onClick={() => setDrawerOpen(false)} aria-label="Close drawer" />
+          <button className="fixed inset-0 z-40 bg-slate-900/30" onClick={closeSingleDrawer} aria-label="Close drawer" />
           <aside className="fixed right-0 top-0 z-50 h-screen w-full bg-white p-5 shadow-2xl sm:w-[60%] overflow-y-auto">
             <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3">
               <h4 className="text-lg font-semibold">{editing ? 'แก้ไขทรัพยากร' : 'เพิ่มทรัพยากร'}</h4>
-              <button className="btn-outline" onClick={() => setDrawerOpen(false)}>Close</button>
+              <button className="btn-outline" onClick={closeSingleDrawer}>Close</button>
             </div>
-            <form onSubmit={submitSingle} className="grid gap-3 sm:grid-cols-2">
+            <form key={editing?.id ?? 'new'} onSubmit={submitSingle} className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-600">ประเภททรัพยากร</label>
                 <select className="input" name="resource_type" defaultValue={editing?.resource_type || 'table'} required>
@@ -285,7 +299,7 @@ export function ResourcesCrud() {
               </label>
               <div className="sm:col-span-2 flex gap-2 pt-1">
                 <button className="btn-primary">{editing ? 'บันทึกการแก้ไข' : 'เพิ่มทรัพยากร'}</button>
-                <button type="button" className="btn-outline" onClick={() => setDrawerOpen(false)}>ยกเลิก</button>
+                <button type="button" className="btn-outline" onClick={closeSingleDrawer}>ยกเลิก</button>
               </div>
             </form>
           </aside>

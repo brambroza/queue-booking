@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { pushMessage } from '@/lib/line/client';
 import { bookingConfirmFlex, bookingConfirmMessage } from '@/lib/line/messages';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
+import { writeAuditLog } from '@/lib/audit/activity-log';
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
@@ -275,6 +276,15 @@ export async function PATCH(req: Request) {
     const { error } = await supabase.from('bookings').update({ status, updated_by: user.id }).eq('id', id).eq('shop_id', profile.shop_id);
 
     if (error) throw error;
+    await writeAuditLog({
+      companyId: profile.company_id,
+      shopId: profile.shop_id,
+      userId: user.id,
+      action: 'data_deleted',
+      targetTable: 'bookings',
+      targetId: id,
+      payload: { soft_delete: true, status: 'cancelled' },
+    });
     return NextResponse.json({ data: true });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });
