@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Box, Chip, Container, Divider, Stack, Typography } from '@mui/material';
+import Image from 'next/image';
+import { Box, Button, Chip, Container, Divider, Paper, Stack, Typography } from '@mui/material';
 import { PublicNavbar } from '@/components/public/public-navbar';
 import { PublicFooter } from '@/components/public/public-footer';
 import { blogPosts, getBlogBySlug } from '@/components/public/blog-content';
@@ -89,6 +90,59 @@ export default async function BlogDetailPage({ params }: { params: Promise<Param
             </Box>
           ))}
         </Stack>
+
+        {post.assets?.pdfUrl || (post.assets?.images?.length ?? 0) > 0 ? (
+          <Paper
+            sx={{
+              mt: 4,
+              p: { xs: 2, md: 3 },
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: 'divider',
+              background: 'linear-gradient(135deg,#fff 0%,#f8fbf8 100%)',
+            }}
+          >
+            <Typography variant="h5" fontWeight={800}>ไฟล์แนบและภาพตัวอย่างการตั้งค่า</Typography>
+            <Typography color="text.secondary" sx={{ mt: 0.5 }}>
+              ใช้ภาพตัวอย่างตรวจเทียบค่าหน้าจอจริงก่อนกด Verify/Publish
+            </Typography>
+
+            {post.assets?.pdfUrl ? (
+              <Button
+                component={Link}
+                href={post.assets.pdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="contained"
+                sx={{ mt: 2 }}
+              >
+                {post.assets.pdfLabel ?? 'ดาวน์โหลดไฟล์ PDF'}
+              </Button>
+            ) : null}
+
+            <Stack spacing={2} sx={{ mt: 2.5 }}>
+              {post.assets?.images?.map((img) => (
+                <Box
+                  key={img.src}
+                  sx={{
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    bgcolor: '#fff',
+                  }}
+                >
+                  <Box sx={{ position: 'relative', width: '100%', height: { xs: 180, md: 320 } }}>
+                    <Image src={img.src} alt={img.alt} fill style={{ objectFit: 'cover' }} />
+                  </Box>
+                  <Box sx={{ p: 1.5 }}>
+                    <Typography variant="body2" color="text.secondary">{img.caption}</Typography>
+                  </Box>
+                </Box>
+              ))}
+            </Stack>
+          </Paper>
+        ) : null}
 
         <Box sx={{ mt: 4 }}>
           <Typography>

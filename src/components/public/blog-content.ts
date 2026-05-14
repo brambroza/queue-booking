@@ -7,9 +7,120 @@ export type BlogPost = {
   readingMinutes: number;
   keywords: string[];
   sections: Array<{ heading: string; body: string[] }>;
+  assets?: {
+    pdfUrl?: string;
+    pdfLabel?: string;
+    images?: Array<{ src: string; alt: string; caption: string }>;
+  };
 };
 
 export const blogPosts: BlogPost[] = [
+  {
+    slug: 'line-msgapi-liff-login-richmenu-setup-guide',
+    title: 'คู่มือตั้งค่า LINE Messaging API + LIFF + LINE Login + Rich Menu (ใช้งานจริง)',
+    description: 'สรุปขั้นตอนตั้งค่า LINE ให้พร้อมใช้งานระบบจองคิว: Webhook, Channel Access Token, LIFF Booking/Member, LINE Login และ Rich Menu',
+    category: 'คู่มือตั้งค่า',
+    publishedAt: '2026-05-14',
+    readingMinutes: 10,
+    keywords: ['line messaging api', 'liff setup', 'line login', 'rich menu', 'webhook line'],
+    assets: {
+      pdfUrl: '/docs/line-setup-guide.pdf',
+      pdfLabel: 'ดาวน์โหลดคู่มือการตั้งค่า LINE (PDF)',
+      images: [
+        {
+          src: '/images/blog/line-setup/step-webhook-msgapi.jpg',
+          alt: 'LINE Messaging API Webhook settings',
+          caption: 'ตัวอย่างหน้าตั้งค่า Messaging API และ Webhook URL',
+        },
+        {
+          src: '/images/blog/line-setup/step-liff-booking.jpg',
+          alt: 'LIFF booking app settings',
+          caption: 'ตัวอย่าง LIFF สำหรับหน้า Booking (/liff/{shopKey})',
+        },
+        {
+          src: '/images/blog/line-setup/step-liff-member.jpg',
+          alt: 'LIFF member app settings',
+          caption: 'ตัวอย่าง LIFF สำหรับหน้าข้อมูลสมาชิก (/liff/{shopKey}/member)',
+        },
+        {
+          src: '/images/blog/line-setup/step-richmenu-links.jpg',
+          alt: 'Rich menu links for booking and member',
+          caption: 'ตัวอย่าง Rich Menu 2 ปุ่ม: จองคิว และ ข้อมูลสมาชิก',
+        },
+      ],
+    },
+    sections: [
+      {
+        heading: '1) เตรียมค่าในระบบก่อนตั้งค่า LINE',
+        body: [
+          'เตรียมโดเมน production เช่น https://queue-booking-line.vercel.app และ shop_key ของร้าน เช่น SHOP-TTLS2P.',
+          'ตรวจว่าระบบมี endpoint เหล่านี้: /api/line/webhook/{shopKey}, /liff/{shopKey}, /liff/{shopKey}/member.',
+          'แนะนำใช้ LIFF 2 ตัวแยกกัน: ตัวจองคิว (booking) และตัวข้อมูลสมาชิก (member) เพื่อจัดการ scope และ URL ชัดเจน.',
+        ],
+      },
+      {
+        heading: '2) ตั้งค่า Messaging API และ Webhook',
+        body: [
+          'เข้า LINE Developers > Channel ของ OA > Messaging API แล้วคัดลอก Channel access token (long-lived) และ Channel secret มาใส่ระบบ.',
+          'Webhook URL ให้ตั้งเป็น https://queue-booking-line.vercel.app/api/line/webhook/{shopKey}.',
+          'เปิด Use webhook = ON และกด Verify ต้องผ่าน.',
+          'แนะนำปิด Auto-reply ของ LINE Official Account Manager เพื่อไม่ชนกับข้อความจากระบบ.',
+        ],
+      },
+      {
+        heading: '3) ตั้งค่า LIFF สำหรับหน้า Booking',
+        body: [
+          'สร้าง LIFF app ชื่อเช่น queuebooking, Size = Full.',
+          'Endpoint URL ตั้งเป็น https://queue-booking-line.vercel.app/liff/{shopKey}.',
+          'Scopes แนะนำ: openid, profile, chat_message.write.',
+          'นำ LIFF ID ไปใส่ในระบบที่ฟิลด์ LIFF Booking ID หรือค่า NEXT_PUBLIC_LIFF_BOOKING_ID.',
+        ],
+      },
+      {
+        heading: '4) ตั้งค่า LIFF สำหรับหน้าข้อมูลสมาชิก',
+        body: [
+          'สร้าง LIFF app อีกตัวชื่อเช่น queuemember, Size = Full.',
+          'Endpoint URL ตั้งเป็น https://queue-booking-line.vercel.app/liff/{shopKey}/member.',
+          'ใช้ scope เหมือนหน้า booking ได้ (openid, profile, chat_message.write).',
+          'นำ LIFF ID ไปใส่ LIFF Member ID หรือ NEXT_PUBLIC_LIFF_MEMBER_ID.',
+        ],
+      },
+      {
+        heading: '5) ตั้งค่า LINE Login (ถ้าใช้แยกจาก Messaging API)',
+        body: [
+          'ถ้าบัญชีแยก Channel ให้สร้าง LINE Login Channel และเพิ่ม Callback URL ให้ตรงโดเมน production.',
+          'ในระบบนี้สามารถใช้ flow LIFF เป็นหลักได้ แต่ถ้ามีหน้า login เพิ่ม ควรใช้ Channel สำหรับ login โดยเฉพาะ.',
+          'ห้ามสลับ LIFF ID คนละ channel โดยไม่อัปเดต endpoint และ env เพราะจะเกิด invalid liff id.',
+        ],
+      },
+      {
+        heading: '6) ตั้งค่า Rich Menu ให้เปิด 2 หน้า',
+        body: [
+          'สร้าง Rich Menu ปุ่ม 1: จองคิว -> ลิงก์ https://liff.line.me/{LIFF_BOOKING_ID}.',
+          'ปุ่ม 2: ข้อมูลสมาชิก -> ลิงก์ https://liff.line.me/{LIFF_MEMBER_ID}.',
+          'กำหนดช่วงเวลาแสดงผล และ publish rich menu ให้ active กับ OA.',
+          'ทดสอบจากมือถือใน LINE จริง: กดแต่ละปุ่มแล้วต้องเข้า endpoint ตามที่ตั้งไว้.',
+        ],
+      },
+      {
+        heading: '7) Checklist ป้องกันปัญหา Invalid LIFF ID',
+        body: [
+          'LIFF ID ในระบบต้องตรงกับ LIFF app ที่ตั้ง endpoint ไว้จริง.',
+          'Endpoint URL ต้องตรง path เป๊ะ: booking = /liff/{shopKey}, member = /liff/{shopKey}/member.',
+          'โดเมนต้องเป็น https และตรงกับที่ deploy จริง.',
+          'ถ้าเพิ่งแก้ค่า env บน Vercel ต้อง Redeploy ก่อนทดสอบ.',
+        ],
+      },
+      {
+        heading: '8) ทดสอบ end-to-end หลังตั้งค่า',
+        body: [
+          'ลูกค้ากด Rich Menu > จองคิว > เลือกบริการ/วัน/เวลา > ยืนยัน.',
+          'ระบบต้องส่งข้อความยืนยันกลับใน LINE และคิวต้องเข้า dashboard ฝั่งร้าน.',
+          'ลูกค้ากด Rich Menu > ข้อมูลสมาชิก ต้องเห็นโปรไฟล์และประวัติคิวได้.',
+        ],
+      },
+    ],
+  },
   {
     slug: 'line-oa-queue-booking-for-business',
     title: 'ระบบจองคิวผ่าน LINE OA คืออะไร และเหมาะกับธุรกิจแบบไหน',
@@ -111,4 +222,3 @@ export const blogPosts: BlogPost[] = [
 export function getBlogBySlug(slug: string) {
   return blogPosts.find((p) => p.slug === slug) ?? null;
 }
-

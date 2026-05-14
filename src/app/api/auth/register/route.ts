@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { registerSchema } from '@/lib/auth/schemas';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { generateShopKey } from '@/lib/auth/shop-key';
+import { notifySignupByEmail } from '@/lib/notifications/signup-notify';
 
 export async function POST(req: Request) {
   try {
@@ -13,7 +14,7 @@ export async function POST(req: Request) {
     }
 
     const admin = createAdminClient();
-    const { company_name, shop_name, owner_name, phone, email, password } = parsed.data;
+    const { company_name, shop_name, owner_name, phone, email, password, plan_name } = parsed.data;
 
   const { data: authData, error: authError } = await admin.auth.admin.createUser({
     email,
@@ -95,6 +96,64 @@ export async function POST(req: Request) {
 
   if (userRoleError) {
     return NextResponse.json({ error: userRoleError.message }, { status: 400 });
+  }
+
+  const normalizedPlan = (plan_name ?? '').trim().toLowerCase();
+  const planCodeMap: Record<string, string> = {
+    starter: 'starter',
+    professional: 'professional',
+    business: 'business',
+    enterprise: 'enterprise',
+    custom: 'enterprise',
+  };
+  const mappedPlanCode = planCodeMap[normalizedPlan] ?? 'starter';
+
+  // Best-effort subscription linkage from selected pricing plan.
+  // Do not block registration if subscription tables are not ready yet.
+  try {
+    const { data: planRow } = await admin
+      .from('subscription_plans')
+      .select('id, code')
+      .eq('code', mappedPlanCode)
+      .maybeSingle();
+
+    const expiresAt =
+      mappedPlanCode === 'starter'
+        ? new Date(Date.now() + 1000 * 60 * 60 * 24 * 90).toISOString()
+        : null;
+
+    await admin.from('shop_subscriptions').upsert(
+      {
+        company_id: company.id,
+        shop_id: shop.id,
+        plan_id: planRow?.id ?? null,
+        plan_code: planRow?.code ?? mappedPlanCode,
+        starts_at: new Date().toISOString(),
+        expires_at: expiresAt,
+        is_active: true,
+        created_by: userId,
+        updated_by: userId,
+      },
+      { onConflict: 'shop_id' }
+    );
+  } catch (subscriptionErr) {
+    console.warn('[register] subscription save skipped:', subscriptionErr);
+  }
+
+  // Best-effort notification for new signup lead.
+  // Do not block successful registration when mail provider is unavailable.
+  try {
+    await notifySignupByEmail({
+      companyName: company_name,
+      shopName: shop_name,
+      ownerName: owner_name,
+      phone,
+      email,
+      shopKey,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (mailErr) {
+    console.error('[register] signup notification failed:', mailErr);
   }
 
     return NextResponse.json({ data: { user_id: userId, company_id: company.id, shop_id: shop.id, shop_key: shopKey } });

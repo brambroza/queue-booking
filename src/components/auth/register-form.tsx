@@ -1,13 +1,15 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '@/components/ui/toast';
 
 export function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { push } = useToast();
   const [loading, setLoading] = useState(false);
+  const selectedPlan = searchParams.get('plan') ?? '';
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -41,6 +43,7 @@ export function RegisterForm() {
       <input className="input" name="phone" placeholder="เบอร์โทร" required />
       <input className="input" type="email" name="email" placeholder="Email" required />
       <input className="input" type="password" name="password" placeholder="Password" required />
+      <input type="hidden" name="plan_name" value={selectedPlan} />
       <button disabled={loading} className="btn-primary w-full" type="submit">{loading ? 'กำลังสมัคร...' : 'สมัครใช้งาน'}</button>
     </form>
   );

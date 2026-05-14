@@ -60,7 +60,7 @@ export function HeroSection() {
               <Button component={Link} href="/blog" variant="text" color="inherit">อ่านบทความ</Button>
             </Stack>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 3 }}>
-              {['ทดลองฟรี 14 วัน', 'ไม่ต้องใส่บัตรเครดิต', 'ตั้งค่าง่ายใน 5 นาที'].map((x) => (
+              {['Starter ฟรี 3 เดือน', '100 bookings/เดือน', 'ตั้งค่าง่ายใน 5 นาที'].map((x) => (
                 <Stack key={x} direction="row" spacing={0.8} alignItems="center">
                   <CheckCircleRoundedIcon sx={{ color: '#639922', fontSize: 18 }} />
                   <Typography variant="body2" color="text.secondary">{x}</Typography>
@@ -222,13 +222,13 @@ export function PricingPreviewSection() {
                 <Stack spacing={0.5}>{p.items.map((x) => <Typography key={x} variant="body2">• {x}</Typography>)}</Stack>
                 <Button
                   component={Link}
-                  href={p.name === 'Custom' ? '/contact' : '/register'}
+                  href={p.name === 'Custom' ? '/contact' : `/register?plan=${encodeURIComponent(p.name)}`}
                   variant="contained"
                   fullWidth
                   sx={{ mt: 2, bgcolor: '#639922', '&:hover': { bgcolor: '#3B6D11' } }}
                 >
                   {p.name === 'Custom' ? 'ขอใบเสนอราคา' : 'เริ่มใช้งาน'}
-                </Button>
+                </Button> 
               </CardContent>
             </Card>
           </Grid>
@@ -295,7 +295,7 @@ export function CtaSection() {
             </Button>
           </Stack>
           <Typography variant="caption" color="text.secondary">
-            ทดลองใช้ฟรี 14 วัน • ไม่ต้องใส่บัตรเครดิต • ตั้งค่าเริ่มต้นได้ใน 5 นาที
+            โปรโมชัน Starter ฟรี 3 เดือน • 100 bookings/เดือน • ตั้งค่าเริ่มต้นได้ใน 5 นาที
           </Typography>
         </Stack>
       </Paper>

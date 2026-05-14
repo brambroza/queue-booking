@@ -48,11 +48,11 @@ export default function PricingPage() {
       <PublicNavbar />
       <Container maxWidth="xl" sx={{ py: 8 }}>
         <Typography variant="h3" fontWeight={800}>Pricing Plans</Typography>
-        <Typography color="text.secondary" sx={{ mt: 1 }}>เริ่มทดลองใช้ฟรี 14 วัน แล้วเลือกแผนที่เหมาะกับทีมของคุณ</Typography>
+        <Typography color="text.secondary" sx={{ mt: 1 }}>โปรโมชันตอนนี้: Starter ฟรี 3 เดือน (100 bookings/เดือน)</Typography>
 
         <Grid container spacing={2} sx={{ mt: 1 }}>
           <Grid size={{ xs: 12, md: 4 }}><PricingCard name="Free Trial" price="0 บาท" period="/14 วัน" items={['ทดสอบระบบ', '1 ร้าน', '1 สาขา', '1 บริการ', '50 bookings']} /></Grid>
-          <Grid size={{ xs: 12, md: 4 }}><PricingCard name="Starter" price="590 บาท" items={['1 ร้าน', '1 สาขา', '3 บริการ', '300 bookings/เดือน']} /></Grid>
+          <Grid size={{ xs: 12, md: 4 }}><PricingCard name="Starter" price="ฟรี 3 เดือน" items={['1 ร้าน', '1 สาขา', '3 บริการ', '100 bookings/เดือน']} /></Grid>
           <Grid size={{ xs: 12, md: 4 }}><PricingCard name="Professional" price="1,490 บาท" items={['1 ร้าน', '5 สาขา', 'ไม่จำกัดบริการ', '2,000 bookings/เดือน', 'LINE Auto Reply']} highlight /></Grid>
           <Grid size={{ xs: 12, md: 6 }}><PricingCard name="Business" price="3,990 บาท" items={['หลายร้าน / หลายสาขา', 'ไม่จำกัดบริการ', '10,000 bookings/เดือน', 'Chat Inbox', 'Advanced Reports']} /></Grid>
           <Grid size={{ xs: 12, md: 6 }}><PricingCard name="Enterprise" price="ติดต่อฝ่ายขาย" period="" items={['Custom features', 'Dedicated support', 'SLA', 'On-premise option']} /></Grid>

@@ -73,7 +73,7 @@ export const useCases: UseCase[] = [
 ];
 
 export const pricingPlans = [
-  { name: 'Starter', price: '590', desc: 'เหมาะกับร้านเริ่มต้น', items: ['1 ร้าน', '1 สาขา', '3 บริการ', '300 bookings/เดือน', 'LINE Booking', 'Dashboard พื้นฐาน'] },
+  { name: 'Starter', price: 'ฟรี 3 เดือน', desc: 'โปรโมชันสำหรับร้านเริ่มต้น', items: ['1 ร้าน', '1 สาขา', '3 บริการ', '100 bookings/เดือน', 'LINE Booking', 'Dashboard พื้นฐาน'] },
   { name: 'Professional', price: '1,490', desc: 'สำหรับร้านที่เติบโต', items: ['1 ร้าน', '5 สาขา', 'ไม่จำกัดบริการ', '2,000 bookings/เดือน', 'LINE Auto Reply', 'Calendar / Queue Board', 'Reports'], highlight: true },
   { name: 'Business', price: '3,990', desc: 'หลายสาขาและทีมใหญ่', items: ['หลายร้าน / หลายสาขา', 'ไม่จำกัดบริการ', '10,000 bookings/เดือน', 'Chat Inbox', 'Advanced Reports', 'Priority Support'] },
   { name: 'Custom', price: 'Custom', desc: 'แพ็กเกจเฉพาะองค์กร', items: ['กำหนดเงื่อนไขได้ตามธุรกิจ', 'รองรับสาขาและทรัพยากรจำนวนมาก', 'SLA / Dedicated support', 'เชื่อมต่อระบบภายในองค์กร'] },
@@ -88,7 +88,7 @@ export const testimonials = [
 export const featureCompare = [
   { key: 'จำนวนสาขา', trial: '1', starter: '1', pro: '5', business: 'ไม่จำกัด', enterprise: 'Custom' },
   { key: 'จำนวนบริการ', trial: '1', starter: '3', pro: 'ไม่จำกัด', business: 'ไม่จำกัด', enterprise: 'ไม่จำกัด' },
-  { key: 'Bookings / เดือน', trial: '50', starter: '300', pro: '2,000', business: '10,000', enterprise: 'Custom' },
+  { key: 'Bookings / เดือน', trial: '50', starter: '100', pro: '2,000', business: '10,000', enterprise: 'Custom' },
   { key: 'LINE Auto Reply', trial: '-', starter: '-', pro: '✓', business: '✓', enterprise: '✓' },
   { key: 'Chat Inbox', trial: '-', starter: '-', pro: '-', business: '✓', enterprise: '✓' },
   { key: 'SLA / Dedicated Support', trial: '-', starter: '-', pro: '-', business: '-', enterprise: '✓' },
