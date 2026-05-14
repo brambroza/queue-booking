@@ -76,8 +76,8 @@ function getLiffCandidates(shopLiffId?: string | null, shopLoginLiffId?: string 
 
   const ordered =
     initialTab === 'account'
-      ? [fromShopLogin, fromMemberEnv, fromShop, fromEnv, fromBookingEnv]
-      : [fromBookingEnv, fromShop, fromEnv, fromShopLogin, fromMemberEnv];
+      ? [fromShopLogin, fromShop, fromMemberEnv, fromEnv, fromBookingEnv]
+      : [fromShop, fromShopLogin, fromBookingEnv, fromEnv, fromMemberEnv];
 
   const all = ordered.filter((v) => isLikelyLiffId(v));
   return Array.from(new Set(all));
