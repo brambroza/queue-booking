@@ -20,6 +20,13 @@ type CreateNotificationInput = {
   createdBy?: string | null;
 };
 
+function isMissingColumnError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as { code?: string; message?: string };
+  if (e.code === '42703') return true;
+  return typeof e.message === 'string' && e.message.toLowerCase().includes('column') && e.message.toLowerCase().includes('does not exist');
+}
+
 function normalize(input: CreateNotificationInput) {
   const title = input.title?.trim();
   const message = input.message?.trim();
@@ -56,7 +63,25 @@ export async function createNotification(supabase: SupabaseClient, input: Create
     .insert(payload)
     .select('*')
     .single();
-  if (error) throw error;
+  if (error) {
+    if (!isMissingColumnError(error)) throw error;
+    // Legacy fallback: notification table from early migration.
+    const { data: legacyData, error: legacyError } = await supabase
+      .from('notifications')
+      .insert({
+        company_id: payload.company_id,
+        shop_id: payload.shop_id,
+        user_id: payload.user_id,
+        title: payload.title,
+        body: payload.message,
+        created_by: payload.created_by,
+        updated_by: payload.updated_by,
+      })
+      .select('*')
+      .single();
+    if (legacyError) throw legacyError;
+    return legacyData as NotificationItem;
+  }
   return data as NotificationItem;
 }
 
@@ -75,7 +100,15 @@ export async function markNotificationAsRead(supabase: SupabaseClient, id: strin
     .update({ is_read: true, read_at: new Date().toISOString(), updated_by: updatedBy ?? null })
     .eq('id', id)
     .eq('is_deleted', false);
-  if (error) throw error;
+  if (error) {
+    if (!isMissingColumnError(error)) throw error;
+    const { error: legacyError } = await supabase
+      .from('notifications')
+      .update({ read_at: new Date().toISOString(), updated_by: updatedBy ?? null })
+      .eq('id', id)
+      .eq('is_deleted', false);
+    if (legacyError) throw legacyError;
+  }
 }
 
 export async function markAllNotificationsAsRead(supabase: SupabaseClient, scope: { companyId: string; shopId?: string | null; userId?: string | null }, updatedBy?: string | null) {
@@ -88,7 +121,17 @@ export async function markAllNotificationsAsRead(supabase: SupabaseClient, scope
     .eq('is_read', false);
   if (scope.shopId) q = q.eq('shop_id', scope.shopId);
   const { error } = await q;
-  if (error) throw error;
+  if (error) {
+    if (!isMissingColumnError(error)) throw error;
+    let legacy = supabase
+      .from('notifications')
+      .update({ read_at: new Date().toISOString(), updated_by: updatedBy ?? null })
+      .eq('company_id', scope.companyId)
+      .eq('is_deleted', false);
+    if (scope.shopId) legacy = legacy.eq('shop_id', scope.shopId);
+    const { error: legacyError } = await legacy;
+    if (legacyError) throw legacyError;
+  }
 }
 
 export async function archiveNotification(supabase: SupabaseClient, id: string, updatedBy?: string | null) {
@@ -97,7 +140,16 @@ export async function archiveNotification(supabase: SupabaseClient, id: string, 
     .update({ is_archived: true, archived_at: new Date().toISOString(), updated_by: updatedBy ?? null })
     .eq('id', id)
     .eq('is_deleted', false);
-  if (error) throw error;
+  if (error) {
+    if (!isMissingColumnError(error)) throw error;
+    // Legacy fallback has no archive columns; soft-delete instead.
+    const { error: legacyError } = await supabase
+      .from('notifications')
+      .update({ is_deleted: true, updated_by: updatedBy ?? null })
+      .eq('id', id)
+      .eq('is_deleted', false);
+    if (legacyError) throw legacyError;
+  }
 }
 
 export async function getUnreadNotificationCount(supabase: SupabaseClient, scope: { companyId: string; shopId?: string | null; userId?: string | null }) {
@@ -110,7 +162,19 @@ export async function getUnreadNotificationCount(supabase: SupabaseClient, scope
     .eq('is_read', false);
   if (scope.shopId) q = q.eq('shop_id', scope.shopId);
   const { count, error } = await q;
-  if (error) throw error;
+  if (error) {
+    if (!isMissingColumnError(error)) throw error;
+    let legacy = supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('company_id', scope.companyId)
+      .eq('is_deleted', false)
+      .is('read_at', null);
+    if (scope.shopId) legacy = legacy.eq('shop_id', scope.shopId);
+    const { count: legacyCount, error: legacyError } = await legacy;
+    if (legacyError) throw legacyError;
+    return legacyCount ?? 0;
+  }
   return count ?? 0;
 }
 
@@ -150,7 +214,24 @@ export async function getNotifications(
   const from = input.offset ?? 0;
   const to = from + (input.limit ?? 10) - 1;
   const { data, error, count } = await q.range(from, to);
-  if (error) throw error;
+  if (error) {
+    if (!isMissingColumnError(error)) throw error;
+    let legacy = supabase
+      .from('notifications')
+      .select('*', { count: 'exact' })
+      .eq('company_id', input.companyId)
+      .eq('is_deleted', false)
+      .order('created_at', { ascending: false });
+    if (input.shopId) legacy = legacy.eq('shop_id', input.shopId);
+    if (input.unreadOnly) legacy = legacy.is('read_at', null);
+    if (input.search?.trim()) {
+      const v = input.search.trim();
+      legacy = legacy.or(`title.ilike.%${v}%,body.ilike.%${v}%`);
+    }
+    const { data: legacyData, error: legacyError, count: legacyCount } = await legacy.range(from, to);
+    if (legacyError) throw legacyError;
+    return { data: (legacyData ?? []) as NotificationItem[], total: legacyCount ?? 0 };
+  }
 
   return { data: (data ?? []) as NotificationItem[], total: count ?? 0 };
 }
