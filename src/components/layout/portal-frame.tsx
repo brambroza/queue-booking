@@ -21,6 +21,7 @@ import { LanguageSwitch } from '@/components/layout/language-switch';
 import { NotificationsMenu } from '@/components/layout/notifications-menu';
 import { TopbarUserMenu } from '@/components/layout/topbar-user-menu';
 import { useI18n } from '@/components/i18n/i18n-provider';
+import { DemoModeBanner } from '@/components/demo/demo-mode-banner';
 
 const drawerWidth = 280;
 
@@ -38,6 +39,7 @@ export function PortalFrame({
   email,
   appVersion,
   isSuperAdmin,
+  demoModeEnabled,
 }: {
   children: React.ReactNode;
   logoUrl: string | null;
@@ -47,6 +49,7 @@ export function PortalFrame({
   email?: string | null;
   appVersion: string;
   isSuperAdmin?: boolean;
+  demoModeEnabled?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -123,7 +126,10 @@ export function PortalFrame({
       </Box>
 
       <Box component="main" sx={{ flex: 1, pt: { xs: 10, md: 11 }, pb: 4 }}>
-        <Container maxWidth="xl">{children}</Container>
+        <Container maxWidth="xl">
+          <DemoModeBanner show={demoModeEnabled} />
+          {children}
+        </Container>
       </Box>
     </Box>
   );

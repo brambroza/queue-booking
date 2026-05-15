@@ -11,12 +11,15 @@ type PersonQueue = {
   start_time: string;
   display_name: string;
   avatar_url: string | null;
+  service_name?: string | null;
+  resource_name?: string | null;
 } | null;
 
 type Payload = {
   date: string;
   branches: Branch[];
   totals: { all_today: number; remaining_today: number };
+  shop?: { demo_mode_enabled?: boolean; demo_business_type?: string | null; name?: string | null };
   now_serving: PersonQueue;
   next_two: PersonQueue[];
 };
@@ -86,6 +89,7 @@ export function QueueDisplayClient() {
   const [themeMode, setThemeMode] = useState<'default' | 'restaurant' | 'clinic' | 'meeting' | 'nail'>('default');
   const [clock, setClock] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateId | null>(null);
+  const [calling, setCalling] = useState(false);
 
   const load = useCallback(async () => {
     const qs = new URLSearchParams({ date });
@@ -104,6 +108,21 @@ export function QueueDisplayClient() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function callNextDemo() {
+    setCalling(true);
+    const res = await fetch('/api/demo-sandbox', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'call_next' }),
+    });
+    const json = await res.json();
+    setCalling(false);
+    if (!res.ok) return push(json.error ?? 'เรียกคิวไม่สำเร็จ', 'error');
+    if (json.data?.called) push(`เรียกคิว ${json.data.queue_number} แล้ว`);
+    else push('ไม่มีคิวรอเรียก');
+    await load();
+  }
 
   useEffect(() => {
     const t = setInterval(() => { void load(); }, 15000);
@@ -221,6 +240,11 @@ export function QueueDisplayClient() {
             Auto refresh every 15s
           </p>
         </div>
+        {data?.shop?.demo_mode_enabled ? (
+          <p className="mt-2 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs text-amber-700">
+            Demo Mode • {data.shop.demo_business_type ?? 'demo'}
+          </p>
+        ) : null}
         <div className="mt-4 flex flex-wrap items-end gap-3">
           <label className="text-sm">
             <span className="mb-1 block text-slate-600">วันที่</span>
@@ -237,6 +261,11 @@ export function QueueDisplayClient() {
           </label>
           <button className="btn-outline" onClick={() => void load()}>Refresh</button>
           <button className="btn-primary" onClick={() => void toggleFullscreen()}>Fullscreen</button>
+          {data?.shop?.demo_mode_enabled ? (
+            <button className="btn-outline" disabled={calling} onClick={() => void callNextDemo()}>
+              {calling ? 'กำลังเรียก...' : 'เรียกคิวถัดไป'}
+            </button>
+          ) : null}
           <button className="btn-outline" onClick={() => setSelectedTemplate(null)}>เปลี่ยน Template</button>
         </div>
         <div className="mt-3 grid gap-2 md:grid-cols-3">
@@ -426,6 +455,8 @@ export function QueueDisplayClient() {
               <p className={`text-5xl font-bold tracking-tight ${fullscreenMode ? 'font-mono text-[#4ade80]' : 'text-slate-900'}`}>{data.now_serving.queue_number}</p>
               <p className={`text-lg font-medium ${fullscreenMode ? 'text-[#e8f5e8]' : 'text-slate-800'}`}>{data.now_serving.display_name}</p>
               <p className={`text-sm ${fullscreenMode ? 'text-[#9cb89c]' : 'text-slate-500'}`}>เวลา {data.now_serving.start_time} • {data.now_serving.status}</p>
+              {data.now_serving.service_name ? <p className={`text-sm ${fullscreenMode ? 'text-[#9cb89c]' : 'text-slate-600'}`}>{data.now_serving.service_name}</p> : null}
+              {data.now_serving.resource_name ? <p className={`text-sm ${fullscreenMode ? 'text-[#9cb89c]' : 'text-slate-600'}`}>Resource: {data.now_serving.resource_name}</p> : null}
             </div>
           </div>
         )}
@@ -457,6 +488,7 @@ export function QueueDisplayClient() {
                       <p className={`text-3xl font-bold tracking-tight ${fullscreenMode ? 'font-mono text-[#e8f5e8]' : 'text-slate-900'}`}>{q.queue_number}</p>
                       <p className={`text-sm font-medium ${fullscreenMode ? 'text-[#d9f0d9]' : 'text-slate-700'}`}>{q.display_name}</p>
                       <p className={`text-xs ${fullscreenMode ? 'text-[#9cb89c]' : 'text-slate-500'}`}>เวลา {q.start_time}</p>
+                      {q.resource_name ? <p className={`text-xs ${fullscreenMode ? 'text-[#9cb89c]' : 'text-slate-500'}`}>{q.resource_name}</p> : null}
                     </div>
                   </div>
                 </div>

@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import {
+  Alert,
   Card,
   CardContent,
   Box,
+  Button,
   Stack,
   Table,
   TableBody,
@@ -24,7 +26,8 @@ type DashboardData = {
   totals: { branches: number; services: number; bookings: number };
   by_day: Array<{ date: string; count: number }>;
   by_status: Array<{ status: string; count: number }>;
-  today_overview: { total: number; pending: number; serving: number; completed: number; cancelled: number };
+  today_overview: { total: number; pending: number; called?: number; waiting?: number; serving: number; in_service?: number; completed: number; cancelled: number };
+  shop_meta?: { demo_mode_enabled?: boolean; demo_business_type?: string | null; line_setup_completed?: boolean; shop_key?: string | null };
   recent_bookings: Array<{ id: string; queue_number: string; start_time: string; status: string; customer_name: string; service_name: string; branch_name: string }>;
   popular_services: Array<{ name: string; count: number }>;
   branch_summary: Array<{ name: string; count: number }>;
@@ -86,10 +89,25 @@ export function DashboardCharts() {
 
   return (
     <Stack spacing={2.2}>
+      {data.shop_meta?.demo_mode_enabled ? (
+        <Alert
+          severity="info"
+          action={
+            <Stack direction="row" spacing={1}>
+              <Button size="small" href="/portal/line-settings">เชื่อม LINE OA</Button>
+              <Button size="small" href="/portal/demo-sandbox">จัดการ Demo</Button>
+              {data.shop_meta?.shop_key ? <Button size="small" href={`/display/${encodeURIComponent(data.shop_meta.shop_key)}`}>เปิด Signage</Button> : null}
+            </Stack>
+          }
+        >
+          โหมดตัวอย่างเปิดอยู่ ({data.shop_meta?.demo_business_type ?? 'demo'}) ข้อมูลนี้ใช้สำหรับทดลองเท่านั้น
+        </Alert>
+      ) : null}
       <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2,1fr)', md: 'repeat(6,1fr)' } }}>
         <DashboardCard label={t('today_queue', 'คิววันนี้')} value={data.today_overview.total} />
         <DashboardCard label={t('pending', 'รอยืนยัน')} value={data.today_overview.pending} color="#d97706" />
-        <DashboardCard label={t('serving', 'กำลังให้บริการ')} value={data.today_overview.serving} color="#0284c7" />
+        <DashboardCard label="กำลังเรียก" value={data.today_overview.called ?? 0} color="#0ea5e9" />
+        <DashboardCard label={t('serving', 'กำลังให้บริการ')} value={(data.today_overview.serving ?? 0) + (data.today_overview.in_service ?? 0)} color="#0284c7" />
         <DashboardCard label={t('completed', 'เสร็จสิ้น')} value={data.today_overview.completed} color="#16a34a" />
         <DashboardCard label={t('cancelled', 'ยกเลิก')} value={data.today_overview.cancelled} color="#dc2626" />
         <DashboardCard label={t('customers_total', 'ลูกค้าทั้งหมด')} value={data.totals.bookings} />

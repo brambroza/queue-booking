@@ -26,6 +26,10 @@ import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import TranslateRoundedIcon from '@mui/icons-material/TranslateRounded';
 import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRounded';
+import ScienceRoundedIcon from '@mui/icons-material/ScienceRounded';
+import ChecklistRoundedIcon from '@mui/icons-material/ChecklistRounded';
+import AppsRoundedIcon from '@mui/icons-material/AppsRounded';
+import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@/components/i18n/i18n-provider';
 
@@ -51,7 +55,12 @@ const groups: Array<{ titleKey: string; items: Array<{ labelKey: string; href: s
       { labelKey: 'menu.staff', href: '/portal/staff', icon: <GroupRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.customers', href: '/portal/customers', icon: <PeopleRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.line_settings', href: '/portal/line-settings', icon: <SettingsEthernetRoundedIcon fontSize="small" /> },
+      { labelKey: 'menu.line_onboarding', href: '/portal/onboarding/line-setup', icon: <ChecklistRoundedIcon fontSize="small" /> },
+      { labelKey: 'menu.rich_menu_guide', href: '/portal/rich-menu-guide', icon: <AppsRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.chat_inbox', href: '/portal/chat-inbox', icon: <ChatRoundedIcon fontSize="small" /> },
+      { labelKey: 'menu.notifications', href: '/portal/notifications', icon: <NotificationsRoundedIcon fontSize="small" /> },
+      { labelKey: 'menu.demo_sandbox', href: '/portal/demo-sandbox', icon: <ScienceRoundedIcon fontSize="small" /> },
+/*       { labelKey: 'menu.demo_line_experience', href: '/portal/demo-line-experience', icon: <ChatRoundedIcon fontSize="small" /> }, */
       { labelKey: 'menu.reports', href: '/portal/reports', icon: <InsightsRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.settings', href: '/portal/settings', icon: <SettingsRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.translations', href: '/portal/translations', icon: <TranslateRoundedIcon fontSize="small" /> },

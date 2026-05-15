@@ -51,7 +51,7 @@ export async function GET() {
 
     const today = new Date().toISOString().slice(0, 10);
 
-    const [{ count: branchCount }, { count: serviceCount }, { count: bookingCount }, { data: bookings, error }, { data: todayBookings, error: todayError }] = await Promise.all([
+    const [{ count: branchCount }, { count: serviceCount }, { count: bookingCount }, { data: bookings, error }, { data: todayBookings, error: todayError }, { data: shopMeta }] = await Promise.all([
       supabase.from('branches').select('*', { count: 'exact', head: true }).eq('shop_id', targetShopId).eq('is_deleted', false),
       supabase.from('services').select('*', { count: 'exact', head: true }).eq('shop_id', targetShopId).eq('is_deleted', false),
       supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('shop_id', targetShopId).eq('is_deleted', false),
@@ -69,6 +69,7 @@ export async function GET() {
         .eq('is_deleted', false)
         .eq('booking_date', today)
         .order('start_time', { ascending: true }),
+      supabase.from('shops').select('id,demo_mode_enabled,demo_business_type,line_setup_completed,shop_key').eq('id', targetShopId).maybeSingle(),
     ]);
 
     if (error || todayError) throw error ?? todayError;
@@ -125,9 +126,18 @@ export async function GET() {
         today_overview: {
           total: todayBookings?.length ?? 0,
           pending: todayStatusMap.get('pending') ?? 0,
+          called: todayStatusMap.get('called') ?? 0,
+          waiting: todayStatusMap.get('waiting') ?? 0,
           serving: todayStatusMap.get('serving') ?? 0,
+          in_service: todayStatusMap.get('in_service') ?? 0,
           completed: todayStatusMap.get('completed') ?? 0,
           cancelled: todayStatusMap.get('cancelled') ?? 0,
+        },
+        shop_meta: {
+          demo_mode_enabled: Boolean((shopMeta as { demo_mode_enabled?: boolean } | null)?.demo_mode_enabled),
+          demo_business_type: (shopMeta as { demo_business_type?: string | null } | null)?.demo_business_type ?? null,
+          line_setup_completed: Boolean((shopMeta as { line_setup_completed?: boolean } | null)?.line_setup_completed),
+          shop_key: (shopMeta as { shop_key?: string | null } | null)?.shop_key ?? null,
         },
         recent_bookings: recentBookings,
         popular_services: Array.from(serviceMap.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 6),

@@ -6,6 +6,7 @@ import { pushMessage } from '@/lib/line/client';
 import { bookingConfirmFlex, bookingConfirmMessage } from '@/lib/line/messages';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 import { writeAuditLog } from '@/lib/audit/activity-log';
+import { safeCreateNotification } from '@/lib/notifications/createNotification';
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
@@ -215,6 +216,25 @@ export async function POST(req: Request) {
       });
     }
 
+    await safeCreateNotification(supabase, {
+      companyId: profile.company_id,
+      shopId: profile.shop_id,
+      branchId: payload.branch_id,
+      userId: user.id,
+      type: 'booking_created',
+      category: 'bookings',
+      priority: 'medium',
+      title: `New booking ${queueNumber}`,
+      message: `Booking created for ${payload.booking_date} ${payload.start_time.slice(0, 5)}`,
+      relatedType: 'booking',
+      relatedId: inserted.id,
+      actionUrl: '/portal/bookings',
+      icon: 'EventAvailable',
+      color: '#2e7d32',
+      metadata: { queue_number: queueNumber, status: payload.status },
+      createdBy: user.id,
+    });
+
     let linePushSent = false;
     let linePushError: string | null = null;
     if (payload.line_user_external_id) {
@@ -273,9 +293,39 @@ export async function PATCH(req: Request) {
     const status = body.status as string;
     if (!id || !status) return NextResponse.json({ error: 'Missing id or status' }, { status: 400 });
 
+    const { data: before } = await supabase
+      .from('bookings')
+      .select('id,queue_number,status,branch_id,booking_date,start_time')
+      .eq('id', id)
+      .eq('shop_id', profile.shop_id)
+      .maybeSingle();
+
     const { error } = await supabase.from('bookings').update({ status, updated_by: user.id }).eq('id', id).eq('shop_id', profile.shop_id);
 
     if (error) throw error;
+    if (before) {
+      const isCalled = status === 'called';
+      const isCancelled = status === 'cancelled';
+      const isRescheduled = before.status !== status && (status === 'confirmed' || status === 'waiting');
+      await safeCreateNotification(supabase, {
+        companyId: profile.company_id,
+        shopId: profile.shop_id,
+        branchId: before.branch_id,
+        userId: user.id,
+        type: isCalled ? 'queue_called' : isCancelled ? 'booking_cancelled' : isRescheduled ? 'booking_rescheduled' : 'booking_confirmed',
+        category: 'bookings',
+        priority: isCancelled ? 'high' : 'medium',
+        title: `${before.queue_number ?? 'Queue'} status updated`,
+        message: `Status changed to ${status}`,
+        relatedType: 'booking',
+        relatedId: id,
+        actionUrl: '/portal/bookings',
+        icon: isCancelled ? 'Cancel' : isCalled ? 'Notifications' : 'EventAvailable',
+        color: isCancelled ? '#c62828' : isCalled ? '#ef6c00' : '#1565c0',
+        metadata: { prev_status: before.status, next_status: status },
+        createdBy: user.id,
+      });
+    }
     await writeAuditLog({
       companyId: profile.company_id,
       shopId: profile.shop_id,
@@ -298,6 +348,13 @@ export async function DELETE(req: Request) {
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
 
+    const { data: before } = await supabase
+      .from('bookings')
+      .select('id,queue_number,branch_id')
+      .eq('id', id)
+      .eq('shop_id', profile.shop_id)
+      .maybeSingle();
+
     const { error } = await supabase
       .from('bookings')
       .update({ is_deleted: true, status: 'cancelled', updated_by: user.id })
@@ -305,6 +362,26 @@ export async function DELETE(req: Request) {
       .eq('shop_id', profile.shop_id);
 
     if (error) throw error;
+    if (before) {
+      await safeCreateNotification(supabase, {
+        companyId: profile.company_id,
+        shopId: profile.shop_id,
+        branchId: before.branch_id,
+        userId: user.id,
+        type: 'booking_cancelled',
+        category: 'bookings',
+        priority: 'high',
+        title: `${before.queue_number ?? 'Queue'} cancelled`,
+        message: 'Booking was cancelled by staff',
+        relatedType: 'booking',
+        relatedId: before.id,
+        actionUrl: '/portal/bookings',
+        icon: 'Cancel',
+        color: '#c62828',
+        metadata: { deleted: true },
+        createdBy: user.id,
+      });
+    }
     return NextResponse.json({ data: true });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });

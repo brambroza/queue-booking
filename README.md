@@ -118,3 +118,86 @@ npm run dev
 - Dashboard real charts
   - `GET /api/dashboard` for 14-day trend + status distribution
   - visualized in `/portal/dashboard` (line trend + status bars)
+
+## Demo Sandbox (Phase 1)
+- Goal: new tenant can understand product flow in 1-2 minutes without real LINE OA setup.
+- Added schema/migrations:
+  - `202605150001_demo_sandbox_phase1.sql`
+  - `202605150002_demo_i18n.sql`
+- Added API:
+  - `GET /api/demo-sandbox` (load demo status/session)
+  - `POST /api/demo-sandbox` with actions:
+    - `create` + `business_type`
+    - `reset` + optional `business_type`
+    - `disable`
+- Added services:
+  - `src/lib/demo/sandbox.ts`
+  - `createDemoSandbox({ companyId, shopId, userId, businessType })`
+  - `resetDemoSandbox({ companyId, shopId, userId, businessType? })`
+- Added portal UI:
+  - `/portal/demo-sandbox`
+  - Demo mode banner on all `/portal/*` pages when `shops.demo_mode_enabled = true`
+- Safety:
+  - Demo data tagged with `is_demo = true`
+  - Reset only removes/recreates demo-tagged data
+  - Tenant scope enforced by authenticated user context (`company_id/shop_id`)
+
+## Demo Sandbox (Phase 3)
+- Convert Demo To Real:
+  - API action `convert_to_real` on `POST /api/demo-sandbox`
+  - Choose whether to keep demo `branches/services/resources`
+  - Demo bookings are archived (not reused as live bookings)
+  - Shop demo mode is disabled after conversion
+- Guided Tour Checklist:
+  - Persist checklist state in `demo_sandbox_sessions.checklist` (jsonb)
+  - API action `update_checklist` on `POST /api/demo-sandbox`
+- Added migration:
+  - `202605150003_demo_phase3.sql` (checklist + conversion audit columns)
+
+## Demo LINE Experience (Phase 1)
+- New interactive page:
+  - `/portal/demo-line-experience`
+  - alias: `/portal/demo/line`
+- Purpose:
+  - Simulate LINE-like booking journey without real LINE OA/LIFF connection.
+- Implemented UI components:
+  - `src/components/demo/line-chat-simulator.tsx`
+  - `src/components/demo/rich-menu-simulator.tsx`
+  - `src/components/demo/liff-booking-simulator.tsx`
+  - `src/components/demo/flex-booking-success.tsx`
+  - `src/components/demo/quick-reply-bar.tsx`
+- Phase 1 behavior:
+  - LINE dark-style chat simulator with quick replies
+  - Rich Menu simulator with menu interactions
+  - LIFF booking simulator (member info -> service/time -> confirm)
+  - Booking success shown as flex-style card in chat
+  - Fully local simulation (no real LINE API call)
+
+## Notification Center (Phase 1)
+- Added notification module without breaking existing booking/LIFF/LINE flows.
+- New migration files:
+  - `202605150006_notifications_phase1.sql`
+  - `202605150007_notifications_i18n.sql`
+- New API capabilities in `GET/POST/PATCH /api/notifications`:
+  - list with filters/search/pagination
+  - unread count
+  - mark read / mark all read / archive
+  - create notification
+- New service helpers:
+  - `src/lib/notifications/createNotification.ts`
+  - `createNotification`, `safeCreateNotification`, `getNotifications`, `getUnreadNotificationCount`, `markNotificationAsRead`, `markAllNotificationsAsRead`, `archiveNotification`
+- New UI:
+  - Bell + dropdown in portal header
+  - `/portal/notifications` center page
+- Safety:
+  - notification errors are isolated from core business flow
+  - safe helper available for side-effect usage in booking flow later phases
+
+## Notification Phase 2 (Safe Event Hooks)
+- Added best-effort notification side effects to booking events:
+  - `POST /api/bookings` -> `booking_created`
+  - `PATCH /api/bookings` -> `queue_called` / `booking_cancelled` / `booking_rescheduled` / `booking_confirmed`
+  - `DELETE /api/bookings` -> `booking_cancelled`
+  - `POST /api/public/shop/[shopKey]/book` -> `booking_created` (shop-wide)
+- Implemented using `safeCreateNotification(...)` to avoid breaking existing booking flows.
+- If notification insert fails, booking APIs still return normal success/failure behavior for core logic.

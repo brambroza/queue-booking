@@ -44,7 +44,7 @@ export default async function PortalLayout({ children }: { children: React.React
   }
 
   const { data: shop } = resolvedShopId
-    ? await createAdminClient().from('shops').select('id,name,logo_url').eq('id', resolvedShopId).maybeSingle()
+    ? await createAdminClient().from('shops').select('id,name,logo_url,demo_mode_enabled').eq('id', resolvedShopId).maybeSingle()
     : { data: null };
 
   const logoUrl = shop?.logo_url ?? null;
@@ -66,6 +66,7 @@ export default async function PortalLayout({ children }: { children: React.React
       email={user.email}
       appVersion={appVersion}
       isSuperAdmin={isSuperAdmin}
+      demoModeEnabled={Boolean(shop?.demo_mode_enabled)}
     >
       {children}
     </PortalFrame>

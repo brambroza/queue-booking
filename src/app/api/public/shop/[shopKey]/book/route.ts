@@ -5,6 +5,7 @@ import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { pushMessage } from '@/lib/line/client';
 import { bookingConfirmFlex, bookingConfirmMessage } from '@/lib/line/messages';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
+import { safeCreateNotification } from '@/lib/notifications/createNotification';
 
 function formatThaiDate(isoDate: string) {
   const d = new Date(`${isoDate}T00:00:00+07:00`);
@@ -196,6 +197,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       note: payload.resource_id ? 'manual_assign' : 'auto_assign_by_party_size',
     });
   }
+
+  await safeCreateNotification(admin, {
+    companyId: shop.company_id,
+    shopId: shop.id,
+    branchId: payload.branch_id,
+    userId: null,
+    type: 'booking_created',
+    category: 'bookings',
+    priority: 'medium',
+    title: `New booking ${queueNumber}`,
+    message: `Customer booked ${payload.booking_date} ${payload.start_time.slice(0, 5)}`,
+    relatedType: 'booking',
+    relatedId: booking.id,
+    actionUrl: '/portal/bookings',
+    icon: 'EventAvailable',
+    color: '#2e7d32',
+    metadata: { source: 'liff', queue_number: queueNumber },
+    createdBy: null,
+  });
 
   let linePushSent = false;
   let linePushError: string | null = null;
