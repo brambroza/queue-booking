@@ -20,11 +20,6 @@ type CreateNotificationInput = {
   createdBy?: string | null;
 };
 
-function userScopeOrFilter(userId: string) {
-  const escaped = userId.replace(/"/g, '\\"');
-  return `user_id.eq."${escaped}",user_id.is.null`;
-}
-
 function normalize(input: CreateNotificationInput) {
   const title = input.title?.trim();
   const message = input.message?.trim();
@@ -92,7 +87,6 @@ export async function markAllNotificationsAsRead(supabase: SupabaseClient, scope
     .eq('is_archived', false)
     .eq('is_read', false);
   if (scope.shopId) q = q.eq('shop_id', scope.shopId);
-  if (scope.userId) q = q.or(userScopeOrFilter(scope.userId));
   const { error } = await q;
   if (error) throw error;
 }
@@ -115,7 +109,6 @@ export async function getUnreadNotificationCount(supabase: SupabaseClient, scope
     .eq('is_archived', false)
     .eq('is_read', false);
   if (scope.shopId) q = q.eq('shop_id', scope.shopId);
-  if (scope.userId) q = q.or(userScopeOrFilter(scope.userId));
   const { count, error } = await q;
   if (error) throw error;
   return count ?? 0;
@@ -146,7 +139,6 @@ export async function getNotifications(
 
   if (!input.includeArchived) q = q.eq('is_archived', false);
   if (input.shopId) q = q.eq('shop_id', input.shopId);
-  if (input.userId) q = q.or(userScopeOrFilter(input.userId));
   if (input.unreadOnly) q = q.eq('is_read', false);
   if (input.category) q = q.eq('category', input.category);
   if (input.priority) q = q.eq('priority', input.priority);

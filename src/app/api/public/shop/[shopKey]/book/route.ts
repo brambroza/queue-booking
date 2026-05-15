@@ -5,7 +5,7 @@ import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { pushMessage } from '@/lib/line/client';
 import { bookingConfirmFlex, bookingConfirmMessage } from '@/lib/line/messages';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
-import { safeCreateNotification } from '@/lib/notifications/createNotification';
+import { createNotification } from '@/lib/notifications/createNotification';
 
 function formatThaiDate(isoDate: string) {
   const d = new Date(`${isoDate}T00:00:00+07:00`);
@@ -198,24 +198,37 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     });
   }
 
-  await safeCreateNotification(admin, {
-    companyId: shop.company_id,
-    shopId: shop.id,
-    branchId: payload.branch_id,
-    userId: null,
-    type: 'booking_created',
-    category: 'bookings',
-    priority: 'medium',
-    title: `New booking ${queueNumber}`,
-    message: `Customer booked ${payload.booking_date} ${payload.start_time.slice(0, 5)}`,
-    relatedType: 'booking',
-    relatedId: booking.id,
-    actionUrl: '/portal/bookings',
-    icon: 'EventAvailable',
-    color: '#2e7d32',
-    metadata: { source: 'liff', queue_number: queueNumber },
-    createdBy: null,
-  });
+  try {
+    await createNotification(admin, {
+      companyId: shop.company_id,
+      shopId: shop.id,
+      branchId: payload.branch_id,
+      userId: null,
+      type: 'booking_created',
+      category: 'bookings',
+      priority: 'medium',
+      title: `New booking ${queueNumber}`,
+      message: `Customer booked ${payload.booking_date} ${payload.start_time.slice(0, 5)}`,
+      relatedType: 'booking',
+      relatedId: booking.id,
+      actionUrl: '/portal/bookings',
+      icon: 'EventAvailable',
+      color: '#2e7d32',
+      metadata: { source: 'liff', queue_number: queueNumber },
+      createdBy: null,
+    });
+  } catch (e) {
+    await admin.from('activity_logs').insert({
+      company_id: shop.company_id,
+      shop_id: shop.id,
+      action: 'notification_create_failed_liff_booking',
+      description: e instanceof Error ? e.message : 'unknown error',
+      payload: {
+        queue_number: queueNumber,
+        booking_id: booking.id,
+      },
+    });
+  }
 
   let linePushSent = false;
   let linePushError: string | null = null;
