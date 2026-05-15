@@ -24,8 +24,8 @@ export const metadata: Metadata = {
     'ระบบจองคิว',
     'line oa booking',
     'liff booking',
-    'queue booking saas',
-    'booking management',
+    'queue booking',
+    'ระบบนัดหมาย line oa',
   ],
   authors: [{ name: 'QueueBooking LINE Team' }],
   creator: 'QueueBooking LINE',
@@ -53,6 +53,11 @@ export const metadata: Metadata = {
     title: 'QueueBooking LINE | ระบบจองคิวผ่าน LINE OA',
     description: 'ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ | LINE OA queue booking platform.',
     images: ['/twitter-image'],
+  },
+  icons: {
+    icon: '/favicon.png',
+    shortcut: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
   },
   verification: {
     google: 'vSwRXNYx8325qISY5YeR3oEyPIOGDMHUBKVrrRGXAd4',
