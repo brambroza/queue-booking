@@ -170,6 +170,14 @@ function resourceTypeLabel(resourceType?: string | null) {
   return 'Resource';
 }
 
+function resourcePickerLabelByService(serviceName?: string) {
+  const kind = detectServiceKind(serviceName);
+  if (kind === 'barber' || kind === 'nail') return 'เลือกช่าง';
+  if (kind === 'meeting') return 'เลือกห้อง';
+  if (kind === 'buffet') return 'เลือกโต๊ะ';
+  return 'เลือก Resource';
+}
+
 export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey: string; initialTab?: 'booking' | 'account' }) {
   const { push } = useToast();
 
@@ -436,12 +444,12 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     setQueueNo(json.data.queue_number);
     if (!json.data?.line_push_sent) {
       const dateLabel = formatDateDMY(json.data?.booking_date ?? date);
-  /*     const text = `จองคิวสำเร็จค่ะ\nเลขคิว: ${json.data?.queue_number ?? '-'}\nสาขา: ${json.data?.branch_name ?? selectedBranch?.branch_name ?? '-'}\nบริการ: ${json.data?.service_name ?? selectedService?.service_name ?? '-'}\nวันที่: ${dateLabel}\nเวลา: ${json.data?.booking_time ?? selectedTime}\n\nกรุณามาก่อนเวลาประมาณ 10 นาทีค่ะ`;
-      try {
-        const liff = await ensureLiffLoaded();
-        if (liff?.sendMessages) await liff.sendMessages([{ type: 'text', text }]);
-      } catch { 
-      } */
+      /*     const text = `จองคิวสำเร็จค่ะ\nเลขคิว: ${json.data?.queue_number ?? '-'}\nสาขา: ${json.data?.branch_name ?? selectedBranch?.branch_name ?? '-'}\nบริการ: ${json.data?.service_name ?? selectedService?.service_name ?? '-'}\nวันที่: ${dateLabel}\nเวลา: ${json.data?.booking_time ?? selectedTime}\n\nกรุณามาก่อนเวลาประมาณ 10 นาทีค่ะ`;
+          try {
+            const liff = await ensureLiffLoaded();
+            if (liff?.sendMessages) await liff.sendMessages([{ type: 'text', text }]);
+          } catch { 
+          } */
     }
 
     push('จองคิวสำเร็จ');
@@ -471,6 +479,10 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     const type = selectedResource?.resource_type || filteredResources[0]?.resource_type;
     return `เลือก${resourceTypeLabel(type)}`;
   }, [selectedResource, filteredResources]);
+  const resourcePickerLabel = useMemo(
+    () => resourcePickerLabelByService(selectedService?.service_name),
+    [selectedService?.service_name],
+  );
 
   useEffect(() => {
     if (!filteredResources.length) {
@@ -543,225 +555,246 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
           <h1 className="text-base font-semibold">{tab === 'booking' ? 'เลือกบริการและเวลาจองคิว' : 'ข้อมูลสมาชิก'}</h1>
         </div>
         <div className="space-y-4 p-4">
-     {/*    <div className="space-y-1">
+          {/*    <div className="space-y-1">
           <p className="text-xs text-slate-500">รองรับร้านตัดผม • ร้านทำเล็บ • คลินิก • ร้านบุฟเฟ่ต์ • ห้องประชุม</p>
         </div> */}
-        {shopMetaError ? (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-            โหลดข้อมูลร้านไม่สำเร็จ: {shopMetaError}
-          </div>
-        ) : null}
-
-        {initialTab === 'booking' ? (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-            เมนูนี้สำหรับจองคิว
-          </div>
-        ) : (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-            ข้อมูลสมาชิก
-          </div>
-        )}
-
-        {tab === 'booking' ? (
-          <>
-            <div className="grid grid-cols-2 gap-2">
-              <button className={step === 1 ? 'btn-primary' : 'btn-outline'} style={step === 1 ? { background: uiTheme.accent } : undefined} disabled>1) เลือกบริการ</button>
-              <button className={step === 2 ? 'btn-primary' : 'btn-outline'} style={step === 2 ? { background: uiTheme.accent } : undefined} disabled>2) เลือกวันเวลา</button>
+          {shopMetaError ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+              โหลดข้อมูลร้านไม่สำเร็จ: {shopMetaError}
             </div>
-            {step === 1 ? (
-          <div className="space-y-3">
-            {memberStatus === 'checking' ? <p className="text-xs text-slate-500">กำลังตรวจสอบสมาชิกของร้าน...</p> : null}
-            {memberStatus === 'error' ? (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
-                <p>{memberError || 'ตรวจสอบสมาชิกไม่สำเร็จ'}</p>
-                {resolvedLiffId ? (
-                  <p className="mt-2 font-mono text-[11px] text-rose-800">
-                    LIFF ID: {resolvedLiffId}
-                  </p>
-                ) : null}
-                {liffOpenUrl ? (
-                  <a className="btn-outline mt-2 inline-flex" href={liffOpenUrl}>
-                    เปิดผ่าน LINE
-                  </a>
-                ) : null}
-                <button className="btn-outline mt-2" onClick={retryMemberCheck}>ลองใหม่</button>
+          ) : null}
+
+          {initialTab === 'booking' ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+              เมนูนี้สำหรับจองคิว
+            </div>
+          ) : (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+              ข้อมูลสมาชิก
+            </div>
+          )}
+
+          {tab === 'booking' ? (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <button className={step === 1 ? 'btn-primary' : 'btn-outline'} style={step === 1 ? { background: uiTheme.accent } : undefined} disabled>1) เลือกบริการ</button>
+                <button className={step === 2 ? 'btn-primary' : 'btn-outline'} style={step === 2 ? { background: uiTheme.accent } : undefined} disabled>2) เลือกวันเวลา</button>
               </div>
-            ) : null}
-            <input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="ชื่อผู้จอง" />
-            <input className="input" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="เบอร์โทร" />
-            <p className="text-xs text-slate-500">กรุณาเลือกบริการที่ต้องการ</p>
-            <div className="space-y-2">
-              {services.map((s) => {
-                const meta = serviceMeta(s);
-                return (
-                <button
-                  key={`preset-${s.id}`}
-                  className={`w-full rounded-2xl border px-3 py-2.5 text-left text-sm transition ${
-                    serviceId === s.id ? 'border-transparent text-white shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
-                  }`}
-                  style={serviceId === s.id ? { background: uiTheme.accent } : undefined}
-                  onClick={() => setServiceId(s.id)}
-                >
-                  <div className="flex items-start gap-2">
-                    <span className="mt-0.5 text-xl">{meta.icon}</span>
-                    <div>
-                      <div className="font-semibold">{s.service_name}</div>
-                      <div className={`text-xs ${serviceId === s.id ? 'text-white/90' : 'text-slate-500'}`}>
-                        {s.duration_minutes} นาที • {meta.subtitle}
-                      </div>
+              {step === 1 ? (
+                <div className="space-y-3">
+                  {memberStatus === 'checking' ? <p className="text-xs text-slate-500">กำลังตรวจสอบสมาชิกของร้าน...</p> : null}
+                  {memberStatus === 'error' ? (
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+                      <p>{memberError || 'ตรวจสอบสมาชิกไม่สำเร็จ'}</p>
+                      {resolvedLiffId ? (
+                        <p className="mt-2 font-mono text-[11px] text-rose-800">
+                          LIFF ID: {resolvedLiffId}
+                        </p>
+                      ) : null}
+                      {liffOpenUrl ? (
+                        <a className="btn-outline mt-2 inline-flex" href={liffOpenUrl}>
+                          เปิดผ่าน LINE
+                        </a>
+                      ) : null}
+                      <button className="btn-outline mt-2" onClick={retryMemberCheck}>ลองใหม่</button>
                     </div>
-                  </div>
-                </button>
-                );
-              })}
-            </div>
-            <button
-              className="btn-primary w-full"
-              style={{ background: '#111111' }}
-              disabled={memberStatus !== 'ready' || customerName.trim().length < 2 || customerPhone.trim().length < 8}
-              onClick={() => setStep(2)}
-            >
-              ถัดไป: เลือกคิว
-            </button>
-            <button className="btn-outline w-full !bg-slate-100 !text-slate-700 !border-slate-200" onClick={() => void closeLiffOrBack()}>
-              ยกเลิก
-            </button>
-          </div>
-            ) : (
-          <div className="space-y-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-              <p className="font-semibold text-slate-800">{selectedService?.service_name ?? '-'}</p>
-              <p>สาขา {selectedBranch?.branch_name ?? '-'} • ระยะเวลา {selectedService?.duration_minutes ?? '-'} นาที</p>
-              {selectedResource ? (
-                <p className="mt-1">
-                  {resourceTypeLabel(selectedResource.resource_type)} {selectedResource.resource_code ? `${selectedResource.resource_code} - ` : ''}
-                  {selectedResource.resource_name}
-                </p>
-              ) : null}
-            </div>
-            <select className="input" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-              {branches.map((b) => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
-            </select>
-            <select className="input" value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
-              {services.map((s) => <option key={s.id} value={s.id}>{s.service_name} ({s.duration_minutes} นาที)</option>)}
-            </select>
-            {filteredResources.length > 1 ? (
-              <select className="input" value={selectedResourceId} onChange={(e) => setSelectedResourceId(e.target.value)}>
-                <option value="">{resourceSelectLabel}</option>
-                {filteredResources.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {resourceTypeLabel(r.resource_type)} {r.resource_code ? `${r.resource_code} - ` : ''}{r.resource_name}{r.capacity ? ` (${r.capacity} ที่นั่ง)` : ''}
-                  </option>
-                ))}
-              </select>
-            ) : null}
-            <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            <button className="btn-primary w-full" style={{ background: uiTheme.accent }} onClick={() => void loadSlots()} disabled={!canLoadSlots || loading}>{loading ? 'กำลังโหลด...' : 'ดูเวลาว่าง'}</button>
-
-            {slotMeta.reason !== 'ok' ? (
-              <div
-                className={`rounded-xl border px-3 py-2 text-xs ${
-                  slotMeta.reason === 'holiday'
-                    ? 'border-violet-200 bg-violet-50 text-violet-700'
-                    : slotMeta.reason === 'closed'
-                      ? 'border-slate-300 bg-slate-50 text-slate-700'
-                      : 'border-amber-200 bg-amber-50 text-amber-700'
-                }`}
-              >
-                {slotMeta.reason === 'holiday' ? 'วันหยุด' : slotMeta.reason === 'closed' ? 'ปิดทำการ' : 'คิวเต็ม'}
-              </div>
-            ) : null}
-            {slotHint ? <p className="text-xs text-amber-700">{slotHint}</p> : null}
-
-            <div className="grid grid-cols-3 gap-2">
-              {slots.map((s) => {
-                const t = s.slot_time.slice(0, 5);
-                const active = selectedTime === t;
-                return <button key={s.slot_time} className={active ? 'btn-primary !rounded-xl !py-2.5' : 'btn-outline !rounded-xl !py-2.5'} style={active ? { background: uiTheme.accent } : undefined} onClick={() => setSelectedTime(t)}>{t}</button>;
-              })}
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button className="btn-outline" onClick={() => setStep(1)}>ย้อนกลับ</button>
-              <button className="btn-primary" style={{ background: uiTheme.accent }} onClick={() => void bookNow()} disabled={!canBook || loading}>{loading ? 'กำลังบันทึก...' : 'ยืนยันจองคิว'}</button>
-            </div>
-          </div>
-            )}
-          </>
-        ) : (
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-3">
-              <div className="flex items-center gap-3">
-                {pictureUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={pictureUrl} alt={displayName || customerName} className="h-12 w-12 rounded-full object-cover" />
-                ) : (
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-200 font-semibold text-slate-600">
-                    {(displayName || customerName || 'U').slice(0, 1).toUpperCase()}
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-800">{displayName || customerName || 'LINE User'}</p>
-                  <p className="truncate text-xs text-slate-500">{lineUserId || '-'}</p>
-                </div>
-              </div>
-              <div className="mt-3 grid gap-2">
-                <input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="ชื่อผู้จอง" />
-                <input className="input" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="เบอร์โทร" />
-                <button className="btn-primary" disabled={accountLoading} onClick={() => void loadMe({ mode: 'update' })}>
-                  {accountLoading ? 'กำลังบันทึก...' : 'บันทึกข้อมูลส่วนตัว'}
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
-              <h3 className="text-sm font-semibold text-slate-800">คิวที่จองอยู่</h3>
-              {upcoming.length === 0 ? <p className="text-xs text-slate-500">ไม่มีคิวที่กำลังใช้งาน</p> : upcoming.map((b) => (
-                <div key={b.id} className="rounded-2xl border border-slate-200 bg-white p-3.5 text-sm shadow-sm">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="font-semibold tracking-tight text-slate-900">{b.queue_number}</p>
-                    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${bookingStatusStyle(String(b.status))}`}>
-                      {String(b.status)}
-                    </span>
-                  </div>
-                  <div className="mt-2 space-y-1.5">
-                    <p className="text-slate-700">
-                      <span className="text-slate-500">เวลา</span>{' '}
-                      {formatDateDMY(b.booking_date)} • {String(b.start_time).slice(0, 5)}
-                    </p>
-                    <p className="text-slate-700">
-                      <span className="text-slate-500">สาขา</span>{' '}
-                      {b.branches?.branch_name ?? '-'}
-                    </p>
-                    <p className="text-slate-700">
-                      <span className="text-slate-500">บริการ</span>{' '}
-                      {b.services?.service_name ?? '-'}
-                    </p>
-                  </div>
-                  {(b.status === 'pending' || b.status === 'confirmed' || b.status === 'waiting') ? (
-                    <button className="btn-outline mt-3 w-full" onClick={() => void cancelBooking(b.id)}>ยกเลิกคิว</button>
                   ) : null}
-                </div>
-              ))}
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
-              <h3 className="text-sm font-semibold text-slate-800">ประวัติการจอง</h3>
-              {history.length === 0 ? <p className="text-xs text-slate-500">ยังไม่มีประวัติ</p> : history.map((b) => (
-                <div key={b.id} className="rounded-2xl border border-slate-200 bg-white p-3.5 text-sm">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="font-medium text-slate-900">{b.queue_number}</p>
-                    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${bookingStatusStyle(String(b.status))}`}>
-                      {String(b.status)}
-                    </span>
+                  <input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="ชื่อผู้จอง" />
+                  <input className="input" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="เบอร์โทร" />
+                  <p className="text-xs text-slate-500">กรุณาเลือกบริการที่ต้องการ</p>
+                  <div className="space-y-2">
+                    {services.map((s) => {
+                      const meta = serviceMeta(s);
+                      return (
+                        <button
+                          key={`preset-${s.id}`}
+                          className={`w-full rounded-2xl border px-3 py-2.5 text-left text-sm transition ${serviceId === s.id ? 'border-transparent text-white shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
+                            }`}
+                          style={serviceId === s.id ? { background: uiTheme.accent } : undefined}
+                          onClick={() => setServiceId(s.id)}
+                        >
+                          <div className="flex items-start gap-2">
+                            <span className="mt-0.5 text-xl">{meta.icon}</span>
+                            <div>
+                              <div className="font-semibold">{s.service_name}</div>
+                              <div className={`text-xs ${serviceId === s.id ? 'text-white/90' : 'text-slate-500'}`}>
+                                {s.duration_minutes} นาที • {meta.subtitle}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
-                  <p className="mt-2 text-slate-700">{formatDateDMY(b.booking_date)} • {String(b.start_time).slice(0, 5)}</p>
-                  <p className="text-slate-600">{b.branches?.branch_name ?? '-'} • {b.services?.service_name ?? '-'}</p>
+
+
+                  {filteredResources.length > 0 ? <p className="text-xs text-slate-500">{resourcePickerLabel}</p> : null}
+                  <div className="space-y-2">
+                    {filteredResources.map((r) => {
+                      return (
+                        <button
+                          key={`resource-${r.id}`}
+                          className={`w-full rounded-2xl border px-3 py-2.5 text-left text-sm transition ${selectedResourceId === r.id ? 'border-transparent text-white shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
+                            }`}
+                          style={selectedResourceId === r.id ? { background: uiTheme.accent } : undefined}
+                          onClick={() => setSelectedResourceId(r.id)}
+                        >
+                          <div className="flex items-start gap-2">
+                            <span className="mt-0.5 text-xl">
+                              {r.resource_type === 'meeting_room' ? '🏢' : r.resource_type === 'table' ? '🍽️' : '👤'}
+                            </span>
+                            <div>
+                              <div className="font-semibold">
+                                {r.resource_code ? `${r.resource_code} - ` : ''}{r.resource_name}
+                              </div>
+                              <div className={`text-xs ${selectedResourceId === r.id ? 'text-white/90' : 'text-slate-500'}`}>
+                                {resourceTypeLabel(r.resource_type)}{r.capacity ? ` • ${r.capacity} ที่นั่ง` : ''}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  
+                  <button
+                    className="btn-primary w-full"
+                    style={{ background: '#111111' }}
+                    disabled={memberStatus !== 'ready' || customerName.trim().length < 2 || customerPhone.trim().length < 8}
+                    onClick={() => setStep(2)}
+                  >
+                    ถัดไป: เลือกคิว
+                  </button>
+                  <button className="btn-outline w-full !bg-slate-100 !text-slate-700 !border-slate-200" onClick={() => void closeLiffOrBack()}>
+                    ยกเลิก
+                  </button>
                 </div>
-              ))}
+              ) : (
+                <div className="space-y-3">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                    <p className="font-semibold text-slate-800">{selectedService?.service_name ?? '-'}</p>
+                    <p>สาขา {selectedBranch?.branch_name ?? '-'} • ระยะเวลา {selectedService?.duration_minutes ?? '-'} นาที</p>
+                    {selectedResource ? (
+                      <p className="mt-1">
+                        {resourceTypeLabel(selectedResource.resource_type)} {selectedResource.resource_code ? `${selectedResource.resource_code} - ` : ''}
+                        {selectedResource.resource_name}
+                      </p>
+                    ) : null}
+                  </div>
+                  <select className="input" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+                    {branches.map((b) => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
+                  </select>
+                  <select className="input" value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
+                    {services.map((s) => <option key={s.id} value={s.id}>{s.service_name} ({s.duration_minutes} นาที)</option>)}
+                  </select>
+
+                  <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                  <button className="btn-primary w-full" style={{ background: uiTheme.accent }} onClick={() => void loadSlots()} disabled={!canLoadSlots || loading}>{loading ? 'กำลังโหลด...' : 'ดูเวลาว่าง'}</button>
+
+                  {slotMeta.reason !== 'ok' ? (
+                    <div
+                      className={`rounded-xl border px-3 py-2 text-xs ${slotMeta.reason === 'holiday'
+                          ? 'border-violet-200 bg-violet-50 text-violet-700'
+                          : slotMeta.reason === 'closed'
+                            ? 'border-slate-300 bg-slate-50 text-slate-700'
+                            : 'border-amber-200 bg-amber-50 text-amber-700'
+                        }`}
+                    >
+                      {slotMeta.reason === 'holiday' ? 'วันหยุด' : slotMeta.reason === 'closed' ? 'ปิดทำการ' : 'คิวเต็ม'}
+                    </div>
+                  ) : null}
+                  {slotHint ? <p className="text-xs text-amber-700">{slotHint}</p> : null}
+
+                  <div className="grid grid-cols-3 gap-2">
+                    {slots.map((s) => {
+                      const t = s.slot_time.slice(0, 5);
+                      const active = selectedTime === t;
+                      return <button key={s.slot_time} className={active ? 'btn-primary !rounded-xl !py-2.5' : 'btn-outline !rounded-xl !py-2.5'} style={active ? { background: uiTheme.accent } : undefined} onClick={() => setSelectedTime(t)}>{t}</button>;
+                    })}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button className="btn-outline" onClick={() => setStep(1)}>ย้อนกลับ</button>
+                    <button className="btn-primary" style={{ background: uiTheme.accent }} onClick={() => void bookNow()} disabled={!canBook || loading}>{loading ? 'กำลังบันทึก...' : 'ยืนยันจองคิว'}</button>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                <div className="flex items-center gap-3">
+                  {pictureUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={pictureUrl} alt={displayName || customerName} className="h-12 w-12 rounded-full object-cover" />
+                  ) : (
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-200 font-semibold text-slate-600">
+                      {(displayName || customerName || 'U').slice(0, 1).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-800">{displayName || customerName || 'LINE User'}</p>
+                    <p className="truncate text-xs text-slate-500">{lineUserId || '-'}</p>
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-2">
+                  <input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="ชื่อผู้จอง" />
+                  <input className="input" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="เบอร์โทร" />
+                  <button className="btn-primary" disabled={accountLoading} onClick={() => void loadMe({ mode: 'update' })}>
+                    {accountLoading ? 'กำลังบันทึก...' : 'บันทึกข้อมูลส่วนตัว'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
+                <h3 className="text-sm font-semibold text-slate-800">คิวที่จองอยู่</h3>
+                {upcoming.length === 0 ? <p className="text-xs text-slate-500">ไม่มีคิวที่กำลังใช้งาน</p> : upcoming.map((b) => (
+                  <div key={b.id} className="rounded-2xl border border-slate-200 bg-white p-3.5 text-sm shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-semibold tracking-tight text-slate-900">{b.queue_number}</p>
+                      <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${bookingStatusStyle(String(b.status))}`}>
+                        {String(b.status)}
+                      </span>
+                    </div>
+                    <div className="mt-2 space-y-1.5">
+                      <p className="text-slate-700">
+                        <span className="text-slate-500">เวลา</span>{' '}
+                        {formatDateDMY(b.booking_date)} • {String(b.start_time).slice(0, 5)}
+                      </p>
+                      <p className="text-slate-700">
+                        <span className="text-slate-500">สาขา</span>{' '}
+                        {b.branches?.branch_name ?? '-'}
+                      </p>
+                      <p className="text-slate-700">
+                        <span className="text-slate-500">บริการ</span>{' '}
+                        {b.services?.service_name ?? '-'}
+                      </p>
+                    </div>
+                    {(b.status === 'pending' || b.status === 'confirmed' || b.status === 'waiting') ? (
+                      <button className="btn-outline mt-3 w-full" onClick={() => void cancelBooking(b.id)}>ยกเลิกคิว</button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
+                <h3 className="text-sm font-semibold text-slate-800">ประวัติการจอง</h3>
+                {history.length === 0 ? <p className="text-xs text-slate-500">ยังไม่มีประวัติ</p> : history.map((b) => (
+                  <div key={b.id} className="rounded-2xl border border-slate-200 bg-white p-3.5 text-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium text-slate-900">{b.queue_number}</p>
+                      <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${bookingStatusStyle(String(b.status))}`}>
+                        {String(b.status)}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-slate-700">{formatDateDMY(b.booking_date)} • {String(b.start_time).slice(0, 5)}</p>
+                    <p className="text-slate-600">{b.branches?.branch_name ?? '-'} • {b.services?.service_name ?? '-'}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
         </div>
       </section>
     </main>
