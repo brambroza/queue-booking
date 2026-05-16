@@ -83,7 +83,7 @@ export default async function UseCaseDetailPage({ params }: { params: Promise<Pa
                     { src: '/images/use-cases/barber/liff-step-1.jpg', title: 'Step 1: เลือกบริการ + เลือกช่าง' },
                     { src: '/images/use-cases/barber/liff-step-2.jpg', title: 'Step 2: เลือกวันเวลา' },
                     { src: '/images/use-cases/barber/liff-time-slots.jpg', title: 'เลือกช่วงเวลาว่าง' },
-                    { src: '/images/use-cases/barber/line-flex-success.jpg', title: 'Flex Message ยืนยันการจอง' },
+                    { src: '/images/use-cases/barber/line-flex-success.png', title: 'Flex Message ยืนยันการจอง' },
                   ].map((img) => (
                     <Grid key={img.src} size={{ xs: 12, sm: 6 }}>
                       <Box sx={{ border: '1px solid #dce6df', borderRadius: 2, overflow: 'hidden', bgcolor: '#f7faf8' }}>
