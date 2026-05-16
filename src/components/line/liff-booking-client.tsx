@@ -735,7 +735,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                   )}
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-800">{displayName || customerName || 'LINE User'}</p>
-                    <p className="truncate text-xs text-slate-500">{lineUserId || '-'}</p>
+                {/*     <p className="truncate text-xs text-slate-500">{lineUserId || '-'}</p> */}
                   </div>
                 </div>
                 <div className="mt-3 grid gap-2">
