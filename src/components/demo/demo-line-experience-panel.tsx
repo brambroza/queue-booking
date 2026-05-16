@@ -19,8 +19,10 @@ import { DemoSignage } from '@/components/demo/demo-signage';
 import type { PromoCard } from '@/components/demo/demo-flex-carousel';
 import type { ChatMessage, DemoBooking, DemoMemberProfile, DemoMenuAction, DemoQueueItem, DemoQueueStatus, DemoTemplate } from '@/components/demo/line-demo-types';
 
+let demoIdSeq = 0;
 function id() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  demoIdSeq += 1;
+  return `demo-${demoIdSeq}`;
 }
 
 const TEMPLATE_CONFIG: Record<DemoTemplate, {

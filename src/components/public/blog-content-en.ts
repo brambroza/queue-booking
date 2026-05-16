@@ -2,6 +2,62 @@ import type { BlogPost } from '@/components/public/blog-content';
 
 export const blogPostsEn: BlogPost[] = [
   {
+    slug: 'barber-shop-line-queue-booking-customer-and-owner-flow',
+    title: 'Barber Shop Queue Booking Flow: Customer Side and Owner Side',
+    description: 'A practical barber-shop flow from LIFF booking (service + barber selection) to back-office notifications, calendar, and digital signage.',
+    category: 'Use Case',
+    publishedAt: '2026-05-16',
+    readingMinutes: 8,
+    keywords: ['barber shop', 'line liff booking', 'queue notification', 'digital signage', 'calendar queue'],
+    sections: [
+      {
+        heading: 'Overview: One flow for customers and staff',
+        body: [
+          'A good setup should connect LINE customer booking and staff operations in one system.',
+          'Customer flow: choose service > choose barber > choose date/time > confirm.',
+          'Owner/staff flow: instant booking notification, calendar visibility, and a live queue display for in-store operations.',
+        ],
+      },
+      {
+        heading: 'Customer flow (LINE + LIFF)',
+        body: [
+          'Customers tap “Book Queue” from rich menu and open LIFF directly inside LINE.',
+          'Step 1 allows selecting both service and barber in a single screen.',
+          'Label can be business-specific: “Choose Barber” (barber/nail), “Choose Table” (restaurant), “Choose Room” (meeting room).',
+          'Step 2 lets customers pick date and available time slots before final confirmation.',
+          'After success, a booking confirmation card is sent back into LINE chat with queue number and appointment details.',
+        ],
+      },
+      {
+        heading: 'Owner/staff flow (Portal Dashboard)',
+        body: [
+          'Each new booking creates a back-office notification so staff can react immediately.',
+          'Calendar view helps the team see daily/monthly booking distribution and peak windows.',
+          'Daily queue list separates statuses clearly (confirmed, completed, cancelled).',
+          'Digital signage shows now-calling and next queue to reduce manual queue shouting at the shop.',
+        ],
+      },
+      {
+        heading: 'Recommended setup for barber shops',
+        body: [
+          'Separate services by real operations (e.g., haircut, haircut+wash, coloring) with correct duration.',
+          'Create each barber as a resource so customers can choose a specific person and avoid collisions.',
+          'Configure working hours and holidays per branch to ensure accurate slot availability.',
+          'Keep notification bell and queue signage active during opening hours for faster front-desk operation.',
+        ],
+      },
+      {
+        heading: 'Go-live checklist',
+        body: [
+          'Complete one full booking test from real LINE mobile.',
+          'Verify notification appears and booking lands in calendar/booking list.',
+          'Verify queue display reflects now-calling and next queue correctly.',
+          'Once all checks pass, the shop can go live with the same tested flow.',
+        ],
+      },
+    ],
+  },
+  {
     slug: 'line-msgapi-liff-login-richmenu-setup-guide',
     title: 'Production Setup Guide: LINE Messaging API + LIFF + LINE Login + Rich Menu',
     description: 'Step-by-step setup for LINE queue booking: webhook, access token, booking/member LIFF apps, LINE Login, and rich menu links.',

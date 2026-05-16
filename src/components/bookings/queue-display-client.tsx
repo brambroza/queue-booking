@@ -88,6 +88,7 @@ export function QueueDisplayClient() {
   const [layoutMode, setLayoutMode] = useState<'portrait' | 'landscape' | 'mobile'>('landscape');
   const [themeMode, setThemeMode] = useState<'default' | 'restaurant' | 'clinic' | 'meeting' | 'nail'>('default');
   const [clock, setClock] = useState('');
+  const [thaiDateLabel, setThaiDateLabel] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateId | null>(null);
   const [calling, setCalling] = useState(false);
 
@@ -157,6 +158,10 @@ export function QueueDisplayClient() {
     tick();
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    setThaiDateLabel(new Date().toLocaleDateString('th-TH'));
   }, []);
 
   const themeClass =
@@ -317,7 +322,7 @@ export function QueueDisplayClient() {
         <section className="mx-auto max-w-xl space-y-4">
           <article className="rounded-3xl border border-[#2a3e2a] bg-[#111811] p-5 text-center">
             <p className="text-3xl font-bold">{templateIcon(selectedTemplate)} {SIGNAGE_TEMPLATES.find((t) => t.id === selectedTemplate)?.name}</p>
-            <p className="mt-1 text-[#9cb89c]">วันพฤหัสบดีที่ {new Date().toLocaleDateString('th-TH')}</p>
+            <p className="mt-1 text-[#9cb89c]">วันพฤหัสบดีที่ {thaiDateLabel || '-'}</p>
           </article>
           <article className="rounded-3xl border border-[#2a3e2a] bg-[#111811] p-5 text-center">
             <p className="text-xl font-semibold" style={{ color: token.accent }}>📣 คิวปัจจุบัน</p>

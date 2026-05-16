@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Box, Button, Stack, Typography } from '@mui/material';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
@@ -42,6 +43,14 @@ export function NotificationItem({
   onMarkRead?: (id: string) => void;
   onArchive?: (id: string) => void;
 }) {
+  const [timeLabel, setTimeLabel] = useState('');
+
+  useEffect(() => {
+    setTimeLabel(relativeTime(item.created_at));
+    const t = window.setInterval(() => setTimeLabel(relativeTime(item.created_at)), 30000);
+    return () => window.clearInterval(t);
+  }, [item.created_at]);
+
   return (
     <Box
       sx={{
@@ -57,7 +66,7 @@ export function NotificationItem({
         <Box sx={{ flex: 1 }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
             <Typography fontWeight={700} sx={{ lineHeight: 1.2 }}>{item.title}</Typography>
-            <Typography variant="caption" color="text.secondary">{relativeTime(item.created_at)}</Typography>
+            <Typography variant="caption" color="text.secondary">{timeLabel}</Typography>
           </Stack>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.4 }}>{item.message || item.body || ''}</Typography>
           <Stack direction="row" spacing={0.8} sx={{ mt: 0.8, flexWrap: 'wrap' }}>
