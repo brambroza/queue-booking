@@ -47,15 +47,15 @@ export function HeroSection() {
             <Chip label="ระบบจองคิวผ่าน LINE OA" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 600 }} />
             <Typography sx={{ mt: 2, fontSize: { xs: 32, md: 46 }, lineHeight: 1.2, fontWeight: 700 }}>
               ลูกค้าจองคิวผ่าน LINE ได้เอง
-              <br />
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 3 }}>
-                <Chip label="แจ้งเตือนอัตโนมัติ" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 600 }} />
-                <Chip label="เรียกคิวผ่านจอได้" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 600 }} />
-                <Chip label="ลด no-show" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 600 }} />
-                <Chip label="ใช้ได้หลายสาขา" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 600 }} />
-              </Stack>
+
 
             </Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 3 }}>
+              <Chip label="แจ้งเตือนอัตโนมัติ" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 600 }} />
+              <Chip label="เรียกคิวผ่านจอได้" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 600 }} />
+              <Chip label="ลด no-show" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 600 }} />
+              <Chip label="ใช้ได้หลายสาขา" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 600 }} />
+            </Stack>
             <Typography color="text.secondary" sx={{ mt: 2, maxWidth: 560, lineHeight: 1.8 }}>
               ให้ลูกค้าถามคิวว่างและจองคิวได้ง่ายผ่าน LINE พร้อมระบบหลังบ้านสำหรับจัดการร้าน สาขา บริการ คิว พนักงาน และรายงานครบในที่เดียว
             </Typography>

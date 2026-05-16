@@ -33,10 +33,10 @@ export default function UseCasesPage() {
             const Icon = item.icon;
             return (
               <Grid key={item.slug} size={{ xs: 12, md: 6, lg: 4 }}>
-                <Card sx={{ borderRadius: 3, height: '100%' }}>
+                <Card sx={{ borderRadius: 1, height: '100%' }}>
                   <CardContent>
                     <Stack direction="row" spacing={1.2} alignItems="center">
-                      <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: '#eaf3de', display: 'grid', placeItems: 'center' }}>
+                      <Box sx={{ width: 40, height: 40, borderRadius: 1, bgcolor: '#eaf3de', display: 'grid', placeItems: 'center' }}>
                         <Icon sx={{ color: '#639922' }} />
                       </Box>
                       <Typography fontWeight={700}>{item.title}</Typography>
