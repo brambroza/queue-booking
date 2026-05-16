@@ -46,9 +46,15 @@ export function HeroSection() {
           <Grid size={{ xs: 12, md: 7 }}>
             <Chip label="ระบบจองคิวผ่าน LINE OA" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 600 }} />
             <Typography sx={{ mt: 2, fontSize: { xs: 32, md: 46 }, lineHeight: 1.2, fontWeight: 700 }}>
-              ระบบจองคิวผ่าน LINE OA
+              ลูกค้าจองคิวผ่าน LINE ได้เอง
               <br />
-              <Box component="span" sx={{ color: '#639922' }}>สำหรับทุกธุรกิจ</Box>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 3 }}>
+                <Chip label="แจ้งเตือนอัตโนมัติ" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 600 }} />
+                <Chip label="เรียกคิวผ่านจอได้" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 600 }} />
+                <Chip label="ลด no-show" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 600 }} />
+                <Chip label="ใช้ได้หลายสาขา" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 600 }} />
+              </Stack>
+
             </Typography>
             <Typography color="text.secondary" sx={{ mt: 2, maxWidth: 560, lineHeight: 1.8 }}>
               ให้ลูกค้าถามคิวว่างและจองคิวได้ง่ายผ่าน LINE พร้อมระบบหลังบ้านสำหรับจัดการร้าน สาขา บริการ คิว พนักงาน และรายงานครบในที่เดียว
@@ -161,15 +167,15 @@ export function ShowcaseSection() {
         {useCaseCards.map((item) => {
           const Icon = item.icon;
           return (
-          <Grid key={item.slug} size={{ xs: 6, md: 3 }}>
-            <Card sx={{ textAlign: 'center', borderRadius: 1 }}>
-              <CardContent sx={{ py: 2.2 }}>
-                <Icon sx={{ fontSize: 30, color: '#639922' }} />
-                <Typography fontWeight={700} sx={{ fontSize: 14, mt: 0.6 }}>{item.title}</Typography>
-                <Typography variant="caption" color="text.secondary">{item.mode}</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
+            <Grid key={item.slug} size={{ xs: 6, md: 3 }}>
+              <Card sx={{ textAlign: 'center', borderRadius: 1 }}>
+                <CardContent sx={{ py: 2.2 }}>
+                  <Icon sx={{ fontSize: 30, color: '#639922' }} />
+                  <Typography fontWeight={700} sx={{ fontSize: 14, mt: 0.6 }}>{item.title}</Typography>
+                  <Typography variant="caption" color="text.secondary">{item.mode}</Typography>
+                </CardContent>
+              </Card>
+            </Grid>
           );
         })}
       </Grid>
@@ -228,7 +234,7 @@ export function PricingPreviewSection() {
                   sx={{ mt: 2, bgcolor: '#639922', '&:hover': { bgcolor: '#3B6D11' } }}
                 >
                   {p.name === 'Custom' ? 'ขอใบเสนอราคา' : 'เริ่มใช้งาน'}
-                </Button> 
+                </Button>
               </CardContent>
             </Card>
           </Grid>

@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: 'ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ | QueueBooking LINE',
+    title: 'ลูกค้าจองคิวผ่าน LINE ได้เอง ลดงานตอบแชทซ้ำ ๆ|ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ | QueueBooking LINE',
     description: 'ให้ลูกค้าถามคิวว่างและจองคิวผ่าน LINE พร้อมระบบหลังบ้านครบวงจร | LINE OA queue booking with full dashboard.',
     url: '/',
     type: 'website',
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ',
+    title: 'ลูกค้าจองคิวผ่าน LINE ได้เอง ลดงานตอบแชทซ้ำ ๆ|ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ',
     description: 'ให้ลูกค้าถามคิวว่างและจองคิวผ่าน LINE พร้อมระบบหลังบ้านครบวงจร',
   },
 };

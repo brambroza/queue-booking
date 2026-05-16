@@ -6,6 +6,14 @@ import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 
 type Branch = { id: string; branch_name: string };
 type Service = { id: string; service_name: string; duration_minutes: number };
+type Resource = {
+  id: string;
+  branch_id?: string | null;
+  resource_name: string;
+  resource_code?: string | null;
+  resource_type?: string | null;
+  capacity?: number | null;
+};
 type Slot = { slot_time: string; remaining_capacity: number };
 type SlotMeta = {
   reason: 'ok' | 'holiday' | 'closed' | 'full';
@@ -152,14 +160,26 @@ function serviceMeta(s: Service): ServiceCardMeta {
   return { icon: '📌', subtitle: 'เลือกบริการที่ต้องการ' };
 }
 
+function resourceTypeLabel(resourceType?: string | null) {
+  const t = (resourceType || '').toLowerCase();
+  if (t === 'table') return 'โต๊ะ';
+  if (t === 'meeting_room') return 'ห้องประชุม';
+  if (t === 'buffet_zone') return 'โซนบุฟเฟ่ต์';
+  if (t === 'counter') return 'เคาน์เตอร์';
+  if (t === 'service_area') return 'พื้นที่บริการ';
+  return 'Resource';
+}
+
 export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey: string; initialTab?: 'booking' | 'account' }) {
   const { push } = useToast();
 
   const [shop, setShop] = useState<ShopMeta | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [resources, setResources] = useState<Resource[]>([]);
   const [branchId, setBranchId] = useState('');
   const [serviceId, setServiceId] = useState('');
+  const [selectedResourceId, setSelectedResourceId] = useState('');
   const [date, setDate] = useState(getTodayISOInBangkok());
   const [slots, setSlots] = useState<Slot[]>([]);
   const [slotHint, setSlotHint] = useState('');
@@ -225,6 +245,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         setShop(json.data.shop ?? null);
         setBranches(json.data.branches ?? []);
         setServices(json.data.services ?? []);
+        setResources(json.data.resources ?? []);
         if (json.data.branches?.[0]) setBranchId(json.data.branches[0].id);
         if (json.data.services?.[0]) setServiceId(json.data.services[0].id);
       } catch (e) {
@@ -347,7 +368,13 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     setSlotHint('');
     setSlotMeta({ reason: 'ok' });
     setSelectedTime('');
-    const url = `/api/public/shop/${shopKey}/slots?branch_id=${branchId}&service_id=${serviceId}&date=${date}`;
+    const params = new URLSearchParams({
+      branch_id: branchId,
+      service_id: serviceId,
+      date,
+    });
+    if (selectedResourceId) params.set('resource_id', selectedResourceId);
+    const url = `/api/public/shop/${shopKey}/slots?${params.toString()}`;
     try {
       const res = await fetch(url);
       const json = await res.json();
@@ -378,7 +405,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     setSelectedTime('');
     setSlotHint('');
     setSlotMeta({ reason: 'ok' });
-  }, [branchId, serviceId, date]);
+  }, [branchId, serviceId, date, selectedResourceId]);
 
   useEffect(() => {
     if (step !== 2 || !canLoadSlots) return;
@@ -397,6 +424,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         service_id: serviceId,
         booking_date: date,
         start_time: `${selectedTime}:00`,
+        resource_id: selectedResourceId || undefined,
         customer_name: customerName,
         customer_phone: customerPhone,
         line_user_id: lineUserId || undefined,
@@ -430,7 +458,32 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
 
   const selectedBranch = useMemo(() => branches.find((b) => b.id === branchId), [branches, branchId]);
   const selectedService = useMemo(() => services.find((s) => s.id === serviceId), [services, serviceId]);
+  const filteredResources = useMemo(
+    () => resources.filter((r) => !r.branch_id || r.branch_id === branchId),
+    [resources, branchId],
+  );
+  const selectedResource = useMemo(
+    () => filteredResources.find((r) => r.id === selectedResourceId),
+    [filteredResources, selectedResourceId],
+  );
   const uiTheme = useMemo(() => detectUiTheme(selectedService?.service_name), [selectedService?.service_name]);
+  const resourceSelectLabel = useMemo(() => {
+    const type = selectedResource?.resource_type || filteredResources[0]?.resource_type;
+    return `เลือก${resourceTypeLabel(type)}`;
+  }, [selectedResource, filteredResources]);
+
+  useEffect(() => {
+    if (!filteredResources.length) {
+      setSelectedResourceId('');
+      return;
+    }
+    if (filteredResources.length === 1) {
+      setSelectedResourceId(filteredResources[0].id);
+      return;
+    }
+    if (selectedResourceId && filteredResources.some((r) => r.id === selectedResourceId)) return;
+    setSelectedResourceId('');
+  }, [filteredResources, selectedResourceId]);
 
   async function cancelBooking(bookingId: string) {
     if (!lineUserId) return;
@@ -579,6 +632,12 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
               <p className="font-semibold text-slate-800">{selectedService?.service_name ?? '-'}</p>
               <p>สาขา {selectedBranch?.branch_name ?? '-'} • ระยะเวลา {selectedService?.duration_minutes ?? '-'} นาที</p>
+              {selectedResource ? (
+                <p className="mt-1">
+                  {resourceTypeLabel(selectedResource.resource_type)} {selectedResource.resource_code ? `${selectedResource.resource_code} - ` : ''}
+                  {selectedResource.resource_name}
+                </p>
+              ) : null}
             </div>
             <select className="input" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
               {branches.map((b) => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
@@ -586,6 +645,16 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
             <select className="input" value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
               {services.map((s) => <option key={s.id} value={s.id}>{s.service_name} ({s.duration_minutes} นาที)</option>)}
             </select>
+            {filteredResources.length > 1 ? (
+              <select className="input" value={selectedResourceId} onChange={(e) => setSelectedResourceId(e.target.value)}>
+                <option value="">{resourceSelectLabel}</option>
+                {filteredResources.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {resourceTypeLabel(r.resource_type)} {r.resource_code ? `${r.resource_code} - ` : ''}{r.resource_name}{r.capacity ? ` (${r.capacity} ที่นั่ง)` : ''}
+                  </option>
+                ))}
+              </select>
+            ) : null}
             <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             <button className="btn-primary w-full" style={{ background: uiTheme.accent }} onClick={() => void loadSlots()} disabled={!canLoadSlots || loading}>{loading ? 'กำลังโหลด...' : 'ดูเวลาว่าง'}</button>
 
