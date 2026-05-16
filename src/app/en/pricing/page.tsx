@@ -5,7 +5,7 @@ import { PublicFooter } from '@/components/public/public-footer';
 import { PricingCard } from '@/components/public/pricing-card';
 
 export const metadata: Metadata = {
-  title: 'Pricing | LINE Queue Booking SaaS',
+  title: 'Pricing | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE',
   description: 'Choose the best plan for your LINE OA queue booking workflow.',
   alternates: {
     canonical: '/en/pricing',

@@ -7,7 +7,7 @@ import { FaqSection } from '@/components/public/faq-section';
 import { faqs } from '@/components/public/content';
 
 export const metadata: Metadata = {
-  title: 'ติดต่อเรา | Contact LINE Queue Booking SaaS',
+  title: 'ติดต่อเรา | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE',
   description:
     'ติดต่อทีมงานเพื่อเริ่มใช้งานระบบจองคิวผ่าน LINE OA สำหรับธุรกิจของคุณ | Contact us for demo and onboarding.',
   alternates: {
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: 'ติดต่อเรา | LINE Queue Booking SaaS',
+    title: 'ติดต่อเรา | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE',
     description: 'ติดต่อทีมงานเพื่อรับเดโมและเริ่มใช้งานระบบจองคิวผ่าน LINE OA',
     url: '/contact',
     type: 'website',

@@ -7,7 +7,7 @@ import { blogPosts } from '@/components/public/blog-content';
 import { formatDateDMY } from '@/lib/utils/date-format';
 
 export const metadata: Metadata = {
-  title: 'บทความ | LINE Queue Booking SaaS',
+  title: 'บทความ | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE',
   description: 'บทความเกี่ยวกับระบบจองคิวผ่าน LINE OA, LIFF, การลด no-show และแนวทางเพิ่มประสิทธิภาพงานบริการ',
   alternates: {
     canonical: '/blog',

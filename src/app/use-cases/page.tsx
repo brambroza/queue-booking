@@ -6,7 +6,7 @@ import { PublicFooter } from '@/components/public/public-footer';
 import { useCases } from '@/components/public/content';
 
 export const metadata: Metadata = {
-  title: 'ตัวอย่างการใช้งาน | LINE Queue Booking SaaS',
+  title: 'ตัวอย่างการใช้งาน | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE',
   description: 'ตัวอย่างธุรกิจที่ใช้ระบบจองคิวผ่าน LINE OA เช่น ร้านตัดผม คลินิก ร้านอาหาร และศูนย์บริการ',
   alternates: {
     canonical: '/use-cases',

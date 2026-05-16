@@ -8,9 +8,9 @@ import { FaqSection } from '@/components/public/faq-section';
 import { PricingCard } from '@/components/public/pricing-card';
 
 export const metadata: Metadata = {
-  title: 'แผนราคา | LINE Queue Booking SaaS Pricing',
+  title: 'แผนราคา | ระบบจองคิวผ่าน LINE OA | ลูกค้าจองคิวเอง | ระบบจองคิว',
   description:
-    'เลือกแผนการใช้งานระบบจองคิวผ่าน LINE OA สำหรับร้านค้า คลินิก ร้านอาหาร ศูนย์บริการ | Pricing for LINE OA queue booking SaaS.',
+    'เลือกแผนการใช้งานระบบจองคิวผ่าน LINE OA สำหรับร้านค้า คลินิก ร้านอาหาร ศูนย์บริการ | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE',
   alternates: {
     canonical: '/pricing',
     languages: {
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: 'แผนราคา | LINE Queue Booking SaaS',
+    title: 'แผนราคา | ระบบจองคิวผ่าน LINE OA | ลูกค้าจองคิวเอง | ระบบจองคิว',
     description: 'เลือกแผนการใช้งานระบบจองคิวผ่าน LINE OA ให้เหมาะกับธุรกิจของคุณ',
     url: '/pricing',
     type: 'website',

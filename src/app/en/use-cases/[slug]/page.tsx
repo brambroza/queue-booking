@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   if (!found) return {};
   const en = useCasesEnBySlug[found.slug];
   return {
-    title: `${en?.title ?? found.title} | LINE Queue Booking SaaS`,
+    title: `${en?.title ?? found.title} | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE`,
     description: en?.summary ?? found.summary,
     alternates: {
       canonical: `/en/use-cases/${found.slug}`,

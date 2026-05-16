@@ -7,7 +7,7 @@ import { useCases } from '@/components/public/content';
 import { useCasesEnBySlug } from '@/components/public/use-cases-content-en';
 
 export const metadata: Metadata = {
-  title: 'Use Cases | LINE Queue Booking SaaS',
+  title: 'Use Cases | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE',
   description: 'Explore practical queue booking setups for barbers, clinics, restaurants, and service teams.',
   alternates: {
     canonical: '/en/use-cases',

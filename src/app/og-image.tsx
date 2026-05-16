@@ -41,7 +41,7 @@ export default function OgImage() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <div style={{ fontSize: 36, color: '#0f172a', fontWeight: 700 }}>QueueBooking LINE</div>
-            <div style={{ fontSize: 20, color: '#475569' }}>LINE OA Queue Booking SaaS</div>
+            <div style={{ fontSize: 20, color: '#475569' }}>| ระบบจองคิวผ่าน LINE OA | QueueBooking LINE</div>
           </div>
         </div>
 

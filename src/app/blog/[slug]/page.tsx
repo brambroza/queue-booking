@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const post = getBlogBySlug(slug);
   if (!post) return {};
   return {
-    title: `${post.title} | LINE Queue Booking SaaS`,
+    title: `${post.title} | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE`,
     description: post.description,
     alternates: {
       canonical: `/blog/${post.slug}`,
