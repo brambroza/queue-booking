@@ -13,7 +13,7 @@ import type { NotificationCategory, NotificationPriority } from '@/types/notific
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
-  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : fallback;
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
 }
 
 function getErrorPayload(e: unknown) {
@@ -58,8 +58,8 @@ export async function GET(req: Request) {
     const category = (searchParams.get('category') ?? '') as NotificationCategory | '';
     const priority = (searchParams.get('priority') ?? '') as NotificationPriority | '';
     const q = searchParams.get('q') ?? '';
-    const limit = Math.min(toInt(searchParams.get('limit'), 50), 100);
-    const offset = toInt(searchParams.get('offset'), 0);
+    const limit = Math.max(1, Math.min(toInt(searchParams.get('limit'), 50), 100));
+    const offset = Math.max(0, Number(searchParams.get('offset') ?? 0) || 0);
     const includeArchived = searchParams.get('include_archived') === 'true';
 
     const { data, total } = await getNotifications(supabase, {

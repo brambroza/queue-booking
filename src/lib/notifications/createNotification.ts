@@ -211,8 +211,9 @@ export async function getNotifications(
     q = q.or(`title.ilike.%${v}%,message.ilike.%${v}%,body.ilike.%${v}%`);
   }
 
-  const from = input.offset ?? 0;
-  const to = from + (input.limit ?? 10) - 1;
+  const from = Math.max(0, input.offset ?? 0);
+  const safeLimit = Math.max(1, input.limit ?? 10);
+  const to = from + safeLimit - 1;
   const { data, error, count } = await q.range(from, to);
   if (error) {
     if (!isMissingColumnError(error)) throw error;
