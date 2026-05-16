@@ -27,12 +27,19 @@ export function LiffBookingSimulator({
   const [selectedTime, setSelectedTime] = useState('10:30');
 
   const selected = useMemo(() => SERVICES.find((s) => s.id === serviceId) ?? SERVICES[0], [serviceId]);
+  const selectedResourceName = useMemo(() => {
+    if (serviceId === 'haircut') return 'ช่างบอส';
+    if (serviceId === 'buffet') return 'โต๊ะ T02';
+    if (serviceId === 'meeting') return 'ROOM-A';
+    return undefined;
+  }, [serviceId]);
 
   function handleConfirm() {
     onBooked({
       queueNo: `A${Math.floor(Math.random() * 900 + 100)}`,
       branchName: 'ประชาอุทิศ',
       serviceName: selected.name,
+      resourceName: selectedResourceName,
       dateLabel: '16 พ.ค. 2569',
       timeLabel: selectedTime,
       customerName,

@@ -6,6 +6,7 @@ export type DemoBooking = {
   queueNo: string;
   branchName: string;
   serviceName: string;
+  resourceName?: string;
   dateLabel: string;
   timeLabel: string;
   customerName: string;

@@ -3,6 +3,14 @@
 import { Box, Button, Stack, Typography } from '@mui/material';
 import type { DemoBooking } from '@/components/demo/line-demo-types';
 
+function resourceLabelByService(serviceName?: string) {
+  const name = (serviceName || '').toLowerCase();
+  if (name.includes('ตัดผม') || name.includes('สระ') || name.includes('เล็บ') || name.includes('barber') || name.includes('nail')) return 'ช่าง';
+  if (name.includes('ห้องประชุม') || name.includes('meeting')) return 'ห้อง';
+  if (name.includes('บุฟเฟ่ต์') || name.includes('ร้านอาหาร') || name.includes('โต๊ะ') || name.includes('buffet') || name.includes('restaurant')) return 'โต๊ะ';
+  return 'Resource';
+}
+
 export function FlexBookingSuccess({
   booking,
   onAction,
@@ -10,6 +18,7 @@ export function FlexBookingSuccess({
   booking: DemoBooking;
   onAction?: (action: 'my_queue' | 'cancel' | 'open_liff') => void;
 }) {
+  const resourceLabel = resourceLabelByService(booking.serviceName);
   return (
     <Box
       sx={{
@@ -29,6 +38,7 @@ export function FlexBookingSuccess({
         <Typography sx={{ fontSize: 38, fontWeight: 900, color: '#142030', lineHeight: 1 }}>เลขคิว {booking.queueNo}</Typography>
         <Typography>สาขา: {booking.branchName}</Typography>
         <Typography>บริการ: {booking.serviceName}</Typography>
+        {booking.resourceName ? <Typography>{resourceLabel}: {booking.resourceName}</Typography> : null}
         <Typography>วันที่: {booking.dateLabel}</Typography>
         <Typography>เวลา: {booking.timeLabel}</Typography>
         <Box sx={{ borderRadius: 2, bgcolor: '#f2f4f7', px: 1.6, py: 1, color: '#546171' }}>
