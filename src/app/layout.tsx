@@ -54,11 +54,15 @@ export const metadata: Metadata = {
     description: 'ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ | LINE OA queue booking platform.',
     images: ['/twitter-image'],
   },
-  icons: {
-    icon: '/favicon.png',
-    shortcut: '/favicon.ico',
-    apple: '/apple-touch-icon.png',
-  },
+ icons: {
+  icon: [
+    { url: '/favicon.ico', sizes: 'any' },
+    { url: '/favicon.png', type: 'image/png', sizes: '48x48' },
+    { url: '/favicon.png', type: 'image/png', sizes: '192x192' },
+  ],
+  shortcut: '/favicon.ico',
+  apple: '/apple-touch-icon.png',
+},
   verification: {
     google: 'vSwRXNYx8325qISY5YeR3oEyPIOGDMHUBKVrrRGXAd4',
   },
