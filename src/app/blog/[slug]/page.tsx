@@ -129,14 +129,32 @@ export default async function BlogDetailPage({ params }: { params: Promise<Param
                     borderColor: 'divider',
                     borderRadius: 2,
                     overflow: 'hidden',
-                    bgcolor: '#fff',
+                    bgcolor: '#fcfdfc',
                   }}
                 >
-                  <Box sx={{ position: 'relative', width: '100%', height: { xs: 180, md: 320 } }}>
-                    <Image src={img.src} alt={img.alt} fill style={{ objectFit: 'cover' }} />
+                  <Box sx={{ p: { xs: 1.2, md: 1.8 } }}>
+                    <Box
+                      sx={{
+                        border: '1px solid',
+                        borderColor: '#e6ece8',
+                        borderRadius: 1.5,
+                        overflow: 'hidden',
+                        bgcolor: '#fff',
+                      }}
+                    >
+                      <Image
+                        src={img.src}
+                        alt={img.alt}
+                        width={1600}
+                        height={1200}
+                        style={{ width: '100%', height: 'auto', display: 'block' }}
+                      />
+                    </Box>
                   </Box>
-                  <Box sx={{ p: 1.5 }}>
-                    <Typography variant="body2" color="text.secondary">{img.caption}</Typography>
+                  <Box sx={{ px: { xs: 1.2, md: 1.8 }, pb: { xs: 1.2, md: 1.6 }, pt: 0.2 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.65 }}>
+                      {img.caption}
+                    </Typography>
                   </Box>
                 </Box>
               ))}

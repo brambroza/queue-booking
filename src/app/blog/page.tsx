@@ -36,11 +36,17 @@ export default function BlogPage() {
                 <CardContent>
                   <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
                     <Chip label={post.category} size="small" />
+
                     <Typography variant="caption" color="text.secondary">
+
+
+
                       {formatDateDMY(post.publishedAt)} • {post.readingMinutes} นาที
                     </Typography>
                   </Stack>
-                  <Typography variant="h6" fontWeight={700}>{post.title}</Typography>
+                  <Link href={`/blog/${post.slug}`}>
+                   <Typography variant="h6" fontWeight={700}>{post.title}</Typography>
+                  </Link>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{post.description}</Typography>
                   <Stack direction="row" spacing={1} sx={{ mt: 1.4, flexWrap: 'wrap' }}>
                     {post.keywords.slice(0, 3).map((k) => <Chip key={k} label={k} size="small" variant="outlined" />)}
