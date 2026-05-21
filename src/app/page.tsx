@@ -6,6 +6,7 @@ import {
   FeatureSection,
   HeroSection,
   HowItWorksSection,
+  MockCaseStudySection,
   PainPointSection,
   PricingPreviewSection,
   
@@ -90,6 +91,7 @@ export default function HomePage() {
       <HowItWorksSection />
       <PricingPreviewSection />
       <TestimonialSection />
+      <MockCaseStudySection />
       <CtaSection />
       <PublicFooter />
     </main>

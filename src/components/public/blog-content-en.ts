@@ -2,6 +2,57 @@ import type { BlogPost } from '@/components/public/blog-content';
 
 export const blogPostsEn: BlogPost[] = [
   {
+    slug: 'line-table-booking',
+    title: 'LINE Table Booking System for Restaurants: Faster Reservations, Fewer Collisions',
+    description: 'Build a LINE-based restaurant table booking flow that reduces phone calls, prevents table collisions, and helps teams respond faster.',
+    category: 'Queue Operations',
+    publishedAt: '2026-05-21',
+    readingMinutes: 7,
+    keywords: ['book table via line', 'restaurant table booking system', 'line booking restaurant'],
+    sections: [
+      {
+        heading: 'Why manual reservations break during peak hours',
+        body: [
+          'Many restaurants still rely on phone reservations and manual chat handling.',
+          'When demand spikes, teams miss details, respond slowly, and lose customers before arrival.',
+          'The more branches, seat zones, and peak windows you have, the higher the risk of booking errors.',
+        ],
+      },
+      {
+        heading: 'Common pain points: phone booking, table collisions, slow admin response',
+        body: [
+          'Phone booking creates fragmented data and repeated confirmation work.',
+          'Table collisions happen when reservations are tracked across multiple channels manually.',
+          'Admins get overloaded with repetitive availability questions and cannot respond in time.',
+        ],
+      },
+      {
+        heading: 'How LINE table booking solves this structurally',
+        body: [
+          'Customers can check availability and reserve directly in LINE.',
+          'The system validates capacity and timeslot conflicts automatically before confirmation.',
+          'Each successful booking instantly notifies both customer and staff for smoother operations.',
+        ],
+      },
+      {
+        heading: 'Recommended line booking restaurant flow',
+        body: [
+          'Customer opens LINE OA > taps booking menu > selects branch, party size, date/time > confirms.',
+          'System sends an immediate booking confirmation in chat.',
+          'Staff sees new reservations in the dashboard in real time with clear statuses.',
+        ],
+      },
+      {
+        heading: 'Business outcomes restaurants should track',
+        body: [
+          'Lower repeated phone traffic during peak periods.',
+          'Fewer booking collisions and better table utilization.',
+          'Faster response time and stronger customer experience before arrival.',
+        ],
+      },
+    ],
+  },
+  {
     slug: 'barber-shop-line-queue-booking-customer-and-owner-flow',
     title: 'Barber Shop Queue Booking Flow: Customer Side and Owner Side',
     description: 'A practical barber-shop flow from LIFF booking (service + barber selection) to back-office notifications, calendar, and digital signage.',

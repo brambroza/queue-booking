@@ -38,6 +38,27 @@ const solutionCards = [
   { title: 'รายงานและสถิติ', desc: 'วิเคราะห์ข้อมูลเพื่อพัฒนาธุรกิจ', icon: <InsightsRoundedIcon sx={{ color: '#A32D2D' }} />, bg: '#FCEBEB' },
 ];
 
+const mockCaseStudies = [
+  {
+    business: 'คลินิกความงาม (1 สาขา)',
+    before: 'ลูกค้าถามคิวหัตถการช่วงเย็นพร้อมกัน แอดมินตอบไม่ทันและมีคิวซ้อน',
+    after: 'ลูกค้าเลือกบริการและเวลาว่างผ่าน LINE ได้เอง ทีมงานเห็นคิวรวมใน Dashboard ทันที',
+    outcomes: ['เวลาตอบแชทลดลง 60%', 'no-show ลดลง 27%', 'จำนวนคิวต่อวันเพิ่มจาก 32 เป็น 44'],
+  },
+  {
+    business: 'ร้านตัดผมชาย (2 สาขา)',
+    before: 'เสาร์-อาทิตย์หน้าร้านแน่น ลูกค้าทักถามคิวซ้ำและพนักงานจัดลำดับคิวยาก',
+    after: 'ลูกค้าจองล่วงหน้าและรับบัตรคิวผ่าน LINE ส่วนหน้าร้านดูคิวสดบน Queue Board',
+    outcomes: ['เวลารอหน้าร้านลดลง 34%', 'คิวซ้ำลดลง 41%', 'คิวสำเร็จต่อวันเพิ่มขึ้น 19%'],
+  },
+  {
+    business: 'ร้านบุฟเฟ่ต์ (3 สาขา)',
+    before: 'การจองรอบโต๊ะไม่สัมพันธ์กับความจุจริง ทำให้รอคิวนานและเสียรอบขายพีค',
+    after: 'ระบบล็อกจำนวนที่นั่งต่อรอบและเปิดจองผ่าน LINE พร้อมแจ้งเตือนก่อนถึงเวลา',
+    outcomes: ['อัตราเติมที่นั่งต่อรอบเพิ่มขึ้น 23%', 'เวลารอเฉลี่ยลดจาก 45 นาทีเหลือ 28 นาที', 'ยอดจองล่วงหน้าผ่าน LINE อยู่ที่ 66%'],
+  },
+];
+
 export function HeroSection() {
   return (
     <Box sx={{ background: '#fff', py: { xs: 8, md: 10 }, borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -248,6 +269,49 @@ export function TestimonialSection() {
   return (
     <SectionWrap title="ร้านค้าที่ใช้ระบบจัดการคิวได้ง่ายขึ้น" sub="เสียงตอบรับจากธุรกิจบริการ" tag="Testimonials" bg="#f6f7f9">
       <Grid container spacing={2}>{testimonials.map((t) => <Grid key={t.name} size={{ xs: 12, md: 4 }}><Card sx={{ borderRadius: 1, height: '100%' }}><CardContent><Typography>“{t.quote}”</Typography><Typography fontWeight={700} sx={{ mt: 1.2 }}>{t.name}</Typography><Typography variant="caption" color="text.secondary">{t.type}</Typography></CardContent></Card></Grid>)}</Grid>
+    </SectionWrap>
+  );
+}
+
+export function MockCaseStudySection() {
+  return (
+    <SectionWrap
+      title="เปรียบเทียบ ก่อนใช้ และหลังใช้ระบบ"
+      sub="เปรียบเทียบแบบแชทสั้น ๆ ก่อนใช้และหลังใช้ระบบ เพื่อเห็นภาพเร็ว"
+      tag="Case Study"
+      bg="#fff"
+    >
+      <Grid container spacing={2}>
+        {mockCaseStudies.map((item) => (
+          <Grid key={item.business} size={{ xs: 12, md: 4 }}>
+            <Card sx={{ borderRadius: 1, height: '100%', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+              <CardContent>
+                <Typography fontWeight={800} sx={{ mb: 1.2 }}>{item.business}</Typography>
+                <Stack spacing={1}>
+                  <Box sx={{ maxWidth: '92%', bgcolor: '#F4F6F8', color: '#1f2937', px: 1.2, py: 0.9, borderRadius: '12px 12px 12px 4px' }}>
+                    <Typography variant="caption" sx={{ color: '#6b7280', display: 'block', mb: 0.3 }}>ก่อนใช้ระบบ</Typography>
+                    <Typography variant="body2">{item.before}</Typography>
+                  </Box>
+                  <Box sx={{ ml: 'auto', maxWidth: '92%', bgcolor: '#EAF3DE', color: '#23410a', px: 1.2, py: 0.9, borderRadius: '12px 12px 4px 12px' }}>
+                    <Typography variant="caption" sx={{ color: '#3b6d11', display: 'block', mb: 0.3 }}>หลังใช้ระบบ</Typography>
+                    <Typography variant="body2">{item.after}</Typography>
+                  </Box>
+                </Stack>
+                <Divider sx={{ my: 1.2 }} />
+                <Typography variant="body2" fontWeight={700} sx={{ mb: 0.6 }}>ผลลัพธ์ที่คาดหวัง</Typography>
+                <Stack spacing={0.4}>
+                  {item.outcomes.map((x) => (
+                    <Typography key={x} variant="body2">• {x}</Typography>
+                  ))}
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
+        หมายเหตุ: ตัวเลขในส่วนนี้เป็นข้อมูลจำลอง (Mock) สำหรับใช้ประเมินภาพรวมและวางแผนการใช้งานเบื้องต้น
+      </Typography>
     </SectionWrap>
   );
 }
