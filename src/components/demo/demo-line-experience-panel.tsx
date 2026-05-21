@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Button, Card, CardContent, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, Chip, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import CampaignRoundedIcon from '@mui/icons-material/CampaignRounded';
@@ -101,8 +101,15 @@ export function DemoLineExperiencePanel() {
   const [showLiff, setShowLiff] = useState(true);
   const [lastBooking, setLastBooking] = useState<DemoBooking | null>(null);
   const [queueItems, setQueueItems] = useState<DemoQueueItem[]>(seededQueue);
+  const [currentStep, setCurrentStep] = useState<2 | 3 | 4 | 5>(2);
+  const [unlockedSteps, setUnlockedSteps] = useState<Record<2 | 3 | 4 | 5, boolean>>({
+    2: true,
+    3: false,
+    4: false,
+    5: false,
+  });
   const [memberProfile, setMemberProfile] = useState<DemoMemberProfile>({
-    name: 'Noh AK',
+    name: 'ลูกค้าประจำ',
     phone: '085-608-3298',
     tier: 'Silver',
     points: 120,
@@ -111,6 +118,10 @@ export function DemoLineExperiencePanel() {
   });
 
   const templateConfig = useMemo(() => TEMPLATE_CONFIG[template], [template]);
+
+  function unlockStep(step: 2 | 3 | 4 | 5) {
+    setUnlockedSteps((prev) => (prev[step] ? prev : { ...prev, [step]: true }));
+  }
 
   useEffect(() => {
     const channel = new BroadcastChannel('demo-line-experience-sync');
@@ -217,6 +228,8 @@ export function DemoLineExperiencePanel() {
   function onMenuSelect(key: DemoMenuAction) {
     setActiveMenu(key);
     if (key === 'booking' || key === 'open_liff') {
+      unlockStep(3);
+      setCurrentStep(3);
       setShowLiff(true);
       botReply('กรุณาเลือกบริการ วัน และเวลาใน LIFF Simulator ได้เลยค่ะ');
       return;
@@ -257,6 +270,8 @@ export function DemoLineExperiencePanel() {
   }
 
   function onBooked(booking: DemoBooking) {
+    unlockStep(4);
+    setCurrentStep(4);
     setLastBooking(booking);
     setShowLiff(false);
     setQueueItems((prev) => [...prev, { id: id(), ...booking, status: 'waiting', resourceName: templateConfig.resourceLabel }]);
@@ -285,8 +300,10 @@ export function DemoLineExperiencePanel() {
     setShowLiff(true);
     setTyping(false);
     setQueueItems(seededQueue);
+    setCurrentStep(2);
+    setUnlockedSteps({ 2: true, 3: false, 4: false, 5: false });
     setMemberProfile({
-      name: 'Noh AK',
+      name: 'ลูกค้าประจำ',
       phone: '085-608-3298',
       tier: 'Silver',
       points: 120,
@@ -305,6 +322,8 @@ export function DemoLineExperiencePanel() {
       botReply(`เปลี่ยนเทมเพลตเป็น ${payload.template} แล้ว`);
     }
     if (payload.type === 'queue') {
+      unlockStep(5);
+      setCurrentStep(5);
       if (payload.action === 'call_next') onCallNextQueue();
       if (payload.action === 'recall') onRecallQueue();
       if (payload.action === 'near') onNearQueue();
@@ -316,6 +335,40 @@ export function DemoLineExperiencePanel() {
 
   return (
     <Stack spacing={2}>
+      <Card sx={{ borderRadius: 1, border: '1px solid', borderColor: 'divider', boxShadow: 'none', bgcolor: '#fafcfa' }}>
+        <CardContent sx={{ py: 1.2 }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', md: 'center' }}>
+            <Typography variant="caption" color="text.secondary">ลำดับการทดลอง:</Typography>
+            <Stack direction="row" spacing={0.8} flexWrap="wrap">
+              {[2, 3, 4, 5].map((step) => {
+                const typedStep = step as 2 | 3 | 4 | 5;
+                const unlocked = unlockedSteps[typedStep];
+                const active = currentStep === typedStep;
+                return (
+                  <Chip
+                    key={step}
+                    label={`STEP ${step}`}
+                    clickable={unlocked}
+                    onClick={unlocked ? () => setCurrentStep(typedStep) : undefined}
+                    variant={active ? 'filled' : 'outlined'}
+                    sx={{
+                      bgcolor: active ? '#EAF3DE' : undefined,
+                      color: active ? '#3B6D11' : undefined,
+                      borderColor: unlocked ? undefined : '#d4dbe3',
+                      opacity: unlocked ? 1 : 0.55,
+                      fontWeight: 700,
+                    }}
+                  />
+                );
+              })}
+            </Stack>
+            <Typography variant="caption" color="text.secondary">
+              เริ่มจาก STEP 2 แล้วระบบจะปลดล็อกขั้นถัดไปให้อัตโนมัติ
+            </Typography>
+          </Stack>
+        </CardContent>
+      </Card>
+
       <Card sx={{ borderRadius: 1 }}>
         <CardContent>
           <Stack direction={{ xs: 'column', md: 'column' }} justifyContent="space-between" spacing={1.4}>
@@ -347,19 +400,40 @@ export function DemoLineExperiencePanel() {
       </Card>
 
       <Grid container spacing={2.2}>
-        <Grid size={{ xs: 6, xl: 6 }}>
-          <Card sx={{ borderRadius: 1, overflow: 'hidden' }}>
+        <Grid size={{ xs: 12, xl: 6 }}>
+          <Card
+            sx={{
+              borderRadius: 1,
+              overflow: 'hidden',
+              maxWidth: 420,
+              mx: 'auto',
+              width: '100%',
+            }}
+          >
             <CardContent sx={{ p: 0 }}>
+              <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid', borderColor: 'divider', bgcolor: '#fafcfa' }}>
+                <Typography variant="caption" color="text.secondary">STEP 2: LINE Chat Simulator</Typography>
+              </Box>
               <LineChatSimulator messages={messages} typing={typing} onQuickReply={(k) => handleEvent({ type: 'quick', key: k })} memberProfile={memberProfile} shopName={templateConfig.shopName} />
               <RichMenuSimulator active={activeMenu} onSelect={(key) => handleEvent({ type: 'menu', key })} labels={templateConfig.menuLabels} />
             </CardContent>
           </Card>
         </Grid>
 
-        <Grid size={{ xs: 6, xl: 6 }}>
-          <Stack spacing={2}>
-            <Card sx={{ borderRadius: 1 }}>
+        <Grid size={{ xs: 12, xl: 6 }}>
+          <Stack spacing={2} alignItems="center">
+            {unlockedSteps[3] ? (
+            <Card
+              sx={{
+                borderRadius: 1,
+                border: currentStep === 3 ? '2px solid #73c088' : undefined,
+                maxWidth: 420,
+                mx: 'auto',
+                width: '100%',
+              }}
+            >
               <CardContent>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.6 }}>STEP 3: LIFF Booking</Typography>
                 <Typography fontWeight={800} sx={{ mb: 1 }}>LIFF Booking Simulator</Typography>
                 {showLiff ? <LiffBookingSimulator onBooked={(booking) => handleEvent({ type: 'booked', booking })} /> : (
                   <Box sx={{ border: '1px dashed #c6d5e2', borderRadius: 1, p: 2.2, textAlign: 'center', color: '#586677' }}>
@@ -368,9 +442,28 @@ export function DemoLineExperiencePanel() {
                 )}
               </CardContent>
             </Card>
+            ) : (
+              <Card sx={{ borderRadius: 1, border: '1px dashed #c6d5e2', maxWidth: 420, mx: 'auto', width: '100%' }}>
+                <CardContent>
+                  <Typography variant="caption" color="text.secondary">STEP 3: LIFF Booking</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>
+                    ไปที่ STEP 2 แล้วกดเมนู &quot;จองคิว&quot; ก่อน เพื่อปลดล็อกขั้นตอนนี้
+                  </Typography>
+                </CardContent>
+              </Card>
+            )}
 
-            <Card sx={{ borderRadius: 1 }}>
+            {unlockedSteps[4] ? (
+            <Card
+              sx={{
+                borderRadius: 1,
+                border: currentStep === 4 ? '2px solid #73c088' : undefined,
+                maxWidth: 420,
+                width: '100%',
+              }}
+            >
               <CardContent>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.6 }}>STEP 4: Queue Notification</Typography>
                 <Typography fontWeight={800} sx={{ mb: 1 }}>Queue Notification Simulator</Typography>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap">
                   <Button variant="outlined" startIcon={<QueueRoundedIcon />} onClick={() => handleEvent({ type: 'queue', action: 'call_next' })}>เรียกคิวถัดไป</Button>
@@ -383,26 +476,31 @@ export function DemoLineExperiencePanel() {
                 </Stack>
               </CardContent>
             </Card>
+            ) : null}
           </Stack>
         </Grid>
       </Grid>
 
+      {unlockedSteps[5] ? (
       <Grid container spacing={2.2}>
-        <Grid size={{ xs: 12, lg: 7 }}>
-          <Card sx={{ borderRadius: 1 }}>
+        <Grid size={{ xs: 12 }}>
+          <Card sx={{ borderRadius: 1, border: currentStep === 5 ? '2px solid #73c088' : undefined }}>
             <CardContent>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.6 }}>STEP 5: Queue Board</Typography>
               <DemoQueueBoard items={queueItems} />
             </CardContent>
           </Card>
         </Grid>
-        <Grid size={{ xs: 12, lg: 5 }}>
-          <Card sx={{ borderRadius: 1 }}>
+        <Grid size={{ xs: 12 }}>
+          <Card sx={{ borderRadius: 1, border: currentStep === 5 ? '2px solid #73c088' : undefined }}>
             <CardContent>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.6 }}>STEP 5: Signage View</Typography>
               <DemoSignage items={queueItems} />
             </CardContent>
           </Card>
         </Grid>
       </Grid>
+      ) : null}
     </Stack>
   );
 }

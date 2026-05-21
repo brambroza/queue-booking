@@ -20,7 +20,6 @@ import {
   InputLabel,
   List,
   ListItem,
-  ListItemText,
   MenuItem,
   Select,
   Stack,
@@ -157,28 +156,53 @@ export default function DemoSandboxPage() {
   }
 
   return (
-    <Stack spacing={2}>
-      <Card>
+    <Stack spacing={2.5}>
+      <Card
+        sx={{
+          borderRadius: 2,
+          border: '1px solid',
+          borderColor: 'divider',
+          boxShadow: 'none',
+          background: 'linear-gradient(135deg,#ffffff 0%,#f8fbf8 100%)',
+        }}
+      >
         <CardContent>
-          <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}>
+          <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2.5}>
             <Box>
-              <Typography variant="h6" fontWeight={800}>Demo Sandbox</Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Chip
+                label="SANDBOX MODE"
+                size="small"
+                sx={{ mb: 1, bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 700, letterSpacing: 0.3 }}
+              />
+              <Typography variant="h5" fontWeight={800}>Demo Sandbox</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 620 }}>
                 สมัครแล้วทดลองระบบได้ทันที โดยไม่ต้องเชื่อม LINE OA/LIFF จริง
               </Typography>
-              {shop?.name ? <Chip sx={{ mt: 1 }} label={`ร้าน: ${shop.name}`} /> : null}
+              {shop?.name ? (
+                <Chip
+                  sx={{ mt: 1.2, borderRadius: 1.5 }}
+                  variant="outlined"
+                  label={`ร้าน: ${shop.name}`}
+                />
+              ) : null}
             </Box>
-            <Stack direction="row" spacing={1} flexWrap="wrap">
-              <Button component={Link} href="/portal/line-settings" variant="contained" startIcon={<LinkRoundedIcon />}>
+            <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="flex-start">
+              <Button
+                component={Link}
+                href="/portal/line-settings"
+                variant="contained"
+                startIcon={<LinkRoundedIcon />}
+                sx={{ borderRadius: 1.5 }}
+              >
                 เชื่อม LINE OA
               </Button>
-              <Button component={Link} href="/portal/onboarding/line-setup" variant="outlined">
+              <Button component={Link} href="/portal/onboarding/line-setup" variant="outlined" sx={{ borderRadius: 1.5 }}>
                 ตั้งค่า LIFF
               </Button>
-              <Button component={Link} href="/portal/rich-menu-guide" variant="outlined">
+              <Button component={Link} href="/portal/rich-menu-guide" variant="outlined" sx={{ borderRadius: 1.5 }}>
                 คู่มือ Rich Menu
               </Button>
-              <Button variant="outlined" color="success" onClick={() => setConvertOpen(true)}>
+              <Button variant="outlined" color="success" onClick={() => setConvertOpen(true)} sx={{ borderRadius: 1.5 }}>
                 ใช้ข้อมูลตัวอย่างนี้ต่อเป็นข้อมูลจริง
               </Button>
             </Stack>
@@ -186,16 +210,24 @@ export default function DemoSandboxPage() {
         </CardContent>
       </Card>
 
-      <Alert severity="info">
+      <Alert
+        severity="info"
+        sx={{
+          borderRadius: 2,
+          border: '1px solid',
+          borderColor: '#d8e8ff',
+          bgcolor: '#f7fbff',
+        }}
+      >
         คุณกำลังใช้งานโหมดตัวอย่าง ข้อมูลนี้ใช้สำหรับทดลองเท่านั้น
       </Alert>
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 7 }}>
-          <Card>
+          <Card sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', boxShadow: 'none', height: '100%' }}>
             <CardContent>
-              <Typography variant="subtitle1" fontWeight={700}>Business Type Selector</Typography>
-              <Typography variant="body2" color="text.secondary" mb={1.5}>
+              <Typography variant="subtitle1" fontWeight={700}>Business Type</Typography>
+              <Typography variant="body2" color="text.secondary" mb={1.8}>
                 เลือกประเภทธุรกิจเพื่อสร้างข้อมูลตัวอย่าง
               </Typography>
               <FormControl fullWidth size="small">
@@ -211,11 +243,12 @@ export default function DemoSandboxPage() {
                 </Select>
               </FormControl>
 
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} mt={2}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} mt={2.2}>
                 <Button
                   variant="contained"
                   disabled={saving}
                   startIcon={<PlayCircleRoundedIcon />}
+                  sx={{ borderRadius: 1.5 }}
                   onClick={() => void runAction('create')}
                 >
                   สร้างข้อมูลตัวอย่าง
@@ -225,6 +258,7 @@ export default function DemoSandboxPage() {
                   color="warning"
                   disabled={saving || !hasDemoData}
                   startIcon={<RestartAltRoundedIcon />}
+                  sx={{ borderRadius: 1.5 }}
                   onClick={() => void runAction('reset')}
                 >
                   รีเซ็ตข้อมูลตัวอย่าง
@@ -233,29 +267,30 @@ export default function DemoSandboxPage() {
                   variant="outlined"
                   color="error"
                   disabled={saving}
+                  sx={{ borderRadius: 1.5 }}
                   onClick={() => void runAction('disable')}
                 >
                   ปิดโหมดตัวอย่าง
                 </Button>
               </Stack>
 
-              <Stack direction="row" spacing={1} mt={2}>
+              <Stack direction="row" spacing={1} mt={2.2} flexWrap="wrap">
                 <Button component={Link} href="/portal/queue-board" variant="text">เปิด Queue Board</Button>
                 <Button component={Link} href="/portal/queue-display" variant="text">เปิด Digital Signage</Button>
                 <Button component={Link} href="/portal/dashboard" variant="text">เปิด Dashboard</Button>
                 {shop?.shop_key ? <Button component={Link} href={`/display/${encodeURIComponent(shop.shop_key)}`} variant="text">เปิด Public Display</Button> : null}
               </Stack>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} mt={1.5}>
-                <Button variant="outlined" disabled={saving} onClick={() => void runDemoAction('create_booking')}>สร้าง Booking ตัวอย่าง</Button>
-                <Button variant="outlined" disabled={saving} onClick={() => void runDemoAction('call_next')}>เรียกคิวถัดไป</Button>
-                <Button variant="outlined" disabled={saving} onClick={() => void runDemoAction('send_mock')}>ส่ง Mock LINE Message</Button>
+                <Button sx={{ borderRadius: 1.5 }} variant="outlined" disabled={saving} onClick={() => void runDemoAction('create_booking')}>สร้าง Booking ตัวอย่าง</Button>
+                <Button sx={{ borderRadius: 1.5 }} variant="outlined" disabled={saving} onClick={() => void runDemoAction('call_next')}>เรียกคิวถัดไป</Button>
+                <Button sx={{ borderRadius: 1.5 }} variant="outlined" disabled={saving} onClick={() => void runDemoAction('send_mock')}>ส่ง Mock LINE Message</Button>
               </Stack>
             </CardContent>
           </Card>
         </Grid>
 
         <Grid size={{ xs: 12, md: 5 }}>
-          <Card>
+          <Card sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', boxShadow: 'none', height: '100%' }}>
             <CardContent>
               <Typography variant="subtitle1" fontWeight={700}>Guided Tour Checklist</Typography>
               <List dense>
@@ -266,7 +301,7 @@ export default function DemoSandboxPage() {
                 <ListItem sx={{ px: 0 }}><FormControlLabel control={<Checkbox checked={checklist.mock_chat} onChange={(e) => void saveChecklist({ ...checklist, mock_chat: e.target.checked })} />} label="ทดลอง Mock LINE Chat" /></ListItem>
                 <ListItem sx={{ px: 0 }}><FormControlLabel control={<Checkbox checked={checklist.connect_line} onChange={(e) => void saveChecklist({ ...checklist, connect_line: e.target.checked })} />} label="เชื่อม LINE OA จริง" /></ListItem>
               </List>
-              <Box sx={{ mt: 1 }}>
+              <Box sx={{ mt: 1.2, p: 1.3, borderRadius: 1.5, bgcolor: '#f8fafc', border: '1px solid #e8edf3' }}>
                 <Typography variant="caption" color="text.secondary" display="block">
                   สถานะ: {loading ? 'กำลังโหลด...' : hasDemoData ? 'พร้อมใช้งาน' : 'ยังไม่มีข้อมูลตัวอย่าง'}
                 </Typography>
@@ -287,11 +322,11 @@ export default function DemoSandboxPage() {
         </Grid>
       </Grid>
 
-      <DemoLineExperiencePanel />
-
-
-
-      
+      <Card sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        <CardContent sx={{ p: { xs: 1.2, md: 2 } }}>
+          <DemoLineExperiencePanel />
+        </CardContent>
+      </Card>
 
       <Dialog open={convertOpen} onClose={() => setConvertOpen(false)}>
         <DialogTitle>Convert Demo To Real</DialogTitle>

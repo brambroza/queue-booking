@@ -34,7 +34,6 @@ export function PortalFrame({
   children,
   logoUrl,
   shopName,
-  shopId,
   fullName,
   email,
   appVersion,
@@ -44,7 +43,6 @@ export function PortalFrame({
   children: React.ReactNode;
   logoUrl: string | null;
   shopName?: string | null;
-  shopId?: string | null;
   fullName?: string | null;
   email?: string | null;
   appVersion: string;
@@ -99,6 +97,24 @@ export function PortalFrame({
             </Breadcrumbs>
           </Box>
           <Stack direction="row" spacing={1.2} alignItems="center">
+          {/*   <Button
+              component={Link}
+              href="/portal/demo-sandbox"
+              size="small"
+              variant={demoModeEnabled ? 'contained' : 'outlined'}
+              startIcon={<ScienceRoundedIcon />}
+              sx={{
+                borderRadius: 999,
+                textTransform: 'none',
+                whiteSpace: 'nowrap',
+                bgcolor: demoModeEnabled ? '#639922' : undefined,
+                borderColor: demoModeEnabled ? '#639922' : undefined,
+                '&:hover': { bgcolor: demoModeEnabled ? '#3B6D11' : undefined, borderColor: '#639922' },
+                display: { xs: 'none', sm: 'inline-flex' },
+              }}
+            >
+              โหมดทดลอง
+            </Button> */}
             <LanguageSwitch />
             <NotificationsMenu />
             <TopbarUserMenu initialName={fullName} email={email} appVersion={appVersion} />

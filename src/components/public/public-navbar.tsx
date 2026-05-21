@@ -5,6 +5,7 @@ import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 
 const navs = [
   { label: 'หน้าแรก', href: '/' },
+  { label: 'โหมดทดลอง', href: '/sandbox-demo' },
   { label: 'ฟีเจอร์', href: '/#features' },
   { label: 'ตัวอย่างการใช้งาน', href: '/#showcase' },
   { label: 'บทความ', href: '/blog' },

@@ -61,7 +61,6 @@ export default async function PortalLayout({ children }: { children: React.React
     <PortalFrame
       logoUrl={logoUrl}
       shopName={shop?.name}
-      shopId={resolvedShopId}
       fullName={profile?.full_name}
       email={user.email}
       appVersion={appVersion}
