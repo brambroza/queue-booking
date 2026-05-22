@@ -59,9 +59,40 @@ export function PublicNavbar() {
           </Typography>
 
           <Stack direction="row" spacing={0.5} sx={{ display: { xs: 'none', md: 'flex' } }}>
-            {navs.map((n) => (
-              <Button key={n.href} component={Link} href={n.href} color="inherit">{n.label}</Button>
-            ))}
+            {navs.map((n) => {
+              const isDemo = n.href === '/sandbox-demo';
+              return (
+                <Button
+                  key={n.href}
+                  component={Link}
+                  href={n.href}
+                  color="inherit"
+                  sx={
+                    isDemo
+                      ? {
+                          bgcolor: '#EAF7EF',
+                          color: '#1B5E20',
+                          border: '1px solid #73C088',
+                          borderRadius: 999,
+                          fontWeight: 700,
+                          px: 1.6,
+                          animation: 'demoBlink 1.4s ease-in-out infinite',
+                          '@keyframes demoBlink': {
+                            '0%, 100%': { boxShadow: '0 0 0 0 rgba(115, 192, 136, 0.45)' },
+                            '50%': { boxShadow: '0 0 0 8px rgba(115, 192, 136, 0)' },
+                          },
+                          '&:hover': {
+                            bgcolor: '#DDF2E5',
+                            borderColor: '#5EAD77',
+                          },
+                        }
+                      : undefined
+                  }
+                >
+                  {n.label}
+                </Button>
+              );
+            })}
           </Stack>
 
           <Box sx={{ display: 'flex', gap: 1 }}>
