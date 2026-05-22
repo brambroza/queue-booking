@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Button, Card, CardContent, Chip, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import CampaignRoundedIcon from '@mui/icons-material/CampaignRounded';
@@ -120,11 +120,21 @@ export function DemoLineExperiencePanel() {
     totalBookings: 6,
     lastQueueNo: 'A003',
   });
+  const [walktourOpen, setWalktourOpen] = useState(false);
+  const [walktourIndex, setWalktourIndex] = useState(0);
 
   const templateConfig = useMemo(() => TEMPLATE_CONFIG[template], [template]);
   const stepOrder: Array<2 | 3 | 4 | 5 | 6> = [2, 3, 4, 5, 6];
   const currentStepIndex = stepOrder.indexOf(currentStep);
   const nextStep = currentStepIndex >= 0 ? stepOrder[currentStepIndex + 1] : undefined;
+  const walktourSteps: Array<{ step: 2 | 3 | 4 | 5 | 6; title: string; description: string }> = [
+    { step: 2, title: 'STEP 1: LINE Chat', description: 'เริ่มจากแชทลูกค้าใน LINE และกดเมนูจองคิวจาก Rich Menu' },
+    { step: 3, title: 'STEP 2: LIFF Booking', description: 'เลือกบริการ วัน เวลา และยืนยันการจองผ่าน LIFF' },
+    { step: 4, title: 'STEP 3: Queue Notification', description: 'ฝั่งร้านทดลองส่งแจ้งเตือน เรียกคิว และอัปเดตสถานะคิว' },
+    { step: 5, title: 'STEP 4: Queue Board', description: 'ดูภาพรวมคิวสำหรับพนักงาน พร้อมมุมมองลูกค้าแบบมือถือ' },
+    { step: 6, title: 'STEP 5: Signage View', description: 'แสดงจอเรียกคิวหน้าร้านสำหรับลูกค้าที่รอคิว' },
+  ];
+  const activeWalktourStep = walktourSteps[walktourIndex];
 
   function unlockStep(step: 2 | 3 | 4 | 5 | 6) {
     setUnlockedSteps((prev) => (prev[step] ? prev : { ...prev, [step]: true }));
@@ -133,6 +143,42 @@ export function DemoLineExperiencePanel() {
   function goToNextStep() {
     if (!nextStep || !unlockedSteps[nextStep]) return;
     setCurrentStep(nextStep);
+  }
+
+  function goToStepWithUnlock(step: 2 | 3 | 4 | 5 | 6) {
+    setUnlockedSteps((prev) => ({
+      ...prev,
+      2: true,
+      3: step >= 3 ? true : prev[3],
+      4: step >= 4 ? true : prev[4],
+      5: step >= 5 ? true : prev[5],
+      6: step >= 6 ? true : prev[6],
+    }));
+    setCurrentStep(step);
+  }
+
+  function startWalktour() {
+    setWalktourIndex(0);
+    setWalktourOpen(true);
+    goToStepWithUnlock(2);
+  }
+
+  function moveWalktour(direction: 'next' | 'prev') {
+    if (!activeWalktourStep) return;
+    if (direction === 'prev') {
+      const prevIndex = Math.max(0, walktourIndex - 1);
+      setWalktourIndex(prevIndex);
+      goToStepWithUnlock(walktourSteps[prevIndex].step);
+      return;
+    }
+    const isLast = walktourIndex >= walktourSteps.length - 1;
+    if (isLast) {
+      setWalktourOpen(false);
+      return;
+    }
+    const nextIndex = walktourIndex + 1;
+    setWalktourIndex(nextIndex);
+    goToStepWithUnlock(walktourSteps[nextIndex].step);
   }
 
   async function openFullscreen(target: 'step5' | 'step6') {
@@ -424,6 +470,14 @@ export function DemoLineExperiencePanel() {
             >
               Next Step
             </Button>
+            <Button
+              size="small"
+              variant="contained"
+              onClick={startWalktour}
+              sx={{ bgcolor: '#73C088', '&:hover': { bgcolor: '#5ead77' } }}
+            >
+              Walktour
+            </Button>
           </Stack>
         </CardContent>
       </Card>
@@ -597,6 +651,27 @@ export function DemoLineExperiencePanel() {
           </Grid>
         </Grid>
       ) : null}
+
+      <Dialog open={walktourOpen} onClose={() => setWalktourOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ pb: 0.8 }}>
+          {activeWalktourStep?.title}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            {activeWalktourStep?.description}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1.2, display: 'block' }}>
+            ขั้นตอน {walktourIndex + 1} / {walktourSteps.length}
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 2, pb: 1.6 }}>
+          <Button onClick={() => setWalktourOpen(false)}>ปิด</Button>
+          <Button onClick={() => moveWalktour('prev')} disabled={walktourIndex === 0}>ก่อนหน้า</Button>
+          <Button variant="contained" onClick={() => moveWalktour('next')} sx={{ bgcolor: '#73C088', '&:hover': { bgcolor: '#5ead77' } }}>
+            {walktourIndex >= walktourSteps.length - 1 ? 'เสร็จสิ้น' : 'ถัดไป'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }
