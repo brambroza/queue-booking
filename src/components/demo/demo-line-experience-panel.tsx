@@ -11,6 +11,7 @@ import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import QueueRoundedIcon from '@mui/icons-material/QueueRounded';
 import AddCircleOutlineRoundedIcon from '@mui/icons-material/AddCircleOutlineRounded';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
+import FullscreenRoundedIcon from '@mui/icons-material/FullscreenRounded';
 import { LineChatSimulator } from '@/components/demo/line-chat-simulator';
 import { LiffBookingSimulator } from '@/components/demo/liff-booking-simulator';
 import { RichMenuSimulator } from '@/components/demo/rich-menu-simulator';
@@ -93,6 +94,8 @@ type SyncEvent =
 export function DemoLineExperiencePanel() {
   const sourceId = useRef(id());
   const channelRef = useRef<BroadcastChannel | null>(null);
+  const step5FullscreenRef = useRef<HTMLDivElement | null>(null);
+  const step6FullscreenRef = useRef<HTMLDivElement | null>(null);
 
   const [template, setTemplate] = useState<DemoTemplate>('barber');
   const [activeMenu, setActiveMenu] = useState<DemoMenuAction>('booking');
@@ -101,12 +104,13 @@ export function DemoLineExperiencePanel() {
   const [showLiff, setShowLiff] = useState(true);
   const [lastBooking, setLastBooking] = useState<DemoBooking | null>(null);
   const [queueItems, setQueueItems] = useState<DemoQueueItem[]>(seededQueue);
-  const [currentStep, setCurrentStep] = useState<2 | 3 | 4 | 5>(2);
-  const [unlockedSteps, setUnlockedSteps] = useState<Record<2 | 3 | 4 | 5, boolean>>({
+  const [currentStep, setCurrentStep] = useState<2 | 3 | 4 | 5 | 6>(2);
+  const [unlockedSteps, setUnlockedSteps] = useState<Record<2 | 3 | 4 | 5 | 6, boolean>>({
     2: true,
     3: false,
     4: false,
     5: false,
+    6: false,
   });
   const [memberProfile, setMemberProfile] = useState<DemoMemberProfile>({
     name: 'ลูกค้าประจำ',
@@ -118,9 +122,23 @@ export function DemoLineExperiencePanel() {
   });
 
   const templateConfig = useMemo(() => TEMPLATE_CONFIG[template], [template]);
+  const stepOrder: Array<2 | 3 | 4 | 5 | 6> = [2, 3, 4, 5, 6];
+  const currentStepIndex = stepOrder.indexOf(currentStep);
+  const nextStep = currentStepIndex >= 0 ? stepOrder[currentStepIndex + 1] : undefined;
 
-  function unlockStep(step: 2 | 3 | 4 | 5) {
+  function unlockStep(step: 2 | 3 | 4 | 5 | 6) {
     setUnlockedSteps((prev) => (prev[step] ? prev : { ...prev, [step]: true }));
+  }
+
+  function goToNextStep() {
+    if (!nextStep || !unlockedSteps[nextStep]) return;
+    setCurrentStep(nextStep);
+  }
+
+  async function openFullscreen(target: 'step5' | 'step6') {
+    const element = target === 'step5' ? step5FullscreenRef.current : step6FullscreenRef.current;
+    if (!element) return;
+    await element.requestFullscreen?.();
   }
 
   useEffect(() => {
@@ -301,7 +319,7 @@ export function DemoLineExperiencePanel() {
     setTyping(false);
     setQueueItems(seededQueue);
     setCurrentStep(2);
-    setUnlockedSteps({ 2: true, 3: false, 4: false, 5: false });
+    setUnlockedSteps({ 2: true, 3: false, 4: false, 5: false, 6: false });
     setMemberProfile({
       name: 'ลูกค้าประจำ',
       phone: '085-608-3298',
@@ -323,6 +341,7 @@ export function DemoLineExperiencePanel() {
     }
     if (payload.type === 'queue') {
       unlockStep(5);
+      unlockStep(6);
       setCurrentStep(5);
       if (payload.action === 'call_next') onCallNextQueue();
       if (payload.action === 'recall') onRecallQueue();
@@ -335,39 +354,7 @@ export function DemoLineExperiencePanel() {
 
   return (
     <Stack spacing={2}>
-      <Card sx={{ borderRadius: 1, border: '1px solid', borderColor: 'divider', boxShadow: 'none', bgcolor: '#fafcfa' }}>
-        <CardContent sx={{ py: 1.2 }}>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', md: 'center' }}>
-            <Typography variant="caption" color="text.secondary">ลำดับการทดลอง:</Typography>
-            <Stack direction="row" spacing={0.8} flexWrap="wrap">
-              {[2, 3, 4, 5].map((step) => {
-                const typedStep = step as 2 | 3 | 4 | 5;
-                const unlocked = unlockedSteps[typedStep];
-                const active = currentStep === typedStep;
-                return (
-                  <Chip
-                    key={step}
-                    label={`STEP ${step}`}
-                    clickable={unlocked}
-                    onClick={unlocked ? () => setCurrentStep(typedStep) : undefined}
-                    variant={active ? 'filled' : 'outlined'}
-                    sx={{
-                      bgcolor: active ? '#EAF3DE' : undefined,
-                      color: active ? '#3B6D11' : undefined,
-                      borderColor: unlocked ? undefined : '#d4dbe3',
-                      opacity: unlocked ? 1 : 0.55,
-                      fontWeight: 700,
-                    }}
-                  />
-                );
-              })}
-            </Stack>
-            <Typography variant="caption" color="text.secondary">
-              เริ่มจาก STEP 2 แล้วระบบจะปลดล็อกขั้นถัดไปให้อัตโนมัติ
-            </Typography>
-          </Stack>
-        </CardContent>
-      </Card>
+
 
       <Card sx={{ borderRadius: 1 }}>
         <CardContent>
@@ -390,7 +377,7 @@ export function DemoLineExperiencePanel() {
                 <MenuItem value="clinic">Clinic</MenuItem>
                 <MenuItem value="meeting">Meeting Room</MenuItem>
               </TextField>
-              <Button  onClick={() => handleEvent({ type: 'reset' })} variant="outlined" startIcon={<RefreshRoundedIcon />}>Reset Demo</Button>
+              <Button onClick={() => handleEvent({ type: 'reset' })} variant="outlined" startIcon={<RefreshRoundedIcon />}>Reset Demo</Button>
               <Button onClick={() => handleEvent({ type: 'menu', key: 'booking' })} variant="contained" startIcon={<PlayArrowRoundedIcon />} sx={{ bgcolor: '#73C088', '&:hover': { bgcolor: '#5ead77' } }}>
                 เริ่ม Flow จองคิว
               </Button>
@@ -399,107 +386,216 @@ export function DemoLineExperiencePanel() {
         </CardContent>
       </Card>
 
-      <Grid container spacing={2.2}>
-        <Grid size={{ xs: 12, xl: 6 }}>
-          <Card
-            sx={{
-              borderRadius: 1,
-              overflow: 'hidden',
-              maxWidth: 420,
-              mx: 'auto',
-              width: '100%',
-            }}
-          >
-            <CardContent sx={{ p: 0 }}>
-              <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid', borderColor: 'divider', bgcolor: '#fafcfa' }}>
-                <Typography variant="caption" color="text.secondary">STEP 2: LINE Chat Simulator</Typography>
-              </Box>
-              <LineChatSimulator messages={messages} typing={typing} onQuickReply={(k) => handleEvent({ type: 'quick', key: k })} memberProfile={memberProfile} shopName={templateConfig.shopName} />
-              <RichMenuSimulator active={activeMenu} onSelect={(key) => handleEvent({ type: 'menu', key })} labels={templateConfig.menuLabels} />
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, xl: 6 }}>
-          <Stack spacing={2} alignItems="center">
-            {unlockedSteps[3] ? (
-            <Card
-              sx={{
-                borderRadius: 1,
-                border: currentStep === 3 ? '2px solid #73c088' : undefined,
-                maxWidth: 420,
-                mx: 'auto',
-                width: '100%',
-              }}
+      <Card sx={{ borderRadius: 1, border: '1px solid', borderColor: 'divider', boxShadow: 'none', bgcolor: '#fafcfa' }}>
+        <CardContent sx={{ py: 1.2 }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'center', md: 'center' }}>
+            <Typography variant="caption" color="text.secondary">ลำดับการทดลอง:</Typography>
+            <Stack direction="row" spacing={0.8} flexWrap="wrap">
+              {[2, 3, 4, 5, 6].map((step) => {
+                const typedStep = step as 2 | 3 | 4 | 5 | 6;
+                const unlocked = unlockedSteps[typedStep];
+                const active = currentStep === typedStep;
+                return (
+                  <Chip
+                    key={step}
+                    label={`STEP ${step-1}`}
+                    clickable={unlocked}
+                    onClick={unlocked ? () => setCurrentStep(typedStep) : undefined}
+                    variant={active ? 'filled' : 'outlined'}
+                    sx={{
+                      bgcolor: active ? '#EAF3DE' : undefined,
+                      color: active ? '#3B6D11' : undefined,
+                      borderColor: unlocked ? undefined : '#d4dbe3',
+                      opacity: unlocked ? 1 : 0.55,
+                      fontWeight: 700,
+                    }}
+                  />
+                );
+              })}
+            </Stack>
+            <Typography variant="caption" color="text.secondary">
+              เริ่มจาก STEP 1 แล้วระบบจะปลดล็อกขั้นถัดไปให้อัตโนมัติ
+            </Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={goToNextStep}
+              disabled={!nextStep || !unlockedSteps[nextStep]}
             >
-              <CardContent>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.6 }}>STEP 3: LIFF Booking</Typography>
-                <Typography fontWeight={800} sx={{ mb: 1 }}>LIFF Booking Simulator</Typography>
-                {showLiff ? <LiffBookingSimulator onBooked={(booking) => handleEvent({ type: 'booked', booking })} /> : (
-                  <Box sx={{ border: '1px dashed #c6d5e2', borderRadius: 1, p: 2.2, textAlign: 'center', color: '#586677' }}>
-                    จองคิวสำเร็จแล้ว กดเมนู &quot;เช็กคิว&quot; หรือ &quot;เปิด LIFF&quot; เพื่อทดลองต่อ
+              Next Step
+            </Button>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      {currentStep === 2 || currentStep === 3 || currentStep === 4 ? (
+      <Grid container spacing={2.2}>
+          {currentStep !== 3 ? (
+            <Grid size={{ xs: 12, xl: 6 }}>
+              <Card
+                sx={{
+                  borderRadius: 1,
+                  overflow: 'hidden',
+                  maxWidth: 420,
+                  mx: 'auto',
+                  width: '100%',
+                }}
+              >
+                <CardContent sx={{ p: 0 }}>
+                  <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid', borderColor: 'divider', bgcolor: '#fafcfa' }}>
+                    <Typography variant="caption" color="text.secondary">STEP 1: LINE Chat Simulator (จอมือถือสำหรับลูกค้าจองคิว)</Typography>
                   </Box>
-                )}
-              </CardContent>
-            </Card>
-            ) : (
-              <Card sx={{ borderRadius: 1, border: '1px dashed #c6d5e2', maxWidth: 420, mx: 'auto', width: '100%' }}>
-                <CardContent>
-                  <Typography variant="caption" color="text.secondary">STEP 3: LIFF Booking</Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>
-                    ไปที่ STEP 2 แล้วกดเมนู &quot;จองคิว&quot; ก่อน เพื่อปลดล็อกขั้นตอนนี้
-                  </Typography>
+                  <LineChatSimulator messages={messages} typing={typing} onQuickReply={(k) => handleEvent({ type: 'quick', key: k })} memberProfile={memberProfile} shopName={templateConfig.shopName} />
+                  <RichMenuSimulator active={activeMenu} onSelect={(key) => handleEvent({ type: 'menu', key })} labels={templateConfig.menuLabels} />
                 </CardContent>
               </Card>
-            )}
+            </Grid>
+          ) : null}
 
-            {unlockedSteps[4] ? (
-            <Card
-              sx={{
-                borderRadius: 1,
-                border: currentStep === 4 ? '2px solid #73c088' : undefined,
-                maxWidth: 420,
-                width: '100%',
-              }}
-            >
+          <Grid size={{ xs: 12, xl: currentStep === 3 ? 12 : 6 }}>
+            <Stack spacing={2} alignItems="center">
+              {unlockedSteps[3] ? (
+                <Card
+                  sx={{
+                    borderRadius: 1,
+                    border: currentStep === 3 ? '2px solid #73c088' : undefined,
+                    maxWidth: 420,
+                    mx: 'auto',
+                    width: '100%',
+                  }}
+                >
+                  <CardContent>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.6 }}>STEP 2: LIFF Booking (สำหรับลูกค้า)</Typography>
+                    <Typography fontWeight={800} sx={{ mb: 1 }}>LIFF Booking Simulator</Typography>
+                    {showLiff ? <LiffBookingSimulator onBooked={(booking) => handleEvent({ type: 'booked', booking })} /> : (
+                      <Box sx={{ border: '1px dashed #c6d5e2', borderRadius: 1, p: 2.2, textAlign: 'center', color: '#586677' }}>
+                        จองคิวสำเร็จแล้ว กดเมนู &quot;เช็กคิว&quot; หรือ &quot;เปิด LIFF&quot; เพื่อทดลองต่อ
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card sx={{ borderRadius: 1, border: '1px dashed #c6d5e2', maxWidth: 420, mx: 'auto', width: '100%' }}>
+                  <CardContent>
+                    <Typography variant="caption" color="text.secondary">STEP 3: LIFF Booking</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>
+                      ไปที่ STEP 2 แล้วกดเมนู &quot;จองคิว&quot; ก่อน เพื่อปลดล็อกขั้นตอนนี้
+                    </Typography>
+                  </CardContent>
+                </Card>
+              )}
+
+              {unlockedSteps[4] ? (
+                <Card
+                  sx={{
+                    borderRadius: 1,
+                    border: currentStep === 4 ? '2px solid #73c088' : undefined,
+                    maxWidth: 420,
+                    width: '100%',
+                  }}
+                >
+                  <CardContent>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.6 }}>STEP 3: Queue Notification (สำหรับร้านค้า)</Typography>
+                    <Typography fontWeight={800} sx={{ mb: 1 }}>Queue Notification Simulator</Typography>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap">
+                      <Button variant="outlined" startIcon={<QueueRoundedIcon />} onClick={() => handleEvent({ type: 'queue', action: 'call_next' })}>เรียกคิวถัดไป</Button>
+                      <Button variant="outlined" startIcon={<ReplayRoundedIcon />} onClick={() => handleEvent({ type: 'queue', action: 'recall' })}>เรียกซ้ำ</Button>
+                      <Button variant="outlined" startIcon={<NotificationsActiveRoundedIcon />} onClick={() => handleEvent({ type: 'queue', action: 'near' })}>ใกล้ถึงคิว</Button>
+                      <Button variant="outlined" startIcon={<AutorenewRoundedIcon />} onClick={() => handleEvent({ type: 'queue', action: 'advance' })}>เปลี่ยนสถานะ</Button>
+                      <Button variant="outlined" startIcon={<AddCircleOutlineRoundedIcon />} onClick={() => handleEvent({ type: 'queue', action: 'add' })}>สร้าง booking demo</Button>
+                      <Button variant="outlined" startIcon={<CampaignRoundedIcon />} onClick={() => handleEvent({ type: 'menu', key: 'promo' })}>ส่งโปรโมชัน</Button>
+                      <Button variant="outlined" startIcon={<PhoneInTalkRoundedIcon />} onClick={() => handleEvent({ type: 'menu', key: 'contact' })}>จำลองตอบจากทีมงาน</Button>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              ) : null}
+            </Stack>
+          </Grid>
+        </Grid>
+      ) : null}
+
+      {unlockedSteps[5] && currentStep === 5 ? (
+        <Grid container spacing={2.2}>
+          <Grid size={{ xs: 12 }}>
+            <Card ref={step5FullscreenRef} sx={{ borderRadius: 1, border: currentStep === 5 ? '2px solid #73c088' : undefined, position: 'relative', overflow: 'visible' }}>
               <CardContent>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.6 }}>STEP 4: Queue Notification</Typography>
-                <Typography fontWeight={800} sx={{ mb: 1 }}>Queue Notification Simulator</Typography>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap">
-                  <Button variant="outlined" startIcon={<QueueRoundedIcon />} onClick={() => handleEvent({ type: 'queue', action: 'call_next' })}>เรียกคิวถัดไป</Button>
-                  <Button variant="outlined" startIcon={<ReplayRoundedIcon />} onClick={() => handleEvent({ type: 'queue', action: 'recall' })}>เรียกซ้ำ</Button>
-                  <Button variant="outlined" startIcon={<NotificationsActiveRoundedIcon />} onClick={() => handleEvent({ type: 'queue', action: 'near' })}>ใกล้ถึงคิว</Button>
-                  <Button variant="outlined" startIcon={<AutorenewRoundedIcon />} onClick={() => handleEvent({ type: 'queue', action: 'advance' })}>เปลี่ยนสถานะ</Button>
-                  <Button variant="outlined" startIcon={<AddCircleOutlineRoundedIcon />} onClick={() => handleEvent({ type: 'queue', action: 'add' })}>สร้าง booking demo</Button>
-                  <Button variant="outlined" startIcon={<CampaignRoundedIcon />} onClick={() => handleEvent({ type: 'menu', key: 'promo' })}>ส่งโปรโมชัน</Button>
-                  <Button variant="outlined" startIcon={<PhoneInTalkRoundedIcon />} onClick={() => handleEvent({ type: 'menu', key: 'contact' })}>จำลองตอบจากทีมงาน</Button>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.6 }}>
+                  <Typography variant="caption" color="text.secondary">STEP 4 Queue Board (สำหรับร้าน)</Typography>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<FullscreenRoundedIcon />}
+                    onClick={() => void openFullscreen('step5')}
+                    aria-label="Open queue board fullscreen"
+                  >
+                    Fullscreen
+                  </Button>
                 </Stack>
+                <DemoQueueBoard items={queueItems} />
+              </CardContent>
+
+              <Box
+                sx={{
+                  position: 'absolute',
+                  right: { xs: 10, md: 18 },
+                  bottom: { xs: -52, md: -64 },
+                  width: { xs: 112, md: 132 },
+                  zIndex: 10,
+                  bgcolor: '#1a1a2e',
+                  border: '2px solid #3a3a5c',
+                  borderRadius: '18px',
+                  p: 0.6,
+                  boxShadow: '0 10px 26px rgba(0,0,0,.45)',
+                }}
+              >
+                <Box sx={{ width: 28, height: 5, bgcolor: '#0d0d1a', borderRadius: '0 0 4px 4px', mx: 'auto', mb: 0.5 }} />
+                <Box sx={{ borderRadius: 1.5, overflow: 'hidden', bgcolor: '#fff', height: { xs: 170, md: 192 } }}>
+                  <Box sx={{ transform: { xs: 'scale(0.26)', md: 'scale(0.31)' }, transformOrigin: 'top left', width: 390, height: 620 }}>
+                    <LineChatSimulator
+                      messages={messages}
+                      typing={typing}
+                      onQuickReply={(k) => handleEvent({ type: 'quick', key: k })}
+                      memberProfile={memberProfile}
+                      shopName={templateConfig.shopName}
+                    />
+                    <RichMenuSimulator
+                      active={activeMenu}
+                      onSelect={(key) => handleEvent({ type: 'menu', key })}
+                      labels={templateConfig.menuLabels}
+                    />
+                  </Box>
+                </Box>
+                <Box sx={{ width: 18, height: 3, bgcolor: '#3a3a5c', borderRadius: 99, mx: 'auto', mt: 0.45 }} />
+              </Box>
+            </Card>
+          </Grid>
+
+        </Grid>
+      ) : null}
+
+      {unlockedSteps[6] && currentStep === 6 ? (
+        <Grid container spacing={2.2}>
+
+          <Grid size={{ xs: 12 }}>
+            <Card ref={step6FullscreenRef} sx={{ borderRadius: 1, border: currentStep === 6 ? '2px solid #73c088' : undefined }}>
+              <CardContent>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.6 }}>
+                  <Typography variant="caption" color="text.secondary">STEP 5: Signage View (แสดงจอในร้าน)</Typography>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<FullscreenRoundedIcon />}
+                    onClick={() => void openFullscreen('step6')}
+                    aria-label="Open signage fullscreen"
+                  >
+                    Fullscreen
+                  </Button>
+                </Stack>
+                <DemoSignage items={queueItems} />
               </CardContent>
             </Card>
-            ) : null}
-          </Stack>
+          </Grid>
         </Grid>
-      </Grid>
-
-      {unlockedSteps[5] ? (
-      <Grid container spacing={2.2}>
-        <Grid size={{ xs: 12 }}>
-          <Card sx={{ borderRadius: 1, border: currentStep === 5 ? '2px solid #73c088' : undefined }}>
-            <CardContent>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.6 }}>STEP 5: Queue Board</Typography>
-              <DemoQueueBoard items={queueItems} />
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12 }}>
-          <Card sx={{ borderRadius: 1, border: currentStep === 5 ? '2px solid #73c088' : undefined }}>
-            <CardContent>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.6 }}>STEP 5: Signage View</Typography>
-              <DemoSignage items={queueItems} />
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
       ) : null}
     </Stack>
   );

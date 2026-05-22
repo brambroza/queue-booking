@@ -20,10 +20,14 @@ export function LiffBookingSimulator({
   onBooked: (booking: DemoBooking) => void;
 }) {
   const [step, setStep] = useState<1 | 2>(1);
-  const [customerName, setCustomerName] = useState('Noh AK');
+  const [customerName, setCustomerName] = useState('ลูกค้าประจำ');
   const [phone, setPhone] = useState('0856083298');
   const [serviceId, setServiceId] = useState('haircut');
-  const [date, setDate] = useState('2026-05-16');
+  const [date, setDate] = useState(() => {
+    const nextDay = new Date();
+    nextDay.setDate(nextDay.getDate() + 1);
+    return nextDay.toISOString().slice(0, 10);
+  });
   const [selectedTime, setSelectedTime] = useState('10:30');
 
   const selected = useMemo(() => SERVICES.find((s) => s.id === serviceId) ?? SERVICES[0], [serviceId]);

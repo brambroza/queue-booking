@@ -60,6 +60,7 @@ const groups: Array<{ titleKey: string; items: Array<{ labelKey: string; href: s
       { labelKey: 'menu.chat_inbox', href: '/portal/chat-inbox', icon: <ChatRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.notifications', href: '/portal/notifications', icon: <NotificationsRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.demo_sandbox', href: '/portal/demo-sandbox', icon: <ScienceRoundedIcon fontSize="small" /> },
+      { labelKey: 'menu.demo_presentation', href: '/portal/demo-presentation', icon: <ScienceRoundedIcon fontSize="small" /> },
 /*       { labelKey: 'menu.demo_line_experience', href: '/portal/demo-line-experience', icon: <ChatRoundedIcon fontSize="small" /> }, */
       { labelKey: 'menu.reports', href: '/portal/reports', icon: <InsightsRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.settings', href: '/portal/settings', icon: <SettingsRoundedIcon fontSize="small" /> },
