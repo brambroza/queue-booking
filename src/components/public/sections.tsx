@@ -96,7 +96,7 @@ export function HeroSection() {
             </Stack>
           </Grid>
 
-          <Grid size={{ xs: 12, md: 5 }}>
+          {/*    <Grid size={{ xs: 12, md: 5 }}>
             <Stack direction="row" spacing={1.5} alignItems="end">
               <Paper sx={{ p: 1.5, borderRadius: 1, flex: 1, border: '1px solid', borderColor: 'divider', boxShadow: '0 10px 28px rgba(15,23,42,0.06)' }}>
                 <Typography variant="caption" color="text.secondary">Dashboard</Typography>
@@ -115,6 +115,118 @@ export function HeroSection() {
                 <Box sx={{ mt: 1, bgcolor: 'rgba(255,255,255,0.2)', borderRadius: '10px 10px 2px 10px', p: 1, fontSize: 12 }}>คิวว่างวันนี้มีไหมครับ?</Box>
                 <Box sx={{ mt: 0.8, bgcolor: 'rgba(255,255,255,0.92)', color: '#333', borderRadius: '2px 10px 10px 10px', p: 1, fontSize: 12 }}>มีว่าง 2 ช่วง เลือกเวลาได้เลยค่ะ</Box>
                 <Stack spacing={0.6} sx={{ mt: 1 }}>{['09:30 น.', '11:00 น.'].map((x) => <Box key={x} sx={{ bgcolor: '#fff', borderRadius: 1.5, textAlign: 'center', color: '#06C755', py: 0.5, fontWeight: 700, fontSize: 12 }}>{x}</Box>)}</Stack>
+              </Box>
+            </Stack>
+          </Grid> */}
+
+          <Grid size={{ xs: 12, md: 5 }}>
+            <Stack direction="row" spacing={1.5} alignItems="end">
+              {/*   <Paper
+                sx={{
+                  p: 1,
+                  borderRadius: 1.5,
+                  flex: 1,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  boxShadow: '0 10px 28px rgba(15,23,42,0.06)',
+                }}
+              >
+                <Box
+                  component="img"
+                  src="/images/landing/1.jpg"
+                  alt="ตัวอย่างหน้าเลือกบริการและเวลาจองคิว"
+                  sx={{
+                    width: '100%',
+                    display: 'block',
+                    borderRadius: 1,
+                    border: '1px solid',
+                    borderColor: '#e5e7eb',
+                  }}
+  
+                />
+              </Paper> */}
+              <Box
+                sx={{
+                  width: 165,
+                  p: 0.8,
+                  borderRadius: 1.5,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  boxShadow: '0 10px 28px rgba(15,23,42,0.08)',
+                  bgcolor: '#fff',
+                }}
+              >
+                <Box
+                  component="img"
+                  src="/images/landing/1.jpg"
+                  alt="ตัวอย่างหน้าเลือกวันเวลาและช่วงเวลาจอง"
+                  sx={{
+                    width: '100%',
+                    height: 270,
+                    display: 'block',
+                    objectFit: 'cover',
+                    objectPosition: 'top center',
+                    borderRadius: 1,
+                    border: '1px solid',
+                    borderColor: '#e5e7eb',
+                  }}
+                />
+              </Box>
+
+              <Box
+                sx={{
+                  width: 165,
+                  p: 0.8,
+                  borderRadius: 1.5,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  boxShadow: '0 10px 28px rgba(15,23,42,0.08)',
+                  bgcolor: '#fff',
+                }}
+              >
+                <Box
+                  component="img"
+                  src="/images/landing/2.jpg"
+                  alt="ตัวอย่างหน้าเลือกวันเวลาและช่วงเวลาจอง"
+                  sx={{
+                    width: '100%',
+                    height: 270,
+                    display: 'block',
+                    objectFit: 'cover',
+                    objectPosition: 'top center',
+                    borderRadius: 1,
+                    border: '1px solid',
+                    borderColor: '#e5e7eb',
+                  }}
+                />
+              </Box>
+
+              <Box
+                sx={{
+                  width: 165,
+                  p: 0.8,
+                  borderRadius: 1.5,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  boxShadow: '0 10px 28px rgba(15,23,42,0.08)',
+                  bgcolor: '#fff',
+                }}
+              >
+                <Box
+                  component="img"
+                  src="/images/use-cases/barber/signage-desktop.jpg"
+                  alt="ตัวอย่างหน้าเลือกวันเวลาและช่วงเวลาจอง"
+                  sx={{
+                    width: '100%',
+                    height: 270,
+                    display: 'block',
+                    objectFit: 'fill',
+                    objectPosition: 'top center',
+                    borderRadius: 1,
+                    border: '1px solid',
+                    borderColor: '#e5e7eb',
+                  }}
+                />
               </Box>
             </Stack>
           </Grid>

@@ -1,7 +1,12 @@
+'use client';
+
+import { useState } from 'react';
 import Link from 'next/link';
-import { AppBar, Box, Button, Container, Stack, Toolbar, Typography } from '@mui/material';
+import { AppBar, Box, Button, Container, Drawer, IconButton, Stack, Toolbar, Typography } from '@mui/material';
 import { LanguageSwitch } from '@/components/layout/language-switch';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 
 const navs = [
   { label: 'หน้าแรก', href: '/' },
@@ -14,6 +19,12 @@ const navs = [
 ];
 
 export function PublicNavbar() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  function closeMobileMenu() {
+    setMobileOpen(false);
+  }
+
   return (
     <AppBar position="sticky" color="inherit" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(8px)' }}>
       <Container maxWidth="xl">
@@ -49,9 +60,13 @@ export function PublicNavbar() {
             <Typography
               component="span"
               sx={{
-                fontSize: 16,
+                fontSize: { xs: 14, sm: 16 },
                 fontWeight: 700,
                 color: 'text.primary',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: { xs: 150, sm: 'none' },
               }}
             >
               QueueBooking LINE
@@ -95,13 +110,78 @@ export function PublicNavbar() {
             })}
           </Stack>
 
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            <IconButton
+              aria-label="open mobile menu"
+              onClick={() => setMobileOpen(true)}
+              sx={{
+                display: { xs: 'inline-flex', md: 'none' },
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: 2,
+              }}
+            >
+              <MenuRoundedIcon />
+            </IconButton>
             <LanguageSwitch />
-            <Button component={Link} href="/login" color="inherit" sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>เข้าสู่ระบบ</Button>
-            <Button component={Link} href="/register" variant="contained">เริ่มใช้งานฟรี</Button>
+            <Button component={Link} href="/login" color="inherit" sx={{ display: { xs: 'none', md: 'inline-flex' } }}>เข้าสู่ระบบ</Button>
+            <Button component={Link} href="/register" variant="contained" sx={{ display: { xs: 'none', md: 'inline-flex' } }}>เริ่มใช้งานฟรี</Button>
           </Box>
         </Toolbar>
       </Container>
+
+      <Drawer
+        anchor="right"
+        open={mobileOpen}
+        onClose={closeMobileMenu}
+        sx={{
+          display: { xs: 'block', md: 'none' },
+          '& .MuiDrawer-paper': { width: 290, p: 2 },
+        }}
+      >
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+          <Typography fontWeight={800}>เมนู</Typography>
+          <IconButton aria-label="close mobile menu" onClick={closeMobileMenu}>
+            <CloseRoundedIcon />
+          </IconButton>
+        </Stack>
+
+        <Stack spacing={0.8}>
+          {navs.map((n) => {
+            const isDemo = n.href === '/sandbox-demo';
+            return (
+              <Button
+                key={n.href}
+                component={Link}
+                href={n.href}
+                onClick={closeMobileMenu}
+                fullWidth
+                sx={{
+                  justifyContent: 'flex-start',
+                  py: 1,
+                  borderRadius: 2,
+                  color: isDemo ? '#1B5E20' : 'text.primary',
+                  bgcolor: isDemo ? '#EAF7EF' : '#fff',
+                  border: '1px solid',
+                  borderColor: isDemo ? '#73C088' : '#eceff3',
+                  fontWeight: isDemo ? 700 : 500,
+                }}
+              >
+                {n.label}
+              </Button>
+            );
+          })}
+        </Stack>
+
+        <Stack spacing={1} sx={{ mt: 2 }}>
+          <Button component={Link} href="/login" onClick={closeMobileMenu} variant="outlined" fullWidth>
+            เข้าสู่ระบบ
+          </Button>
+          <Button component={Link} href="/register" onClick={closeMobileMenu} variant="contained" fullWidth>
+            เริ่มใช้งานฟรี
+          </Button>
+        </Stack>
+      </Drawer>
     </AppBar>
   );
 }
