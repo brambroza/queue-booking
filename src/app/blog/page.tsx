@@ -20,8 +20,45 @@ export const metadata: Metadata = {
 };
 
 export default function BlogPage() {
+  const faqItems = [
+    {
+      q: 'บทความนี้เหมาะกับธุรกิจแบบไหน?',
+      a: 'เหมาะกับธุรกิจบริการที่ต้องการใช้ระบบจองคิวผ่าน LINE OA เช่น ร้านอาหาร คลินิก และศูนย์บริการต่าง ๆ.',
+    },
+    {
+      q: 'ระบบจองคิวผ่าน LINE OA ช่วยลดงานหน้าร้านได้อย่างไร?',
+      a: 'ช่วยลดการตอบแชทซ้ำ การรับโทรศัพท์ และความผิดพลาดจากการจดคิวมือ ด้วยระบบจองและแจ้งเตือนอัตโนมัติ.',
+    },
+    {
+      q: 'ร้านอาหารสามารถใช้บทความนี้เพื่อเริ่มระบบจองโต๊ะได้หรือไม่?',
+      a: 'ได้ บทความมีแนวทางการตั้งค่าและตัวอย่างใช้งานจริงสำหรับร้านอาหารที่ต้องการรับจองผ่าน LINE.',
+    },
+    {
+      q: 'ระบบรองรับการลด no-show หรือไม่?',
+      a: 'รองรับ โดยใช้การแจ้งเตือนก่อนเวลานัดและการยืนยันการจองผ่าน LINE OA.',
+    },
+    {
+      q: 'สามารถนำแนวทางในบทความไปใช้กับหลายสาขาได้หรือไม่?',
+      a: 'ได้ ระบบรองรับหลายสาขาและสามารถจัดการคิว/การจองแยกตามสาขาได้.',
+    },
+  ];
+
+  const faqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqItems.map((item) => ({
+      '@type': 'Question',
+      name: item.q,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: item.a,
+      },
+    })),
+  };
+
   return (
     <main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
       <PublicNavbar />
       <Container maxWidth="lg" sx={{ py: 8 }}>
         <Typography variant="h3" fontWeight={800}>บทความและแนวทางใช้งานระบบจองคิว</Typography>

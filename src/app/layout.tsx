@@ -4,6 +4,7 @@ import { ToastProvider } from '@/components/ui/toast';
 import { Kanit } from 'next/font/google';
 import { I18nProvider } from '@/components/i18n/i18n-provider';
 import { MuiAppProvider } from '@/components/theme/mui-provider';
+import { BreadcrumbSchema } from '@/components/seo/breadcrumb-schema';
 
 const kanit = Kanit({
   subsets: ['latin', 'thai'],
@@ -106,6 +107,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={kanit.variable}>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }} />
+        <BreadcrumbSchema />
         <I18nProvider>
           <MuiAppProvider>
             <ToastProvider>{children}</ToastProvider>
