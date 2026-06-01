@@ -3,6 +3,7 @@ import { registerSchema } from '@/lib/auth/schemas';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { generateShopKey } from '@/lib/auth/shop-key';
 import { notifySignupByEmail } from '@/lib/notifications/signup-notify';
+import { env } from '@/lib/utils/env';
 
 export async function POST(req: Request) {
   try {
@@ -16,11 +17,13 @@ export async function POST(req: Request) {
     const admin = createAdminClient();
     const { company_name, shop_name, owner_name, phone, email, password, plan_name } = parsed.data;
 
-  const { data: authData, error: authError } = await admin.auth.admin.createUser({
+  const { data: authData, error: authError } = await admin.auth.signUp({
     email,
     password,
-    email_confirm: true,
-    user_metadata: { owner_name, phone },
+    options: {
+      data: { owner_name, phone },
+      emailRedirectTo: `${env.appUrl}/login`,
+    },
   });
 
   if (authError || !authData.user) {
@@ -156,7 +159,10 @@ export async function POST(req: Request) {
     console.error('[register] signup notification failed:', mailErr);
   }
 
-    return NextResponse.json({ data: { user_id: userId, company_id: company.id, shop_id: shop.id, shop_key: shopKey } });
+    return NextResponse.json({
+      data: { user_id: userId, company_id: company.id, shop_id: shop.id, shop_key: shopKey },
+      message: 'สมัครสำเร็จ กรุณาตรวจสอบอีเมลและยืนยันบัญชีก่อนเข้าสู่ระบบ',
+    });
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unexpected server error';
     const status = message.includes('SUPABASE_SERVICE_ROLE_KEY') || message.includes('NEXT_PUBLIC_SUPABASE_URL') ? 500 : 400;

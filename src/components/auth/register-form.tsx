@@ -31,7 +31,7 @@ export function RegisterForm() {
       return;
     }
 
-    push('สมัครใช้งานสำเร็จ กรุณาเข้าสู่ระบบ');
+    push(json.message ?? 'สมัครสำเร็จ กรุณาตรวจสอบอีเมลและยืนยันบัญชีก่อนเข้าสู่ระบบ');
     router.push('/login');
   }
 
