@@ -2,3 +2,8 @@
 node_modules/
 .next/
 .vercel/
+
+# Environment variables — never commit real secrets
+.env
+.env.*
+!.env.example
