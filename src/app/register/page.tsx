@@ -1,9 +1,15 @@
 
 
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { RegisterForm } from '@/components/auth/register-form';
 import { LanguageSwitch } from '@/components/layout/language-switch';
-import { Suspense } from "react";
+import { Suspense } from 'react';
+
+export const metadata: Metadata = {
+  title: 'สมัครใช้งาน',
+  robots: { index: false, follow: false },
+};
 
 export default function RegisterPage() {
   return (

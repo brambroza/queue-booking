@@ -33,7 +33,8 @@ export function RegisterForm() {
 
     push(json.message ?? 'สมัครสำเร็จ กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ');
     const email = String(formData.get('email') ?? '');
-    router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+    sessionStorage.setItem('verify_email', email);
+    router.push('/verify-email');
   }
 
   return (

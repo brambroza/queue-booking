@@ -1,6 +1,12 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { LoginForm } from '@/components/auth/login-form';
 import { LanguageSwitch } from '@/components/layout/language-switch';
+
+export const metadata: Metadata = {
+  title: 'เข้าสู่ระบบ',
+  robots: { index: false, follow: false },
+};
 
 export default function LoginPage() {
   return (
