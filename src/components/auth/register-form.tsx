@@ -31,8 +31,9 @@ export function RegisterForm() {
       return;
     }
 
-    push(json.message ?? 'สมัครสำเร็จ กรุณาตรวจสอบอีเมลและยืนยันบัญชีก่อนเข้าสู่ระบบ');
-    router.push('/login');
+    push(json.message ?? 'สมัครสำเร็จ กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ');
+    const email = String(formData.get('email') ?? '');
+    router.push(`/verify-email?email=${encodeURIComponent(email)}`);
   }
 
   return (
