@@ -325,8 +325,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
           qrPaymentCreated = true;
         }
       }
-    } catch {
-      // Non-critical — booking already created
+    } catch (qrErr) {
+      console.error('[QR] payment error (booking still created):', qrErr instanceof Error ? qrErr.message : qrErr);
     }
   }
 

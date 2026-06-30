@@ -28,19 +28,36 @@ export async function createBookingQrPayment(opts: {
   queueNumber: string;
 }): Promise<QrPaymentResult | null> {
   const admin = createAdminClient();
-  const { data: shop } = await admin
+  const { data: shop, error: shopErr } = await admin
     .from('shops')
     .select('qr_payment_enabled, omise_secret_key')
     .eq('id', opts.shopId)
     .maybeSingle();
 
-  if (!shop?.qr_payment_enabled) return null;
+  if (shopErr) {
+    console.error('[QR] shop fetch error:', shopErr.message);
+    return null;
+  }
 
-  const secretKey = resolveOmiseSecretKey(shop.omise_secret_key);
-  if (!secretKey) return null;
+  const secretKey = resolveOmiseSecretKey(shop?.omise_secret_key ?? null);
+  const isTestEnvBypass = secretKey.startsWith('skey_test_');
+
+  // Skip if not enabled — unless test key in env (dev convenience bypass)
+  if (!shop?.qr_payment_enabled && !isTestEnvBypass) {
+    console.log('[QR] skipped: qr_payment_enabled=false and no test-key bypass');
+    return null;
+  }
+
+  if (!secretKey) {
+    console.log('[QR] skipped: no omise secret key');
+    return null;
+  }
 
   const amountTHB = opts.servicePrice > 0 ? opts.servicePrice : 0;
-  if (amountTHB <= 0) return null;
+  if (amountTHB <= 0) {
+    console.log('[QR] skipped: servicePrice=0, set price on the service record');
+    return null;
+  }
 
   const charge = await createPromptPayCharge({
     secretKey,

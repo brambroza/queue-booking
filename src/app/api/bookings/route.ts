@@ -279,7 +279,7 @@ export async function POST(req: Request) {
 
       // QR Payment — non-blocking
       try {
-        const servicePrice = Number((service as unknown as { price?: number } | null)?.price ?? 100);
+        const servicePrice = Number((service as unknown as { price?: number } | null)?.price ?? 0);
         const qrResult = await createBookingQrPayment({
           bookingId: inserted.id,
           shopId: profile.shop_id,
@@ -305,8 +305,8 @@ export async function POST(req: Request) {
           ]);
           qrPaymentCreated = true;
         }
-      } catch {
-        // Non-critical — booking already created
+      } catch (qrErr) {
+        console.error('[QR] payment error (booking still created):', qrErr instanceof Error ? qrErr.message : qrErr);
       }
     }
 
