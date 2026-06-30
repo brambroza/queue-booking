@@ -1,6 +1,11 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createPromptPayCharge, resolveOmiseSecretKey } from './omise';
 
+function buildQrProxyUrl(bookingId: string) {
+  const base = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/+$/, '');
+  return `${base}/api/payments/qr-image?booking_id=${bookingId}`;
+}
+
 export interface QrPaymentResult {
   chargeId: string;
   qrImageUrl: string;
@@ -48,8 +53,9 @@ export async function createBookingQrPayment(opts: {
     },
   });
 
-  const qrImageUrl = charge.source?.scannable_code?.image?.download_uri ?? '';
+  const omiseDownloadUri = charge.source?.scannable_code?.image?.download_uri ?? '';
   const expiresAt = charge.expires_at ?? null;
+  const qrImageUrl = buildQrProxyUrl(opts.bookingId);
 
   await admin
     .from('bookings')
@@ -57,7 +63,7 @@ export async function createBookingQrPayment(opts: {
       payment_status: 'pending_payment',
       payment_amount: amountTHB,
       omise_charge_id: charge.id,
-      omise_qr_image_url: qrImageUrl,
+      omise_qr_image_url: omiseDownloadUri,
       payment_expires_at: expiresAt,
     })
     .eq('id', opts.bookingId)
