@@ -6,7 +6,6 @@ import { pushMessage } from '@/lib/line/client';
 import { bookingConfirmFlex } from '@/lib/line/messages';
 import { qrPaymentFlex } from '@/lib/line/messages-payment';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
-import { writeAuditLog } from '@/lib/audit/activity-log';
 import { safeCreateNotification } from '@/lib/notifications/createNotification';
 import { createBookingQrPayment } from '@/lib/payments/qr';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
@@ -332,50 +331,90 @@ export async function PATCH(req: Request) {
     const { supabase, user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
     const body = await req.json();
     const id = body.id as string;
-    const status = body.status as string;
-    if (!id || !status) return NextResponse.json({ error: 'Missing id or status' }, { status: 400 });
+    if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
 
     const { data: before } = await supabase
       .from('bookings')
-      .select('id,queue_number,status,branch_id,booking_date,start_time')
+      .select('id,queue_number,status,branch_id,service_id,booking_date,start_time')
       .eq('id', id)
       .eq('shop_id', profile.shop_id)
       .maybeSingle();
+    if (!before) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
 
-    const { error } = await supabase.from('bookings').update({ status, updated_by: user.id }).eq('id', id).eq('shop_id', profile.shop_id);
+    // --- Reschedule: date / time change ---
+    if (body.booking_date !== undefined || body.start_time !== undefined) {
+      const newDate = (body.booking_date as string | undefined) ?? before.booking_date;
+      const rawTime = (body.start_time as string | undefined) ?? before.start_time;
+      const newTime = rawTime.length === 5 ? `${rawTime}:00` : rawTime;
 
-    if (error) throw error;
-    if (before) {
-      const isCalled = status === 'called';
-      const isCancelled = status === 'cancelled';
-      const isRescheduled = before.status !== status && (status === 'confirmed' || status === 'waiting');
+      const { data: svc } = await supabase
+        .from('services')
+        .select('duration_minutes')
+        .eq('id', before.service_id)
+        .eq('shop_id', profile.shop_id)
+        .maybeSingle();
+
+      const startAt = new Date(`${newDate}T${newTime}+07:00`);
+      const endAt = new Date(startAt.getTime() + Math.max(Number(svc?.duration_minutes ?? 30), 5) * 60_000);
+      const endTime = `${String(endAt.getHours()).padStart(2, '0')}:${String(endAt.getMinutes()).padStart(2, '0')}:00`;
+
+      const { error } = await supabase
+        .from('bookings')
+        .update({ booking_date: newDate, start_time: rawTime.slice(0, 5) + ':00', end_time: endTime, updated_by: user.id })
+        .eq('id', id)
+        .eq('shop_id', profile.shop_id);
+      if (error) throw error;
+
       await safeCreateNotification(supabase, {
         companyId: profile.company_id,
         shopId: profile.shop_id,
         branchId: before.branch_id,
         userId: user.id,
-        type: isCalled ? 'queue_called' : isCancelled ? 'booking_cancelled' : isRescheduled ? 'booking_rescheduled' : 'booking_confirmed',
+        type: 'booking_rescheduled',
         category: 'bookings',
-        priority: isCancelled ? 'high' : 'medium',
-        title: `${before.queue_number ?? 'Queue'} status updated`,
-        message: `Status changed to ${status}`,
+        priority: 'medium',
+        title: `${before.queue_number ?? 'Queue'} rescheduled`,
+        message: `Rescheduled to ${newDate} ${rawTime.slice(0, 5)}`,
         relatedType: 'booking',
         relatedId: id,
         actionUrl: '/portal/bookings',
-        icon: isCancelled ? 'Cancel' : isCalled ? 'Notifications' : 'EventAvailable',
-        color: isCancelled ? '#c62828' : isCalled ? '#ef6c00' : '#1565c0',
-        metadata: { prev_status: before.status, next_status: status },
+        icon: 'EventRepeat',
+        color: '#1565c0',
+        metadata: { prev_date: before.booking_date, prev_time: before.start_time, new_date: newDate, new_time: rawTime.slice(0, 5) },
         createdBy: user.id,
       });
+      return NextResponse.json({ data: true });
     }
-    await writeAuditLog({
+
+    // --- Status update ---
+    const status = body.status as string | undefined;
+    if (!status) return NextResponse.json({ error: 'Missing status or date/time for reschedule' }, { status: 400 });
+
+    const { error } = await supabase
+      .from('bookings')
+      .update({ status, updated_by: user.id })
+      .eq('id', id)
+      .eq('shop_id', profile.shop_id);
+    if (error) throw error;
+
+    const isCancelled = status === 'cancelled';
+    await safeCreateNotification(supabase, {
       companyId: profile.company_id,
       shopId: profile.shop_id,
+      branchId: before.branch_id,
       userId: user.id,
-      action: 'data_deleted',
-      targetTable: 'bookings',
-      targetId: id,
-      payload: { soft_delete: true, status: 'cancelled' },
+      type: isCancelled ? 'booking_cancelled' : status === 'completed' ? 'booking_confirmed' : 'booking_confirmed',
+      category: 'bookings',
+      priority: isCancelled ? 'high' : 'medium',
+      title: `${before.queue_number ?? 'Queue'} → ${status}`,
+      message: `Status changed from ${before.status} to ${status}`,
+      relatedType: 'booking',
+      relatedId: id,
+      actionUrl: '/portal/bookings',
+      icon: isCancelled ? 'Cancel' : 'EventAvailable',
+      color: isCancelled ? '#c62828' : '#1565c0',
+      metadata: { prev_status: before.status, next_status: status },
+      createdBy: user.id,
     });
     return NextResponse.json({ data: true });
   } catch (e) {
