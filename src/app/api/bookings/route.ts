@@ -123,7 +123,7 @@ export async function POST(req: Request) {
 
     const { data: service } = await supabase
       .from('services')
-      .select('duration_minutes')
+      .select('duration_minutes,service_name,price')
       .eq('id', payload.service_id)
       .eq('shop_id', profile.shop_id)
       .maybeSingle();
@@ -239,38 +239,35 @@ export async function POST(req: Request) {
 
     let linePushSent = false;
     let linePushError: string | null = null;
+    let qrPaymentCreated = false;
+
     if (payload.line_user_external_id) {
-      const admin = createAdminClient();
-      const [{ data: shop }, { data: branch }, { data: service }] = await Promise.all([
-        admin.from('shops').select('name,shop_key,line_channel_access_token').eq('id', profile.shop_id).maybeSingle(),
-        admin.from('branches').select('branch_name').eq('id', payload.branch_id).maybeSingle(),
-        admin.from('services').select('service_name,price').eq('id', payload.service_id).maybeSingle(),
+      const adminLine = createAdminClient();
+      const [{ data: shop }, { data: branch }] = await Promise.all([
+        adminLine.from('shops').select('name,shop_key,line_channel_access_token').eq('id', profile.shop_id).maybeSingle(),
+        adminLine.from('branches').select('branch_name').eq('id', payload.branch_id).maybeSingle(),
       ]);
 
       const token = shop?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+      const shopName = shop?.name ?? 'Queue Booking';
+      const dateLabel = new Date(`${payload.booking_date}T00:00:00+07:00`).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+      const timeLabel = payload.start_time.slice(0, 5);
+      const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
+      const liffUrl = shop?.shop_key && appUrl ? `${appUrl}/liff/${encodeURIComponent(shop.shop_key)}` : undefined;
+
+      // LINE booking confirmation
       if (token) {
-        const dateLabel = new Date(`${payload.booking_date}T00:00:00+07:00`).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
-        const timeLabel = payload.start_time.slice(0, 5);
-        const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
-        const liffUrl = shop?.shop_key && appUrl ? `${appUrl}/liff/${encodeURIComponent(shop.shop_key)}` : undefined;
         try {
           await pushMessage(token, payload.line_user_external_id, [
             bookingConfirmFlex({
-              shopName: shop?.name ?? 'Queue Booking',
+              shopName,
               queueNumber,
               branch: branch?.branch_name ?? '-',
-              service: service?.service_name ?? '-',
+              service: (service as unknown as { service_name?: string } | null)?.service_name ?? '-',
               date: dateLabel,
               time: timeLabel,
               liffUrl,
             }),
-           /*  bookingConfirmMessage({
-              queueNumber,
-              branch: branch?.branch_name ?? '-',
-              service: service?.service_name ?? '-',
-              date: dateLabel,
-              time: timeLabel,
-            }), */
           ]);
           linePushSent = true;
         } catch (e) {
@@ -279,14 +276,10 @@ export async function POST(req: Request) {
       } else {
         linePushError = 'LINE token not configured';
       }
-    }
 
-    // QR Payment — non-blocking, only if shop has qr_payment_enabled
-    let qrPaymentCreated = false;
-    if (payload.line_user_external_id) {
+      // QR Payment — non-blocking
       try {
         const servicePrice = Number((service as unknown as { price?: number } | null)?.price ?? 0);
-        const shopName = (await createAdminClient().from('shops').select('name').eq('id', profile.shop_id).maybeSingle()).data?.name ?? 'Queue Booking';
         const qrResult = await createBookingQrPayment({
           bookingId: inserted.id,
           shopId: profile.shop_id,
@@ -295,28 +288,22 @@ export async function POST(req: Request) {
           shopName,
           queueNumber,
         });
-        if (qrResult?.qrImageUrl) {
-          const admin2 = createAdminClient();
-          const { data: shopLine } = await admin2.from('shops').select('line_channel_access_token').eq('id', profile.shop_id).maybeSingle();
-          const qrToken = shopLine?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
-          if (qrToken) {
-            const dateLabel = new Date(`${payload.booking_date}T00:00:00+07:00`).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
-            await pushMessage(qrToken, payload.line_user_external_id, [
-              qrPaymentFlex({
-                shopName,
-                queueNumber,
-                service: (service as unknown as { service_name?: string } | null)?.service_name ?? '-',
-                branch: '-',
-                date: dateLabel,
-                time: payload.start_time.slice(0, 5),
-                amountTHB: qrResult.amountTHB,
-                qrImageUrl: qrResult.qrImageUrl,
-                expiresAt: qrResult.expiresAt,
-                isTest: qrResult.isTest,
-              }),
-            ]);
-            qrPaymentCreated = true;
-          }
+        if (qrResult?.qrImageUrl && token) {
+          await pushMessage(token, payload.line_user_external_id, [
+            qrPaymentFlex({
+              shopName,
+              queueNumber,
+              service: (service as unknown as { service_name?: string } | null)?.service_name ?? '-',
+              branch: branch?.branch_name ?? '-',
+              date: dateLabel,
+              time: timeLabel,
+              amountTHB: qrResult.amountTHB,
+              qrImageUrl: qrResult.qrImageUrl,
+              expiresAt: qrResult.expiresAt,
+              isTest: qrResult.isTest,
+            }),
+          ]);
+          qrPaymentCreated = true;
         }
       } catch {
         // Non-critical — booking already created
