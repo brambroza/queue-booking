@@ -24,6 +24,7 @@ import SettingsEthernetRoundedIcon from '@mui/icons-material/SettingsEthernetRou
 import ChatRoundedIcon from '@mui/icons-material/ChatRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
+import QrCodeRoundedIcon from '@mui/icons-material/QrCodeRounded';
 import TranslateRoundedIcon from '@mui/icons-material/TranslateRounded';
 import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRounded';
 import ScienceRoundedIcon from '@mui/icons-material/ScienceRounded';
@@ -64,6 +65,7 @@ const groups: Array<{ titleKey: string; items: Array<{ labelKey: string; href: s
 /*       { labelKey: 'menu.demo_line_experience', href: '/portal/demo-line-experience', icon: <ChatRoundedIcon fontSize="small" /> }, */
       { labelKey: 'menu.reports', href: '/portal/reports', icon: <InsightsRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.settings', href: '/portal/settings', icon: <SettingsRoundedIcon fontSize="small" /> },
+      { labelKey: 'menu.payment_settings', href: '/portal/payment-settings', icon: <QrCodeRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.translations', href: '/portal/translations', icon: <TranslateRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.shop_packages', href: '/portal/shop-subscriptions', icon: <WorkspacePremiumRoundedIcon fontSize="small" /> },
     ],

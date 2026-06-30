@@ -3,10 +3,12 @@ import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { bookingSchema } from '@/lib/booking/schemas';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { pushMessage } from '@/lib/line/client';
-import { bookingConfirmFlex, bookingConfirmMessage } from '@/lib/line/messages';
+import { bookingConfirmFlex } from '@/lib/line/messages';
+import { qrPaymentFlex } from '@/lib/line/messages-payment';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 import { writeAuditLog } from '@/lib/audit/activity-log';
 import { safeCreateNotification } from '@/lib/notifications/createNotification';
+import { createBookingQrPayment } from '@/lib/payments/qr';
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
@@ -242,7 +244,7 @@ export async function POST(req: Request) {
       const [{ data: shop }, { data: branch }, { data: service }] = await Promise.all([
         admin.from('shops').select('name,shop_key,line_channel_access_token').eq('id', profile.shop_id).maybeSingle(),
         admin.from('branches').select('branch_name').eq('id', payload.branch_id).maybeSingle(),
-        admin.from('services').select('service_name').eq('id', payload.service_id).maybeSingle(),
+        admin.from('services').select('service_name,price').eq('id', payload.service_id).maybeSingle(),
       ]);
 
       const token = shop?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
@@ -279,7 +281,49 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ data: { ok: true, queue_number: queueNumber, line_push_sent: linePushSent, line_push_error: linePushError } });
+    // QR Payment — non-blocking, only if shop has qr_payment_enabled
+    let qrPaymentCreated = false;
+    if (payload.line_user_external_id) {
+      try {
+        const servicePrice = Number((service as unknown as { price?: number } | null)?.price ?? 0);
+        const shopName = (await createAdminClient().from('shops').select('name').eq('id', profile.shop_id).maybeSingle()).data?.name ?? 'Queue Booking';
+        const qrResult = await createBookingQrPayment({
+          bookingId: inserted.id,
+          shopId: profile.shop_id,
+          companyId: profile.company_id,
+          servicePrice,
+          shopName,
+          queueNumber,
+        });
+        if (qrResult?.qrImageUrl) {
+          const admin2 = createAdminClient();
+          const { data: shopLine } = await admin2.from('shops').select('line_channel_access_token').eq('id', profile.shop_id).maybeSingle();
+          const qrToken = shopLine?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+          if (qrToken) {
+            const dateLabel = new Date(`${payload.booking_date}T00:00:00+07:00`).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+            await pushMessage(qrToken, payload.line_user_external_id, [
+              qrPaymentFlex({
+                shopName,
+                queueNumber,
+                service: (service as unknown as { service_name?: string } | null)?.service_name ?? '-',
+                branch: '-',
+                date: dateLabel,
+                time: payload.start_time.slice(0, 5),
+                amountTHB: qrResult.amountTHB,
+                qrImageUrl: qrResult.qrImageUrl,
+                expiresAt: qrResult.expiresAt,
+                isTest: qrResult.isTest,
+              }),
+            ]);
+            qrPaymentCreated = true;
+          }
+        }
+      } catch {
+        // Non-critical — booking already created
+      }
+    }
+
+    return NextResponse.json({ data: { ok: true, queue_number: queueNumber, line_push_sent: linePushSent, line_push_error: linePushError, qr_payment_created: qrPaymentCreated } });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });
   }

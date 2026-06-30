@@ -3,9 +3,11 @@ import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { pushMessage } from '@/lib/line/client';
-import { bookingConfirmFlex, bookingConfirmMessage } from '@/lib/line/messages';
+import { bookingConfirmFlex } from '@/lib/line/messages';
+import { qrPaymentFlex } from '@/lib/line/messages-payment';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 import { createNotification } from '@/lib/notifications/createNotification';
+import { createBookingQrPayment } from '@/lib/payments/qr';
 
 function formatThaiDate(isoDate: string) {
   const d = new Date(`${isoDate}T00:00:00+07:00`);
@@ -48,7 +50,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
 
   const [{ data: branch }, { data: service }] = await Promise.all([
     admin.from('branches').select('id,branch_name').eq('id', payload.branch_id).eq('shop_id', shop.id).eq('is_deleted', false).maybeSingle(),
-    admin.from('services').select('id,service_name,duration_minutes').eq('id', payload.service_id).eq('shop_id', shop.id).eq('is_deleted', false).maybeSingle(),
+    admin.from('services').select('id,service_name,duration_minutes,price').eq('id', payload.service_id).eq('shop_id', shop.id).eq('is_deleted', false).maybeSingle(),
   ]);
   if (!branch || !service) {
     return NextResponse.json({ error: 'Invalid branch or service for this shop' }, { status: 400 });
@@ -284,6 +286,50 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     }
   }
 
+  // QR Payment — non-blocking, only if shop has qr_payment_enabled
+  let qrPaymentCreated = false;
+  if (payload.line_user_id) {
+    try {
+      const servicePrice = Number((service as unknown as { price?: number } | null)?.price ?? 0);
+      const qrResult = await createBookingQrPayment({
+        bookingId: booking.id,
+        shopId: shop.id,
+        companyId: shop.company_id,
+        servicePrice,
+        shopName: shop.name ?? 'Queue Booking',
+        queueNumber,
+      });
+      if (qrResult?.qrImageUrl) {
+        const { data: shopLine } = await admin
+          .from('shops')
+          .select('line_channel_access_token')
+          .eq('id', shop.id)
+          .maybeSingle();
+        const qrToken = shopLine?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+        if (qrToken) {
+          const dateLabel = formatThaiDate(payload.booking_date);
+          await pushMessage(qrToken, payload.line_user_id, [
+            qrPaymentFlex({
+              shopName: shop.name ?? 'Queue Booking',
+              queueNumber,
+              service: service.service_name ?? '-',
+              branch: branch.branch_name ?? '-',
+              date: dateLabel,
+              time: payload.start_time.slice(0, 5),
+              amountTHB: qrResult.amountTHB,
+              qrImageUrl: qrResult.qrImageUrl,
+              expiresAt: qrResult.expiresAt,
+              isTest: qrResult.isTest,
+            }),
+          ]);
+          qrPaymentCreated = true;
+        }
+      }
+    } catch {
+      // Non-critical — booking already created
+    }
+  }
+
   return NextResponse.json({
     data: {
       booking_id: booking.id,
@@ -294,6 +340,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       service_name: service.service_name,
       line_push_sent: linePushSent,
       line_push_error: linePushError,
+      qr_payment_created: qrPaymentCreated,
     },
   });
 }

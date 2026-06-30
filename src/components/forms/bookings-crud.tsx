@@ -7,6 +7,18 @@ import DoneAllIcon from '@mui/icons-material/DoneAll';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
 import { formatDateDMY } from '@/lib/utils/date-format';
 
+const PAYMENT_BADGE: Record<string, { label: string; cls: string }> = {
+  unpaid:          { label: 'ยังไม่ชำระ', cls: 'bg-slate-100 text-slate-500' },
+  pending_payment: { label: 'รอชำระ',     cls: 'bg-amber-100 text-amber-700' },
+  paid:            { label: 'ชำระแล้ว',   cls: 'bg-green-100 text-green-700' },
+  failed:          { label: 'ชำระไม่สำเร็จ', cls: 'bg-red-100 text-red-600' },
+  refunded:        { label: 'คืนเงินแล้ว', cls: 'bg-purple-100 text-purple-600' },
+};
+function PaymentBadge({ status }: { status: string }) {
+  const b = PAYMENT_BADGE[status] ?? { label: status, cls: 'bg-slate-100 text-slate-500' };
+  return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${b.cls}`}>{b.label}</span>;
+}
+
 type LineUser = { id: string; line_user_id: string; display_name: string | null; picture_url?: string | null };
 type Resource = { id: string; resource_name: string; resource_code?: string | null; capacity: number; resource_type: string; branch_id?: string | null };
 
@@ -128,6 +140,7 @@ export function BookingsCrud() {
                 <th className="px-2 py-2 text-left">ลูกค้า</th>
                 <th className="px-2 py-2 text-left">Resource</th>
                 <th className="px-2 py-2 text-left">สถานะ</th>
+                <th className="px-2 py-2 text-left">ชำระเงิน</th>
                 <th className="px-2 py-2 text-left">Action</th>
               </tr>
             </thead>
@@ -139,6 +152,9 @@ export function BookingsCrud() {
                 <td className="px-2 py-2">{String((b.customers as { full_name?: string } | null)?.full_name ?? '-')}</td>
                 <td className="px-2 py-2">{String(b.resource_name ?? '-')}</td>
                 <td className="px-2 py-2">{String(b.status)}</td>
+                <td className="px-2 py-2">
+                  <PaymentBadge status={String(b.payment_status ?? 'unpaid')} />
+                </td>
                 <td className="px-2 py-2">
                   <ActionIconGroup
                     actions={[
