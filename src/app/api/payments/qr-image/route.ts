@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   if (!bookingId) {
     return new Response('Missing booking_id', { status: 400 });
   }
-
+ 
   const admin = createAdminClient();
   const { data: booking } = await admin
     .from('bookings')
