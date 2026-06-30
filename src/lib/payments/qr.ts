@@ -80,9 +80,7 @@ export async function createBookingQrPayment(opts: {
       payment_status: 'pending_payment',
       payment_amount: amountTHB,
       omise_charge_id: charge.id,
-      omise_qr_image_url: omiseDownloadUri
-        ? `curl -u "${secretKey}:" "${omiseDownloadUri}" --output qr_test.png`
-        : null,
+      omise_qr_image_url: omiseDownloadUri || null,
       payment_expires_at: expiresAt,
     })
     .eq('id', opts.bookingId)
