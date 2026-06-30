@@ -108,6 +108,7 @@ export async function POST(req: Request) {
       resource_code: parsed.data.resource_code || null,
       resource_name: parsed.data.resource_name,
       capacity: parsed.data.capacity,
+      unit_price: parsed.data.unit_price,
       floor: parsed.data.floor || null,
       zone: parsed.data.zone || null,
       description: parsed.data.description || null,
@@ -176,6 +177,7 @@ export async function PATCH(req: Request) {
         resource_code: parsed.data.resource_code || null,
         resource_name: parsed.data.resource_name,
         capacity: parsed.data.capacity,
+        unit_price: parsed.data.unit_price,
         floor: parsed.data.floor || null,
         zone: parsed.data.zone || null,
         description: parsed.data.description || null,
@@ -201,7 +203,7 @@ export async function PATCH(req: Request) {
       action: 'data_updated',
       targetTable: 'booking_resources',
       targetId: id,
-      payload: { resource_type: parsed.data.resource_type, resource_name: parsed.data.resource_name },
+      payload: { resource_type: parsed.data.resource_type, resource_name: parsed.data.resource_name, unit_price: parsed.data.unit_price },
     });
     return NextResponse.json({ data: true });
   } catch (e) {

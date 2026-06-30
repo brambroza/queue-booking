@@ -28,6 +28,7 @@ export const fallbackTh: TranslationMap = {
   'menu.demo_line_experience': 'จำลอง LINE + LIFF',
   'menu.reports': 'รายงาน',
   'menu.settings': 'ตั้งค่า',
+  'menu.payment_settings' : 'ตั้งค่า payment gateway',
   'menu.translations': 'จัดการภาษา',
   'menu.shop_packages': 'แพ็กเกจร้านค้า',
   'menu.shop_selector': 'เลือกร้าน',
@@ -134,6 +135,8 @@ export const fallbackEn: TranslationMap = {
   'menu.demo_line_experience': 'LINE + LIFF Demo',
   'menu.reports': 'Reports',
   'menu.settings': 'Settings',
+
+  'menu.payment_settings' : 'payment gateway setting',
   'menu.translations': 'Translations',
   'menu.shop_packages': 'Shop Packages',
   'menu.shop_selector': 'Shop Selector',

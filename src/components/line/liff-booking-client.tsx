@@ -13,6 +13,7 @@ type Resource = {
   resource_code?: string | null;
   resource_type?: string | null;
   capacity?: number | null;
+  unit_price?: number | null;
 };
 type Slot = { slot_time: string; remaining_capacity: number };
 type SlotMeta = {
@@ -73,6 +74,11 @@ function resolveLiffId(shopLiffId?: string | null) {
 function buildLiffOpenUrl(liffId: string, shopKey: string, tab: 'booking' | 'account') {
   const params = new URLSearchParams({ shop_key: shopKey, tab });
   return `https://liff.line.me/${encodeURIComponent(liffId)}?${params.toString()}`;
+}
+
+function formatPrice(value?: number | null) {
+  const n = Number(value ?? 0);
+  return n > 0 ? `${n.toLocaleString('th-TH')} บาท` : '';
 }
 
 function getLiffCandidates(shopLiffId?: string | null, shopLoginLiffId?: string | null, initialTab: 'booking' | 'account' = 'booking') {
@@ -648,7 +654,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                                 {r.resource_code ? `${r.resource_code} - ` : ''}{r.resource_name}
                               </div>
                               <div className={`text-xs ${selectedResourceId === r.id ? 'text-white/90' : 'text-slate-500'}`}>
-                                {resourceTypeLabel(r.resource_type)}{r.capacity ? ` • ${r.capacity} ที่นั่ง` : ''}
+                                {[resourceTypeLabel(r.resource_type), r.capacity ? `${r.capacity} ที่นั่ง` : '', formatPrice(r.unit_price)].filter(Boolean).join(' • ')}
                               </div>
                             </div>
                           </div>
@@ -679,6 +685,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                       <p className="mt-1">
                         {resourceTypeLabel(selectedResource.resource_type)} {selectedResource.resource_code ? `${selectedResource.resource_code} - ` : ''}
                         {selectedResource.resource_name}
+                        {formatPrice(selectedResource.unit_price) ? ` • ${formatPrice(selectedResource.unit_price)}` : ''}
                       </p>
                     ) : null}
                   </div>

@@ -81,6 +81,7 @@ export async function POST(req: Request) {
       resource_code: code,
       resource_name: `${namePrefix} ${idx + 1}`,
       capacity: payload.capacity,
+      unit_price: payload.unit_price,
       floor: payload.floor ?? null,
       zone: payload.zone ?? null,
       active: payload.active,

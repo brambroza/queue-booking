@@ -9,6 +9,7 @@ import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 import { writeAuditLog } from '@/lib/audit/activity-log';
 import { safeCreateNotification } from '@/lib/notifications/createNotification';
 import { createBookingQrPayment } from '@/lib/payments/qr';
+import { formatThaiDateLabel } from '@/lib/utils/date-format';
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
@@ -133,11 +134,11 @@ export async function POST(req: Request) {
     const endAt = new Date(startAt.getTime() + Math.max(service?.duration_minutes ?? 30, 5) * 60000);
     const endTime = `${String(endAt.getHours()).padStart(2, '0')}:${String(endAt.getMinutes()).padStart(2, '0')}:00`;
 
-    let assignedResource: { resource_id: string; resource_name: string; capacity: number } | null = null;
+    let assignedResource: { resource_id: string; resource_name: string; capacity: number; unit_price: number } | null = null;
     if (payload.resource_id) {
       const { data: selectedResource } = await supabase
         .from('booking_resources')
-        .select('id,resource_name,capacity')
+        .select('id,resource_name,capacity,unit_price')
         .eq('id', payload.resource_id)
         .eq('shop_id', profile.shop_id)
         .eq('is_deleted', false)
@@ -148,6 +149,7 @@ export async function POST(req: Request) {
           resource_id: selectedResource.id as string,
           resource_name: String(selectedResource.resource_name ?? '-'),
           capacity: Number(selectedResource.capacity ?? 1),
+          unit_price: Number(selectedResource.unit_price ?? 0),
         };
       }
     } else if (partySize && partySize > 0) {
@@ -161,10 +163,17 @@ export async function POST(req: Request) {
       });
       const top = candidates?.[0] as { resource_id?: string; resource_name?: string; capacity?: number } | undefined;
       if (top?.resource_id) {
+        const { data: resourcePrice } = await supabase
+          .from('booking_resources')
+          .select('unit_price')
+          .eq('id', top.resource_id)
+          .eq('shop_id', profile.shop_id)
+          .maybeSingle();
         assignedResource = {
           resource_id: top.resource_id,
           resource_name: top.resource_name ?? '-',
           capacity: Number(top.capacity ?? 1),
+          unit_price: Number(resourcePrice?.unit_price ?? 0),
         };
       }
     }
@@ -250,7 +259,7 @@ export async function POST(req: Request) {
 
       const token = shop?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
       const shopName = shop?.name ?? 'Queue Booking';
-      const dateLabel = new Date(`${payload.booking_date}T00:00:00+07:00`).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+      const dateLabel = formatThaiDateLabel(payload.booking_date);
       const timeLabel = payload.start_time.slice(0, 5);
       const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
       const liffUrl = shop?.shop_key && appUrl ? `${appUrl}/liff/${encodeURIComponent(shop.shop_key)}` : undefined;
@@ -279,12 +288,14 @@ export async function POST(req: Request) {
 
       // QR Payment — non-blocking
       try {
+        const resourcePrice = Number(assignedResource?.unit_price ?? 0);
         const servicePrice = Number((service as unknown as { price?: number } | null)?.price ?? 0);
+        const paymentPrice = resourcePrice > 0 ? resourcePrice : servicePrice;
         const qrResult = await createBookingQrPayment({
           bookingId: inserted.id,
           shopId: profile.shop_id,
           companyId: profile.company_id,
-          servicePrice,
+          amountTHB: paymentPrice,
           shopName,
           queueNumber,
         });

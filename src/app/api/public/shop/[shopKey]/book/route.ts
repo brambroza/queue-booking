@@ -8,12 +8,7 @@ import { qrPaymentFlex } from '@/lib/line/messages-payment';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 import { createNotification } from '@/lib/notifications/createNotification';
 import { createBookingQrPayment } from '@/lib/payments/qr';
-
-function formatThaiDate(isoDate: string) {
-  const d = new Date(`${isoDate}T00:00:00+07:00`);
-  if (Number.isNaN(d.getTime())) return isoDate;
-  return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
-}
+import { formatThaiDateLabel } from '@/lib/utils/date-format';
 
 const bookSchema = z.object({
   branch_id: z.string().uuid(),
@@ -125,11 +120,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   const endAt = new Date(startAt.getTime() + durationMin * 60000);
   const endTime = `${String(endAt.getHours()).padStart(2, '0')}:${String(endAt.getMinutes()).padStart(2, '0')}:00`;
 
-  let assignedResource: { resource_id: string; resource_name: string; capacity: number } | null = null;
+  let assignedResource: { resource_id: string; resource_name: string; capacity: number; unit_price: number } | null = null;
   if (payload.resource_id) {
     const { data: selectedResource } = await admin
       .from('booking_resources')
-      .select('id,resource_name,capacity')
+      .select('id,resource_name,capacity,unit_price')
       .eq('id', payload.resource_id)
       .eq('shop_id', shop.id)
       .eq('active', true)
@@ -140,6 +135,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
         resource_id: selectedResource.id as string,
         resource_name: String(selectedResource.resource_name ?? '-'),
         capacity: Number(selectedResource.capacity ?? 1),
+        unit_price: Number(selectedResource.unit_price ?? 0),
       };
     }
   } else if (partySize && partySize > 0) {
@@ -153,10 +149,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     });
     const top = candidates?.[0] as { resource_id?: string; resource_name?: string; capacity?: number } | undefined;
     if (top?.resource_id) {
+      const { data: resourcePrice } = await admin
+        .from('booking_resources')
+        .select('unit_price')
+        .eq('id', top.resource_id)
+        .eq('shop_id', shop.id)
+        .maybeSingle();
       assignedResource = {
         resource_id: top.resource_id,
         resource_name: top.resource_name ?? '-',
         capacity: Number(top.capacity ?? 1),
+        unit_price: Number(resourcePrice?.unit_price ?? 0),
       };
     }
   }
@@ -245,7 +248,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
 
     const token = shopLine?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
     if (token) {
-      const dateLabel = formatThaiDate(payload.booking_date);
+      const dateLabel = formatThaiDateLabel(payload.booking_date);
       const timeLabel = payload.start_time.slice(0, 5);
       const branchName = branch?.branch_name ?? '-';
       const serviceName = service?.service_name ?? '-';
@@ -290,12 +293,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   let qrPaymentCreated = false;
   if (payload.line_user_id) {
     try {
+      const resourcePrice = Number(assignedResource?.unit_price ?? 0);
       const servicePrice = Number((service as unknown as { price?: number } | null)?.price ?? 0);
+      const paymentPrice = resourcePrice > 0 ? resourcePrice : servicePrice;
       const qrResult = await createBookingQrPayment({
         bookingId: booking.id,
         shopId: shop.id,
         companyId: shop.company_id,
-        servicePrice,
+        amountTHB: paymentPrice,
         shopName: shop.name ?? 'Queue Booking',
         queueNumber,
       });
@@ -307,7 +312,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
           .maybeSingle();
         const qrToken = shopLine?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
         if (qrToken) {
-          const dateLabel = formatThaiDate(payload.booking_date);
+          const dateLabel = formatThaiDateLabel(payload.booking_date);
           await pushMessage(qrToken, payload.line_user_id, [
             qrPaymentFlex({
               shopName: shop.name ?? 'Queue Booking',

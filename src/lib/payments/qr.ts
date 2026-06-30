@@ -23,7 +23,7 @@ export async function createBookingQrPayment(opts: {
   bookingId: string;
   shopId: string;
   companyId: string;
-  servicePrice: number;
+  amountTHB: number;
   shopName: string;
   queueNumber: string;
 }): Promise<QrPaymentResult | null> {
@@ -53,9 +53,9 @@ export async function createBookingQrPayment(opts: {
     return null;
   }
 
-  const amountTHB = opts.servicePrice > 0 ? opts.servicePrice : 0;
+  const amountTHB = opts.amountTHB > 0 ? opts.amountTHB : 0;
   if (amountTHB <= 0) {
-    console.log('[QR] skipped: servicePrice=0, set price on the service record');
+    console.log('[QR] skipped: amountTHB=0, set price on the resource or service record');
     return null;
   }
 

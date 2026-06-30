@@ -39,6 +39,30 @@ export function formatDateDMY(input?: string | null): string {
   return `${day}/${month}/${year}`;
 }
 
+export function formatThaiDateLabel(input?: string | null): string {
+  if (!input) return '-';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(input)) {
+    const [year, month, day] = input.split('-').map(Number);
+    if (!year || !month || !day) return input;
+    const d = new Date(Date.UTC(year, month - 1, day, 12));
+    return d.toLocaleDateString('th-TH', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+  }
+
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return input;
+  return d.toLocaleDateString('th-TH', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: BANGKOK_TZ,
+  });
+}
+
 export function formatDateDD(input?: string | null): string {
   if (!input) return '-';
   if (/^\d{4}-\d{2}-\d{2}$/.test(input)) {

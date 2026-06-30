@@ -55,6 +55,7 @@ export const bookingResourceSchema = z.object({
   resource_code: z.string().trim().min(1).max(40).optional().nullable(),
   resource_name: z.string().trim().min(1).max(120),
   capacity: z.coerce.number().int().min(1).max(1000).default(1),
+  unit_price: z.coerce.number().nonnegative().default(0),
   floor: z.string().trim().max(50).optional().nullable(),
   zone: z.string().trim().max(80).optional().nullable(),
   description: z.string().trim().max(500).optional().nullable(),
@@ -74,5 +75,6 @@ export const bookingResourceBulkSchema = z.object({
   pad_length: z.coerce.number().int().min(0).max(6).optional().nullable(),
   code_list: z.array(z.string().trim().min(1).max(40)).optional(),
   name_prefix: z.string().trim().max(40).optional().nullable(),
+  unit_price: z.coerce.number().nonnegative().default(0),
   active: z.coerce.boolean().default(true),
 });

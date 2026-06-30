@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { retrieveCharge, resolveOmiseSecretKey } from '@/lib/payments/omise';
 import { pushMessage } from '@/lib/line/client';
 import { paymentReceiptFlex } from '@/lib/line/messages-payment';
+import { formatThaiDateLabel } from '@/lib/utils/date-format';
 
 interface OmiseWebhookEvent {
   object: string;
@@ -16,12 +17,6 @@ interface OmiseWebhookEvent {
     paid_at?: string | null;
     metadata?: Record<string, string>;
   };
-}
-
-function formatThaiDate(iso: string) {
-  const d = new Date(`${iso}T00:00:00+07:00`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 export async function POST(req: Request) {
@@ -138,7 +133,7 @@ export async function POST(req: Request) {
             queueNumber: booking.queue_number as string,
             service: services?.service_name ?? '-',
             branch: branches?.branch_name ?? '-',
-            date: formatThaiDate(booking.booking_date as string),
+            date: formatThaiDateLabel(booking.booking_date as string),
             time: String(booking.start_time ?? '').slice(0, 5),
             amountTHB: booking.payment_amount ?? 0,
             receiptRef,

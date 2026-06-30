@@ -15,6 +15,7 @@ type Resource = {
   resource_code: string | null;
   resource_name: string;
   capacity: number;
+  unit_price: number;
   floor: string | null;
   zone: string | null;
   description: string | null;
@@ -89,6 +90,7 @@ export function ResourcesCrud() {
       resource_code: String(fd.get('resource_code') || '') || null,
       resource_name: String(fd.get('resource_name') || ''),
       capacity: Number(fd.get('capacity') || 1),
+      unit_price: Number(fd.get('unit_price') || 0),
       floor: String(fd.get('floor') || '') || null,
       zone: String(fd.get('zone') || '') || null,
       description: String(fd.get('description') || '') || null,
@@ -126,6 +128,7 @@ export function ResourcesCrud() {
       code_list: mode === 'list' ? codeListRaw.split(',').map((x) => x.trim()).filter(Boolean) : undefined,
       name_prefix: String(fd.get('name_prefix') || '') || null,
       capacity: Number(fd.get('capacity') || 1),
+      unit_price: Number(fd.get('unit_price') || 0),
       floor: String(fd.get('floor') || '') || null,
       zone: String(fd.get('zone') || '') || null,
       active: fd.get('active') === 'on',
@@ -192,6 +195,7 @@ export function ResourcesCrud() {
                 <th className="px-2 py-2 text-left">Type</th>
                 <th className="px-2 py-2 text-left">Branch</th>
                 <th className="px-2 py-2 text-left">Capacity</th>
+                <th className="px-2 py-2 text-left">Price</th>
                 <th className="px-2 py-2 text-left">Zone</th>
                 <th className="px-2 py-2 text-left">Status</th>
                 <th className="px-2 py-2 text-left">Action</th>
@@ -205,6 +209,7 @@ export function ResourcesCrud() {
                   <td className="px-2 py-2">{r.resource_type}</td>
                   <td className="px-2 py-2">{r.branches?.branch_name ?? '-'}</td>
                   <td className="px-2 py-2">{r.capacity}</td>
+                  <td className="px-2 py-2">{Number(r.unit_price ?? 0).toLocaleString('th-TH')}</td>
                   <td className="px-2 py-2">{r.zone ?? '-'}</td>
                   <td className="px-2 py-2">{r.active ? 'active' : 'inactive'}</td>
                   <td className="px-2 py-2">
@@ -282,6 +287,10 @@ export function ResourcesCrud() {
                 <input className="input" name="capacity" type="number" min={1} defaultValue={editing?.capacity ?? 1} required />
               </div>
               <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">ราคาต่อหน่วย</label>
+                <input className="input" name="unit_price" type="number" min={0} step="0.01" defaultValue={editing?.unit_price ?? 0} />
+              </div>
+              <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-600">ชั้น (Floor)</label>
                 <input className="input" name="floor" placeholder="เช่น 1, 2, 3" defaultValue={editing?.floor ?? ''} />
               </div>
@@ -333,6 +342,7 @@ export function ResourcesCrud() {
               <input className="input" name="code_list" placeholder="ROOM-A, ROOM-B, ROOM-C" />
               <input className="input" name="name_prefix" placeholder="name prefix เช่น โต๊ะ" defaultValue="โต๊ะ" />
               <input className="input" name="capacity" type="number" min={1} defaultValue={4} />
+              <input className="input" name="unit_price" type="number" min={0} step="0.01" placeholder="ราคาต่อหน่วย" defaultValue={0} />
               <input className="input" name="floor" placeholder="floor" />
               <input className="input" name="zone" placeholder="zone เช่น Indoor" />
               <label className="sm:col-span-2 text-sm text-slate-600">
