@@ -279,7 +279,7 @@ export async function POST(req: Request) {
 
       // QR Payment — non-blocking
       try {
-        const servicePrice = Number((service as unknown as { price?: number } | null)?.price ?? 0);
+        const servicePrice = Number((service as unknown as { price?: number } | null)?.price ?? 100);
         const qrResult = await createBookingQrPayment({
           bookingId: inserted.id,
           shopId: profile.shop_id,
