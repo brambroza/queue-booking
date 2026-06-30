@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveOmiseSecretKey } from '@/lib/payments/omise';
+import { Resvg } from '@resvg/resvg-js';
 
 /**
- * Public proxy — ดึง QR image จาก Omise แล้วส่งกลับ
- * LINE Flex Message จะ fetch URL นี้แทน Omise โดยตรง (Omise download_uri ต้องการ auth)
+ * Public proxy — ดึง QR image จาก Omise แล้วแปลง SVG → PNG ก่อนส่งกลับ
+ * LINE Flex Message ต้องการ PNG/JPEG เท่านั้น (ไม่รองรับ SVG)
  * GET /api/payments/qr-image?booking_id=xxx
  */
 export async function GET(req: Request) {
@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   if (!bookingId) {
     return new Response('Missing booking_id', { status: 400 });
   }
- 
+
   const admin = createAdminClient();
   const { data: booking } = await admin
     .from('bookings')
@@ -25,7 +25,6 @@ export async function GET(req: Request) {
     return new Response('Not found', { status: 404 });
   }
 
-  // QR already expired or paid — still serve image for record
   const downloadUri = booking.omise_qr_image_url;
   if (!downloadUri) {
     return new Response('QR not available', { status: 404 });
@@ -35,22 +34,36 @@ export async function GET(req: Request) {
   const secretKey = resolveOmiseSecretKey(shop?.omise_secret_key);
 
   const omiseRes = await fetch(downloadUri, {
-    headers: secretKey
-      ? { Authorization: 'Basic ' + Buffer.from(`${secretKey}:`).toString('base64') }
-      : {},
+    headers: { Authorization: 'Basic ' + Buffer.from(`${secretKey}:`).toString('base64') },
   });
 
   if (!omiseRes.ok) {
-    return new Response('Failed to fetch QR', { status: 502 });
+    return new Response('Failed to fetch QR from Omise', { status: 502 });
   }
 
-  const imageBuffer = await omiseRes.arrayBuffer();
-  const contentType = omiseRes.headers.get('content-type') ?? 'image/png';
+  const rawBuffer = Buffer.from(await omiseRes.arrayBuffer());
+  const contentType = omiseRes.headers.get('content-type') ?? '';
 
-  return new Response(imageBuffer, {
+  // Omise returns SVG — convert to PNG so LINE can render it
+  let pngBytes: Uint8Array;
+  const isSvg = contentType.includes('svg')
+    || rawBuffer.subarray(0, 5).toString() === '<?xml'
+    || rawBuffer.subarray(0, 4).toString() === '<svg';
+
+  if (isSvg) {
+    const resvg = new Resvg(rawBuffer, {
+      fitTo: { mode: 'width', value: 512 },
+      background: 'white',
+    });
+    pngBytes = resvg.render().asPng();
+  } else {
+    pngBytes = new Uint8Array(rawBuffer);
+  }
+
+  return new Response(pngBytes.buffer.slice(pngBytes.byteOffset, pngBytes.byteOffset + pngBytes.byteLength) as ArrayBuffer, {
     status: 200,
     headers: {
-      'Content-Type': contentType,
+      'Content-Type': 'image/png',
       'Cache-Control': 'public, max-age=3600',
     },
   });
