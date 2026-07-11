@@ -9,8 +9,7 @@ import {
   MockCaseStudySection,
   PainPointSection,
   PricingPreviewSection,
-  
- 
+  PromptPayShowcaseSection,
   ShowcaseSection,
   SolutionSection,
   TestimonialSection,
@@ -101,6 +100,7 @@ export default function HomePage() {
   
       <PainPointSection />
       <SolutionSection />
+      <PromptPayShowcaseSection />
       <ShowcaseSection />
       <FeatureSection />
       <HowItWorksSection />

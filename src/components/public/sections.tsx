@@ -18,6 +18,8 @@ import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
 import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
 import ApartmentRoundedIcon from '@mui/icons-material/ApartmentRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
+import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
+import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import { features, pricingPlans, testimonials, useCases as useCaseCards } from './content';
 
 const painCards = [
@@ -290,6 +292,135 @@ export function SolutionSection() {
         ))}
       </Grid>
     </SectionWrap>
+  );
+}
+
+/** A compact preview of the PromptPay flow, with the QR and receipt shown as LINE messages. */
+export function PromptPayShowcaseSection() {
+  return (
+    <Box sx={{ py: 8, bgcolor: '#F7FAFF', borderTop: '1px solid #E2EAF8', borderBottom: '1px solid #E2EAF8' }}>
+      <Container maxWidth="lg">
+        <Grid container spacing={{ xs: 4, md: 6 }} alignItems="center">
+          <Grid size={{ xs: 12, md: 5 }}>
+            <Box sx={{ width: 44, height: 44, borderRadius: 2, bgcolor: '#EAF0FE', display: 'grid', placeItems: 'center', mb: 2 }}>
+              <QrCode2RoundedIcon sx={{ color: '#1D4ED8' }} />
+            </Box>
+            <Typography sx={{ fontSize: { xs: 28, md: 38 }, lineHeight: 1.2, fontWeight: 800 }}>
+              รับมัดจำผ่าน PromptPay QR ได้ทันทีใน LINE
+            </Typography>
+            <Typography color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.8 }}>
+              เมื่อลูกค้าจองคิว ระบบจะส่ง QR Code พร้อมยอดชำระให้ทันที สแกนจ่ายได้ทุกธนาคาร แล้วระบบยืนยันเงินเข้าและส่งใบเสร็จให้อัตโนมัติ
+            </Typography>
+            <Stack spacing={1} sx={{ mt: 2.5 }}>
+              {['สร้าง QR ตามยอดบริการอัตโนมัติ', 'ลดงานเช็คสลิปและลดคิวเบี้ยวนัด', 'อัปเดตสถานะการจองทันทีเมื่อชำระสำเร็จ'].map((item) => (
+                <Stack key={item} direction="row" spacing={1} alignItems="center">
+                  <CheckCircleRoundedIcon sx={{ color: '#1D4ED8', fontSize: 20 }} />
+                  <Typography variant="body2">{item}</Typography>
+                </Stack>
+              ))}
+            </Stack>
+            <Button component={Link} href="/features/promptpay-payment" variant="outlined" sx={{ mt: 3, borderColor: '#1D4ED8', color: '#1D4ED8', '&:hover': { borderColor: '#1E40AF', bgcolor: '#EEF3FF' } }}>
+              ดูรายละเอียด QR Payment
+            </Button>
+          </Grid>
+          <Grid size={{ xs: 12, md: 7 }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="center" alignItems="center">
+              <PaymentPhone label="1. ลูกค้าได้รับ QR หลังจองคิว">
+                {/*  <PaymentQrMessage /> */}
+                <Box
+                  component="img"
+                  src="/images/landing/p1.jpg"
+                  alt="ตัวอย่างหน้าเลือกวันเวลาและช่วงเวลาจอง"
+                  sx={{
+                    width: '100%',
+                    height: 420,
+                    display: 'block',
+                    objectFit: 'cover',
+                    objectPosition: 'top center',
+                    borderRadius: 0.7,
+                    border: '1px solid',
+                    borderColor: '#e5e7eb',
+                  }}
+                />
+              </PaymentPhone>
+              <PaymentPhone label="2. ร้านและลูกค้าได้รับการยืนยัน">
+                {/*    <PaymentReceiptMessage /> */}
+                <Box
+                  component="img"
+                  src="/images/landing/p2.jpg"
+                  alt="ตัวอย่างหน้าเลือกวันเวลาและช่วงเวลาจอง"
+                  sx={{
+                    width: '100%',
+                    height: 290,
+                    display: 'block',
+                    objectFit: 'cover',
+                    objectPosition: 'top center',
+                    borderRadius: 1,
+                    border: '1px solid',
+                    borderColor: '#e5e7eb',
+                  }}
+                />
+              </PaymentPhone>
+            </Stack>
+          </Grid>
+        </Grid>
+      </Container>
+    </Box>
+  );
+}
+
+function PaymentPhone({ children, label }: { children: React.ReactNode; label: string }) {
+  return (
+    <Stack spacing={1.1} alignItems="center">
+      <Box sx={{ width: 236, borderRadius: 1,   p: '8px', boxShadow: '0 22px 45px -22px rgba(15,23,42,.42)' }}>
+        <Box sx={{ overflow: 'hidden', borderRadius: 0.8, bgcolor: '#EEF1F5' }}>
+          <Box sx={{ bgcolor: '#1D4ED8', px: 1.5, py: 1.1 }}>
+            <Typography color="#fff" fontWeight={700} fontSize={12} textAlign="center">แชทร้านค้า</Typography>
+          </Box>
+          <Box sx={{ p: 1.2, minHeight: 444, display: 'flex', alignItems: 'flex-end' }}>{children}</Box>
+        </Box>
+      </Box>
+      <Typography variant="body2" fontWeight={700} color="text.secondary" textAlign="center">{label}</Typography>
+    </Stack>
+  );
+}
+
+function PaymentQrMessage() {
+  return (
+    <Card sx={{ width: '100%', borderRadius: 1.5, boxShadow: '0 8px 20px -12px rgba(15,23,42,.35)' }}>
+      <Box sx={{ bgcolor: '#1D4ED8', px: 1.3, py: 1 }}><Typography color="#fff" fontWeight={800} fontSize={15}>ชำระเงิน</Typography></Box>
+      <CardContent sx={{ p: '12px !important', textAlign: 'center' }}>
+        <Typography fontWeight={800} fontSize={13} textAlign="left">คิว A012 · ตัดผมชาย</Typography>
+        <Typography color="#1D4ED8" fontWeight={800} fontSize={20} sx={{ my: 1 }}>250.00 บาท</Typography>
+        <PromptPayQrPreview />
+        <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>สแกนด้วยแอปธนาคารเพื่อชำระเงิน</Typography>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PaymentReceiptMessage() {
+  return (
+    <Card sx={{ width: '100%', borderRadius: 1.5, boxShadow: '0 8px 20px -12px rgba(15,23,42,.35)' }}>
+      <Box sx={{ bgcolor: '#16A34A', px: 1.3, py: 1 }}><Typography color="#fff" fontWeight={800} fontSize={15}>ชำระเงินสำเร็จ</Typography></Box>
+      <CardContent sx={{ p: '12px !important', textAlign: 'center' }}>
+        <ReceiptLongRoundedIcon sx={{ color: '#16A34A', fontSize: 34 }} />
+        <Typography fontWeight={800} fontSize={14}>ใบเสร็จรับเงิน</Typography>
+        <Typography variant="caption" color="text.secondary">คิว A012 · ตัดผมชาย</Typography>
+        <Divider sx={{ my: 1.2 }} />
+        <Stack direction="row" justifyContent="space-between"><Typography variant="body2" fontWeight={700}>ยอดชำระ</Typography><Typography variant="body2" fontWeight={800} color="#16A34A">250.00 บาท</Typography></Stack>
+        <Box sx={{ mt: 1.2, py: .8, borderRadius: 1.5, bgcolor: '#F0FDF4' }}><Typography variant="caption" color="#15803D">ส่งใบเสร็จให้แล้วใน LINE</Typography></Box>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PromptPayQrPreview() {
+  const cells = Array.from({ length: 100 }, (_, index) => (index * 7 + Math.floor(index / 10) * 3) % 8 < 3);
+  return (
+    <Box sx={{ width: 104, height: 104, mx: 'auto', p: .65, bgcolor: '#fff', border: '1px solid #E5E7EB', borderRadius: 1, display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: '2px' }}>
+      {cells.map((filled, index) => <Box key={index} sx={{ bgcolor: filled ? '#111827' : 'transparent' }} />)}
+    </Box>
   );
 }
 
