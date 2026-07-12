@@ -3,15 +3,31 @@
 @tailwind utilities;
 
 :root {
-  --bg: #f6f7f9;
+  --bg: #f7f8fa;
   --surface: #ffffff;
-  --surface-soft: #f9fbfa;
-  --text: #1f2937;
-  --muted: #758294;
-  --line: #e7ebf0;
-  --brand: #73c088;
-  --brand-soft: #5ea875;
-  --brand-tint: #eaf6ee;
+  --surface-soft: #fcfcfd;
+  --text: #121926;
+  --muted: #697586;
+  --line: #e3e8ef;
+  --brand: #12a862;
+  --brand-soft: #0b8d51;
+  --brand-tint: #e9fbf1;
+  --shadow-card: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-pop: 0 12px 28px rgba(16, 24, 40, 0.1), 0 4px 8px rgba(16, 24, 40, 0.05);
+}
+
+.dark {
+  --bg: #0b0f16;
+  --surface: #141a24;
+  --surface-soft: #0f151d;
+  --text: #e6edf5;
+  --muted: #94a1b2;
+  --line: rgba(255, 255, 255, 0.08);
+  --brand: #2ec37c;
+  --brand-soft: #5dd79c;
+  --brand-tint: rgba(46, 195, 124, 0.12);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-pop: 0 12px 28px rgba(0, 0, 0, 0.6), 0 4px 8px rgba(0, 0, 0, 0.4);
 }
 
 * {
@@ -27,14 +43,24 @@ body {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .card {
-  @apply rounded-2xl border bg-white shadow-[0_1px_2px_rgba(16,24,40,0.03),0_1px_3px_rgba(16,24,40,0.05)];
+  @apply rounded-2xl border;
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
 }
 
 .input {
-  @apply w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300;
+  @apply w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2;
+  background: var(--surface);
+  color: var(--text);
+  --tw-ring-color: color-mix(in srgb, var(--brand) 40%, transparent);
+}
+
+.input::placeholder {
+  color: var(--muted);
 }
 
 .btn {
@@ -51,27 +77,31 @@ body {
 }
 
 .btn-outline {
-  @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+  @apply btn border;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.btn-outline:hover {
+  background: var(--surface-soft);
 }
 
 .portal-shell {
   @apply min-h-screen;
-  background: #f6f7f9;
+  background: var(--bg);
 }
 
 .portal-sidebar {
   @apply border-r p-4;
-  background: #fff;
-  border-color: var(--line);
+  background: var(--surface);
 }
 
 .portal-header {
   @apply sticky top-0 z-20 border-b backdrop-blur;
-  background: #ffffffde;
-  border-color: var(--line);
+  background: color-mix(in srgb, var(--surface) 87%, transparent);
 }
 
 .portal-panel {
-  @apply rounded-2xl border bg-white;
-  border-color: var(--line);
+  @apply rounded-2xl border;
+  background: var(--surface);
 }

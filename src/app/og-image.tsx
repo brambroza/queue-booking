@@ -28,7 +28,7 @@ export default function OgImage() {
               width: 56,
               height: 56,
               borderRadius: 14,
-              background: '#73c088',
+              background: '#12a862',
               color: '#fff',
               display: 'flex',
               alignItems: 'center',

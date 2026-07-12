@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { AppBar, Box, Button, Container, Drawer, IconButton, Stack, Toolbar, Typography } from '@mui/material';
 import { LanguageSwitch } from '@/components/layout/language-switch';
+import { ColorModeToggle } from '@/components/theme/color-mode-toggle';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
@@ -26,7 +27,7 @@ export function PublicNavbar() {
   }
 
   return (
-    <AppBar position="sticky" color="inherit" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(8px)' }}>
+    <AppBar position="sticky" color="inherit" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(20,26,36,0.82)' : 'rgba(255,255,255,0.85)'), backdropFilter: 'blur(10px)' }}>
       <Container maxWidth="xl">
         <Toolbar disableGutters sx={{ minHeight: 72, justifyContent: 'space-between', gap: 2 }}>
 
@@ -46,7 +47,7 @@ export function PublicNavbar() {
               sx={{
                 width: 32,
                 height: 32,
-                bgcolor: '#73c088',
+                bgcolor: '#12a862',
                 borderRadius: '8px',
                 display: 'flex',
                 alignItems: 'center',
@@ -87,7 +88,7 @@ export function PublicNavbar() {
                       ? {
                           bgcolor: '#EAF7EF',
                           color: '#1B5E20',
-                          border: '1px solid #73C088',
+                          border: '1px solid #12a862',
                           borderRadius: 999,
                           fontWeight: 700,
                           px: 1.6,
@@ -123,6 +124,7 @@ export function PublicNavbar() {
             >
               <MenuRoundedIcon />
             </IconButton>
+            <ColorModeToggle size="small" />
             <LanguageSwitch />
             <Button component={Link} href="/login" color="inherit" sx={{ display: { xs: 'none', md: 'inline-flex' } }}>เข้าสู่ระบบ</Button>
             <Button component={Link} href="/register" variant="contained" sx={{ display: { xs: 'none', md: 'inline-flex' } }}>เริ่มใช้งานฟรี</Button>
@@ -161,9 +163,9 @@ export function PublicNavbar() {
                   py: 1,
                   borderRadius: 2,
                   color: isDemo ? '#1B5E20' : 'text.primary',
-                  bgcolor: isDemo ? '#EAF7EF' : '#fff',
+                  bgcolor: isDemo ? '#EAF7EF' : 'background.paper',
                   border: '1px solid',
-                  borderColor: isDemo ? '#73C088' : '#eceff3',
+                  borderColor: isDemo ? '#12a862' : 'divider',
                   fontWeight: isDemo ? 700 : 500,
                 }}
               >

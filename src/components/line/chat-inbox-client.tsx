@@ -151,7 +151,7 @@ export function ChatInboxClient() {
 
             <div className="h-[460px] space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
               {messages.length === 0 ? <p className="text-sm text-slate-500">ยังไม่มีข้อความ</p> : messages.map((m) => (
-                <div key={m.id} className={`max-w-[82%] rounded-xl px-3 py-2 text-sm shadow-sm ${m.direction === 'outbound' ? 'ml-auto bg-[#73c088] text-white' : 'bg-white text-slate-800'}`}>
+                <div key={m.id} className={`max-w-[82%] rounded-xl px-3 py-2 text-sm shadow-sm ${m.direction === 'outbound' ? 'ml-auto bg-[#12a862] text-white' : 'bg-white text-slate-800'}`}>
                   {m.message_type === 'image' && m.payload?.media_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={m.payload.media_url} alt={m.payload.media_name || 'chat image'} className="max-h-64 w-auto rounded-lg object-contain" />

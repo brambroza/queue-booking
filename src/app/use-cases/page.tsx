@@ -37,7 +37,7 @@ export default function UseCasesPage() {
                   <CardContent>
                     <Stack direction="row" spacing={1.2} alignItems="center">
                       <Box sx={{ width: 40, height: 40, borderRadius: 1, bgcolor: '#eaf3de', display: 'grid', placeItems: 'center' }}>
-                        <Icon sx={{ color: '#639922' }} />
+                        <Icon sx={{ color: '#12a862' }} />
                       </Box>
                       <Typography fontWeight={700}>{item.title}</Typography>
                     </Stack>

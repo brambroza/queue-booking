@@ -133,7 +133,7 @@ export default async function UseCaseDetailPage({ params }: { params: Promise<Pa
       <Container maxWidth="md" sx={{ py: 8 }}>
         <Stack direction="row" spacing={1.2} alignItems="center" sx={{ mb: 2 }}>
           <Box sx={{ width: 44, height: 44, borderRadius: 1, bgcolor: '#eaf3de', display: 'grid', placeItems: 'center' }}>
-            <Icon sx={{ color: '#639922' }} />
+            <Icon sx={{ color: '#12a862' }} />
           </Box>
           <div>
             <Typography variant="h4" fontWeight={800}>{item.title}</Typography>

@@ -60,7 +60,7 @@ export function DemoControlPanel({
         <Stack spacing={0.8}>
           <Button aria-label="Pick haircut service" onClick={() => onStepAction('liff_pick_service')} variant="outlined">เลือกบริการ</Button>
           <Button aria-label="Pick booking time" onClick={() => onStepAction('liff_pick_time')} variant="outlined">เลือกเวลา</Button>
-          <Button aria-label="Confirm booking" onClick={() => onStepAction('liff_confirm')} variant="contained" sx={{ bgcolor: '#73C088', '&:hover': { bgcolor: '#5ead77' } }}>ยืนยันจอง</Button>
+          <Button aria-label="Confirm booking" onClick={() => onStepAction('liff_confirm')} variant="contained" sx={{ bgcolor: '#12a862', '&:hover': { bgcolor: '#5ead77' } }}>ยืนยันจอง</Button>
         </Stack>
       );
     }
@@ -95,7 +95,7 @@ export function DemoControlPanel({
         </Typography>
         <Stack spacing={1}>
           <Tooltip title="เริ่มจาก Step แรก">
-            <Button aria-label="Start demo" onClick={onStart} startIcon={<PlayArrowRoundedIcon />} variant="contained" sx={{ bgcolor: '#73C088', '&:hover': { bgcolor: '#5ead77' } }}>
+            <Button aria-label="Start demo" onClick={onStart} startIcon={<PlayArrowRoundedIcon />} variant="contained" sx={{ bgcolor: '#12a862', '&:hover': { bgcolor: '#5ead77' } }}>
               {labels.start}
             </Button>
           </Tooltip>

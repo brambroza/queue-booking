@@ -66,7 +66,7 @@ export function bookingConfirmFlex(payload: {
     footerButtons.push({
       type: 'button',
       style: 'primary',
-      color: '#73c088',
+      color: '#12a862',
       height: 'sm',
       action: { type: 'uri', label: 'เปิด LIFF อีกครั้ง', uri: payload.liffUrl },
     });
@@ -81,7 +81,7 @@ export function bookingConfirmFlex(payload: {
       header: {
         type: 'box',
         layout: 'vertical',
-        backgroundColor: '#73c088',
+        backgroundColor: '#12a862',
         paddingAll: '16px',
         contents: [
           { type: 'text', text: payload.shopName, color: '#ffffffcc', size: 'xs' },

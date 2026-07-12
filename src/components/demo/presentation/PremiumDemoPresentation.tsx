@@ -245,12 +245,12 @@ export function PremiumDemoPresentation() {
               <Typography sx={{ fontSize: { xs: 30, md: 38 }, fontWeight: 900, color: '#111827' }}>{t('demo_presentation.title')}</Typography>
               <Typography sx={{ color: '#6B7280', maxWidth: 780 }}>{t('demo_presentation.subtitle')}</Typography>
               <Stack direction="row" spacing={1} sx={{ mt: 1.2, flexWrap: 'wrap' }}>
-                <Button aria-label={t('demo_presentation.start_demo')} onClick={() => setCurrentStep(1)} variant="contained" sx={{ bgcolor: '#73C088', '&:hover': { bgcolor: '#5ead77' } }}>{t('demo_presentation.start_demo')}</Button>
+                <Button aria-label={t('demo_presentation.start_demo')} onClick={() => setCurrentStep(1)} variant="contained" sx={{ bgcolor: '#12a862', '&:hover': { bgcolor: '#5ead77' } }}>{t('demo_presentation.start_demo')}</Button>
                 <Button aria-label={t('demo_presentation.connect_line')} component={Link} href="/portal/line-settings" variant="outlined">{t('demo_presentation.connect_line')}</Button>
                 <Button aria-label={t('demo_presentation.open_setup_guide')} component={Link} href="/portal/onboarding/line-setup" variant="text">{t('demo_presentation.open_setup_guide')}</Button>
               </Stack>
             </Box>
-            <Chip label={`STEP ${currentStep} / 6`} sx={{ alignSelf: 'flex-start', bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 800 }} />
+            <Chip label={`STEP ${currentStep} / 6`} sx={{ alignSelf: 'flex-start', bgcolor: '#EAF3DE', color: '#0a7043', fontWeight: 800 }} />
           </Stack>
         </CardContent>
       </Card>
@@ -269,7 +269,7 @@ export function PremiumDemoPresentation() {
                       aria-label={`Go to step ${step}`}
                       variant={active ? 'contained' : 'outlined'}
                       onClick={() => setCurrentStep(step)}
-                      sx={{ justifyContent: 'flex-start', textTransform: 'none', bgcolor: active ? '#73C088' : undefined, '&:hover': { bgcolor: active ? '#5ead77' : undefined } }}
+                      sx={{ justifyContent: 'flex-start', textTransform: 'none', bgcolor: active ? '#12a862' : undefined, '&:hover': { bgcolor: active ? '#5ead77' : undefined } }}
                     >
                       {step}. {t(k)}
                     </Button>

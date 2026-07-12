@@ -11,7 +11,7 @@ export type PromoCard = {
 
 export function DemoFlexCarousel({
   cards,
-  accent = '#73C088',
+  accent = '#12a862',
 }: {
   cards: PromoCard[];
   accent?: string;

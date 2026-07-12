@@ -3,7 +3,23 @@ import { Box, Container, Grid, Stack, Typography } from '@mui/material';
 
 export function PublicFooter() {
   return (
-    <Box component="footer" sx={{ borderTop: '1px solid', borderColor: 'divider', py: 6, mt: 8, bgcolor: '#fff' }}>
+    <Box
+      component="footer"
+      sx={{
+        borderTop: '1px solid',
+        borderColor: 'divider',
+        py: 6,
+        mt: 8,
+        bgcolor: 'background.paper',
+        '& a': {
+          color: 'text.secondary',
+          textDecoration: 'none',
+          fontSize: 14,
+          transition: 'color .15s ease',
+        },
+        '& a:hover': { color: 'primary.main' },
+      }}
+    >
       <Container maxWidth="xl">
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, md: 4 }}>

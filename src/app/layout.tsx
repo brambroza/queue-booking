@@ -4,6 +4,7 @@ import { ToastProvider } from '@/components/ui/toast';
 import { Kanit } from 'next/font/google';
 import { I18nProvider } from '@/components/i18n/i18n-provider';
 import { MuiAppProvider } from '@/components/theme/mui-provider';
+import { PostHogProvider } from '@/components/analytics/posthog-provider';
 import { BreadcrumbSchema } from '@/components/seo/breadcrumb-schema';
 
 const kanit = Kanit({
@@ -102,17 +103,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     },
   };
 
+  // กัน FOUC: ตั้งค่าโหมดสีก่อน hydrate (อ่าน localStorage / system preference)
+  const colorModeScript = `(function(){try{var m=localStorage.getItem('qb-color-mode');if(!m){m=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}var r=document.documentElement;if(m==='dark'){r.classList.add('dark');}r.style.colorScheme=m;r.dataset.theme=m;}catch(e){}})();`;
+
   return (
-    <html lang="th">
+    <html lang="th" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: colorModeScript }} />
+      </head>
       <body className={kanit.variable}>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }} />
         <BreadcrumbSchema />
-        <I18nProvider>
-          <MuiAppProvider>
-            <ToastProvider>{children}</ToastProvider>
-          </MuiAppProvider>
-        </I18nProvider>
+        <PostHogProvider>
+          <I18nProvider>
+            <MuiAppProvider>
+              <ToastProvider>{children}</ToastProvider>
+            </MuiAppProvider>
+          </I18nProvider>
+        </PostHogProvider>
       </body>
     </html>
   );

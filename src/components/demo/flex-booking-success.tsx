@@ -30,7 +30,7 @@ export function FlexBookingSuccess({
         border: '1px solid #d9e2ea',
       }}
     >
-      <Box sx={{ bgcolor: '#73C088', px: 2, py: 1.6 }}>
+      <Box sx={{ bgcolor: '#12a862', px: 2, py: 1.6 }}>
         <Typography sx={{ color: '#f2fff4', fontSize: 13 }}>queue booking</Typography>
         <Typography sx={{ color: '#fff', fontSize: 32, fontWeight: 800, lineHeight: 1.05 }}>จองคิวสำเร็จ</Typography>
       </Box>
@@ -50,7 +50,7 @@ export function FlexBookingSuccess({
         <Button onClick={() => onAction?.('cancel')} fullWidth variant="contained" sx={{ bgcolor: '#dfe3e9', color: '#2b3440', boxShadow: 'none' }}>
           ยกเลิกคิว
         </Button>
-        <Button onClick={() => onAction?.('open_liff')} fullWidth variant="contained" sx={{ bgcolor: '#73C088', color: '#fff', boxShadow: 'none', '&:hover': { bgcolor: '#5ead77' } }}>
+        <Button onClick={() => onAction?.('open_liff')} fullWidth variant="contained" sx={{ bgcolor: '#12a862', color: '#fff', boxShadow: 'none', '&:hover': { bgcolor: '#5ead77' } }}>
           เปิด LIFF อีกครั้ง
         </Button>
       </Stack>

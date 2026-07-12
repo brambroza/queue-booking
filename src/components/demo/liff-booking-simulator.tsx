@@ -61,10 +61,10 @@ export function LiffBookingSimulator({
       </Box>
 
       <Stack direction="row" spacing={1.2} sx={{ mb: 1.5 }}>
-        <Button fullWidth variant="contained" onClick={() => setStep(1)} sx={{ borderRadius: 1, py: 1, bgcolor: step === 1 ? '#73C088' : '#fff', color: step === 1 ? '#fff' : '#2c3947', border: '1px solid #d6dce4', boxShadow: 'none' }}>
+        <Button fullWidth variant="contained" onClick={() => setStep(1)} sx={{ borderRadius: 1, py: 1, bgcolor: step === 1 ? '#12a862' : '#fff', color: step === 1 ? '#fff' : '#2c3947', border: '1px solid #d6dce4', boxShadow: 'none' }}>
           1) ข้อมูลสมาชิก
         </Button>
-        <Button fullWidth variant="contained" onClick={() => setStep(2)} sx={{ borderRadius: 1, py: 1, bgcolor: step === 2 ? '#73C088' : '#fff', color: step === 2 ? '#fff' : '#2c3947', border: '1px solid #d6dce4', boxShadow: 'none' }}>
+        <Button fullWidth variant="contained" onClick={() => setStep(2)} sx={{ borderRadius: 1, py: 1, bgcolor: step === 2 ? '#12a862' : '#fff', color: step === 2 ? '#fff' : '#2c3947', border: '1px solid #d6dce4', boxShadow: 'none' }}>
           2) เลือกคิว
         </Button>
       </Stack>
@@ -73,7 +73,7 @@ export function LiffBookingSimulator({
         <Stack spacing={1.2}>
           <TextField size="small" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
           <TextField size="small" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          <Button fullWidth variant="contained" sx={{ bgcolor: '#73C088', borderRadius: 1, py: 1.1, boxShadow: 'none' }} onClick={() => setStep(2)}>
+          <Button fullWidth variant="contained" sx={{ bgcolor: '#12a862', borderRadius: 1, py: 1.1, boxShadow: 'none' }} onClick={() => setStep(2)}>
             ถัดไป: เลือกคิว
           </Button>
         </Stack>
@@ -107,7 +107,7 @@ export function LiffBookingSimulator({
           })}
 
           <TextField size="small" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          <Button fullWidth variant="contained" sx={{ bgcolor: '#73C088', borderRadius: 3, py: 1.05, boxShadow: 'none' }}>
+          <Button fullWidth variant="contained" sx={{ bgcolor: '#12a862', borderRadius: 3, py: 1.05, boxShadow: 'none' }}>
             ดูเวลาว่าง
           </Button>
 
@@ -122,7 +122,7 @@ export function LiffBookingSimulator({
                   sx={{
                     minHeight: 44,
                     borderRadius: 1.5,
-                    bgcolor: active ? '#73C088' : '#fff',
+                    bgcolor: active ? '#12a862' : '#fff',
                     color: active ? '#fff' : '#283647',
                     border: '1px solid #d7dee7',
                     boxShadow: 'none',
@@ -135,7 +135,7 @@ export function LiffBookingSimulator({
             })}
           </Box>
 
-          <Button fullWidth variant="contained" sx={{ bgcolor: '#73C088', borderRadius: 1, py: 1.1, boxShadow: 'none', '&:hover': { bgcolor: '#5ead77' } }} onClick={handleConfirm}>
+          <Button fullWidth variant="contained" sx={{ bgcolor: '#12a862', borderRadius: 1, py: 1.1, boxShadow: 'none', '&:hover': { bgcolor: '#5ead77' } }} onClick={handleConfirm}>
             ยืนยันการจอง
           </Button>
         </Stack>

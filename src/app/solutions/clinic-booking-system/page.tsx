@@ -259,7 +259,7 @@ export default function ClinicBookingSystemPage() {
         <Container maxWidth="lg">
           <Grid container spacing={3} alignItems="center">
             <Grid size={{ xs: 12, md: 7 }}>
-              <Chip label="Clinic Appointment & Queue Management Platform" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 700 }} />
+              <Chip label="Clinic Appointment & Queue Management Platform" sx={{ bgcolor: '#EAF3DE', color: '#0a7043', fontWeight: 700 }} />
               <Typography variant="h3" sx={{ mt: 2, fontWeight: 800, fontSize: { xs: 30, md: 44 }, lineHeight: 1.2 }}>
                 ให้คนไข้นัดหมายแพทย์ผ่าน LINE ได้ตลอด 24 ชั่วโมง
               </Typography>
@@ -267,10 +267,10 @@ export default function ClinicBookingSystemPage() {
                 ลดภาระเจ้าหน้าที่ ลดการตอบแชทซ้ำ และบริหารตารางนัดหมายแพทย์ได้อย่างมีประสิทธิภาพด้วยระบบจองคิวคลินิกที่ออกแบบมาสำหรับการใช้งานจริงในคลินิกยุคใหม่
               </Typography>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 3 }}>
-                <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#639922', '&:hover': { bgcolor: '#3B6D11' } }}>
+                <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#12a862', '&:hover': { bgcolor: '#0a7043' } }}>
                   ทดลองใช้งานฟรี
                 </Button>
-                <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#639922', color: '#639922' }}>
+                <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#12a862', color: '#12a862' }}>
                   ขอเดโม
                 </Button>
               </Stack>
@@ -278,7 +278,7 @@ export default function ClinicBookingSystemPage() {
                 {heroPills.map((pill) => (
                   <Chip
                     key={pill}
-                    icon={<CheckCircleRoundedIcon sx={{ color: '#3B6D11 !important' }} />}
+                    icon={<CheckCircleRoundedIcon sx={{ color: '#0a7043 !important' }} />}
                     label={pill}
                     sx={{ bgcolor: '#F3F8EC' }}
                   />
@@ -295,7 +295,7 @@ export default function ClinicBookingSystemPage() {
                   <Stack spacing={1}>
                     {whyChooseItems.map((item) => (
                       <Stack key={item} direction="row" spacing={1} alignItems="center">
-                        <CheckCircleRoundedIcon sx={{ color: '#639922', fontSize: 18 }} />
+                        <CheckCircleRoundedIcon sx={{ color: '#12a862', fontSize: 18 }} />
                         <Typography variant="body2" color="text.secondary">
                           {item}
                         </Typography>
@@ -340,7 +340,7 @@ export default function ClinicBookingSystemPage() {
                   alignItems="center"
                   sx={{ p: 1.5, borderRadius: 2, bgcolor: '#fff', border: '1px solid', borderColor: 'divider', height: '100%' }}
                 >
-                  <CheckCircleRoundedIcon sx={{ color: '#639922' }} />
+                  <CheckCircleRoundedIcon sx={{ color: '#12a862' }} />
                   <Typography>{item}</Typography>
                 </Stack>
               </Grid>
@@ -358,7 +358,7 @@ export default function ClinicBookingSystemPage() {
             <Grid key={step} size={{ xs: 12, sm: 6, md: 4 }}>
               <Card sx={{ height: '100%', borderRadius: 2, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
                 <CardContent>
-                  <Typography sx={{ color: '#639922', fontWeight: 800 }}>Step {index + 1}</Typography>
+                  <Typography sx={{ color: '#12a862', fontWeight: 800 }}>Step {index + 1}</Typography>
                   <Typography sx={{ mt: 0.8 }} fontWeight={700}>
                     {step}
                   </Typography>
@@ -382,7 +382,7 @@ export default function ClinicBookingSystemPage() {
                   <Card sx={{ height: '100%', borderRadius: 2, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
                     <CardContent>
                       <Box sx={{ width: 40, height: 40, borderRadius: 1.5, bgcolor: '#EAF3DE', display: 'grid', placeItems: 'center', mb: 1 }}>
-                        <Icon sx={{ color: '#3B6D11' }} />
+                        <Icon sx={{ color: '#0a7043' }} />
                       </Box>
                       <Typography fontWeight={800}>{item.title}</Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.8 }}>
@@ -405,7 +405,7 @@ export default function ClinicBookingSystemPage() {
           {benefits.map((item) => (
             <Grid key={item} size={{ xs: 12, sm: 6, md: 3 }}>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider', height: '100%' }}>
-                <CheckCircleRoundedIcon sx={{ color: '#639922' }} />
+                <CheckCircleRoundedIcon sx={{ color: '#12a862' }} />
                 <Typography>{item}</Typography>
               </Stack>
             </Grid>
@@ -427,7 +427,7 @@ export default function ClinicBookingSystemPage() {
                     <CardContent>
                       <Stack direction="row" spacing={1.2} alignItems="center">
                         <Box sx={{ width: 40, height: 40, borderRadius: 1.5, bgcolor: '#EAF3DE', display: 'grid', placeItems: 'center' }}>
-                          <Icon sx={{ color: '#3B6D11' }} />
+                          <Icon sx={{ color: '#0a7043' }} />
                         </Box>
                         <Typography fontWeight={800}>{item.title}</Typography>
                       </Stack>
@@ -498,10 +498,10 @@ export default function ClinicBookingSystemPage() {
             ให้คนไข้นัดหมายได้ง่ายขึ้น และให้ทีมงานมีเวลามากขึ้นในการดูแลผู้ป่วย
           </Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 2.5 }}>
-            <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#639922', '&:hover': { bgcolor: '#3B6D11' } }}>
+            <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#12a862', '&:hover': { bgcolor: '#0a7043' } }}>
               ทดลองใช้งานฟรี
             </Button>
-            <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#639922', color: '#639922' }}>
+            <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#12a862', color: '#12a862' }}>
               ขอเดโม
             </Button>
           </Stack>

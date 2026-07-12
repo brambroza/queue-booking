@@ -297,7 +297,7 @@ export default function BarbershopBookingSystemPage() {
         <Container maxWidth="lg">
           <Grid container spacing={3} alignItems="center">
             <Grid size={{ xs: 12, md: 7 }}>
-              <Chip label="Barbershop & Hair Salon Booking Platform" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 700 }} />
+              <Chip label="Barbershop & Hair Salon Booking Platform" sx={{ bgcolor: '#EAF3DE', color: '#0a7043', fontWeight: 700 }} />
               <Typography variant="h3" sx={{ mt: 2, fontWeight: 800, fontSize: { xs: 30, md: 44 }, lineHeight: 1.2 }}>
                 ให้ลูกค้าจองคิวร้านตัดผมผ่าน LINE ได้ตลอด 24 ชั่วโมง
               </Typography>
@@ -306,10 +306,10 @@ export default function BarbershopBookingSystemPage() {
               </Typography>
 
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 3 }}>
-                <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#639922', '&:hover': { bgcolor: '#3B6D11' } }}>
+                <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#12a862', '&:hover': { bgcolor: '#0a7043' } }}>
                   ทดลองใช้งานฟรี
                 </Button>
-                <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#639922', color: '#639922' }}>
+                <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#12a862', color: '#12a862' }}>
                   ขอเดโม
                 </Button>
               </Stack>
@@ -318,7 +318,7 @@ export default function BarbershopBookingSystemPage() {
                 {heroPills.map((pill) => (
                   <Chip
                     key={pill}
-                    icon={<CheckCircleRoundedIcon sx={{ color: '#3B6D11 !important' }} />}
+                    icon={<CheckCircleRoundedIcon sx={{ color: '#0a7043 !important' }} />}
                     label={pill}
                     sx={{ bgcolor: '#F3F8EC' }}
                   />
@@ -335,7 +335,7 @@ export default function BarbershopBookingSystemPage() {
                   <Stack spacing={1}>
                     {['เลือกช่างตามความถนัด', 'จัดคิวแบบไม่ชนกัน', 'แจ้งเตือนก่อนนัด', 'ดูรายงานหลังบ้าน'].map((item) => (
                       <Stack key={item} direction="row" spacing={1} alignItems="center">
-                        <CheckCircleRoundedIcon sx={{ color: '#639922', fontSize: 18 }} />
+                        <CheckCircleRoundedIcon sx={{ color: '#12a862', fontSize: 18 }} />
                         <Typography variant="body2" color="text.secondary">
                           {item}
                         </Typography>
@@ -380,7 +380,7 @@ export default function BarbershopBookingSystemPage() {
                   alignItems="center"
                   sx={{ p: 1.5, borderRadius: 2, bgcolor: '#fff', border: '1px solid', borderColor: 'divider', height: '100%' }}
                 >
-                  <CheckCircleRoundedIcon sx={{ color: '#639922' }} />
+                  <CheckCircleRoundedIcon sx={{ color: '#12a862' }} />
                   <Typography>{item}</Typography>
                 </Stack>
               </Grid>
@@ -398,7 +398,7 @@ export default function BarbershopBookingSystemPage() {
             <Grid key={step} size={{ xs: 12, sm: 6, md: 4 }}>
               <Card sx={{ height: '100%', borderRadius: 2, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
                 <CardContent>
-                  <Typography sx={{ color: '#639922', fontWeight: 800 }}>Step {index + 1}</Typography>
+                  <Typography sx={{ color: '#12a862', fontWeight: 800 }}>Step {index + 1}</Typography>
                   <Typography sx={{ mt: 0.8 }} fontWeight={700}>
                     {step}
                   </Typography>
@@ -422,7 +422,7 @@ export default function BarbershopBookingSystemPage() {
                   <Card sx={{ height: '100%', borderRadius: 2, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
                     <CardContent>
                       <Box sx={{ width: 40, height: 40, borderRadius: 1.5, bgcolor: '#EAF3DE', display: 'grid', placeItems: 'center', mb: 1 }}>
-                        <Icon sx={{ color: '#3B6D11' }} />
+                        <Icon sx={{ color: '#0a7043' }} />
                       </Box>
                       <Typography fontWeight={800}>{item.title}</Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.8 }}>
@@ -445,7 +445,7 @@ export default function BarbershopBookingSystemPage() {
           {benefits.map((item) => (
             <Grid key={item} size={{ xs: 12, sm: 6, md: 3 }}>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider', height: '100%' }}>
-                <CheckCircleRoundedIcon sx={{ color: '#639922' }} />
+                <CheckCircleRoundedIcon sx={{ color: '#12a862' }} />
                 <Typography>{item}</Typography>
               </Stack>
             </Grid>
@@ -467,7 +467,7 @@ export default function BarbershopBookingSystemPage() {
                     <CardContent>
                       <Stack direction="row" spacing={1.2} alignItems="center">
                         <Box sx={{ width: 40, height: 40, borderRadius: 1.5, bgcolor: '#EAF3DE', display: 'grid', placeItems: 'center' }}>
-                          <Icon sx={{ color: '#3B6D11' }} />
+                          <Icon sx={{ color: '#0a7043' }} />
                         </Box>
                         <Typography fontWeight={800}>{item.title}</Typography>
                       </Stack>
@@ -521,10 +521,10 @@ export default function BarbershopBookingSystemPage() {
             ให้ลูกค้าจองคิวได้เอง และให้ทีมงานมีเวลามากขึ้นในการดูแลลูกค้า
           </Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 2.5 }}>
-            <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#639922', '&:hover': { bgcolor: '#3B6D11' } }}>
+            <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#12a862', '&:hover': { bgcolor: '#0a7043' } }}>
               ทดลองใช้งานฟรี
             </Button>
-            <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#639922', color: '#639922' }}>
+            <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#12a862', color: '#12a862' }}>
               ขอเดโม
             </Button>
           </Stack>

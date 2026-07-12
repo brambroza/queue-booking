@@ -51,7 +51,7 @@ function Bubble({ msg, memberProfile }: { msg: ChatMessage; memberProfile: DemoM
           px: 1.4,
           py: 1.1,
           borderRadius: 2.5,
-          bgcolor: isCustomer ? '#73C088' : '#252a33',
+          bgcolor: isCustomer ? '#12a862' : '#252a33',
           color: isCustomer ? '#fff' : '#e5edf6',
         }}
       >

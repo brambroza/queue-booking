@@ -172,7 +172,7 @@ export default function DemoSandboxPage() {
               <Chip
                 label="SANDBOX MODE"
                 size="small"
-                sx={{ mb: 1, bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 700, letterSpacing: 0.3 }}
+                sx={{ mb: 1, bgcolor: '#EAF3DE', color: '#0a7043', fontWeight: 700, letterSpacing: 0.3 }}
               />
               <Typography variant="h5" fontWeight={800}>Demo Sandbox</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 620 }}>

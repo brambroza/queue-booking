@@ -16,6 +16,14 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
+import EventNoteRoundedIcon from '@mui/icons-material/EventNoteRounded';
+import HourglassBottomRoundedIcon from '@mui/icons-material/HourglassBottomRounded';
+import CampaignRoundedIcon from '@mui/icons-material/CampaignRounded';
+import RoomServiceRoundedIcon from '@mui/icons-material/RoomServiceRounded';
+import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
+import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
+import PeopleRoundedIcon from '@mui/icons-material/PeopleRounded';
 import { DashboardCard } from '@/components/shared/dashboard-card';
 import { StatusChip } from '@/components/shared/status-chip';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
@@ -36,6 +44,7 @@ type DashboardData = {
 export function DashboardCharts() {
   const { push } = useToast();
   const { t } = useTranslation('dashboard');
+  const theme = useTheme();
   const [data, setData] = useState<DashboardData | null>(null);
   const [recentPage, setRecentPage] = useState(1);
   const [recentRowsPerPage, setRecentRowsPerPage] = useState(5);
@@ -103,21 +112,21 @@ export function DashboardCharts() {
           โหมดตัวอย่างเปิดอยู่ ({data.shop_meta?.demo_business_type ?? 'demo'}) ข้อมูลนี้ใช้สำหรับทดลองเท่านั้น
         </Alert>
       ) : null}
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2,1fr)', md: 'repeat(6,1fr)' } }}>
-        <DashboardCard label={t('today_queue', 'คิววันนี้')} value={data.today_overview.total} />
-        <DashboardCard label={t('pending', 'รอยืนยัน')} value={data.today_overview.pending} color="#d97706" />
-        <DashboardCard label="กำลังเรียก" value={data.today_overview.called ?? 0} color="#0ea5e9" />
-        <DashboardCard label={t('serving', 'กำลังให้บริการ')} value={(data.today_overview.serving ?? 0) + (data.today_overview.in_service ?? 0)} color="#0284c7" />
-        <DashboardCard label={t('completed', 'เสร็จสิ้น')} value={data.today_overview.completed} color="#16a34a" />
-        <DashboardCard label={t('cancelled', 'ยกเลิก')} value={data.today_overview.cancelled} color="#dc2626" />
-        <DashboardCard label={t('customers_total', 'ลูกค้าทั้งหมด')} value={data.totals.bookings} />
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)', md: 'repeat(4,1fr)', lg: 'repeat(7,1fr)' } }}>
+        <DashboardCard label={t('today_queue', 'คิววันนี้')} value={data.today_overview.total} tone="primary" icon={<EventNoteRoundedIcon />} />
+        <DashboardCard label={t('pending', 'รอยืนยัน')} value={data.today_overview.pending} tone="warning" icon={<HourglassBottomRoundedIcon />} />
+        <DashboardCard label="กำลังเรียก" value={data.today_overview.called ?? 0} tone="info" icon={<CampaignRoundedIcon />} />
+        <DashboardCard label={t('serving', 'กำลังให้บริการ')} value={(data.today_overview.serving ?? 0) + (data.today_overview.in_service ?? 0)} tone="info" icon={<RoomServiceRoundedIcon />} />
+        <DashboardCard label={t('completed', 'เสร็จสิ้น')} value={data.today_overview.completed} tone="success" icon={<CheckCircleRoundedIcon />} />
+        <DashboardCard label={t('cancelled', 'ยกเลิก')} value={data.today_overview.cancelled} tone="error" icon={<CancelRoundedIcon />} />
+        <DashboardCard label={t('customers_total', 'ลูกค้าทั้งหมด')} value={data.totals.bookings} tone="default" icon={<PeopleRoundedIcon />} />
       </Box>
 
       <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' } }}>
         <Box>
           <Card><CardContent>
             <Typography fontWeight={700} mb={1}>{t('today_booking_overview', 'Today Booking Overview')}</Typography>
-            <Box sx={{ mt: 1, borderRadius: 2, p: 1.5, bgcolor: '#f8fafc' }}>
+            <Box sx={{ mt: 1, borderRadius: 2, p: 1.5, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : '#f8fafc' }}>
               <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(data.by_day.length, 1)}, minmax(0, 1fr))`, gap: 1.2, alignItems: 'end', height: 220 }}>
                 {data.by_day.map((d, idx) => {
                   const h = Math.max(8, Math.round((d.count / max) * 170));
@@ -125,7 +134,7 @@ export function DashboardCharts() {
                   return (
                     <Stack key={d.date} spacing={0.5} alignItems="center" justifyContent="flex-end">
                       <Typography variant="caption" sx={{ fontSize: 10, color: 'text.secondary' }}>{d.count}</Typography>
-                      <Box sx={{ width: '100%', maxWidth: 24, height: h, borderRadius: 2, bgcolor: '#73c088' }} />
+                      <Box sx={{ width: '100%', maxWidth: 24, height: h, borderRadius: 2, bgcolor: 'primary.main', background: `linear-gradient(180deg, ${theme.palette.primary.light}, ${theme.palette.primary.main})` }} />
                       <Typography
                         variant="caption"
                         title={formatDateDMY(d.date)}
@@ -146,7 +155,7 @@ export function DashboardCharts() {
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
               <Box sx={{ position: 'relative', width: 220, height: 220 }}>
                 <svg viewBox="0 0 44 44" width="220" height="220">
-                  <circle cx="22" cy="22" r="15.915" fill="transparent" stroke="#e5e7eb" strokeWidth="6" />
+                  <circle cx="22" cy="22" r="15.915" fill="transparent" stroke={alpha(theme.palette.text.primary, 0.1)} strokeWidth="6" />
                   {donutSegments.map((seg) => {
                     const dash = `${seg.end - seg.start} ${1 - (seg.end - seg.start)}`;
                     return (

@@ -10,7 +10,7 @@ type Props = {
 
 export function PricingCard({ name, price, period = '/เดือน', items, highlight }: Props) {
   return (
-    <Card sx={{ borderRadius: 3, height: '100%', border: highlight ? '2px solid #73c088' : undefined }}>
+    <Card sx={{ borderRadius: 3, height: '100%', border: highlight ? '2px solid #12a862' : undefined }}>
       <CardContent>
         <Typography variant="h6" fontWeight={700}>{name}</Typography>
         <Typography variant="h4" fontWeight={800} sx={{ mt: 1 }}>{price}</Typography>

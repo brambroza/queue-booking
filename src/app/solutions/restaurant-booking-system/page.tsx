@@ -304,7 +304,7 @@ export default function RestaurantBookingSystemPage() {
         <Container maxWidth="lg">
           <Grid container spacing={3} alignItems="center">
             <Grid size={{ xs: 12, md: 7 }}>
-              <Chip label="Restaurant Queue & Reservation Platform" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 700 }} />
+              <Chip label="Restaurant Queue & Reservation Platform" sx={{ bgcolor: '#EAF3DE', color: '#0a7043', fontWeight: 700 }} />
               <Typography variant="h3" sx={{ mt: 2, fontWeight: 800, fontSize: { xs: 30, md: 44 }, lineHeight: 1.25 }}>
                 ให้ลูกค้าจองโต๊ะร้านอาหารผ่าน LINE ได้ตลอด 24 ชั่วโมง
               </Typography>
@@ -312,16 +312,16 @@ export default function RestaurantBookingSystemPage() {
                 ลดการรับโทรศัพท์ ลดการตอบแชทซ้ำ และจัดการคิวร้านอาหารได้ง่ายขึ้นด้วย QueueBooking
               </Typography>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 3 }}>
-                <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#639922', '&:hover': { bgcolor: '#3B6D11' } }}>
+                <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#12a862', '&:hover': { bgcolor: '#0a7043' } }}>
                   ทดลองใช้งานฟรี
                 </Button>
-                <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#639922', color: '#639922' }}>
+                <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#12a862', color: '#12a862' }}>
                   ขอเดโม
                 </Button>
               </Stack>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.1} useFlexGap flexWrap="wrap" sx={{ mt: 3 }}>
                 {heroFeatures.map((item) => (
-                  <Chip key={item} icon={<CheckCircleRoundedIcon sx={{ color: '#3B6D11 !important' }} />} label={item} sx={{ bgcolor: '#F3F8EC' }} />
+                  <Chip key={item} icon={<CheckCircleRoundedIcon sx={{ color: '#0a7043 !important' }} />} label={item} sx={{ bgcolor: '#F3F8EC' }} />
                 ))}
               </Stack>
             </Grid>
@@ -332,7 +332,7 @@ export default function RestaurantBookingSystemPage() {
                   <Stack spacing={1}>
                     {['จองโต๊ะล่วงหน้าผ่าน LINE', 'รับคิว Walk-in หน้าร้าน', 'แจ้งเตือนยืนยันอัตโนมัติ', 'สรุปรายงานผู้จัดการร้าน'].map((x) => (
                       <Stack key={x} direction="row" spacing={1} alignItems="center">
-                        <CheckCircleRoundedIcon sx={{ color: '#639922', fontSize: 18 }} />
+                        <CheckCircleRoundedIcon sx={{ color: '#12a862', fontSize: 18 }} />
                         <Typography variant="body2" color="text.secondary">{x}</Typography>
                       </Stack>
                     ))}
@@ -366,7 +366,7 @@ export default function RestaurantBookingSystemPage() {
             {solutionFeatures.map((item) => (
               <Grid key={item} size={{ xs: 12, sm: 6, md: 4 }}>
                 <Stack direction="row" spacing={1} alignItems="center" sx={{ p: 1.5, borderRadius: 2, bgcolor: '#fff', border: '1px solid', borderColor: 'divider', height: '100%' }}>
-                  <CheckCircleRoundedIcon sx={{ color: '#639922' }} />
+                  <CheckCircleRoundedIcon sx={{ color: '#12a862' }} />
                   <Typography>{item}</Typography>
                 </Stack>
               </Grid>
@@ -382,7 +382,7 @@ export default function RestaurantBookingSystemPage() {
             <Grid key={step} size={{ xs: 12, sm: 6, md: 4 }}>
               <Card sx={{ height: '100%', borderRadius: 2, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
                 <CardContent>
-                  <Typography sx={{ color: '#639922', fontWeight: 800 }}>Step {index + 1}</Typography>
+                  <Typography sx={{ color: '#12a862', fontWeight: 800 }}>Step {index + 1}</Typography>
                   <Typography sx={{ mt: 0.8 }} fontWeight={700}>{step}</Typography>
                 </CardContent>
               </Card>
@@ -402,7 +402,7 @@ export default function RestaurantBookingSystemPage() {
                   <Card sx={{ height: '100%', borderRadius: 2, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
                     <CardContent>
                       <Box sx={{ width: 40, height: 40, borderRadius: 1.5, bgcolor: '#EAF3DE', display: 'grid', placeItems: 'center', mb: 1 }}>
-                        <Icon sx={{ color: '#3B6D11' }} />
+                        <Icon sx={{ color: '#0a7043' }} />
                       </Box>
                       <Typography fontWeight={800}>{item.title}</Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.8 }}>{item.desc}</Typography>
@@ -421,7 +421,7 @@ export default function RestaurantBookingSystemPage() {
           {benefits.map((item) => (
             <Grid key={item} size={{ xs: 12, sm: 6, md: 3 }}>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider', height: '100%' }}>
-                <CheckCircleRoundedIcon sx={{ color: '#639922' }} />
+                <CheckCircleRoundedIcon sx={{ color: '#12a862' }} />
                 <Typography>{item}</Typography>
               </Stack>
             </Grid>
@@ -441,7 +441,7 @@ export default function RestaurantBookingSystemPage() {
                     <CardContent>
                       <Stack direction="row" spacing={1.2} alignItems="center">
                         <Box sx={{ width: 40, height: 40, borderRadius: 1.5, bgcolor: '#EAF3DE', display: 'grid', placeItems: 'center' }}>
-                          <Icon sx={{ color: '#3B6D11' }} />
+                          <Icon sx={{ color: '#0a7043' }} />
                         </Box>
                         <Typography fontWeight={800}>{item.title}</Typography>
                       </Stack>
@@ -491,10 +491,10 @@ export default function RestaurantBookingSystemPage() {
             ให้ลูกค้าจองโต๊ะได้ง่ายขึ้น และให้ทีมงานมีเวลาบริการลูกค้าได้มากขึ้น
           </Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 2.5 }}>
-            <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#639922', '&:hover': { bgcolor: '#3B6D11' } }}>
+            <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#12a862', '&:hover': { bgcolor: '#0a7043' } }}>
               ทดลองใช้งานฟรี
             </Button>
-            <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#639922', color: '#639922' }}>
+            <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#12a862', color: '#12a862' }}>
               ขอเดโม
             </Button>
           </Stack>

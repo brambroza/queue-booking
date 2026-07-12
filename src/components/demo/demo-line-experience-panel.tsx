@@ -424,7 +424,7 @@ export function DemoLineExperiencePanel() {
                 <MenuItem value="meeting">Meeting Room</MenuItem>
               </TextField>
               <Button onClick={() => handleEvent({ type: 'reset' })} variant="outlined" startIcon={<RefreshRoundedIcon />}>Reset Demo</Button>
-              <Button onClick={() => handleEvent({ type: 'menu', key: 'booking' })} variant="contained" startIcon={<PlayArrowRoundedIcon />} sx={{ bgcolor: '#73C088', '&:hover': { bgcolor: '#5ead77' } }}>
+              <Button onClick={() => handleEvent({ type: 'menu', key: 'booking' })} variant="contained" startIcon={<PlayArrowRoundedIcon />} sx={{ bgcolor: '#12a862', '&:hover': { bgcolor: '#5ead77' } }}>
                 เริ่ม Flow จองคิว
               </Button>
             </Stack>
@@ -450,7 +450,7 @@ export function DemoLineExperiencePanel() {
                     variant={active ? 'filled' : 'outlined'}
                     sx={{
                       bgcolor: active ? '#EAF3DE' : undefined,
-                      color: active ? '#3B6D11' : undefined,
+                      color: active ? '#0a7043' : undefined,
                       borderColor: unlocked ? undefined : '#d4dbe3',
                       opacity: unlocked ? 1 : 0.55,
                       fontWeight: 700,
@@ -474,7 +474,7 @@ export function DemoLineExperiencePanel() {
               size="small"
               variant="contained"
               onClick={startWalktour}
-              sx={{ bgcolor: '#73C088', '&:hover': { bgcolor: '#5ead77' } }}
+              sx={{ bgcolor: '#12a862', '&:hover': { bgcolor: '#5ead77' } }}
             >
               Walktour
             </Button>
@@ -512,7 +512,7 @@ export function DemoLineExperiencePanel() {
                 <Card
                   sx={{
                     borderRadius: 1,
-                    border: currentStep === 3 ? '2px solid #73c088' : undefined,
+                    border: currentStep === 3 ? '2px solid #12a862' : undefined,
                     maxWidth: 420,
                     mx: 'auto',
                     width: '100%',
@@ -543,7 +543,7 @@ export function DemoLineExperiencePanel() {
                 <Card
                   sx={{
                     borderRadius: 1,
-                    border: currentStep === 4 ? '2px solid #73c088' : undefined,
+                    border: currentStep === 4 ? '2px solid #12a862' : undefined,
                     maxWidth: 420,
                     width: '100%',
                   }}
@@ -571,7 +571,7 @@ export function DemoLineExperiencePanel() {
       {unlockedSteps[5] && currentStep === 5 ? (
         <Grid container spacing={2.2}>
           <Grid size={{ xs: 12 }}>
-            <Card ref={step5FullscreenRef} sx={{ borderRadius: 1, border: currentStep === 5 ? '2px solid #73c088' : undefined, position: 'relative', overflow: 'visible' }}>
+            <Card ref={step5FullscreenRef} sx={{ borderRadius: 1, border: currentStep === 5 ? '2px solid #12a862' : undefined, position: 'relative', overflow: 'visible' }}>
               <CardContent>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.6 }}>
                   <Typography variant="caption" color="text.secondary">STEP 4 Queue Board (สำหรับร้าน)</Typography>
@@ -631,7 +631,7 @@ export function DemoLineExperiencePanel() {
         <Grid container spacing={2.2}>
 
           <Grid size={{ xs: 12 }}>
-            <Card ref={step6FullscreenRef} sx={{ borderRadius: 1, border: currentStep === 6 ? '2px solid #73c088' : undefined }}>
+            <Card ref={step6FullscreenRef} sx={{ borderRadius: 1, border: currentStep === 6 ? '2px solid #12a862' : undefined }}>
               <CardContent>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.6 }}>
                   <Typography variant="caption" color="text.secondary">STEP 5: Signage View (แสดงจอในร้าน)</Typography>
@@ -667,7 +667,7 @@ export function DemoLineExperiencePanel() {
         <DialogActions sx={{ px: 2, pb: 1.6 }}>
           <Button onClick={() => setWalktourOpen(false)}>ปิด</Button>
           <Button onClick={() => moveWalktour('prev')} disabled={walktourIndex === 0}>ก่อนหน้า</Button>
-          <Button variant="contained" onClick={() => moveWalktour('next')} sx={{ bgcolor: '#73C088', '&:hover': { bgcolor: '#5ead77' } }}>
+          <Button variant="contained" onClick={() => moveWalktour('next')} sx={{ bgcolor: '#12a862', '&:hover': { bgcolor: '#5ead77' } }}>
             {walktourIndex >= walktourSteps.length - 1 ? 'เสร็จสิ้น' : 'ถัดไป'}
           </Button>
         </DialogActions>

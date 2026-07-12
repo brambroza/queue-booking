@@ -174,10 +174,10 @@ export default function PromptPayPaymentPage() {
               </Typography>
 
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 3 }}>
-                <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#639922', '&:hover': { bgcolor: '#3B6D11' } }}>
+                <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#12a862', '&:hover': { bgcolor: '#0a7043' } }}>
                   ทดลองใช้งานฟรี
                 </Button>
-                <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#639922', color: '#639922' }}>
+                <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#12a862', color: '#12a862' }}>
                   ขอเดโม
                 </Button>
               </Stack>
@@ -383,10 +383,10 @@ export default function PromptPayPaymentPage() {
             ลดคิวเบี้ยวนัด ลดงานเช็คสลิป และให้ระบบจัดการเรื่องเงินให้ทั้งหมด
           </Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 2.5 }}>
-            <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#639922', '&:hover': { bgcolor: '#3B6D11' } }}>
+            <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#12a862', '&:hover': { bgcolor: '#0a7043' } }}>
               ทดลองใช้งานฟรี
             </Button>
-            <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#639922', color: '#639922' }}>
+            <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#12a862', color: '#12a862' }}>
               ขอเดโม
             </Button>
           </Stack>

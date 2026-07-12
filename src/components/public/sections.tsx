@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 import {
   Box,
@@ -20,7 +22,23 @@ import ApartmentRoundedIcon from '@mui/icons-material/ApartmentRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
+import { alpha, type Theme } from '@mui/material/styles';
 import { features, pricingPlans, testimonials, useCases as useCaseCards } from './content';
+
+/** สไตล์ chip แบรนด์ (soft) — theme-aware รองรับ light/dark */
+const brandChipSx = (theme: Theme) => ({
+  bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.2 : 0.14),
+  color: theme.palette.mode === 'dark' ? theme.palette.primary.light : theme.palette.primary.dark,
+  fontWeight: 600,
+});
+
+/** พื้นหลัง section — light ใช้ค่าที่ออกแบบไว้, dark สลับเป็น paper/bg ของ theme */
+const sectionBg = (bg: string) => (theme: Theme) =>
+  theme.palette.mode === 'dark'
+    ? bg === '#fff'
+      ? theme.palette.background.paper
+      : theme.palette.background.default
+    : bg;
 
 const painCards = [
   { title: 'ลูกค้าทักถามคิวซ้ำ ๆ', desc: 'พนักงานต้องตอบข้อความเดิมซ้ำหลายสิบครั้งต่อวัน เสียเวลามาก', color: '#E24B4A' },
@@ -32,10 +50,10 @@ const painCards = [
 ];
 
 const solutionCards = [
-  { title: 'ลูกค้าถามคิวผ่าน LINE', desc: 'ตอบกลับอัตโนมัติทันที ไม่ต้องใช้พนักงาน', icon: <ForumRoundedIcon sx={{ color: '#639922' }} />, bg: '#EAF3DE' },
+  { title: 'ลูกค้าถามคิวผ่าน LINE', desc: 'ตอบกลับอัตโนมัติทันที ไม่ต้องใช้พนักงาน', icon: <ForumRoundedIcon sx={{ color: '#12a862' }} />, bg: '#EAF3DE' },
   { title: 'จองคิวผ่าน LIFF', desc: 'เปิดหน้าจองในแอป LINE ได้เลย สะดวกมาก', icon: <DashboardRoundedIcon sx={{ color: '#378ADD' }} />, bg: '#E6F1FB' },
   { title: 'ตอบกลับอัตโนมัติ', desc: 'Chatbot ตอบ 24/7 ไม่มีวันหยุด', icon: <SmartToyRoundedIcon sx={{ color: '#534AB7' }} />, bg: '#EEEDFE' },
-  { title: 'จัดการคิวหลังบ้าน', desc: 'Dashboard ครบ ดู แก้ ยกเลิก คิวได้ทันที', icon: <DashboardRoundedIcon sx={{ color: '#639922' }} />, bg: '#EAF3DE' },
+  { title: 'จัดการคิวหลังบ้าน', desc: 'Dashboard ครบ ดู แก้ ยกเลิก คิวได้ทันที', icon: <DashboardRoundedIcon sx={{ color: '#12a862' }} />, bg: '#EAF3DE' },
   { title: 'รองรับหลายสาขา', desc: 'บริหารหลายร้านหลายสาขาในที่เดียว', icon: <ApartmentRoundedIcon sx={{ color: '#854F0B' }} />, bg: '#FAEEDA' },
   { title: 'รายงานและสถิติ', desc: 'วิเคราะห์ข้อมูลเพื่อพัฒนาธุรกิจ', icon: <InsightsRoundedIcon sx={{ color: '#A32D2D' }} />, bg: '#FCEBEB' },
 ];
@@ -63,38 +81,70 @@ const mockCaseStudies = [
 
 export function HeroSection() {
   return (
-    <Box sx={{ background: '#fff', py: { xs: 8, md: 10 }, borderBottom: '1px solid', borderColor: 'divider' }}>
+    <Box sx={{ bgcolor: 'background.paper', py: { xs: 5, md: 10 }, borderBottom: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
       <Container maxWidth="lg">
-        <Grid container spacing={4} alignItems="center">
-          <Grid size={{ xs: 12, md: 7 }}>
-            <Chip label="ระบบจองคิวผ่าน LINE OA" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 600 }} />
-            <Typography sx={{ mt: 2, fontSize: { xs: 32, md: 46 }, lineHeight: 1.2, fontWeight: 700 }}>
-              ลูกค้าจองคิวผ่าน LINE ได้เอง
-
-
-            </Typography>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 3 }}>
-              <Chip label="แจ้งเตือนอัตโนมัติ" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 600 }} />
-              <Chip label="เรียกคิวผ่านจอได้" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 600 }} />
-              <Chip label="ลด no-show" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 600 }} />
-              <Chip label="ใช้ได้หลายสาขา" sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', fontWeight: 600 }} />
-            </Stack>
-            <Typography color="text.secondary" sx={{ mt: 2, maxWidth: 560, lineHeight: 1.8 }}>
-              ให้ลูกค้าถามคิวว่างและจองคิวได้ง่ายผ่าน LINE พร้อมระบบหลังบ้านสำหรับจัดการร้าน สาขา บริการ คิว พนักงาน และรายงานครบในที่เดียว
-            </Typography>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 3 }}>
-              <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#639922', '&:hover': { bgcolor: '#3B6D11' } }}>เริ่มใช้งานฟรี</Button>
-              <Button component={Link} href="/pricing" variant="outlined" sx={{ borderColor: '#639922', color: '#639922' }}>ดูแผนราคา</Button>
-              <Button component={Link} href="/contact" variant="outlined" color="inherit">ติดต่อเรา</Button>
-              <Button component={Link} href="/blog" variant="text" color="inherit">อ่านบทความ</Button>
-            </Stack>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 3 }}>
-              {['Starter ฟรี 3 เดือน', '100 bookings/เดือน', 'ตั้งค่าง่ายใน 5 นาที'].map((x) => (
-                <Stack key={x} direction="row" spacing={0.8} alignItems="center">
-                  <CheckCircleRoundedIcon sx={{ color: '#639922', fontSize: 18 }} />
-                  <Typography variant="body2" color="text.secondary">{x}</Typography>
+        <Grid container spacing={{ xs: 4, md: 4 }} alignItems="center">
+          <Grid size={{ xs: 12, md: 7 }} sx={{ minWidth: 0 }}>
+            <Stack alignItems={{ xs: 'center', md: 'flex-start' }} sx={{ width: '100%', maxWidth: '100%', textAlign: { xs: 'center', md: 'left' } }}>
+              <Chip label="ระบบจองคิวผ่าน LINE OA" sx={brandChipSx} />
+              <Typography
+                component="h1"
+                sx={{ mt: 2, width: '100%', fontSize: { xs: 30, sm: 38, md: 46 }, lineHeight: 1.18, fontWeight: 800, letterSpacing: '-0.01em', textWrap: 'balance' }}
+              >
+                ลูกค้าจองคิวผ่าน{' '}
+                <Box component="span" sx={{ color: 'primary.main' }}>LINE</Box>
+                {' '}ได้เอง
+              </Typography>
+              <Stack
+                direction="row"
+                useFlexGap
+                flexWrap="wrap"
+                spacing={1}
+                justifyContent={{ xs: 'center', md: 'flex-start' }}
+                sx={{ mt: 2.5, width: '100%' }}
+              >
+                {['แจ้งเตือนอัตโนมัติ', 'เรียกคิวผ่านจอได้', 'ลด no-show', 'ใช้ได้หลายสาขา'].map((c) => (
+                  <Chip key={c} label={c} size="small" sx={brandChipSx} />
+                ))}
+              </Stack>
+              <Typography color="text.secondary" sx={{ mt: 2.5, width: '100%', maxWidth: 560, lineHeight: 1.8 }}>
+                ให้ลูกค้าถามคิวว่างและจองคิวได้ง่ายผ่าน LINE พร้อมระบบหลังบ้านสำหรับจัดการร้าน สาขา บริการ คิว พนักงาน และรายงานครบในที่เดียว
+              </Typography>
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                useFlexGap
+                flexWrap="wrap"
+                spacing={1.2}
+                alignItems={{ xs: 'stretch', sm: 'center' }}
+                sx={{ mt: 3, width: '100%' }}
+              >
+                <Button component={Link} href="/register" variant="contained" size="large" sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                  เริ่มใช้งานฟรี
+                </Button>
+                <Button component={Link} href="/pricing" variant="outlined" size="large" sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                  ดูแผนราคา
+                </Button>
+                <Stack direction="row" spacing={0.5} justifyContent="center" sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                  <Button component={Link} href="/contact" color="inherit">ติดต่อเรา</Button>
+                  <Button component={Link} href="/blog" color="inherit">อ่านบทความ</Button>
                 </Stack>
-              ))}
+              </Stack>
+              <Stack
+                direction="row"
+                useFlexGap
+                flexWrap="wrap"
+                spacing={1.5}
+                rowGap={1}
+                justifyContent={{ xs: 'center', md: 'flex-start' }}
+                sx={{ mt: 3, width: '100%' }}
+              >
+                {['Starter ฟรี 3 เดือน', '100 bookings/เดือน', 'ตั้งค่าง่ายใน 5 นาที'].map((x) => (
+                  <Stack key={x} direction="row" spacing={0.8} alignItems="center">
+                    <CheckCircleRoundedIcon sx={{ color: 'primary.main', fontSize: 18 }} />
+                    <Typography variant="body2" color="text.secondary">{x}</Typography>
+                  </Stack>
+                ))}
+              </Stack>
             </Stack>
           </Grid>
 
@@ -103,7 +153,7 @@ export function HeroSection() {
               <Paper sx={{ p: 1.5, borderRadius: 1, flex: 1, border: '1px solid', borderColor: 'divider', boxShadow: '0 10px 28px rgba(15,23,42,0.06)' }}>
                 <Typography variant="caption" color="text.secondary">Dashboard</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                  <Box sx={{ flex: 1, bgcolor: '#EAF3DE', borderRadius: 1, p: 1.2, textAlign: 'center' }}><Typography fontWeight={700} color="#3B6D11">48</Typography><Typography variant="caption">คิววันนี้</Typography></Box>
+                  <Box sx={{ flex: 1, bgcolor: '#EAF3DE', borderRadius: 1, p: 1.2, textAlign: 'center' }}><Typography fontWeight={700} color="#0a7043">48</Typography><Typography variant="caption">คิววันนี้</Typography></Box>
                   <Box sx={{ flex: 1, bgcolor: '#E6F1FB', borderRadius: 1, p: 1.2, textAlign: 'center' }}><Typography fontWeight={700} color="#185FA5">12</Typography><Typography variant="caption">รอดำเนินการ</Typography></Box>
                 </Stack>
                 <Box sx={{ mt: 1, p: 1.2, bgcolor: '#F1EFE8', borderRadius: 2 }}>
@@ -121,41 +171,36 @@ export function HeroSection() {
             </Stack>
           </Grid> */}
 
-          <Grid size={{ xs: 12, md: 5 }}>
-            <Stack direction="row" spacing={1.5} alignItems="end">
-              {/*   <Paper
-                sx={{
-                  p: 1,
-                  borderRadius: 1.5,
-                  flex: 1,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  boxShadow: '0 10px 28px rgba(15,23,42,0.06)',
-                }}
-              >
-                <Box
-                  component="img"
-                  src="/images/landing/1.jpg"
-                  alt="ตัวอย่างหน้าเลือกบริการและเวลาจองคิว"
-                  sx={{
-                    width: '100%',
-                    display: 'block',
-                    borderRadius: 1,
-                    border: '1px solid',
-                    borderColor: '#e5e7eb',
-                  }}
-  
-                />
-              </Paper> */}
+          <Grid size={{ xs: 12, md: 5 }} sx={{ minWidth: 0, width: '100%' }}>
+            <Stack
+              direction="row"
+              spacing={1.5}
+              alignItems="flex-start"
+              justifyContent={{ xs: 'flex-start', md: 'flex-start' }}
+              sx={{
+                width: '100%',
+                // ล็อกกับ viewport โดยตรง กัน flex min-width ดันความกว้างเกินจอ
+                maxWidth: { xs: 'calc(100vw - 32px)', md: '100%' },
+                overflowX: 'auto',
+                px: 0.5,
+                pb: 1,
+                scrollSnapType: 'x mandatory',
+                scrollbarWidth: 'none',
+                '&::-webkit-scrollbar': { display: 'none' },
+              }}
+            >
+              
               <Box
                 sx={{
-                  width: 165,
+                  flex: '0 0 auto',
+                  width: { xs: 150, sm: 165 },
                   p: 0.8,
-                  borderRadius: 1.5,
+                  borderRadius: 2.5,
                   border: '1px solid',
                   borderColor: 'divider',
-                  boxShadow: '0 10px 28px rgba(15,23,42,0.08)',
-                  bgcolor: '#fff',
+                  boxShadow: 'var(--shadow-pop)',
+                  bgcolor: 'background.paper',
+                  scrollSnapAlign: 'start',
                 }}
               >
                 <Box
@@ -170,20 +215,22 @@ export function HeroSection() {
                     objectPosition: 'top center',
                     borderRadius: 1,
                     border: '1px solid',
-                    borderColor: '#e5e7eb',
+                    borderColor: 'divider',
                   }}
                 />
               </Box>
 
               <Box
                 sx={{
-                  width: 165,
+                  flex: '0 0 auto',
+                  width: { xs: 150, sm: 165 },
                   p: 0.8,
-                  borderRadius: 1.5,
+                  borderRadius: 2.5,
                   border: '1px solid',
                   borderColor: 'divider',
-                  boxShadow: '0 10px 28px rgba(15,23,42,0.08)',
-                  bgcolor: '#fff',
+                  boxShadow: 'var(--shadow-pop)',
+                  bgcolor: 'background.paper',
+                  scrollSnapAlign: 'start',
                 }}
               >
                 <Box
@@ -198,20 +245,22 @@ export function HeroSection() {
                     objectPosition: 'top center',
                     borderRadius: 1,
                     border: '1px solid',
-                    borderColor: '#e5e7eb',
+                    borderColor: 'divider',
                   }}
                 />
               </Box>
 
               <Box
                 sx={{
-                  width: 165,
+                  flex: '0 0 auto',
+                  width: { xs: 150, sm: 165 },
                   p: 0.8,
-                  borderRadius: 1.5,
+                  borderRadius: 2.5,
                   border: '1px solid',
                   borderColor: 'divider',
-                  boxShadow: '0 10px 28px rgba(15,23,42,0.08)',
-                  bgcolor: '#fff',
+                  boxShadow: 'var(--shadow-pop)',
+                  bgcolor: 'background.paper',
+                  scrollSnapAlign: 'start',
                 }}
               >
                 <Box
@@ -222,11 +271,11 @@ export function HeroSection() {
                     width: '100%',
                     height: 270,
                     display: 'block',
-                    objectFit: 'fill',
+                    objectFit: 'cover',
                     objectPosition: 'top center',
                     borderRadius: 1,
                     border: '1px solid',
-                    borderColor: '#e5e7eb',
+                    borderColor: 'divider',
                   }}
                 />
               </Box>
@@ -241,7 +290,7 @@ export function HeroSection() {
 export function StatsSection() {
   const stats = [['500+', 'ร้านค้าที่ใช้งาน'], ['50,000+', 'การจองต่อเดือน'], ['99.9%', 'Uptime'], ['4.9 ★', 'คะแนนเฉลี่ย']];
   return (
-    <Box sx={{ bgcolor: '#f8faf9', py: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+    <Box sx={{ bgcolor: sectionBg('#f8faf9'), py: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
       <Container maxWidth="lg">
         <Stack
           direction={{ xs: 'column', md: 'row' }}
@@ -252,7 +301,7 @@ export function StatsSection() {
         >
           {stats.map(([n, l]) => (
             <Box key={l} sx={{ textAlign: 'center', px: { xs: 1, md: 3 }, py: 0.6 }}>
-              <Typography sx={{ fontSize: 26, fontWeight: 700, color: '#639922', lineHeight: 1.1 }}>{n}</Typography>
+              <Typography sx={{ fontSize: 26, fontWeight: 700, color: '#12a862', lineHeight: 1.1 }}>{n}</Typography>
               <Typography variant="caption" color="text.secondary">{l}</Typography>
             </Box>
           ))}
@@ -298,7 +347,7 @@ export function SolutionSection() {
 /** A compact preview of the PromptPay flow, with the QR and receipt shown as LINE messages. */
 export function PromptPayShowcaseSection() {
   return (
-    <Box sx={{ py: 8, bgcolor: '#F7FAFF', borderTop: '1px solid #E2EAF8', borderBottom: '1px solid #E2EAF8' }}>
+    <Box sx={{ py: 8, bgcolor: sectionBg('#F7FAFF'), borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider' }}>
       <Container maxWidth="lg">
         <Grid container spacing={{ xs: 4, md: 6 }} alignItems="center">
           <Grid size={{ xs: 12, md: 5 }}>
@@ -339,7 +388,7 @@ export function PromptPayShowcaseSection() {
                     objectPosition: 'top center',
                     borderRadius: 0.7,
                     border: '1px solid',
-                    borderColor: '#e5e7eb',
+                    borderColor: 'divider',
                   }}
                 />
               </PaymentPhone>
@@ -357,7 +406,7 @@ export function PromptPayShowcaseSection() {
                     objectPosition: 'top center',
                     borderRadius: 1,
                     border: '1px solid',
-                    borderColor: '#e5e7eb',
+                    borderColor: 'divider',
                   }}
                 />
               </PaymentPhone>
@@ -434,7 +483,7 @@ export function ShowcaseSection() {
             <Grid key={item.slug} size={{ xs: 6, md: 3 }}>
               <Card sx={{ textAlign: 'center', borderRadius: 1 }}>
                 <CardContent sx={{ py: 2.2 }}>
-                  <Icon sx={{ fontSize: 30, color: '#639922' }} />
+                  <Icon sx={{ fontSize: 30, color: '#12a862' }} />
                   <Typography fontWeight={700} sx={{ fontSize: 14, mt: 0.6 }}>{item.title}</Typography>
                   <Typography variant="caption" color="text.secondary">{item.mode}</Typography>
                 </CardContent>
@@ -444,7 +493,7 @@ export function ShowcaseSection() {
         })}
       </Grid>
       <Stack alignItems="center" sx={{ mt: 2.5 }}>
-        <Button component={Link} href="/use-cases" variant="outlined" sx={{ borderColor: '#639922', color: '#639922' }}>
+        <Button component={Link} href="/use-cases" variant="outlined" sx={{ borderColor: '#12a862', color: '#12a862' }}>
           ดูตัวอย่างธุรกิจทั้งหมด
         </Button>
       </Stack>
@@ -472,7 +521,7 @@ export function HowItWorksSection() {
   const steps = ['สมัครใช้งานและสร้างร้านค้า', 'ตั้งค่าสาขา บริการ เวลาทำการ และเชื่อม LINE OA', 'ให้ลูกค้าจองคิวผ่าน LINE และจัดการผ่าน Dashboard'];
   return (
     <SectionWrap title="เริ่มใช้งานง่ายใน 3 ขั้นตอน" sub="ระบบออกแบบให้เริ่มได้รวดเร็ว" tag="How it works" bg="#f6f7f9">
-      <Grid container spacing={2}>{steps.map((s, i) => <Grid key={s} size={{ xs: 12, md: 4 }}><Card sx={{ borderRadius: 1, height: '100%' }}><CardContent><Chip label={`Step ${i + 1}`} sx={{ bgcolor: '#EAF3DE', color: '#3B6D11' }} /><Typography sx={{ mt: 1.2 }}>{s}</Typography></CardContent></Card></Grid>)}</Grid>
+      <Grid container spacing={2}>{steps.map((s, i) => <Grid key={s} size={{ xs: 12, md: 4 }}><Card sx={{ borderRadius: 1, height: '100%' }}><CardContent><Chip label={`Step ${i + 1}`} sx={brandChipSx} /><Typography sx={{ mt: 1.2 }}>{s}</Typography></CardContent></Card></Grid>)}</Grid>
     </SectionWrap>
   );
 }
@@ -483,7 +532,7 @@ export function PricingPreviewSection() {
       <Grid container spacing={2}>
         {pricingPlans.map((p) => (
           <Grid key={p.name} size={{ xs: 12, md: 6, lg: 3 }}>
-            <Card sx={{ borderRadius: 1, border: p.highlight ? '2px solid #73c088' : undefined, height: '100%' }}>
+            <Card sx={{ borderRadius: 1, border: p.highlight ? '2px solid #12a862' : undefined, height: '100%' }}>
               <CardContent>
                 <Typography fontWeight={700}>{p.name}</Typography>
                 <Typography sx={{ fontSize: 34, fontWeight: 800, mt: 0.5 }}>{p.price}</Typography>
@@ -495,7 +544,7 @@ export function PricingPreviewSection() {
                   href={p.name === 'Custom' ? '/contact' : `/register?plan=${encodeURIComponent(p.name)}`}
                   variant="contained"
                   fullWidth
-                  sx={{ mt: 2, bgcolor: '#639922', '&:hover': { bgcolor: '#3B6D11' } }}
+                  sx={{ mt: 2, bgcolor: '#12a862', '&:hover': { bgcolor: '#0a7043' } }}
                 >
                   {p.name === 'Custom' ? 'ขอใบเสนอราคา' : 'เริ่มใช้งาน'}
                 </Button>
@@ -568,7 +617,10 @@ export function CtaSection() {
           borderRadius: 1,
           border: '1px solid',
           borderColor: 'divider',
-          background: 'linear-gradient(135deg,#ffffff 0%,#f6fbf8 100%)',
+          background: (theme) =>
+            theme.palette.mode === 'dark'
+              ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.primary.main, 0.12)} 100%)`
+              : 'linear-gradient(135deg,#ffffff 0%,#f6fbf8 100%)',
           boxShadow: '0 14px 40px rgba(15,23,42,0.06)',
         }}
       >
@@ -580,7 +632,7 @@ export function CtaSection() {
               py: 0.5,
               borderRadius: 10,
               bgcolor: '#EAF3DE',
-              color: '#3B6D11',
+              color: '#0a7043',
               fontSize: 12,
               fontWeight: 700,
             }}
@@ -597,10 +649,10 @@ export function CtaSection() {
           </Typography>
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ pt: 0.5 }}>
-            <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#639922', '&:hover': { bgcolor: '#3B6D11' } }}>
+            <Button component={Link} href="/register" variant="contained" sx={{ bgcolor: '#12a862', '&:hover': { bgcolor: '#0a7043' } }}>
               เริ่มใช้งานฟรี
             </Button>
-            <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#639922', color: '#639922' }}>
+            <Button component={Link} href="/contact" variant="outlined" sx={{ borderColor: '#12a862', color: '#12a862' }}>
               ติดต่อทีมงาน
             </Button>
             <Button component={Link} href="/pricing" variant="text" color="inherit">
@@ -618,12 +670,21 @@ export function CtaSection() {
 
 function SectionWrap({ id, title, sub, tag, bg, children }: { id?: string; title: string; sub: string; tag: string; bg: string; children: React.ReactNode }) {
   return (
-    <Box id={id} sx={{ py: 8, bgcolor: bg, scrollMarginTop: '96px' }}>
+    <Box id={id} sx={{ py: { xs: 6, md: 8 }, bgcolor: sectionBg(bg), scrollMarginTop: '96px' }}>
       <Container maxWidth="lg">
-        <Stack alignItems="center" sx={{ mb: 3 }}>
-          <Chip label={tag} sx={{ bgcolor: '#EAF3DE', color: '#3B6D11', mb: 1 }} />
-          <Typography variant="h4" fontWeight={700} textAlign="center">{title}</Typography>
-          <Typography color="text.secondary" textAlign="center" sx={{ mt: 0.5 }}>{sub}</Typography>
+        <Stack alignItems="center" sx={{ mb: { xs: 3, md: 4 } }}>
+          <Chip label={tag} sx={[brandChipSx, { mb: 1.5 }]} />
+          <Typography
+            variant="h4"
+            fontWeight={800}
+            textAlign="center"
+            sx={{ width: '100%', fontSize: { xs: 24, sm: 30, md: 34 }, letterSpacing: '-0.01em', textWrap: 'balance' }}
+          >
+            {title}
+          </Typography>
+          <Typography color="text.secondary" textAlign="center" sx={{ mt: 1, width: '100%', maxWidth: 640, px: 1 }}>
+            {sub}
+          </Typography>
         </Stack>
         {children}
       </Container>

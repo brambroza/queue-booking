@@ -96,8 +96,8 @@ export default function HomePage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
       <PublicNavbar />
       <HeroSection />
-   {/*    <StatsSection /> */}
-  
+      {/*    <StatsSection /> */}
+
       <PainPointSection />
       <SolutionSection />
       <PromptPayShowcaseSection />
