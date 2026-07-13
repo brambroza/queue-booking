@@ -55,7 +55,10 @@ export function PublicFooter() {
           </Grid>
         </Grid>
         <Typography variant="caption" color="text.secondary" sx={{ mt: 4, display: 'block' }}>
-          © {new Date().getFullYear()} QueueBooking .
+          © {new Date().getFullYear()} QueueBooking by{' '}
+          <Link href="https://goalong.co.th/" target="_blank" rel="noopener noreferrer">
+            <Box component="span" sx={{ fontWeight: 700 }}>GO Along Co., Ltd.</Box>
+          </Link>
         </Typography>
       </Container>
     </Box>
