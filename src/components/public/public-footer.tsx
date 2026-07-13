@@ -42,6 +42,7 @@ export function PublicFooter() {
               <Typography fontWeight={700}>บัญชี</Typography>
               <Link href="/login">Login</Link>
               <Link href="/register">Register</Link>
+              <Link href="/privacy-policy">นโยบายความเป็นส่วนตัว</Link>
             </Stack>
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>

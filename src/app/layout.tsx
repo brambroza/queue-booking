@@ -5,6 +5,7 @@ import { Kanit } from 'next/font/google';
 import { I18nProvider } from '@/components/i18n/i18n-provider';
 import { MuiAppProvider } from '@/components/theme/mui-provider';
 import { PostHogProvider } from '@/components/analytics/posthog-provider';
+import { CookieConsent } from '@/components/consent/cookie-consent';
 import { BreadcrumbSchema } from '@/components/seo/breadcrumb-schema';
 
 const kanit = Kanit({
@@ -119,6 +120,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <I18nProvider>
             <MuiAppProvider>
               <ToastProvider>{children}</ToastProvider>
+              <CookieConsent />
             </MuiAppProvider>
           </I18nProvider>
         </PostHogProvider>
