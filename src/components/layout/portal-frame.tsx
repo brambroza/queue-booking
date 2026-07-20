@@ -23,6 +23,7 @@ import { NotificationsMenu } from '@/components/layout/notifications-menu';
 import { TopbarUserMenu } from '@/components/layout/topbar-user-menu';
 import { useI18n } from '@/components/i18n/i18n-provider';
 import { DemoModeBanner } from '@/components/demo/demo-mode-banner';
+import { PortalTour } from '@/components/layout/portal-tour';
 
 const drawerWidth = 280;
 
@@ -56,7 +57,7 @@ export function PortalFrame({
   const { t } = useI18n();
 
   const sidebar = (
-    <Box sx={{ p: 2 }}>
+    <Box data-tour="portal-nav" sx={{ p: 2 }}>
       <Stack
         direction="row"
         spacing={1.3}
@@ -121,7 +122,7 @@ export function PortalFrame({
               ))}
             </Breadcrumbs>
           </Box>
-          <Stack direction="row" spacing={1.2} alignItems="center">
+          <Stack data-tour="portal-toolbar" direction="row" spacing={1.2} alignItems="center">
           {/*   <Button
               component={Link}
               href="/portal/demo-sandbox"
@@ -140,6 +141,7 @@ export function PortalFrame({
             >
               โหมดทดลอง
             </Button> */}
+            <PortalTour />
             <ColorModeToggle />
             <LanguageSwitch />
             <NotificationsMenu />
@@ -167,7 +169,7 @@ export function PortalFrame({
         </Drawer>
       </Box>
 
-      <Box component="main" sx={{ flex: 1, pt: { xs: 10, md: 11 }, pb: 4 }}>
+      <Box component="main" data-tour="page-content" sx={{ flex: 1, pt: { xs: 10, md: 11 }, pb: 4 }}>
         <Container maxWidth="xl">
           <DemoModeBanner show={demoModeEnabled} />
           {children}

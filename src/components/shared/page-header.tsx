@@ -20,7 +20,7 @@ export function PageHeader({
       justifyContent="space-between"
       sx={{ mb: 2.5 }}
     >
-      <Stack spacing={0.5} sx={{ minWidth: 0 }}>
+      <Stack data-tour="page-heading" spacing={0.5} sx={{ minWidth: 0 }}>
         <Typography variant="h4" fontWeight={800} sx={{ letterSpacing: '-0.01em' }}>
           {title}
         </Typography>

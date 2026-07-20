@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Box, Button, Container, Grid, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
+import { Box, Button, Chip, Container, Grid, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
+import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import { PublicFooter } from '@/components/public/public-footer';
 import { PublicNavbar } from '@/components/public/public-navbar';
-import { faqs, featureCompare } from '@/components/public/content';
+import { faqs, featureCompare, pricingPlans } from '@/components/public/content';
 import { FaqSection } from '@/components/public/faq-section';
 import { PricingCard } from '@/components/public/pricing-card';
 
@@ -28,6 +29,8 @@ export const metadata: Metadata = {
   },
 };
 
+const BRAND = '#12a862';
+
 export default function PricingPage() {
   const faqSchema = {
     '@context': 'https://schema.org',
@@ -46,37 +49,109 @@ export default function PricingPage() {
     <main>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
       <PublicNavbar />
-      <Container maxWidth="xl" sx={{ py: 8 }}>
-        <Typography variant="h3" fontWeight={800}>Pricing Plans</Typography>
-        <Typography color="text.secondary" sx={{ mt: 1 }}>โปรโมชันตอนนี้: Starter ฟรี 3 เดือน (100 bookings/เดือน)</Typography>
+      <Container maxWidth="lg" sx={{ py: { xs: 6, md: 10 } }}>
+        <Stack spacing={1.5} alignItems="center" textAlign="center" sx={{ mb: { xs: 5, md: 7 } }}>
+          <Chip
+            label="โปรฯ Starter ฟรี 3 เดือนแรก"
+            sx={{ fontWeight: 600, color: BRAND, bgcolor: 'rgba(18,168,98,.1)' }}
+          />
+          <Typography variant="h3" fontWeight={800} sx={{ letterSpacing: '-.02em' }}>
+            เลือกแพ็กเกจที่พอดีกับขนาดธุรกิจของคุณ
+          </Typography>
+          <Typography color="text.secondary" sx={{ maxWidth: 520 }}>
+            ปรับเปลี่ยนหรือยกเลิกได้ทุกเมื่อ ไม่มีสัญญาผูกมัด
+          </Typography>
+        </Stack>
 
-        <Grid container spacing={2} sx={{ mt: 1 }}>
-          <Grid size={{ xs: 12, md: 4 }}><PricingCard name="Free Trial" price="0 บาท" period="/14 วัน" items={['ทดสอบระบบ', '1 ร้าน', '1 สาขา', '1 บริการ', '50 bookings']} /></Grid>
-          <Grid size={{ xs: 12, md: 4 }}><PricingCard name="Starter" price="ฟรี 3 เดือน" items={['1 ร้าน', '1 สาขา', '3 บริการ', '100 bookings/เดือน']} /></Grid>
-          <Grid size={{ xs: 12, md: 4 }}><PricingCard name="Professional" price="1,490 บาท" items={['1 ร้าน', '5 สาขา', 'ไม่จำกัดบริการ', '2,000 bookings/เดือน', 'LINE Auto Reply']} highlight /></Grid>
-          <Grid size={{ xs: 12, md: 6 }}><PricingCard name="Business" price="3,990 บาท" items={['หลายร้าน / หลายสาขา', 'ไม่จำกัดบริการ', '10,000 bookings/เดือน', 'Chat Inbox', 'Advanced Reports']} /></Grid>
-          <Grid size={{ xs: 12, md: 6 }}><PricingCard name="Enterprise" price="ติดต่อฝ่ายขาย" period="" items={['Custom features', 'Dedicated support', 'SLA', 'On-premise option']} /></Grid>
+        <Grid container spacing={2.5}>
+          {pricingPlans.map((p, i) => (
+            <Grid key={p.name} size={i < 3 ? { xs: 12, sm: 6, md: 4 } : { xs: 12, sm: 6, md: 6 }}>
+              <PricingCard name={p.name} price={p.price} period={p.period} items={p.items} highlight={p.highlight} />
+            </Grid>
+          ))}
         </Grid>
 
-        <Paper sx={{ mt: 4, borderRadius: 3, overflow: 'hidden' }}>
-          <Table>
-            <TableHead><TableRow><TableCell>Feature</TableCell><TableCell>Trial</TableCell><TableCell>Starter</TableCell><TableCell>Professional</TableCell><TableCell>Business</TableCell><TableCell>Enterprise</TableCell></TableRow></TableHead>
-            <TableBody>{featureCompare.map((r) => <TableRow key={r.key}><TableCell>{r.key}</TableCell><TableCell>{r.trial}</TableCell><TableCell>{r.starter}</TableCell><TableCell>{r.pro}</TableCell><TableCell>{r.business}</TableCell><TableCell>{r.enterprise}</TableCell></TableRow>)}</TableBody>
-          </Table>
+        <Stack spacing={0.75} sx={{ mt: 3 }}>
+          <Typography variant="caption" color="text.secondary">
+            * ราคายังไม่รวมภาษีมูลค่าเพิ่ม (VAT 7%)
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            * ราคาข้างต้นเป็นค่าบริการระบบจองคิวเท่านั้น <Box component="strong" sx={{ color: 'text.primary' }}>ไม่รวมค่าบริการ LINE Messaging API</Box> ซึ่งคิดตามปริมาณข้อความที่ส่งจริงตามอัตราของ LINE OA โดยตรง (ร้านค้าเป็นผู้ชำระกับ LINE)
+          </Typography>
+        </Stack>
+
+        <Box sx={{ mt: { xs: 7, md: 10 }, textAlign: 'center', mb: 4 }}>
+          <Typography variant="h4" fontWeight={800} sx={{ letterSpacing: '-.02em' }}>
+            เปรียบเทียบทุกแพ็กเกจ
+          </Typography>
+        </Box>
+
+        <Paper elevation={0} sx={{ borderRadius: 1, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+          <Box sx={{ overflowX: 'auto' }}>
+            <Table sx={{ minWidth: 720, '& td, & th': { borderColor: 'divider' } }}>
+              <TableHead>
+                <TableRow sx={{ '& th': { fontWeight: 700, bgcolor: 'rgba(18,168,98,.05)', whiteSpace: 'nowrap' } }}>
+                  <TableCell>Feature</TableCell>
+                  <TableCell align="center">Trial</TableCell>
+                  <TableCell align="center">Starter</TableCell>
+                  <TableCell align="center" sx={{ color: BRAND }}>Professional</TableCell>
+                  <TableCell align="center">Business</TableCell>
+                  <TableCell align="center">Enterprise</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {featureCompare.map((r) => (
+                  <TableRow key={r.key} sx={{ '&:last-child td': { border: 0 }, '&:hover': { bgcolor: 'action.hover' } }}>
+                    <TableCell sx={{ fontWeight: 600 }}>{r.key}</TableCell>
+                    <TableCell align="center">{r.trial}</TableCell>
+                    <TableCell align="center">{r.starter}</TableCell>
+                    <TableCell align="center" sx={{ bgcolor: 'rgba(18,168,98,.04)' }}>{r.pro}</TableCell>
+                    <TableCell align="center">{r.business}</TableCell>
+                    <TableCell align="center">{r.enterprise}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Box>
         </Paper>
       </Container>
 
       <FaqSection items={faqs} />
 
-      <Container maxWidth="lg" sx={{ pb: 8 }}>
-        <Box sx={{ p: 4, borderRadius: 4, bgcolor: '#f2f8f4' }}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1.5}>
-            <div>
-              <Typography variant="h5" fontWeight={800}>ต้องการแพ็กเกจเฉพาะองค์กร?</Typography>
-              <Typography color="text.secondary">คุยกับทีมฝ่ายขายเพื่อออกแบบโซลูชันที่เหมาะกับธุรกิจคุณ</Typography>
-            </div>
-            <Button component={Link} href="/contact" variant="contained">ติดต่อฝ่ายขาย</Button>
-          </Stack>
+      <Container maxWidth="lg" sx={{ pb: { xs: 8, md: 12 } }}>
+        <Box
+          sx={{
+            p: { xs: 4, md: 6 },
+            borderRadius: 1.5,
+            textAlign: 'center',
+            color: '#fff',
+            background: `linear-gradient(135deg, ${BRAND} 0%, #0d8a4f 100%)`,
+          }}
+        >
+          <Typography variant="h4" fontWeight={800} sx={{ letterSpacing: '-.02em' }}>
+            ต้องการแพ็กเกจเฉพาะองค์กร?
+          </Typography>
+          <Typography sx={{ mt: 1, opacity: 0.9, maxWidth: 560, mx: 'auto' }}>
+            คุยกับทีมฝ่ายขายเพื่อออกแบบโซลูชันที่เหมาะกับธุรกิจของคุณ พร้อม SLA และการดูแลแบบ Dedicated
+          </Typography>
+          <Button
+            component={Link}
+            href="/contact"
+            variant="contained"
+            endIcon={<ArrowForwardRoundedIcon />}
+            sx={{
+              mt: 3,
+              px: 4,
+              py: 1.25,
+              borderRadius: 1,
+              fontWeight: 700,
+              color: BRAND,
+              bgcolor: '#fff',
+              '&:hover': { bgcolor: 'rgba(255,255,255,.9)' },
+            }}
+          >
+            ติดต่อฝ่ายขาย
+          </Button>
         </Box>
       </Container>
       <PublicFooter />

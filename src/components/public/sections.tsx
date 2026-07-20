@@ -531,22 +531,25 @@ export function PricingPreviewSection() {
     <SectionWrap id="pricing" title="เลือกแผนที่เหมาะกับธุรกิจของคุณ" sub="มีทั้งแพ็กเกจมาตรฐานและแบบ Custom สำหรับร้านอาหาร บุฟเฟ่ต์ และห้องประชุม" tag="Pricing" bg="#fff">
       <Grid container spacing={2}>
         {pricingPlans.map((p) => (
-          <Grid key={p.name} size={{ xs: 12, md: 6, lg: 3 }}>
+          <Grid key={p.name} size={{ xs: 12, sm: 6, md: 4 }}>
             <Card sx={{ borderRadius: 1, border: p.highlight ? '2px solid #12a862' : undefined, height: '100%' }}>
               <CardContent>
                 <Typography fontWeight={700}>{p.name}</Typography>
-                <Typography sx={{ fontSize: 34, fontWeight: 800, mt: 0.5 }}>{p.price}</Typography>
-                <Typography variant="caption" color="text.secondary">{p.name === 'Custom' ? 'ติดต่อทีมขาย' : 'บาท / เดือน'}</Typography>
+                <Stack direction="row" alignItems="baseline" spacing={0.5} sx={{ mt: 0.5 }}>
+                  <Typography sx={{ fontSize: 34, fontWeight: 800 }}>{p.price}</Typography>
+                  {p.period && <Typography variant="caption" color="text.secondary">{p.period}</Typography>}
+                </Stack>
+                <Typography variant="caption" color="text.secondary">{p.desc}</Typography>
                 <Divider sx={{ my: 1.2 }} />
                 <Stack spacing={0.5}>{p.items.map((x) => <Typography key={x} variant="body2">• {x}</Typography>)}</Stack>
                 <Button
                   component={Link}
-                  href={p.name === 'Custom' ? '/contact' : `/register?plan=${encodeURIComponent(p.name)}`}
+                  href={p.contactSales ? '/contact' : `/register?plan=${encodeURIComponent(p.name)}`}
                   variant="contained"
                   fullWidth
                   sx={{ mt: 2, bgcolor: '#12a862', '&:hover': { bgcolor: '#0a7043' } }}
                 >
-                  {p.name === 'Custom' ? 'ขอใบเสนอราคา' : 'เริ่มใช้งาน'}
+                  {p.contactSales ? 'ขอใบเสนอราคา' : 'เริ่มใช้งาน'}
                 </Button>
               </CardContent>
             </Card>

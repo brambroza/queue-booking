@@ -72,11 +72,30 @@ export const useCases: UseCase[] = [
   { icon: BuildRoundedIcon, slug: 'installation-team', title: 'ทีมช่างติดตั้ง', services: ['ติดตั้งกล้องวงจรปิด: ต้องยืนยันก่อน', 'ตรวจหน้างาน: เวลายืดหยุ่น'], mode: 'ต้องยืนยันก่อน / เวลายืดหยุ่น', summary: 'จัดคิวตรวจหน้างานและคิวติดตั้งจริงแบบยืดหยุ่น' },
 ];
 
-export const pricingPlans = [
-  { name: 'Starter', price: 'ฟรี 3 เดือน', desc: 'โปรโมชันสำหรับร้านเริ่มต้น', items: ['1 ร้าน', '1 สาขา', '3 บริการ', '100 bookings/เดือน', 'LINE Booking', 'Dashboard พื้นฐาน'] },
-  { name: 'Professional', price: '1,490', desc: 'สำหรับร้านที่เติบโต', items: ['1 ร้าน', '5 สาขา', 'ไม่จำกัดบริการ', '2,000 bookings/เดือน', 'LINE Auto Reply', 'Calendar / Queue Board', 'Reports'], highlight: true },
-  { name: 'Business', price: '3,990', desc: 'หลายสาขาและทีมใหญ่', items: ['หลายร้าน / หลายสาขา', 'ไม่จำกัดบริการ', '10,000 bookings/เดือน', 'Chat Inbox', 'Advanced Reports', 'Priority Support'] },
-  { name: 'Custom', price: 'Custom', desc: 'แพ็กเกจเฉพาะองค์กร', items: ['กำหนดเงื่อนไขได้ตามธุรกิจ', 'รองรับสาขาและทรัพยากรจำนวนมาก', 'SLA / Dedicated support', 'เชื่อมต่อระบบภายในองค์กร'] },
+/**
+ * แหล่งข้อมูลราคา "ชุดเดียว" — ใช้ร่วมกันทั้งหน้า Landing (PricingPreviewSection)
+ * และหน้า /pricing (PricingCard) เพื่อไม่ให้ราคาหลุดกัน
+ * แก้ราคาที่นี่ที่เดียว มีผลทั้งสองหน้า
+ */
+export type PricingPlan = {
+  name: string;
+  /** ราคาหลักพร้อมหน่วย เช่น '590 บาท', '0 บาท', 'ติดต่อฝ่ายขาย' */
+  price: string;
+  /** รอบบิล เช่น '/เดือน', '/14 วัน' — เว้นว่างสำหรับแผน Enterprise */
+  period: string;
+  desc: string;
+  items: string[];
+  highlight?: boolean;
+  /** true = แผนที่ให้ผู้ใช้ติดต่อทีมขายแทนการสมัครเอง */
+  contactSales?: boolean;
+};
+
+export const pricingPlans: PricingPlan[] = [
+  { name: 'Free Trial', price: '0 บาท', period: '/14 วัน', desc: 'ทดลองใช้ฟรี 14 วัน', items: ['ทดสอบระบบ', '1 ร้าน', '1 สาขา', '1 บริการ', '50 bookings'] },
+  { name: 'Starter', price: '590 บาท', period: '/เดือน', desc: 'โปรฯ ฟรี 3 เดือนแรก', items: ['โปรฯ ฟรี 3 เดือนแรก', '1 ร้าน', '1 สาขา', '3 บริการ', '300 bookings/เดือน'] },
+  { name: 'Professional', price: '990 บาท', period: '/เดือน', desc: 'สำหรับร้านที่เติบโต', items: ['1 ร้าน', '5 สาขา', 'ไม่จำกัดบริการ', '2,000 bookings/เดือน', 'LINE Auto Reply'], highlight: true },
+  { name: 'Business', price: '2,490 บาท', period: '/เดือน', desc: 'หลายสาขาและทีมใหญ่', items: ['หลายร้าน / หลายสาขา', 'ไม่จำกัดบริการ', '10,000 bookings/เดือน', 'Chat Inbox', 'Advanced Reports'] },
+  { name: 'Enterprise', price: 'ติดต่อฝ่ายขาย', period: '', desc: 'แพ็กเกจเฉพาะองค์กร', items: ['Custom features', 'Dedicated support', 'SLA', 'On-premise option'], contactSales: true },
 ];
 
 export const testimonials = [
@@ -88,7 +107,7 @@ export const testimonials = [
 export const featureCompare = [
   { key: 'จำนวนสาขา', trial: '1', starter: '1', pro: '5', business: 'ไม่จำกัด', enterprise: 'Custom' },
   { key: 'จำนวนบริการ', trial: '1', starter: '3', pro: 'ไม่จำกัด', business: 'ไม่จำกัด', enterprise: 'ไม่จำกัด' },
-  { key: 'Bookings / เดือน', trial: '50', starter: '100', pro: '2,000', business: '10,000', enterprise: 'Custom' },
+  { key: 'Bookings / เดือน', trial: '50', starter: '300', pro: '2,000', business: '10,000', enterprise: 'Custom' },
   { key: 'LINE Auto Reply', trial: '-', starter: '-', pro: '✓', business: '✓', enterprise: '✓' },
   { key: 'Chat Inbox', trial: '-', starter: '-', pro: '-', business: '✓', enterprise: '✓' },
   { key: 'SLA / Dedicated Support', trial: '-', starter: '-', pro: '-', business: '-', enterprise: '✓' },
