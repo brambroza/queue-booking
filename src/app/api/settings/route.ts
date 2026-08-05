@@ -7,6 +7,7 @@ const settingSchema = z.object({
   key: z.string().min(2),
   value: z.unknown(),
 });
+const RESERVED_SETTING_KEYS = new Set(['google_calendar_oauth']);
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
@@ -26,6 +27,7 @@ export async function GET(req: Request) {
       .select('id,key,value,created_at,updated_at', { count: 'exact' })
       .eq('shop_id', profile.shop_id)
       .eq('is_deleted', false)
+      .neq('key', 'google_calendar_oauth')
       .order('created_at', { ascending: false });
 
     if (q) query = query.ilike('key', `%${q}%`);
@@ -48,6 +50,9 @@ export async function POST(req: Request) {
     if (!parsed.success) return NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues }, { status: 400 });
 
     const payload = parsed.data;
+    if (RESERVED_SETTING_KEYS.has(payload.key)) {
+      return NextResponse.json({ error: 'Reserved setting key' }, { status: 400 });
+    }
 
     const { error } = await supabase.from('settings').insert({
       company_id: profile.company_id,
@@ -76,6 +81,9 @@ export async function PATCH(req: Request) {
     if (!parsed.success) return NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues }, { status: 400 });
 
     const payload = parsed.data;
+    if (RESERVED_SETTING_KEYS.has(payload.key)) {
+      return NextResponse.json({ error: 'Reserved setting key' }, { status: 400 });
+    }
 
     const { error } = await supabase
       .from('settings')
@@ -114,7 +122,8 @@ export async function DELETE(req: Request) {
       .from('settings')
       .update({ is_deleted: true, updated_by: user.id })
       .eq('id', id)
-      .eq('shop_id', profile.shop_id);
+      .eq('shop_id', profile.shop_id)
+      .neq('key', 'google_calendar_oauth');
 
     if (error) throw error;
     return NextResponse.json({ data: true });

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
+import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
 
 const schema = z.object({
   line_user_id: z.string().min(1),
@@ -59,6 +60,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     action: 'cancel_by_customer_liff',
     description: `Customer cancelled booking ${booking.queue_number}`,
   });
+
+  await safeSyncBookingToGoogleCalendar(shop.id, booking.id);
 
   return NextResponse.json({ data: true });
 }

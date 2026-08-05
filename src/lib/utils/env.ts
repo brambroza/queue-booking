@@ -5,6 +5,9 @@ export const env = {
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
   omiseSecretKey: process.env.OMISE_SECRET_KEY ?? '',
   omisePublicKey: process.env.OMISE_PUBLIC_KEY ?? '',
+  googleOAuthClientId: process.env.GOOGLE_OAUTH_CLIENT_ID ?? '',
+  googleOAuthClientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET ?? '',
+  googleTokenEncryptionKey: process.env.GOOGLE_TOKEN_ENCRYPTION_KEY ?? '',
 };
 
 export function assertEnv() {

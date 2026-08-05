@@ -9,6 +9,7 @@ import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 import { createNotification } from '@/lib/notifications/createNotification';
 import { createBookingQrPayment } from '@/lib/payments/qr';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
+import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
 
 const bookSchema = z.object({
   branch_id: z.string().uuid(),
@@ -234,6 +235,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       },
     });
   }
+
+  await safeSyncBookingToGoogleCalendar(shop.id, booking.id);
 
   let linePushSent = false;
   let linePushError: string | null = null;

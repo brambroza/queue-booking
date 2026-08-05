@@ -9,6 +9,7 @@ import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 import { safeCreateNotification } from '@/lib/notifications/createNotification';
 import { createBookingQrPayment } from '@/lib/payments/qr';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
+import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
@@ -245,6 +246,8 @@ export async function POST(req: Request) {
       createdBy: user.id,
     });
 
+    await safeSyncBookingToGoogleCalendar(profile.shop_id, inserted.id);
+
     let linePushSent = false;
     let linePushError: string | null = null;
     let qrPaymentCreated = false;
@@ -383,6 +386,7 @@ export async function PATCH(req: Request) {
         metadata: { prev_date: before.booking_date, prev_time: before.start_time, new_date: newDate, new_time: rawTime.slice(0, 5) },
         createdBy: user.id,
       });
+      await safeSyncBookingToGoogleCalendar(profile.shop_id, id);
       return NextResponse.json({ data: true });
     }
 
@@ -416,6 +420,7 @@ export async function PATCH(req: Request) {
       metadata: { prev_status: before.status, next_status: status },
       createdBy: user.id,
     });
+    await safeSyncBookingToGoogleCalendar(profile.shop_id, id);
     return NextResponse.json({ data: true });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });
@@ -462,6 +467,7 @@ export async function DELETE(req: Request) {
         metadata: { deleted: true },
         createdBy: user.id,
       });
+      await safeSyncBookingToGoogleCalendar(profile.shop_id, before.id);
     }
     return NextResponse.json({ data: true });
   } catch (e) {
