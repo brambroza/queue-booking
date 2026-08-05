@@ -29,7 +29,7 @@ import {
   saveConsent,
 } from '@/lib/consent/cookie-consent';
 
-const PRIVACY_HREF = '/privacy-policy';
+const PRIVACY_HREF = '/privacy';
 
 /** path ที่ไม่ต้องแสดง banner (embedded / signage) */
 const HIDDEN_PREFIXES = ['/liff', '/display'];

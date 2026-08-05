@@ -518,7 +518,7 @@ function LandingFooter() {
           <div><Brand /><p>ระบบจองคิวออนไลน์ผ่าน LINE<br />สำหรับธุรกิจบริการยุคใหม่</p></div>
           <div className={styles.footerLinks}>
             <div><strong>ผลิตภัณฑ์</strong><Link href="/use-cases">ตัวอย่างการใช้งาน</Link><Link href="/pricing">ราคา</Link><Link href="/sandbox-demo">ระบบตัวอย่าง</Link></div>
-            <div><strong>เรียนรู้</strong><Link href="/blog">บทความ</Link><Link href="/contact">ติดต่อเรา</Link><Link href="/privacy-policy">นโยบายความเป็นส่วนตัว</Link></div>
+            <div><strong>เรียนรู้</strong><Link href="/blog">บทความ</Link><Link href="/contact">ติดต่อเรา</Link><Link href="/privacy">นโยบายความเป็นส่วนตัว</Link><Link href="/terms">ข้อกำหนดการใช้บริการ</Link></div>
             <div><strong>ติดต่อ</strong><a href="mailto:amnart.gl@gmail.com">amnart.gl@gmail.com</a><a href="tel:+66856083298">085-608-3298</a><a href={lineFriendUrl} target="_blank" rel="noopener noreferrer">LINE OA: @queuebooking</a></div>
           </div>
         </div>
