@@ -1,20 +1,7 @@
 import type { Metadata } from 'next';
-import { PublicFooter } from '@/components/public/public-footer';
-import { PublicNavbar } from '@/components/public/public-navbar';
-import {
-  CtaSection,
-  FeatureSection,
-  HeroSection,
-  HowItWorksSection,
-  MockCaseStudySection,
-  PainPointSection,
-  PricingPreviewSection,
-  PromptPayShowcaseSection,
-  ShowcaseSection,
-  SolutionSection,
-  TestimonialSection,
-} from '@/components/public/sections';
+import { LandingPage } from '@/components/public/landing-page';
 import { faqs } from '@/components/public/content';
+
 
 export const metadata: Metadata = {
   title: 'ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ | LINE OA Queue Booking Platform',
@@ -90,25 +77,11 @@ export default function HomePage() {
   };
 
   return (
-    <main>
+    <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
-      <PublicNavbar />
-      <HeroSection />
-      {/*    <StatsSection /> */}
-
-      <PainPointSection />
-      <SolutionSection />
-      <PromptPayShowcaseSection />
-      <ShowcaseSection />
-      <FeatureSection />
-      <HowItWorksSection />
-      <PricingPreviewSection />
-      <TestimonialSection />
-      <MockCaseStudySection />
-      <CtaSection />
-      <PublicFooter />
-    </main>
+      <LandingPage />
+    </>
   );
 }

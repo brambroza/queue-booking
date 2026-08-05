@@ -1,6 +1,7 @@
 .vercel
 node_modules/
 .next/
+.next-dev/
 .vercel/
 
 # Environment variables — never commit real secrets

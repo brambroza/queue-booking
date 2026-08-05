@@ -94,6 +94,7 @@ type SyncEvent =
 export function DemoLineExperiencePanel() {
   const sourceId = useRef(id());
   const channelRef = useRef<BroadcastChannel | null>(null);
+  const motionRootRef = useRef<HTMLDivElement | null>(null);
   const step5FullscreenRef = useRef<HTMLDivElement | null>(null);
   const step6FullscreenRef = useRef<HTMLDivElement | null>(null);
 
@@ -186,6 +187,114 @@ export function DemoLineExperiencePanel() {
     if (!element) return;
     await element.requestFullscreen?.();
   }
+
+  useEffect(() => {
+    let cancelled = false;
+    let revertMotion = () => {};
+
+    async function setupIntroMotion() {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+      const { gsap } = await import('gsap');
+      if (cancelled || !motionRootRef.current) return;
+
+      const context = gsap.context(() => {
+        gsap.fromTo(
+          '[data-demo-intro]',
+          { y: 24, autoAlpha: 0 },
+          {
+            y: 0,
+            autoAlpha: 1,
+            duration: 0.72,
+            stagger: 0.1,
+            ease: 'power3.out',
+            clearProps: 'transform,opacity,visibility',
+          },
+        );
+      }, motionRootRef);
+
+      revertMotion = () => context.revert();
+    }
+
+    void setupIntroMotion();
+
+    return () => {
+      cancelled = true;
+      revertMotion();
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let revertMotion = () => {};
+
+    async function setupStepMotion() {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+      const { gsap } = await import('gsap');
+      const root = motionRootRef.current;
+      if (cancelled || !root) return;
+
+      const context = gsap.context(() => {
+        const stage = root.querySelector<HTMLElement>('[data-demo-stage]');
+        const panels = stage?.querySelectorAll<HTMLElement>('[data-demo-panel]') ?? [];
+        const activeStep = root.querySelector<HTMLElement>('[data-demo-active-step="true"]');
+        const timeline = gsap.timeline({ defaults: { ease: 'power3.out' } });
+
+        if (stage) {
+          timeline.fromTo(
+            stage,
+            { y: 24, autoAlpha: 0 },
+            {
+              y: 0,
+              autoAlpha: 1,
+              duration: 0.5,
+              clearProps: 'transform,opacity,visibility',
+            },
+          );
+        }
+
+        if (panels.length > 0) {
+          timeline.fromTo(
+            panels,
+            { y: 16, scale: 0.985, autoAlpha: 0 },
+            {
+              y: 0,
+              scale: 1,
+              autoAlpha: 1,
+              duration: 0.5,
+              stagger: 0.07,
+              clearProps: 'transform,opacity,visibility',
+            },
+            stage ? '-=0.3' : 0,
+          );
+        }
+
+        if (activeStep) {
+          timeline.fromTo(
+            activeStep,
+            { scale: 0.9 },
+            {
+              scale: 1,
+              duration: 0.38,
+              ease: 'back.out(1.8)',
+              clearProps: 'transform',
+            },
+            '-=0.32',
+          );
+        }
+      }, root);
+
+      revertMotion = () => context.revert();
+    }
+
+    void setupStepMotion();
+
+    return () => {
+      cancelled = true;
+      revertMotion();
+    };
+  }, [currentStep]);
 
   useEffect(() => {
     const channel = new BroadcastChannel('demo-line-experience-sync');
@@ -399,10 +508,8 @@ export function DemoLineExperiencePanel() {
   }
 
   return (
-    <Stack spacing={2}>
-
-
-      <Card sx={{ borderRadius: 1 }}>
+    <Stack ref={motionRootRef} spacing={2}>
+      <Card data-demo-intro sx={{ borderRadius: 1 }}>
         <CardContent>
           <Stack direction={{ xs: 'column', md: 'column' }} justifyContent="space-between" spacing={1.4}>
             <Box>
@@ -432,7 +539,7 @@ export function DemoLineExperiencePanel() {
         </CardContent>
       </Card>
 
-      <Card sx={{ borderRadius: 1, border: '1px solid', borderColor: 'divider', boxShadow: 'none', bgcolor: '#fafcfa' }}>
+      <Card data-demo-intro sx={{ borderRadius: 1, border: '1px solid', borderColor: 'divider', boxShadow: 'none', bgcolor: '#fafcfa' }}>
         <CardContent sx={{ py: 1.2 }}>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'center', md: 'center' }}>
             <Typography variant="caption" color="text.secondary">ลำดับการทดลอง:</Typography>
@@ -444,6 +551,7 @@ export function DemoLineExperiencePanel() {
                 return (
                   <Chip
                     key={step}
+                    data-demo-active-step={active ? 'true' : undefined}
                     label={`STEP ${step-1}`}
                     clickable={unlocked}
                     onClick={unlocked ? () => setCurrentStep(typedStep) : undefined}
@@ -483,10 +591,11 @@ export function DemoLineExperiencePanel() {
       </Card>
 
       {currentStep === 2 || currentStep === 3 || currentStep === 4 ? (
-      <Grid container spacing={2.2}>
+        <Grid data-demo-stage container spacing={2.2}>
           {currentStep !== 3 ? (
             <Grid size={{ xs: 12, xl: 6 }}>
               <Card
+                data-demo-panel
                 sx={{
                   borderRadius: 1,
                   overflow: 'hidden',
@@ -510,6 +619,7 @@ export function DemoLineExperiencePanel() {
             <Stack spacing={2} alignItems="center">
               {unlockedSteps[3] ? (
                 <Card
+                  data-demo-panel
                   sx={{
                     borderRadius: 1,
                     border: currentStep === 3 ? '2px solid #12a862' : undefined,
@@ -529,7 +639,7 @@ export function DemoLineExperiencePanel() {
                   </CardContent>
                 </Card>
               ) : (
-                <Card sx={{ borderRadius: 1, border: '1px dashed #c6d5e2', maxWidth: 420, mx: 'auto', width: '100%' }}>
+                <Card data-demo-panel sx={{ borderRadius: 1, border: '1px dashed #c6d5e2', maxWidth: 420, mx: 'auto', width: '100%' }}>
                   <CardContent>
                     <Typography variant="caption" color="text.secondary">STEP 3: LIFF Booking</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>
@@ -541,6 +651,7 @@ export function DemoLineExperiencePanel() {
 
               {unlockedSteps[4] ? (
                 <Card
+                  data-demo-panel
                   sx={{
                     borderRadius: 1,
                     border: currentStep === 4 ? '2px solid #12a862' : undefined,
@@ -569,9 +680,9 @@ export function DemoLineExperiencePanel() {
       ) : null}
 
       {unlockedSteps[5] && currentStep === 5 ? (
-        <Grid container spacing={2.2}>
+        <Grid data-demo-stage container spacing={2.2}>
           <Grid size={{ xs: 12 }}>
-            <Card ref={step5FullscreenRef} sx={{ borderRadius: 1, border: currentStep === 5 ? '2px solid #12a862' : undefined, position: 'relative', overflow: 'visible' }}>
+            <Card data-demo-panel ref={step5FullscreenRef} sx={{ borderRadius: 1, border: currentStep === 5 ? '2px solid #12a862' : undefined, position: 'relative', overflow: 'visible' }}>
               <CardContent>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.6 }}>
                   <Typography variant="caption" color="text.secondary">STEP 4 Queue Board (สำหรับร้าน)</Typography>
@@ -628,10 +739,10 @@ export function DemoLineExperiencePanel() {
       ) : null}
 
       {unlockedSteps[6] && currentStep === 6 ? (
-        <Grid container spacing={2.2}>
+        <Grid data-demo-stage container spacing={2.2}>
 
           <Grid size={{ xs: 12 }}>
-            <Card ref={step6FullscreenRef} sx={{ borderRadius: 1, border: currentStep === 6 ? '2px solid #12a862' : undefined }}>
+            <Card data-demo-panel ref={step6FullscreenRef} sx={{ borderRadius: 1, border: currentStep === 6 ? '2px solid #12a862' : undefined }}>
               <CardContent>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.6 }}>
                   <Typography variant="caption" color="text.secondary">STEP 5: Signage View (แสดงจอในร้าน)</Typography>
