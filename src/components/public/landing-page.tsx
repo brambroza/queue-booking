@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
+import AddTaskRoundedIcon from '@mui/icons-material/AddTaskRounded';
 import ArrowOutwardRoundedIcon from '@mui/icons-material/ArrowOutwardRounded';
 import BuildRoundedIcon from '@mui/icons-material/BuildRounded';
 import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
@@ -11,12 +12,17 @@ import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineR
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
+import EventBusyRoundedIcon from '@mui/icons-material/EventBusyRounded';
+import KeyboardArrowLeftRoundedIcon from '@mui/icons-material/KeyboardArrowLeftRounded';
+import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRightRounded';
 import LocalHospitalRoundedIcon from '@mui/icons-material/LocalHospitalRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import NotificationsNoneRoundedIcon from '@mui/icons-material/NotificationsNoneRounded';
 import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
 import RestaurantRoundedIcon from '@mui/icons-material/RestaurantRounded';
+import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
+import UpdateRoundedIcon from '@mui/icons-material/UpdateRounded';
 import { pricingPlans } from './content';
 import styles from './landing-page.module.css';
 
@@ -365,6 +371,129 @@ function PromptPayDepositSection() {
   );
 }
 
+const calendarDays = [
+  { day: 'จ.', date: '11' },
+  { day: 'อ.', date: '12', active: true },
+  { day: 'พ.', date: '13' },
+  { day: 'พฤ.', date: '14' },
+  { day: 'ศ.', date: '15' },
+];
+
+const calendarTimes = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00'];
+
+function GoogleCalendarShowcase() {
+  return (
+    <section
+      className={styles.googleCalendarSection}
+      id="google-calendar"
+      data-google-calendar-section
+    >
+      <div className={styles.container}>
+        <div className={styles.googleCalendarGrid}>
+          <div className={styles.googleCalendarCopy}>
+            <p className={styles.sectionNumber} data-google-calendar-copy>
+              03 / Google Calendar
+            </p>
+            <h2 data-google-calendar-copy>
+              <span>ทุกการจอง</span>
+              <span>อยู่ในปฏิทินของร้าน</span>
+            </h2>
+            <p data-google-calendar-copy>
+              เชื่อม Google Calendar ของแต่ละร้านเพียงครั้งเดียว แล้วระบบส่งการจองใหม่
+              การเลื่อนเวลา และการยกเลิกไปยังปฏิทินหลักโดยอัตโนมัติ
+            </p>
+            <Link href="/register" className={styles.primaryButton} data-google-calendar-copy>
+              เริ่มใช้ฟรี <ArrowIcon />
+            </Link>
+            <span className={styles.googleCalendarSettings} data-google-calendar-copy>
+              <SettingsRoundedIcon /> เชื่อมต่อเองได้ในหน้า Settings
+            </span>
+          </div>
+
+          <div
+            className={styles.googleCalendarVisual}
+            data-google-calendar-visual
+            aria-label="ตัวอย่างการซิงก์การจองของร้านไปยัง Google Calendar"
+          >
+            <div className={styles.calendarBookingPanel} data-calendar-panel="booking">
+              <div className={styles.calendarBookingHeader}>
+                <span className={styles.calendarBookingMark}>Q</span>
+                <strong>QueueBooking</strong>
+              </div>
+              <div className={styles.calendarShopRow}>
+                <span><StorefrontRoundedIcon /></span>
+                <div><small>ร้านที่เชื่อมต่อ</small><strong>SHOP-TTLS2P</strong></div>
+              </div>
+              <div className={styles.calendarActionList}>
+                <article className={styles.calendarActionNew} data-calendar-action>
+                  <span><AddTaskRoundedIcon /></span>
+                  <div><strong>การจองใหม่</strong><p>ตรวจสุขภาพ · คุณศิรินันท์</p><small>10:00–10:30</small></div>
+                </article>
+                <article className={styles.calendarActionMoved} data-calendar-action>
+                  <span><UpdateRoundedIcon /></span>
+                  <div><strong>เลื่อนเวลา</strong><p>ตรวจสุขภาพ · คุณศิรินันท์</p><small>ย้ายเวลาเป็น 11:00–11:30</small></div>
+                </article>
+                <article className={styles.calendarActionCancelled} data-calendar-action>
+                  <span><EventBusyRoundedIcon /></span>
+                  <div><strong>ยกเลิก</strong><p>ตรวจสุขภาพ · คุณศิรินันท์</p><small>นำ Event ออกจากปฏิทิน</small></div>
+                </article>
+              </div>
+            </div>
+
+            <div className={styles.calendarSyncBridge} aria-hidden="true">
+              <span className={styles.calendarConnected}>
+                <i data-calendar-sync-pulse />
+                <CheckRoundedIcon /> เชื่อมต่อแล้ว
+              </span>
+              <span className={styles.calendarSyncNew}><i /><ArrowOutwardRoundedIcon /></span>
+              <span className={styles.calendarSyncMoved}><i /><ArrowOutwardRoundedIcon /></span>
+              <span className={styles.calendarSyncCancelled}><i /><ArrowOutwardRoundedIcon /></span>
+            </div>
+
+            <div className={styles.googleCalendarPanel} data-calendar-panel="calendar">
+              <div className={styles.googleCalendarToolbar}>
+                <div className={styles.googleCalendarTitle}>
+                  <span><CalendarMonthRoundedIcon /></span>
+                  <strong>Google Calendar</strong>
+                </div>
+                <div className={styles.googleCalendarControls} aria-hidden="true">
+                  <KeyboardArrowLeftRoundedIcon />
+                  <KeyboardArrowRightRoundedIcon />
+                  <span>สัปดาห์</span>
+                </div>
+              </div>
+              <div className={styles.googleCalendarWeekHeader}>
+                <span />
+                {calendarDays.map((item) => (
+                  <span key={item.date} className={item.active ? styles.googleCalendarDayActive : ''}>
+                    <small>{item.day}</small><strong>{item.date}</strong>
+                  </span>
+                ))}
+              </div>
+              <div className={styles.googleCalendarSchedule}>
+                <div className={styles.googleCalendarTimes}>
+                  {calendarTimes.map((time) => <span key={time}>{time}</span>)}
+                </div>
+                <div className={styles.googleCalendarDayGrid}>
+                  <article className={styles.googleEventNew} data-calendar-event>
+                    <strong>ตรวจสุขภาพ · คุณศิรินันท์</strong><small>10:00–10:30</small>
+                  </article>
+                  <article className={styles.googleEventMoved} data-calendar-event>
+                    <strong>เลื่อนเวลาแล้ว</strong><small>11:00–11:30</small>
+                  </article>
+                  <article className={styles.googleEventCancelled} data-calendar-event>
+                    <strong>ยกเลิกการจอง</strong>
+                  </article>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function OutcomeSection() {
   return (
     <section className={styles.outcomeSection} id="features">
@@ -372,7 +501,7 @@ function OutcomeSection() {
         <div className={styles.outcomeGrid}>
           <div className={styles.outcomeCopy}>
             <div className={styles.sectionIntro} data-reveal>
-              <p className={styles.sectionNumber}>03 / ผลลัพธ์</p>
+              <p className={styles.sectionNumber}>04 / ผลลัพธ์</p>
               <h2>คิวลื่น ทีมเบา<br />ลูกค้าไม่ต้องรอ</h2>
               <p>ลดงานตอบแชทซ้ำ ลดคิวซ้อน และเห็นภาพรวมทุกสาขา</p>
             </div>
@@ -400,7 +529,7 @@ function OutcomeSection() {
           </div>
         </div>
         <div className={styles.featureRail} aria-label="ฟีเจอร์หลัก" data-reveal>
-          {['LINE OA Booking', 'LIFF Booking', 'Auto Reply', 'Queue Board', 'Multi-branch', 'PromptPay Deposit', 'Reports', 'Notification'].map((feature, index) => (
+          {['LINE OA Booking', 'LIFF Booking', 'Auto Reply', 'Queue Board', 'Multi-branch', 'PromptPay Deposit', 'Reports', 'Google Calendar Sync'].map((feature, index) => (
             <span key={feature}><i>{String(index + 1).padStart(2, '0')}</i>{feature}</span>
           ))}
         </div>
@@ -416,7 +545,7 @@ function PricingSection() {
     <section className={styles.pricingSection} id="pricing">
       <div className={styles.container}>
         <div className={`${styles.sectionIntro} ${styles.pricingIntro}`} data-reveal>
-          <p className={styles.sectionNumber}>04 / ราคา</p>
+          <p className={styles.sectionNumber}>05 / ราคา</p>
           <h2>เริ่มเล็ก แล้วโตไป<br />พร้อมทุกสาขา</h2>
           <p>ทดลองใช้ฟรี 14 วัน เปลี่ยนแพ็กเกจได้ตลอด</p>
         </div>
@@ -607,6 +736,17 @@ export function LandingPage() {
           scrollTrigger: { trigger: '[data-deposit-section]', start: 'top bottom', end: 'bottom top', toggleActions: 'play pause resume pause' },
         });
 
+        const googleCalendarTimeline = gsap.timeline({
+          scrollTrigger: { trigger: '[data-google-calendar-section]', start: 'top 76%', once: true },
+          defaults: { ease: 'power3.out' },
+        });
+        googleCalendarTimeline
+          .from('[data-google-calendar-copy]', { x: -38, autoAlpha: 0, duration: 0.75, stagger: 0.08 })
+          .from('[data-calendar-panel="booking"]', { x: 36, autoAlpha: 0, duration: 0.75 }, '-=0.48')
+          .from('[data-calendar-action]', { y: 16, autoAlpha: 0, duration: 0.5, stagger: 0.09 }, '-=0.4')
+          .from('[data-calendar-panel="calendar"]', { x: 44, autoAlpha: 0, duration: 0.8 }, '-=0.62')
+          .from('[data-calendar-event]', { scaleY: 0, autoAlpha: 0, duration: 0.45, stagger: 0.1, transformOrigin: 'top center' }, '-=0.4');
+
         gsap.utils.toArray<HTMLElement>('[data-outcome]').forEach((item) => {
           gsap.from(item, {
             x: -34,
@@ -675,6 +815,7 @@ export function LandingPage() {
         <HeroSection />
         <WorkflowSection />
         <PromptPayDepositSection />
+        <GoogleCalendarShowcase />
         <OutcomeSection />
         <PricingSection />
         <LineFriendSection />
