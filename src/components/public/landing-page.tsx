@@ -21,7 +21,10 @@ import NotificationsNoneRoundedIcon from '@mui/icons-material/NotificationsNoneR
 import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
 import RestaurantRoundedIcon from '@mui/icons-material/RestaurantRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
+import ShieldMoonRoundedIcon from '@mui/icons-material/ShieldMoonRounded';
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
+import SupportAgentRoundedIcon from '@mui/icons-material/SupportAgentRounded';
+import TranslateRoundedIcon from '@mui/icons-material/TranslateRounded';
 import UpdateRoundedIcon from '@mui/icons-material/UpdateRounded';
 import { pricingPlans } from './content';
 import styles from './landing-page.module.css';
@@ -34,6 +37,7 @@ const navItems = [
   { label: 'รับมัดจำ', href: '#deposit' },
   { label: 'ฟีเจอร์', href: '#features' },
   { label: 'ราคา', href: '#pricing' },
+  { label: 'ซัพพอร์ต', href: '#support' },
   { label: 'โหมดทดลอง', href: '/sandbox-demo' },
   { label: 'บทความ', href: '/blog' },
 ];
@@ -43,6 +47,39 @@ const workflowSteps = [
   { number: '02', label: 'เลือกบริการและเวลา', icon: CalendarMonthRoundedIcon },
   { number: '03', label: 'ทีมงานเห็นคิวทันที', icon: DashboardRoundedIcon },
   { number: '04', label: 'รับมัดจำผ่าน PromptPay', icon: QrCode2RoundedIcon },
+];
+
+const supportChannels = [
+  {
+    number: '01',
+    title: 'ทักได้ทุกช่องทาง ตลอด 24 ชั่วโมง',
+    description: 'LINE OA, โทรศัพท์ หรืออีเมล เรื่องด่วนระบบล่มมีทีมรับแจ้งทุกวัน ไม่เว้นวันหยุด',
+    icon: SupportAgentRoundedIcon,
+  },
+  {
+    number: '02',
+    title: 'ทีมคนไทยดูแลเอง',
+    description: 'คุยภาษาไทย เข้าใจหน้างานร้าน ไม่ต้องแปลปัญหาให้บอทหรือทีมต่างประเทศ',
+    icon: TranslateRoundedIcon,
+  },
+  {
+    number: '03',
+    title: 'ช่วยตั้งค่าให้ตั้งแต่วันแรก',
+    description: 'เชื่อม LINE OA, ตั้งค่า LIFF, ใส่บริการและเวลาทำการให้พร้อมใช้ ไม่ต้องงมเอง',
+    icon: SettingsRoundedIcon,
+  },
+  {
+    number: '04',
+    title: 'เฝ้าระวังระบบให้ตลอดเวลา',
+    description: 'มอนิเตอร์ระบบอัตโนมัติ แจ้งเตือนทีมทันทีที่ผิดปกติ ก่อนที่ร้านคุณจะรู้ตัว',
+    icon: ShieldMoonRoundedIcon,
+  },
+];
+
+const supportStats = [
+  { value: '24/7', label: 'รับแจ้งเหตุด่วน' },
+  { value: '99.5%', label: 'Uptime SLA' },
+  { value: '1 ชม.', label: 'ตอบกลับเรื่องด่วน' },
 ];
 
 const depositSteps = [
@@ -574,6 +611,42 @@ function PricingSection() {
   );
 }
 
+function SupportSection() {
+  return (
+    <section className={styles.supportSection} id="support">
+      <div className={styles.container}>
+        <div className={styles.sectionIntro} data-reveal>
+          <p className={styles.sectionNumber}>06 / ซัพพอร์ต</p>
+          <h2>ทีมงานพร้อมช่วย<br />ตลอด 24 ชั่วโมง</h2>
+          <p>ติดตั้ง ปรับระบบ หรือแก้ปัญหาเร่งด่วน ทักหาเราได้ทุกวัน ไม่มีวันหยุด</p>
+        </div>
+        <div className={styles.supportGrid}>
+          {supportChannels.map(({ number, title, description, icon: Icon }) => (
+            <article className={styles.supportCard} data-reveal key={number}>
+              <div className={styles.supportCardIcon}><Icon /><span>{number}</span></div>
+              <h3>{title}</h3>
+              <p>{description}</p>
+            </article>
+          ))}
+        </div>
+        <div className={styles.supportBar} data-reveal>
+          <div className={styles.supportStats}>
+            {supportStats.map(({ value, label }) => (
+              <div key={label}><strong>{value}</strong><span>{label}</span></div>
+            ))}
+          </div>
+          <div className={styles.supportActions}>
+            <a href={lineFriendUrl} className={styles.primaryButton} target="_blank" rel="noopener noreferrer">
+              <ChatBubbleOutlineRoundedIcon /> ทักทีมซัพพอร์ต
+            </a>
+            <a href="tel:+66856083298">โทร 085-608-3298 <ArrowIcon /></a>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function LineFriendSection() {
   return (
     <section className={styles.lineFriendSection} id="add-line" data-line-friend-section>
@@ -818,6 +891,7 @@ export function LandingPage() {
         <GoogleCalendarShowcase />
         <OutcomeSection />
         <PricingSection />
+        <SupportSection />
         <LineFriendSection />
         <FinalCta />
       </main>

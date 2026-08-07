@@ -24,6 +24,7 @@ export const metadata: Metadata = {
   applicationName: 'QueueBooking LINE',
   keywords: [
     'ระบบจองคิวผ่าน line oa',
+    'จองคิวผ่านไลน์',
     'ระบบจองคิว',
     'line oa booking',
     'liff booking',
