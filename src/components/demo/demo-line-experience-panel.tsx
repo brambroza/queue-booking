@@ -83,6 +83,9 @@ const seededQueue: DemoQueueItem[] = [
   { id: id(), queueNo: 'A004', branchName: 'ประชาอุทิศ', serviceName: 'สระผม', dateLabel: '16 พ.ค. 2569', timeLabel: '11:00', customerName: 'คุณดี', resourceName: 'ช่างบอส', status: 'completed', customerPhone: '0890000004' },
 ];
 
+/** Ordered demo steps; index drives the progress bar and Next Step button. */
+const STEP_ORDER: Array<2 | 3 | 4 | 5 | 6> = [2, 3, 4, 5, 6];
+
 type SyncEvent =
   | { type: 'reset' }
   | { type: 'menu'; key: DemoMenuAction }
@@ -125,9 +128,8 @@ export function DemoLineExperiencePanel() {
   const [walktourIndex, setWalktourIndex] = useState(0);
 
   const templateConfig = useMemo(() => TEMPLATE_CONFIG[template], [template]);
-  const stepOrder: Array<2 | 3 | 4 | 5 | 6> = [2, 3, 4, 5, 6];
-  const currentStepIndex = stepOrder.indexOf(currentStep);
-  const nextStep = currentStepIndex >= 0 ? stepOrder[currentStepIndex + 1] : undefined;
+  const currentStepIndex = STEP_ORDER.indexOf(currentStep);
+  const nextStep = currentStepIndex >= 0 ? STEP_ORDER[currentStepIndex + 1] : undefined;
   const walktourSteps: Array<{ step: 2 | 3 | 4 | 5 | 6; title: string; description: string }> = [
     { step: 2, title: 'STEP 1: LINE Chat', description: 'เริ่มจากแชทลูกค้าใน LINE และกดเมนูจองคิวจาก Rich Menu' },
     { step: 3, title: 'STEP 2: LIFF Booking', description: 'เลือกบริการ วัน เวลา และยืนยันการจองผ่าน LIFF' },
@@ -199,17 +201,34 @@ export function DemoLineExperiencePanel() {
       if (cancelled || !motionRootRef.current) return;
 
       const context = gsap.context(() => {
-        gsap.fromTo(
+        const timeline = gsap.timeline({ defaults: { ease: 'power3.out' } });
+
+        timeline.fromTo(
           '[data-demo-intro]',
-          { y: 24, autoAlpha: 0 },
+          { y: 28, autoAlpha: 0, filter: 'blur(10px)' },
           {
             y: 0,
             autoAlpha: 1,
+            filter: 'blur(0px)',
             duration: 0.72,
-            stagger: 0.1,
-            ease: 'power3.out',
+            stagger: 0.12,
+            clearProps: 'transform,opacity,visibility,filter',
+          },
+        );
+
+        timeline.fromTo(
+          '[data-demo-step-chip]',
+          { y: 10, scale: 0.85, autoAlpha: 0 },
+          {
+            y: 0,
+            scale: 1,
+            autoAlpha: 1,
+            duration: 0.4,
+            stagger: 0.06,
+            ease: 'back.out(2)',
             clearProps: 'transform,opacity,visibility',
           },
+          '-=0.4',
         );
       }, motionRootRef);
 
@@ -257,16 +276,33 @@ export function DemoLineExperiencePanel() {
         if (panels.length > 0) {
           timeline.fromTo(
             panels,
-            { y: 16, scale: 0.985, autoAlpha: 0 },
+            { y: 26, scale: 0.96, rotateX: -8, transformOrigin: '50% 0%', autoAlpha: 0 },
             {
               y: 0,
               scale: 1,
+              rotateX: 0,
               autoAlpha: 1,
-              duration: 0.5,
-              stagger: 0.07,
+              duration: 0.62,
+              stagger: 0.09,
               clearProps: 'transform,opacity,visibility',
             },
             stage ? '-=0.3' : 0,
+          );
+        }
+
+        const queueCards = root.querySelectorAll<HTMLElement>('[data-queue-card]');
+        if (queueCards.length > 0) {
+          timeline.fromTo(
+            queueCards,
+            { y: 14, autoAlpha: 0 },
+            {
+              y: 0,
+              autoAlpha: 1,
+              duration: 0.4,
+              stagger: 0.045,
+              clearProps: 'transform,opacity,visibility',
+            },
+            '-=0.35',
           );
         }
 
@@ -283,6 +319,12 @@ export function DemoLineExperiencePanel() {
             '-=0.32',
           );
         }
+
+        const progressBar = root.querySelector<HTMLElement>('[data-demo-progress-fill]');
+        if (progressBar) {
+          const ratio = (STEP_ORDER.indexOf(currentStep) + 1) / STEP_ORDER.length;
+          gsap.to(progressBar, { width: `${ratio * 100}%`, duration: 0.6, ease: 'power2.out' });
+        }
       }, root);
 
       revertMotion = () => context.revert();
@@ -295,6 +337,90 @@ export function DemoLineExperiencePanel() {
       revertMotion();
     };
   }, [currentStep]);
+
+  /** Signature of queue statuses; changes whenever a card moves between columns. */
+  const queueSignature = queueItems.map((item) => `${item.id}:${item.status}`).join('|');
+
+  // Re-pops the queue cards when a card changes column, so status moves read as motion
+  // instead of an instant swap.
+  useEffect(() => {
+    let cancelled = false;
+    let revertMotion = () => {};
+
+    async function animateQueueShift() {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+      const { gsap } = await import('gsap');
+      const root = motionRootRef.current;
+      if (cancelled || !root) return;
+
+      const context = gsap.context(() => {
+        const cards = root.querySelectorAll<HTMLElement>('[data-queue-card]');
+        if (cards.length === 0) return;
+        gsap.fromTo(
+          cards,
+          { y: 8, scale: 0.97, autoAlpha: 0.35 },
+          {
+            y: 0,
+            scale: 1,
+            autoAlpha: 1,
+            duration: 0.38,
+            stagger: 0.035,
+            ease: 'power2.out',
+            clearProps: 'transform,opacity,visibility',
+          },
+        );
+      }, root);
+
+      revertMotion = () => context.revert();
+    }
+
+    void animateQueueShift();
+
+    return () => {
+      cancelled = true;
+      revertMotion();
+    };
+  }, [queueSignature]);
+
+  // Pulses the phone mockups whenever a new LINE message lands, so the eye is
+  // pulled to the panel that actually changed.
+  useEffect(() => {
+    let cancelled = false;
+    let revertMotion = () => {};
+
+    async function pulsePhone() {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+      const { gsap } = await import('gsap');
+      const root = motionRootRef.current;
+      if (cancelled || !root) return;
+
+      const context = gsap.context(() => {
+        const phones = root.querySelectorAll<HTMLElement>('[data-demo-phone]');
+        if (phones.length === 0) return;
+        gsap.fromTo(
+          phones,
+          { boxShadow: '0 0 0 0 rgba(18,168,98,.45)' },
+          {
+            boxShadow: '0 0 0 12px rgba(18,168,98,0)',
+            duration: 0.85,
+            ease: 'power2.out',
+            clearProps: 'boxShadow',
+          },
+        );
+      }, root);
+
+      revertMotion = () => context.revert();
+    }
+
+    void pulsePhone();
+
+    return () => {
+      cancelled = true;
+      revertMotion();
+    };
+  }, [messages.length]);
 
   useEffect(() => {
     const channel = new BroadcastChannel('demo-line-experience-sync');
@@ -551,6 +677,7 @@ export function DemoLineExperiencePanel() {
                 return (
                   <Chip
                     key={step}
+                    data-demo-step-chip
                     data-demo-active-step={active ? 'true' : undefined}
                     label={`STEP ${step-1}`}
                     clickable={unlocked}
@@ -562,6 +689,9 @@ export function DemoLineExperiencePanel() {
                       borderColor: unlocked ? undefined : '#d4dbe3',
                       opacity: unlocked ? 1 : 0.55,
                       fontWeight: 700,
+                      transition: 'transform .2s ease, box-shadow .2s ease',
+                      boxShadow: active ? '0 0 0 3px rgba(18,168,98,.16)' : 'none',
+                      '&:hover': unlocked ? { transform: 'translateY(-2px)' } : undefined,
                     }}
                   />
                 );
@@ -587,6 +717,18 @@ export function DemoLineExperiencePanel() {
               Walktour
             </Button>
           </Stack>
+
+          <Box sx={{ mt: 1.2, height: 4, borderRadius: 99, bgcolor: '#e6ece7', overflow: 'hidden' }}>
+            <Box
+              data-demo-progress-fill
+              sx={{
+                height: '100%',
+                width: `${((currentStepIndex + 1) / STEP_ORDER.length) * 100}%`,
+                borderRadius: 99,
+                background: 'linear-gradient(90deg, #12a862, #7bd8ad)',
+              }}
+            />
+          </Box>
         </CardContent>
       </Card>
 
@@ -596,6 +738,7 @@ export function DemoLineExperiencePanel() {
             <Grid size={{ xs: 12, xl: 6 }}>
               <Card
                 data-demo-panel
+                data-demo-phone
                 sx={{
                   borderRadius: 1,
                   overflow: 'hidden',
@@ -700,6 +843,7 @@ export function DemoLineExperiencePanel() {
               </CardContent>
 
               <Box
+                data-demo-phone
                 sx={{
                   position: 'absolute',
                   right: { xs: 10, md: 18 },

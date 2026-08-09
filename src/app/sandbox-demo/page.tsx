@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Container } from '@mui/material';
 import { PublicNavbar } from '@/components/public/public-navbar';
 import { PublicFooter } from '@/components/public/public-footer';
+import { DemoHero } from '@/components/demo/demo-hero';
 import { DemoLineExperiencePanel } from '@/components/demo/demo-line-experience-panel';
 
 export const metadata: Metadata = {
@@ -17,11 +18,10 @@ export default function SandboxDemoPage() {
     <main>
       <PublicNavbar />
       <Container maxWidth="xl" sx={{ py: 4 }}>
-       
-
-         
-
-        <DemoLineExperiencePanel />
+        <DemoHero />
+        <div id="sandbox-panel" style={{ scrollMarginTop: 88 }}>
+          <DemoLineExperiencePanel />
+        </div>
       </Container>
       <PublicFooter />
     </main>

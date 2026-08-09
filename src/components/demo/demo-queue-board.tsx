@@ -32,7 +32,18 @@ export function DemoQueueBoard({ items }: { items: DemoQueueItem[] }) {
               </Stack>
               <Stack spacing={0.8}>
                 {rows.length === 0 ? <Typography sx={{ fontSize: 12, color: '#7e8a97' }}>ไม่มีรายการ</Typography> : rows.map((row) => (
-                  <Box key={row.id} sx={{ border: '1px solid #e2e8ef', borderRadius: 1, p: 1, bgcolor: '#fff' }}>
+                  <Box
+                    key={row.id}
+                    data-queue-card
+                    sx={{
+                      border: '1px solid #e2e8ef',
+                      borderRadius: 1,
+                      p: 1,
+                      bgcolor: '#fff',
+                      transition: 'transform .2s ease, box-shadow .2s ease',
+                      '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 6px 16px rgba(15,40,25,.10)' },
+                    }}
+                  >
                     <Typography sx={{ fontWeight: 900, fontSize: 20, lineHeight: 1 }}>{row.queueNo}</Typography>
                     <Typography sx={{ fontSize: 13 }}>{row.serviceName}</Typography>
                     <Typography sx={{ fontSize: 12, color: '#687483' }}>{row.timeLabel} • {row.resourceName || row.branchName}</Typography>
