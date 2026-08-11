@@ -39,7 +39,7 @@ export default function HomePage() {
     operatingSystem: 'Web',
     inLanguage: ['th', 'en'],
     offers: [
-      { '@type': 'Offer', priceCurrency: 'THB', price: '590', name: 'Starter' },
+      { '@type': 'Offer', priceCurrency: 'THB', price: '0', name: 'Starter' },
       { '@type': 'Offer', priceCurrency: 'THB', price: '1490', name: 'Professional' },
       { '@type': 'Offer', priceCurrency: 'THB', price: '3990', name: 'Business' },
       { '@type': 'Offer', name: 'Custom', priceSpecification: { '@type': 'PriceSpecification', priceCurrency: 'THB' } },

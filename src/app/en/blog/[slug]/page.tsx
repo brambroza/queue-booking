@@ -146,7 +146,7 @@ export default async function BlogDetailEnPage({ params }: { params: Promise<Par
 
         <Box sx={{ mt: 4 }}>
           <Typography>
-            <Link href="/register">Start free trial</Link> or <Link href="/en/contact">Contact sales</Link>
+            <Link href="/register">Start free</Link> or <Link href="/en/contact">Contact sales</Link>
           </Typography>
           <Typography sx={{ mt: 1 }}>
             <Link href="/en/blog">← Back to all articles</Link>

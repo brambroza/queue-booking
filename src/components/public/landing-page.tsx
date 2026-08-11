@@ -189,7 +189,7 @@ function LandingNavbar() {
           >
             <ChatBubbleOutlineRoundedIcon /> เพิ่มเพื่อนใน LINE
           </a>
-          <Link href="/register" className={styles.navCta} onClick={() => setOpen(false)}>เริ่มใช้ฟรี 14 วัน</Link>
+          <Link href="/register" className={styles.navCta} onClick={() => setOpen(false)}>เริ่มใช้ฟรี</Link>
         </nav>
       </div>
     </header>
@@ -304,7 +304,7 @@ function HeroSection() {
               <strong>รับมัดจำผ่าน PromptPay QR ได้ทันทีใน LINE</strong>
             </div>
             <div className={styles.heroActions} data-hero-reveal>
-              <Link href="/register" className={styles.primaryButton}>เริ่มใช้ฟรี 14 วัน <ArrowIcon /></Link>
+              <Link href="/register" className={styles.primaryButton}>เริ่มใช้ฟรี <ArrowIcon /></Link>
               <Link href="/sandbox-demo" className={styles.secondaryButton}>ดูระบบตัวอย่าง <ArrowIcon /></Link>
             </div>
             <p className={styles.reassurance} data-hero-reveal><CheckRoundedIcon /> ไม่ต้องใช้บัตรเครดิต <span /> เริ่มได้ในไม่กี่นาที</p>
@@ -584,7 +584,7 @@ function PricingSection() {
         <div className={`${styles.sectionIntro} ${styles.pricingIntro}`} data-reveal>
           <p className={styles.sectionNumber}>05 / ราคา</p>
           <h2>เริ่มเล็ก แล้วโตไป<br />พร้อมทุกสาขา</h2>
-          <p>ทดลองใช้ฟรี 14 วัน เปลี่ยนแพ็กเกจได้ตลอด</p>
+          <p>เริ่มต้นฟรี 50 คิวต่อเดือน เปลี่ยนแพ็กเกจได้ตลอด</p>
         </div>
         <div className={styles.pricingRail}>
           {previewPlans.map((plan) => {
@@ -702,7 +702,7 @@ function FinalCta() {
         <div className={styles.finalCtaInner}>
           <h2 data-reveal>พร้อมเปลี่ยนการรอคิว<br />ให้เป็นประสบการณ์ที่ดีขึ้นไหม?</h2>
           <div className={styles.ctaActions} data-reveal>
-            <Link href="/register" className={styles.ctaLightButton}>เริ่มใช้ฟรี 14 วัน <ArrowIcon /></Link>
+            <Link href="/register" className={styles.ctaLightButton}>เริ่มใช้ฟรี <ArrowIcon /></Link>
             <a href={lineFriendUrl} className={styles.ctaOutlineButton} target="_blank" rel="noopener noreferrer">เพิ่มเพื่อน LINE</a>
             <p>ไม่ต้องใช้บัตรเครดิต <span /> ยกเลิกได้ตลอด</p>
           </div>

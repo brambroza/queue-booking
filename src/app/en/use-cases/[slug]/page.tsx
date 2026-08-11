@@ -63,7 +63,7 @@ export default async function UseCaseDetailEnPage({ params }: { params: Promise<
               ))}
             </Stack>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 3 }}>
-              <Button component={Link} href="/register" variant="contained">Start free trial</Button>
+              <Button component={Link} href="/register" variant="contained">Start free</Button>
               <Button component={Link} href="/en/contact" variant="outlined">Contact sales</Button>
               <Button component={Link} href="/en/use-cases" variant="text">Back to use cases</Button>
             </Stack>
@@ -74,4 +74,3 @@ export default async function UseCaseDetailEnPage({ params }: { params: Promise<
     </main>
   );
 }
-

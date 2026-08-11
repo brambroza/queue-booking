@@ -138,7 +138,7 @@ export function HeroSection() {
                 justifyContent={{ xs: 'center', md: 'flex-start' }}
                 sx={{ mt: 3, width: '100%' }}
               >
-                {['Starter ฟรี 3 เดือน', '100 bookings/เดือน', 'ตั้งค่าง่ายใน 5 นาที'].map((x) => (
+                {['Starter ฟรี', '50 คิว/เดือน', 'ตั้งค่าง่ายใน 5 นาที'].map((x) => (
                   <Stack key={x} direction="row" spacing={0.8} alignItems="center">
                     <CheckCircleRoundedIcon sx={{ color: 'primary.main', fontSize: 18 }} />
                     <Typography variant="body2" color="text.secondary">{x}</Typography>
@@ -531,7 +531,7 @@ export function PricingPreviewSection() {
     <SectionWrap id="pricing" title="เลือกแผนที่เหมาะกับธุรกิจของคุณ" sub="มีทั้งแพ็กเกจมาตรฐานและแบบ Custom สำหรับร้านอาหาร บุฟเฟ่ต์ และห้องประชุม" tag="Pricing" bg="#fff">
       <Grid container spacing={2}>
         {pricingPlans.map((p) => (
-          <Grid key={p.name} size={{ xs: 12, sm: 6, md: 4 }}>
+          <Grid key={p.name} size={{ xs: 12, sm: 6, md: 3 }}>
             <Card sx={{ borderRadius: 1, border: p.highlight ? '2px solid #12a862' : undefined, height: '100%' }}>
               <CardContent>
                 <Typography fontWeight={700}>{p.name}</Typography>
@@ -663,7 +663,7 @@ export function CtaSection() {
             </Button>
           </Stack>
           <Typography variant="caption" color="text.secondary">
-            โปรโมชัน Starter ฟรี 3 เดือน • 100 bookings/เดือน • ตั้งค่าเริ่มต้นได้ใน 5 นาที
+            Starter ฟรี • 50 คิว/เดือน • ตั้งค่าเริ่มต้นได้ใน 5 นาที
           </Typography>
         </Stack>
       </Paper>

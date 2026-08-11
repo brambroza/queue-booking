@@ -39,7 +39,7 @@ export default function HomeEnPage() {
                 Let customers check available slots and book via LINE. Manage branches, services, queue flow, staff, and reports in one dashboard.
               </Typography>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 3 }}>
-                <Button component={Link} href="/register" variant="contained">Start Free Trial</Button>
+                <Button component={Link} href="/register" variant="contained">Start Free</Button>
                 <Button component={Link} href="/en/pricing" variant="outlined">View Pricing</Button>
                 <Button component={Link} href="/en/contact" variant="outlined" color="inherit">Contact Sales</Button>
               </Stack>
@@ -59,4 +59,3 @@ export default function HomeEnPage() {
     </main>
   );
 }
-

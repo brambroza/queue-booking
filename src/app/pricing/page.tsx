@@ -52,7 +52,7 @@ export default function PricingPage() {
       <Container maxWidth="lg" sx={{ py: { xs: 6, md: 10 } }}>
         <Stack spacing={1.5} alignItems="center" textAlign="center" sx={{ mb: { xs: 5, md: 7 } }}>
           <Chip
-            label="โปรฯ Starter ฟรี 3 เดือนแรก"
+            label="Starter ฟรี 50 คิวต่อเดือน"
             sx={{ fontWeight: 600, color: BRAND, bgcolor: 'rgba(18,168,98,.1)' }}
           />
           <Typography variant="h3" fontWeight={800} sx={{ letterSpacing: '-.02em' }}>
@@ -64,8 +64,8 @@ export default function PricingPage() {
         </Stack>
 
         <Grid container spacing={2.5}>
-          {pricingPlans.map((p, i) => (
-            <Grid key={p.name} size={i < 3 ? { xs: 12, sm: 6, md: 4 } : { xs: 12, sm: 6, md: 6 }}>
+          {pricingPlans.map((p) => (
+            <Grid key={p.name} size={{ xs: 12, sm: 6, md: 3 }}>
               <PricingCard name={p.name} price={p.price} period={p.period} items={p.items} highlight={p.highlight} />
             </Grid>
           ))}
@@ -92,7 +92,6 @@ export default function PricingPage() {
               <TableHead>
                 <TableRow sx={{ '& th': { fontWeight: 700, bgcolor: 'rgba(18,168,98,.05)', whiteSpace: 'nowrap' } }}>
                   <TableCell>Feature</TableCell>
-                  <TableCell align="center">Trial</TableCell>
                   <TableCell align="center">Starter</TableCell>
                   <TableCell align="center" sx={{ color: BRAND }}>Professional</TableCell>
                   <TableCell align="center">Business</TableCell>
@@ -103,7 +102,6 @@ export default function PricingPage() {
                 {featureCompare.map((r) => (
                   <TableRow key={r.key} sx={{ '&:last-child td': { border: 0 }, '&:hover': { bgcolor: 'action.hover' } }}>
                     <TableCell sx={{ fontWeight: 600 }}>{r.key}</TableCell>
-                    <TableCell align="center">{r.trial}</TableCell>
                     <TableCell align="center">{r.starter}</TableCell>
                     <TableCell align="center" sx={{ bgcolor: 'rgba(18,168,98,.04)' }}>{r.pro}</TableCell>
                     <TableCell align="center">{r.business}</TableCell>

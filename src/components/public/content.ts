@@ -91,8 +91,7 @@ export type PricingPlan = {
 };
 
 export const pricingPlans: PricingPlan[] = [
-  { name: 'Free Trial', price: '0 บาท', period: '/14 วัน', desc: 'ทดลองใช้ฟรี 14 วัน', items: ['ทดสอบระบบ', '1 ร้าน', '1 สาขา', '1 บริการ', '50 bookings'] },
-  { name: 'Starter', price: '590 บาท', period: '/เดือน', desc: 'โปรฯ ฟรี 3 เดือนแรก', items: ['โปรฯ ฟรี 3 เดือนแรก', '1 ร้าน', '1 สาขา', '3 บริการ', '300 bookings/เดือน'] },
+  { name: 'Starter', price: 'ฟรี', period: '', desc: 'ฟรี 50 คิวต่อเดือน', items: ['50 คิว/เดือน', '1 ร้าน', '1 สาขา', '3 บริการ'] },
   { name: 'Professional', price: '990 บาท', period: '/เดือน', desc: 'สำหรับร้านที่เติบโต', items: ['1 ร้าน', '5 สาขา', 'ไม่จำกัดบริการ', '2,000 bookings/เดือน', 'LINE Auto Reply'], highlight: true },
   { name: 'Business', price: '2,490 บาท', period: '/เดือน', desc: 'หลายสาขาและทีมใหญ่', items: ['หลายร้าน / หลายสาขา', 'ไม่จำกัดบริการ', '10,000 bookings/เดือน', 'Chat Inbox', 'Advanced Reports'] },
   { name: 'Enterprise', price: 'ติดต่อฝ่ายขาย', period: '', desc: 'แพ็กเกจเฉพาะองค์กร', items: ['Custom features', 'Dedicated support', 'SLA', 'On-premise option'], contactSales: true },
@@ -105,12 +104,12 @@ export const testimonials = [
 ];
 
 export const featureCompare = [
-  { key: 'จำนวนสาขา', trial: '1', starter: '1', pro: '5', business: 'ไม่จำกัด', enterprise: 'Custom' },
-  { key: 'จำนวนบริการ', trial: '1', starter: '3', pro: 'ไม่จำกัด', business: 'ไม่จำกัด', enterprise: 'ไม่จำกัด' },
-  { key: 'Bookings / เดือน', trial: '50', starter: '300', pro: '2,000', business: '10,000', enterprise: 'Custom' },
-  { key: 'LINE Auto Reply', trial: '-', starter: '-', pro: '✓', business: '✓', enterprise: '✓' },
-  { key: 'Chat Inbox', trial: '-', starter: '-', pro: '-', business: '✓', enterprise: '✓' },
-  { key: 'SLA / Dedicated Support', trial: '-', starter: '-', pro: '-', business: '-', enterprise: '✓' },
+  { key: 'จำนวนสาขา', starter: '1', pro: '5', business: 'ไม่จำกัด', enterprise: 'Custom' },
+  { key: 'จำนวนบริการ', starter: '3', pro: 'ไม่จำกัด', business: 'ไม่จำกัด', enterprise: 'ไม่จำกัด' },
+  { key: 'Bookings / เดือน', starter: '50', pro: '2,000', business: '10,000', enterprise: 'Custom' },
+  { key: 'LINE Auto Reply', starter: '-', pro: '✓', business: '✓', enterprise: '✓' },
+  { key: 'Chat Inbox', starter: '-', pro: '-', business: '✓', enterprise: '✓' },
+  { key: 'SLA / Dedicated Support', starter: '-', pro: '-', business: '-', enterprise: '✓' },
 ];
 
 export const faqs = [
