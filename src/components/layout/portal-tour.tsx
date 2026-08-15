@@ -9,6 +9,8 @@ import HelpOutlineRoundedIcon from '@mui/icons-material/HelpOutlineRounded';
 import { Box, Button, IconButton, Paper, Portal, Typography } from '@mui/material';
 
 const TOUR_VERSION = 'v1';
+/** ปิด tour guide ทั้งหมด (ทั้ง auto-start และปุ่มช่วยเหลือ) — เปลี่ยนเป็น true เพื่อเปิดใช้งานอีกครั้ง */
+const TOUR_ENABLED: boolean = false;
 
 type Step = { selector: string; title: string; body: string };
 
@@ -54,6 +56,7 @@ export function PortalTour() {
 
   useEffect(() => {
     setStepIndex(-1);
+    if (!TOUR_ENABLED) return;
     const timer = window.setTimeout(() => {
       try {
         if (!localStorage.getItem(storageKey)) setStepIndex(0);
@@ -89,7 +92,7 @@ export function PortalTour() {
     else setStepIndex((current) => current + 1);
   };
 
-  const active = stepIndex >= 0 ? steps[stepIndex] : null;
+  const active = TOUR_ENABLED && stepIndex >= 0 ? steps[stepIndex] : null;
   const isOpen = Boolean(active);
   const visualViewport = typeof window === 'undefined' ? null : window.visualViewport;
   const viewportHeight = visualViewport?.height ?? (typeof window === 'undefined' ? 900 : window.innerHeight);
@@ -107,6 +110,8 @@ export function PortalTour() {
   const popoverLeft = rect
     ? Math.min(Math.max(rect.left, 16), Math.max(16, viewportWidth - popoverWidth - 16))
     : 16;
+
+  if (!TOUR_ENABLED) return null;
 
   return (
     <>

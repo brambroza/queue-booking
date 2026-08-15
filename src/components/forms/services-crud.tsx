@@ -141,12 +141,24 @@ export function ServicesCrud() {
       text: '#345695',
       defaults: { duration: '15', capacity: '1' },
     },
+    {
+      key: 'fitness',
+      title: 'ฟิตเนส',
+      subtitle: 'คลาสกลุ่ม / เทรนเนอร์ส่วนตัว',
+      category: 'fitness',
+      mode: 'capacity_based',
+      accent: '#E07B39',
+      soft: '#FDF0E6',
+      text: '#9C4F1B',
+      defaults: { duration: '60', capacity: '20' },
+    },
   ];
 
   const CATEGORY_LABELS: Record<string, string> = {
     restaurant: 'ร้านอาหาร',
     buffet: 'ร้านบุฟเฟ่ต์',
     meeting_room: 'ห้องประชุม',
+    fitness: 'ฟิตเนส',
     consult: 'ที่ปรึกษา',
   };
 

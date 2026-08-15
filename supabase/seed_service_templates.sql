@@ -55,5 +55,11 @@ insert into public.service_templates (
 ('buffet', 'คิวหน้าร้านบุฟเฟ่ต์', 'walk_in', 120, null, null, 50, false, true, 120, 50, 210),
 ('meeting_room', 'จองห้องประชุม', 'fixed_slot', 60, null, null, 1, false, false, 60, 1, 220),
 ('meeting_room', 'จองห้องประชุมครึ่งวัน', 'fixed_slot', 240, null, null, 1, false, false, 240, 1, 230),
-('meeting_room', 'จองห้องประชุมเต็มวัน', 'fixed_slot', 480, null, null, 1, false, false, 480, 1, 240)
+('meeting_room', 'จองห้องประชุมเต็มวัน', 'fixed_slot', 480, null, null, 1, false, false, 480, 1, 240),
+('fitness', 'คลาสกลุ่ม (Group Class)', 'capacity_based', 60, null, null, 20, false, false, 60, 20, 250),
+('fitness', 'โยคะ', 'capacity_based', 60, null, null, 15, false, false, 60, 15, 260),
+('fitness', 'เทรนเนอร์ส่วนตัว (Personal Trainer)', 'fixed_slot', 60, null, null, 1, false, false, 60, 1, 270),
+('fitness', 'ประเมินร่างกาย / Body Assessment', 'fixed_slot', 30, null, null, 1, false, false, 30, 1, 280),
+('fitness', 'ใช้ยิมรายวัน (Day Pass)', 'walk_in', null, null, null, 50, false, true, null, 50, 290),
+('fitness', 'ทดลองเล่นฟรี (Free Trial)', 'request_approval', null, 30, 90, 1, true, false, null, 1, 300)
 on conflict do nothing;
