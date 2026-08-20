@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useToast } from '@/components/ui/toast';
+import { EmptyState } from '@/components/ui/empty-state';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
 import { formatDateDMY } from '@/lib/utils/date-format';
@@ -117,7 +118,13 @@ export function HolidaysCrud() {
 
       <div className="card p-4 overflow-x-auto">
         {rows.length === 0 ? (
-          <p className="text-sm text-slate-500">ยังไม่มีข้อมูลวันหยุด</p>
+          <EmptyState
+            title="ยังไม่มีวันหยุด"
+            description="เพิ่มวันหยุดเพื่อปิดรับคิวเฉพาะวัน โดยไม่ต้องแก้เวลาทำการ"
+            actionLabel="เพิ่มวันหยุด"
+            onAction={openCreate}
+            icon="📅"
+          />
         ) : (
           <table className="min-w-full text-sm">
             <thead>

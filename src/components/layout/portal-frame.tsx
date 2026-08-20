@@ -24,6 +24,7 @@ import { TopbarUserMenu } from '@/components/layout/topbar-user-menu';
 import { useI18n } from '@/components/i18n/i18n-provider';
 import { DemoModeBanner } from '@/components/demo/demo-mode-banner';
 import { PortalTour } from '@/components/layout/portal-tour';
+import { UpgradeProvider } from '@/components/subscription/upgrade-provider';
 
 const drawerWidth = 280;
 
@@ -172,7 +173,7 @@ export function PortalFrame({
       <Box component="main" data-tour="page-content" sx={{ flex: 1, pt: { xs: 10, md: 11 }, pb: 4 }}>
         <Container maxWidth="xl">
           <DemoModeBanner show={demoModeEnabled} />
-          {children}
+          <UpgradeProvider>{children}</UpgradeProvider>
         </Container>
       </Box>
     </Box>

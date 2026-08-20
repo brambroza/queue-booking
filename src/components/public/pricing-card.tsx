@@ -1,4 +1,5 @@
-import { Box, Card, CardContent, Chip, Stack, Typography } from '@mui/material';
+import Link from 'next/link';
+import { Box, Button, Card, CardContent, Chip, Stack, Typography } from '@mui/material';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 
 const BRAND = '#12a862';
@@ -9,9 +10,12 @@ type Props = {
   period?: string;
   items: string[];
   highlight?: boolean;
+  /** Where the plan's call to action goes. Omit to render a card with no CTA. */
+  ctaHref?: string;
+  ctaLabel?: string;
 };
 
-export function PricingCard({ name, price, period = '/เดือน', items, highlight }: Props) {
+export function PricingCard({ name, price, period = '/เดือน', items, highlight, ctaHref, ctaLabel }: Props) {
   return (
     <Card
       elevation={0}
@@ -61,6 +65,26 @@ export function PricingCard({ name, price, period = '/เดือน', items, h
             </Typography>
           )}
         </Stack>
+
+        {ctaHref && (
+          <Button
+            component={Link}
+            href={ctaHref}
+            fullWidth
+            variant={highlight ? 'contained' : 'outlined'}
+            sx={{
+              mt: 2.5,
+              py: 1.15,
+              borderRadius: 1,
+              fontWeight: 700,
+              ...(highlight
+                ? { bgcolor: BRAND, color: '#fff', '&:hover': { bgcolor: '#0d8a4f' } }
+                : { color: BRAND, borderColor: BRAND, '&:hover': { borderColor: '#0d8a4f', bgcolor: 'rgba(18,168,98,.06)' } }),
+            }}
+          >
+            {ctaLabel ?? 'เริ่มใช้ฟรี'}
+          </Button>
+        )}
 
         <Box sx={{ height: '1px', bgcolor: 'divider', my: 2.5 }} />
 

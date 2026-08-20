@@ -3,6 +3,12 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { PageShell } from '@/components/ui/page-shell';
 import { useToast } from '@/components/ui/toast';
+import { track } from '@/lib/analytics/track';
+
+type ConnectionCheck = { key: string; ok: boolean; message: string };
+
+/** ฐาน URL ของแอป ใช้แสดงลิงก์ที่ต้องนำไปวางใน LINE Developer Console */
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://queuebooking.com';
 
 export default function LineSettingsPage() {
   const { push } = useToast();
@@ -14,6 +20,8 @@ export default function LineSettingsPage() {
     auto_reply_enabled: true,
     shop_key: '',
   });
+  const [checks, setChecks] = useState<ConnectionCheck[] | null>(null);
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -41,6 +49,27 @@ export default function LineSettingsPage() {
     const json = await res.json();
     if (!res.ok) return push(json.error ?? 'บันทึกไม่สำเร็จ', 'error');
     push('บันทึกตั้งค่า LINE แล้ว');
+    void testConnection();
+  }
+
+  /** ยิงตรวจ credential จริงกับ LINE API แทนการเดาว่ากรอกถูกหรือยัง */
+  async function testConnection() {
+    setTesting(true);
+    try {
+      const res = await fetch('/api/line-settings/test', { method: 'POST' });
+      const json = await res.json();
+      if (!res.ok) {
+        push(json.error ?? 'ทดสอบการเชื่อมต่อไม่สำเร็จ', 'error');
+        return;
+      }
+      setChecks(json.data.checks as ConnectionCheck[]);
+      if (json.data.ok) {
+        track('line_connected');
+        push('เชื่อมต่อ LINE ครบถ้วนแล้ว');
+      }
+    } finally {
+      setTesting(false);
+    }
   }
 
   return (
@@ -50,15 +79,15 @@ export default function LineSettingsPage() {
         <div className="mt-3 space-y-2 text-sm text-slate-600">
           <p>Webhook URL</p>
           <code className="block rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700">
-            https://queuebooking.com/api/line/webhook/{form.shop_key || '{shopKey}'}
+            {APP_URL}/api/line/webhook/{form.shop_key || '{shopKey}'}
           </code>
           <p>LIFF Booking URL</p>
           <code className="block rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700">
-            https://queuebooking.com/liff/{form.shop_key || '{shopKey}'}
+            {APP_URL}/liff/{form.shop_key || '{shopKey}'}
           </code>
           <p>LIFF Member URL</p>
           <code className="block rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700">
-            https://queuebooking.com/liff/{form.shop_key || '{shopKey}'}/member
+            {APP_URL}/liff/{form.shop_key || '{shopKey}'}/member
           </code>
         </div>
       </section>
@@ -88,9 +117,22 @@ export default function LineSettingsPage() {
           <input type="checkbox" checked={form.auto_reply_enabled} onChange={(e) => setForm((s) => ({ ...s, auto_reply_enabled: e.target.checked }))} />
           เปิด Auto Reply
         </label>
-        <div className="pt-1">
+        <div className="flex flex-wrap gap-2 pt-1">
           <button className="btn-primary">บันทึก</button>
+          <button type="button" className="btn-outline" onClick={() => void testConnection()} disabled={testing}>
+            {testing ? 'กำลังทดสอบ...' : 'ทดสอบการเชื่อมต่อ'}
+          </button>
         </div>
+
+        {checks && (
+          <ul className="space-y-1.5 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+            {checks.map((c) => (
+              <li key={c.key} className={c.ok ? 'text-emerald-700' : 'text-rose-700'}>
+                {c.ok ? '✓' : '✕'} {c.message}
+              </li>
+            ))}
+          </ul>
+        )}
       </form>
     </PageShell>
   );

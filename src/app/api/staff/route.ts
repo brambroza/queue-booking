@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
+import { subscriptionErrorResponse } from '@/lib/subscription/response';
 import { writeAuditLog } from '@/lib/audit/activity-log';
 
 const staffSchema = z.object({
@@ -143,6 +144,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ data: true });
   } catch (e) {
+    const quota = subscriptionErrorResponse(e);
+    if (quota) return quota;
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });
   }
 }

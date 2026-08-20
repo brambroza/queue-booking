@@ -38,10 +38,13 @@ export default function HomePage() {
     applicationCategory: 'BusinessApplication',
     operatingSystem: 'Web',
     inLanguage: ['th', 'en'],
+    // Prices must match the visible pricing table (pricingPlans in
+    // components/public/content.ts). Structured data that contradicts the page
+    // is a Search Console violation, not just an inconsistency.
     offers: [
       { '@type': 'Offer', priceCurrency: 'THB', price: '0', name: 'Starter' },
-      { '@type': 'Offer', priceCurrency: 'THB', price: '1490', name: 'Professional' },
-      { '@type': 'Offer', priceCurrency: 'THB', price: '3990', name: 'Business' },
+      { '@type': 'Offer', priceCurrency: 'THB', price: '990', name: 'Professional' },
+      { '@type': 'Offer', priceCurrency: 'THB', price: '2490', name: 'Business' },
       { '@type': 'Offer', name: 'Custom', priceSpecification: { '@type': 'PriceSpecification', priceCurrency: 'THB' } },
     ],
     description: 'ระบบจองคิวผ่าน LINE OA พร้อม LIFF และ Dashboard สำหรับจัดการคิวหลายสาขา',

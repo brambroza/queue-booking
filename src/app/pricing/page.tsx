@@ -65,8 +65,16 @@ export default function PricingPage() {
 
         <Grid container spacing={2.5}>
           {pricingPlans.map((p) => (
-            <Grid key={p.name} size={{ xs: 12, sm: 6, md: 3 }}>
-              <PricingCard name={p.name} price={p.price} period={p.period} items={p.items} highlight={p.highlight} />
+            <Grid key={p.code} size={{ xs: 12, sm: 6, md: 3 }}>
+              <PricingCard
+                name={p.name}
+                price={p.price}
+                period={p.period}
+                items={p.items}
+                highlight={p.highlight}
+                ctaHref={p.contactSales ? '/contact' : `/register?plan=${p.code}`}
+                ctaLabel={p.contactSales ? 'ติดต่อฝ่ายขาย' : p.code === 'starter' ? 'เริ่มใช้ฟรี' : 'เริ่มใช้ฟรี แล้วอัปเกรด'}
+              />
             </Grid>
           ))}
         </Grid>

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
+import { PlanCard } from '@/components/subscription/plan-card';
 import { formatDateTimeDMY } from '@/lib/utils/date-format';
 
 type ShopProfile = {
@@ -13,13 +14,6 @@ type ShopProfile = {
   email: string | null;
   address: string | null;
   logo_url: string | null;
-};
-
-type ShopSubscription = {
-  plan_code?: string | null;
-  expires_at?: string | null;
-  is_active?: boolean;
-  subscription_plans?: { code?: string | null; name?: string | null } | null;
 };
 
 type SettingRow = {
@@ -48,7 +42,6 @@ export function SettingsCrud() {
   const [shopSaving, setShopSaving] = useState(false);
   const [shopLogoFile, setShopLogoFile] = useState<File | null>(null);
   const [removeLogo, setRemoveLogo] = useState(false);
-  const [subscription, setSubscription] = useState<ShopSubscription | null>(null);
   const [rows, setRows] = useState<SettingRow[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -70,15 +63,11 @@ export function SettingsCrud() {
   }
 
   async function loadShop() {
-    const [shopRes, subRes] = await Promise.all([
-      fetch('/api/shop-profile', { cache: 'no-store' }),
-      fetch('/api/shop-subscription/current', { cache: 'no-store' }),
-    ]);
-    const [shopJson, subJson] = await Promise.all([shopRes.json(), subRes.json()]);
+    // Plan/usage now lives in <PlanCard />, which fetches it independently.
+    const shopRes = await fetch('/api/shop-profile', { cache: 'no-store' });
+    const shopJson = await shopRes.json();
     if (!shopRes.ok) return push(shopJson.error ?? 'โหลดโปรไฟล์ร้านไม่สำเร็จ', 'error');
-    if (!subRes.ok) return push(subJson.error ?? 'โหลดแพ็กเกจร้านไม่สำเร็จ', 'error');
     setShop(shopJson.data ?? null);
-    setSubscription((subJson.data ?? null) as ShopSubscription | null);
   }
 
   useEffect(() => {
@@ -196,11 +185,8 @@ export function SettingsCrud() {
           <p className="text-sm text-slate-500">กำลังโหลดข้อมูลร้าน...</p>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 md:col-span-2">
-              <p className="font-semibold">แพ็กเกจปัจจุบัน: {subscription?.subscription_plans?.name ?? subscription?.plan_code ?? 'ยังไม่กำหนด'}</p>
-              <p className="mt-1 text-emerald-800">
-                วันหมดอายุ: {subscription?.expires_at ? subscription.expires_at.slice(0, 10) : 'ไม่กำหนด'} • สถานะ: {subscription?.is_active === false ? 'ระงับ' : 'ใช้งาน'}
-              </p>
+            <div className="md:col-span-2">
+              <PlanCard source="settings" />
             </div>
             <label className="text-sm">
               <span className="mb-1 block text-slate-600">ชื่อร้าน</span>

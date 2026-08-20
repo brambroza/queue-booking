@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import posthog from 'posthog-js';
 import { PostHogProvider as PHProvider } from 'posthog-js/react';
 import { CONSENT_EVENT, getConsent, type ConsentState } from '@/lib/consent/cookie-consent';
+import { captureUtm, getStoredUtm } from '@/lib/analytics/track';
 
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
@@ -48,16 +49,26 @@ function applyConsent(state: ConsentState | null) {
 /**
  * ส่ง event `$pageview` ทุกครั้งที่ route เปลี่ยน (รวม query string)
  */
+/** หน้าที่มีข้อมูลลูกค้าจริงบนจอ — ต้อง mask autocapture ไว้เสมอ */
+const MASKED_PATH_PREFIXES = ['/portal', '/liff', '/display'];
+
 function PostHogPageView() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   useEffect(() => {
     if (!pathname || !POSTHOG_KEY) return;
+
+    // หน้าการตลาดไม่มี PII อยู่บนจอ — ปลด mask เพื่อให้วิเคราะห์การคลิก CTA ได้
+    // ส่วน portal/liff/display คงการ mask ไว้ตาม PDPA
+    const shouldMask = MASKED_PATH_PREFIXES.some((p) => pathname.startsWith(p));
+    posthog.set_config({ mask_all_text: shouldMask, mask_all_element_attributes: shouldMask });
+
     let url = window.origin + pathname;
     const qs = searchParams?.toString();
     if (qs) url += `?${qs}`;
-    posthog.capture('$pageview', { $current_url: url });
+    captureUtm(qs ? `?${qs}` : '');
+    posthog.capture('$pageview', { $current_url: url, ...getStoredUtm() });
   }, [pathname, searchParams]);
 
   return null;

@@ -3,6 +3,7 @@
 import { Stack } from '@mui/material';
 import { PageHeader } from '@/components/shared/page-header';
 import { DashboardCharts } from '@/components/dashboard/dashboard-charts';
+import { OnboardingChecklist } from '@/components/dashboard/onboarding-checklist';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 
 export function DashboardPageClient() {
@@ -10,6 +11,7 @@ export function DashboardPageClient() {
   return (
     <Stack spacing={2}>
       <PageHeader title={t('title', 'Dashboard')} description={t('subtitle', 'Queue operations overview')} />
+      <OnboardingChecklist />
       <DashboardCharts />
     </Stack>
   );

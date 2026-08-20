@@ -3,6 +3,9 @@ import { registerSchema } from '@/lib/auth/schemas';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { generateShopKey } from '@/lib/auth/shop-key';
 import { notifySignupByEmail } from '@/lib/notifications/signup-notify';
+import { seedNewShop } from '@/lib/shop/seed-new-shop';
+import { FREE_PLAN_CODE } from '@/lib/subscription/enforcement';
+import { createUpgradeRequest } from '@/lib/subscription/upgrade-request';
 import { env } from '@/lib/utils/env';
 
 export async function POST(req: Request) {
@@ -15,7 +18,7 @@ export async function POST(req: Request) {
     }
 
     const admin = createAdminClient();
-    const { company_name, shop_name, owner_name, phone, email, password, plan_name } = parsed.data;
+    const { company_name, shop_name, owner_name, phone, email, password, plan_name, business_category, utm } = parsed.data;
 
   const { data: authData, error: authError } = await admin.auth.signUp({
     email,
@@ -101,46 +104,68 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: userRoleError.message }, { status: 400 });
   }
 
-  const normalizedPlan = (plan_name ?? '').trim().toLowerCase();
-  const planCodeMap: Record<string, string> = {
-    starter: 'starter',
-    professional: 'professional',
-    business: 'business',
-    enterprise: 'enterprise',
-    custom: 'enterprise',
-  };
-  const mappedPlanCode = planCodeMap[normalizedPlan] ?? 'starter';
+  // Everyone starts on the free-forever plan. The plan picked on the pricing
+  // page is interest, not entitlement — granting it here handed away paid tiers
+  // for free. It is recorded as an upgrade lead below instead.
+  const { data: planRow } = await admin
+    .from('subscription_plans')
+    .select('id, code')
+    .eq('code', FREE_PLAN_CODE)
+    .maybeSingle();
 
-  // Best-effort subscription linkage from selected pricing plan.
-  // Do not block registration if subscription tables are not ready yet.
-  try {
-    const { data: planRow } = await admin
-      .from('subscription_plans')
-      .select('id, code')
-      .eq('code', mappedPlanCode)
-      .maybeSingle();
+  const { error: subscriptionError } = await admin.from('shop_subscriptions').upsert(
+    {
+      company_id: company.id,
+      shop_id: shop.id,
+      plan_id: planRow?.id ?? null,
+      plan_code: planRow?.code ?? FREE_PLAN_CODE,
+      starts_at: new Date().toISOString(),
+      expires_at: null,
+      is_active: true,
+      created_by: userId,
+      updated_by: userId,
+    },
+    { onConflict: 'shop_id' }
+  );
 
-    const expiresAt =
-      mappedPlanCode === 'starter'
-        ? new Date(Date.now() + 1000 * 60 * 60 * 24 * 90).toISOString()
-        : null;
+  // A shop with no subscription row is a shop nobody can bill and nobody can
+  // support, so this is a hard failure rather than a console warning.
+  if (subscriptionError) {
+    return NextResponse.json({ error: subscriptionError.message }, { status: 400 });
+  }
 
-    await admin.from('shop_subscriptions').upsert(
-      {
-        company_id: company.id,
-        shop_id: shop.id,
-        plan_id: planRow?.id ?? null,
-        plan_code: planRow?.code ?? mappedPlanCode,
-        starts_at: new Date().toISOString(),
-        expires_at: expiresAt,
-        is_active: true,
-        created_by: userId,
-        updated_by: userId,
-      },
-      { onConflict: 'shop_id' }
-    );
-  } catch (subscriptionErr) {
-    console.warn('[register] subscription save skipped:', subscriptionErr);
+  // A shop with no branch, no service and no working hours cannot take a single
+  // booking, which is where every previous signup stalled. Seed it now so the
+  // owner's LIFF link works before they touch a settings page.
+  const seeded = await seedNewShop(admin, {
+    companyId: company.id,
+    shopId: shop.id,
+    userId,
+    businessCategory: business_category || null,
+  });
+
+  // Someone who picked a paid tier on the pricing page is the warmest lead the
+  // funnel produces. Capture it so sales can follow up.
+  const utmNote = utm
+    ? Object.entries(utm)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(' ')
+    : '';
+  const requestedPlan = (plan_name ?? '').trim().toLowerCase();
+  if (requestedPlan && requestedPlan !== FREE_PLAN_CODE) {
+    await createUpgradeRequest(admin, {
+      companyId: company.id,
+      shopId: shop.id,
+      requestedPlanCode: requestedPlan,
+      currentPlanCode: FREE_PLAN_CODE,
+      contactName: owner_name,
+      phone,
+      email,
+      shopName: shop_name,
+      source: 'register',
+      createdBy: userId,
+      note: utmNote ? `เลือกแพ็กเกจนี้ตอนสมัครใช้งาน • ${utmNote}` : 'เลือกแพ็กเกจนี้ตอนสมัครใช้งาน',
+    });
   }
 
   // Best-effort notification for new signup lead.
@@ -160,7 +185,7 @@ export async function POST(req: Request) {
   }
 
     return NextResponse.json({
-      data: { user_id: userId, company_id: company.id, shop_id: shop.id, shop_key: shopKey },
+      data: { user_id: userId, company_id: company.id, shop_id: shop.id, shop_key: shopKey, seeded },
       message: 'สมัครสำเร็จ กรุณาตรวจสอบอีเมลและยืนยันบัญชีก่อนเข้าสู่ระบบ',
     });
   } catch (e) {

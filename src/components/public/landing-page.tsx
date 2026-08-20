@@ -26,7 +26,7 @@ import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
 import SupportAgentRoundedIcon from '@mui/icons-material/SupportAgentRounded';
 import TranslateRoundedIcon from '@mui/icons-material/TranslateRounded';
 import UpdateRoundedIcon from '@mui/icons-material/UpdateRounded';
-import { pricingPlans } from './content';
+import { faqs, pricingPlans } from './content';
 import styles from './landing-page.module.css';
 
 const lineFriendUrl = 'https://lin.ee/oViqAoh';
@@ -38,6 +38,7 @@ const navItems = [
   { label: 'ฟีเจอร์', href: '#features' },
   { label: 'ราคา', href: '#pricing' },
   { label: 'ซัพพอร์ต', href: '#support' },
+  { label: 'คำถามที่พบบ่อย', href: '#faq' },
   { label: 'โหมดทดลอง', href: '/sandbox-demo' },
   { label: 'บทความ', href: '/blog' },
 ];
@@ -588,16 +589,21 @@ function PricingSection() {
         </div>
         <div className={styles.pricingRail}>
           {previewPlans.map((plan) => {
-            const featured = plan.name === 'Professional';
+            const featured = plan.highlight ?? false;
+            // Carry the chosen plan into registration so the signup is recorded
+            // as an upgrade lead instead of losing the buying intent.
+            const ctaHref = plan.contactSales ? '/contact' : `/register?plan=${plan.code}`;
             return (
-              <article className={`${styles.priceColumn} ${featured ? styles.priceFeatured : ''}`} data-price-column key={plan.name}>
+              <article className={`${styles.priceColumn} ${featured ? styles.priceFeatured : ''}`} data-price-column key={plan.code}>
                 <div>
                   <h3>{plan.name}</h3>
                   <p className={styles.price}><strong>{plan.price.replace(' บาท', '')}</strong>{plan.price.includes('บาท') ? ' บาท' : ''}</p>
                   <p className={styles.period}>{plan.period.replace('/', '')}</p>
                 </div>
                 <ul>{plan.items.slice(0, 4).map((item) => <li key={item}><CheckRoundedIcon />{item}</li>)}</ul>
-                <Link href="/register" className={featured ? styles.primaryButton : styles.priceButton}>เริ่มใช้ฟรี</Link>
+                <Link href={ctaHref} className={featured ? styles.primaryButton : styles.priceButton}>
+                  {plan.contactSales ? 'ติดต่อฝ่ายขาย' : 'เริ่มใช้ฟรี'}
+                </Link>
               </article>
             );
           })}
@@ -605,6 +611,31 @@ function PricingSection() {
         <div className={styles.pricingMore} data-reveal>
           <p>ต้องการฟีเจอร์สำหรับองค์กรหรือจำนวนคิวที่มากขึ้น?</p>
           <Link href="/pricing">เปรียบเทียบทุกแพ็กเกจ <ArrowIcon /></Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * หน้าแรกฝัง FAQPage JSON-LD อยู่แล้ว แต่ก่อนหน้านี้ไม่มี FAQ ให้เห็นบนหน้าจอ
+ * ซึ่งผิดนโยบาย rich result ของ Google — และปิดข้อสงสัยก่อนกดสมัครไม่ได้ด้วย
+ */
+function LandingFaqSection() {
+  return (
+    <section className={styles.supportSection} id="faq">
+      <div className={styles.container}>
+        <div className={styles.sectionIntro} data-reveal>
+          <p className={styles.sectionNumber}>07 / คำถามที่พบบ่อย</p>
+          <h2>เคลียร์ก่อนเริ่ม</h2>
+        </div>
+        <div className="mx-auto mt-6 max-w-3xl space-y-2">
+          {faqs.map((f) => (
+            <details key={f.q} className="rounded-xl border border-black/10 bg-white/60 px-4 py-3">
+              <summary className="cursor-pointer list-none text-base font-semibold">{f.q}</summary>
+              <p className="mt-2 text-sm opacity-80">{f.a}</p>
+            </details>
+          ))}
         </div>
       </div>
     </section>
@@ -719,7 +750,8 @@ function LandingFooter() {
         <div className={styles.footerTop}>
           <div><Brand /><p>ระบบจองคิวออนไลน์ผ่าน LINE<br />สำหรับธุรกิจบริการยุคใหม่</p></div>
           <div className={styles.footerLinks}>
-            <div><strong>ผลิตภัณฑ์</strong><Link href="/use-cases">ตัวอย่างการใช้งาน</Link><Link href="/pricing">ราคา</Link><Link href="/sandbox-demo">ระบบตัวอย่าง</Link></div>
+            <div><strong>ผลิตภัณฑ์</strong><Link href="/use-cases">ตัวอย่างการใช้งาน</Link><Link href="/pricing">ราคา</Link><Link href="/sandbox-demo">ระบบตัวอย่าง</Link><Link href="/features/promptpay-payment">รับมัดจำ PromptPay</Link></div>
+            <div><strong>โซลูชัน</strong><Link href="/solutions/restaurant-booking-system">ระบบจองร้านอาหาร</Link><Link href="/solutions/barbershop-booking-system">ระบบจองร้านตัดผม</Link><Link href="/solutions/clinic-booking-system">ระบบจองคลินิก</Link></div>
             <div><strong>เรียนรู้</strong><Link href="/blog">บทความ</Link><Link href="/contact">ติดต่อเรา</Link><Link href="/privacy">นโยบายความเป็นส่วนตัว</Link><Link href="/terms">ข้อกำหนดการใช้บริการ</Link></div>
             <div><strong>ติดต่อ</strong><a href="mailto:amnart.gl@gmail.com">amnart.gl@gmail.com</a><a href="tel:+66856083298">085-608-3298</a><a href={lineFriendUrl} target="_blank" rel="noopener noreferrer">LINE OA: @queuebooking</a></div>
           </div>
@@ -892,6 +924,7 @@ export function LandingPage() {
         <OutcomeSection />
         <PricingSection />
         <SupportSection />
+        <LandingFaqSection />
         <LineFriendSection />
         <FinalCta />
       </main>

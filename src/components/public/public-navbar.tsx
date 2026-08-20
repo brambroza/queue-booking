@@ -13,10 +13,10 @@ const navs = [
   { label: 'หน้าแรก', href: '/' },
   { label: 'โหมดทดลอง', href: '/sandbox-demo' },
   { label: 'ฟีเจอร์', href: '/#features' },
-  { label: 'ตัวอย่างการใช้งาน', href: '/#showcase' },
+  { label: 'ตัวอย่างการใช้งาน', href: '/use-cases' },
   { label: 'บทความ', href: '/blog' },
   { label: 'ราคา', href: '/#pricing' },
-  { label: 'ติดต่อเรา', href: '/#contact' },
+  { label: 'ติดต่อเรา', href: '/contact' },
 ];
 
 export function PublicNavbar() {

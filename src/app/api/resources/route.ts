@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { bookingResourceSchema } from '@/lib/booking/schemas';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
+import { subscriptionErrorResponse } from '@/lib/subscription/response';
 import { writeAuditLog } from '@/lib/audit/activity-log';
 
 function toInt(v: string | null, fallback: number) {
@@ -128,6 +129,8 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ data: true });
   } catch (e) {
+    const quota = subscriptionErrorResponse(e);
+    if (quota) return quota;
     return NextResponse.json(getErrorPayload(e), { status: getErrorStatus(e) });
   }
 }

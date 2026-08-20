@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade-provider';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 
 type RefUser = { id: string; full_name: string | null; email: string | null; phone: string | null };
@@ -26,6 +27,7 @@ const initialForm: FormState = {
 
 export function StaffCrud() {
   const { push } = useToast();
+  const { openPaywall } = useUpgrade();
   const [rows, setRows] = useState<StaffRow[]>([]);
   const [users, setUsers] = useState<RefUser[]>([]);
   const [branches, setBranches] = useState<RefBranch[]>([]);
@@ -91,6 +93,12 @@ export function StaffCrud() {
     });
     const json = await res.json();
     setSaving(false);
+
+    const paywall = readPaywallDetail(res, json);
+    if (paywall) {
+      openPaywall(paywall);
+      return;
+    }
 
     if (!res.ok) {
       push(json.error ?? 'บันทึกไม่สำเร็จ', 'error');

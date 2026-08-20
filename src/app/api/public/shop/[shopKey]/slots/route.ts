@@ -22,7 +22,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
 
   const weekday = new Date(`${date}T00:00:00+07:00`).getDay();
 
-  const [{ data: holidayRows }, { data: whRows }] = await Promise.all([
+  const [{ data: holidayRows }, { data: whRows }, { data: anyWhRows }] = await Promise.all([
     admin
       .from('holidays')
       .select('id')
@@ -39,6 +39,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
       .eq('active', true)
       .eq('is_deleted', false)
       .or(`branch_id.eq.${branchId},branch_id.is.null`)
+      .limit(1),
+    // Any weekday at all — distinguishes "closed today" from "never configured".
+    admin
+      .from('working_hours')
+      .select('id')
+      .eq('shop_id', shop.id)
+      .eq('is_deleted', false)
       .limit(1),
   ]);
 
@@ -58,14 +65,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
   const isHoliday = Boolean(holidayRows && holidayRows.length > 0);
   const hasWorkingHours = Boolean(whRows && whRows.length > 0);
 
-  let reason: 'ok' | 'holiday' | 'closed' | 'full' = 'ok';
+  const hasAnyWorkingHours = Boolean(anyWhRows && anyWhRows.length > 0);
+
+  let reason: 'ok' | 'holiday' | 'closed' | 'not_configured' | 'full' = 'ok';
   let hint = '';
   if (isHoliday) {
     reason = 'holiday';
     hint = 'วันดังกล่าวเป็นวันหยุดของสาขา';
   } else if (!hasWorkingHours) {
-    reason = 'closed';
-    hint = 'สาขานี้ปิดทำการในวันที่เลือก';
+    // A shop with no working hours anywhere is misconfigured, not closed. Saying
+    // "ปิดทำการ" sends the owner hunting through the branch form, which does not
+    // control this at all.
+    reason = hasAnyWorkingHours ? 'closed' : 'not_configured';
+    hint = hasAnyWorkingHours
+      ? 'สาขานี้ปิดทำการในวันที่เลือก'
+      : 'ร้านยังไม่ได้ตั้งเวลาทำการ กรุณาตั้งค่าที่เมนู "เวลาทำการ" ในระบบหลังบ้าน';
   } else if (slots.length === 0) {
     reason = 'full';
     hint = 'คิวเต็มหรือไม่มีช่วงเวลาว่างในวันที่เลือก';

@@ -2,6 +2,9 @@
 
 import { ChangeEvent, useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { EmptyState } from '@/components/ui/empty-state';
+import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade-provider';
+import { track } from '@/lib/analytics/track';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 
@@ -79,6 +82,7 @@ const EMPTY_DRAFT = {
 
 export function BookingsCrud() {
   const { push } = useToast();
+  const { openPaywall } = useUpgrade();
 
   // ── List state ──
   const [bookings, setBookings]   = useState<BookingRow[]>([]);
@@ -169,8 +173,11 @@ export function BookingsCrud() {
     });
     const j = await res.json() as { data?: { queue_number?: string; line_push_sent?: boolean; line_push_error?: string }; error?: string };
 
+    const paywall = readPaywallDetail(res, j);
+    if (paywall) { openPaywall(paywall); return; }
     if (!res.ok) { push(j.error ?? 'เพิ่มคิวไม่สำเร็จ', 'error'); return; }
 
+    track('booking_created', { channel: 'portal', line_push_sent: Boolean(j.data?.line_push_sent) });
     if (j.data?.line_push_sent)     push('เพิ่มคิวสำเร็จ และส่งข้อความ LINE แล้ว');
     else if (selected)              push(`เพิ่มคิวสำเร็จ แต่ส่ง LINE ไม่สำเร็จ: ${j.data?.line_push_error ?? '-'}`, 'error');
     else                            push('เพิ่มคิวสำเร็จ');
@@ -279,7 +286,11 @@ export function BookingsCrud() {
         {loading ? (
           <p className="p-4 text-sm text-slate-400">กำลังโหลด…</p>
         ) : bookings.length === 0 ? (
-          <p className="p-4 text-sm text-slate-400">ไม่มีข้อมูลการจอง</p>
+          <EmptyState
+            title="ยังไม่มีคิวในช่วงที่เลือก"
+            description="ส่งลิงก์ LIFF ให้ลูกค้าจองเอง หรือเพิ่มคิวหน้าร้านด้วยตัวเอง"
+            icon="🎫"
+          />
         ) : (
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">

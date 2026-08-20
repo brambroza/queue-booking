@@ -78,6 +78,8 @@ export const useCases: UseCase[] = [
  * แก้ราคาที่นี่ที่เดียว มีผลทั้งสองหน้า
  */
 export type PricingPlan = {
+  /** ต้องตรงกับ subscription_plans.code ใน DB — ใช้ส่งต่อไป /register?plan=<code> */
+  code: 'starter' | 'professional' | 'business' | 'enterprise';
   name: string;
   /** ราคาหลักพร้อมหน่วย เช่น '590 บาท', '0 บาท', 'ติดต่อฝ่ายขาย' */
   price: string;
@@ -91,10 +93,22 @@ export type PricingPlan = {
 };
 
 export const pricingPlans: PricingPlan[] = [
-  { name: 'Starter', price: 'ฟรี', period: '', desc: 'ฟรี 50 คิวต่อเดือน', items: ['50 คิว/เดือน', '1 ร้าน', '1 สาขา', '3 บริการ'] },
-  { name: 'Professional', price: '990 บาท', period: '/เดือน', desc: 'สำหรับร้านที่เติบโต', items: ['1 ร้าน', '5 สาขา', 'ไม่จำกัดบริการ', '2,000 bookings/เดือน', 'LINE Auto Reply'], highlight: true },
-  { name: 'Business', price: '2,490 บาท', period: '/เดือน', desc: 'หลายสาขาและทีมใหญ่', items: ['หลายร้าน / หลายสาขา', 'ไม่จำกัดบริการ', '10,000 bookings/เดือน', 'Chat Inbox', 'Advanced Reports'] },
-  { name: 'Enterprise', price: 'ติดต่อฝ่ายขาย', period: '', desc: 'แพ็กเกจเฉพาะองค์กร', items: ['Custom features', 'Dedicated support', 'SLA', 'On-premise option'], contactSales: true },
+  { code: 'starter', name: 'Starter', price: 'ฟรี', period: '', desc: 'ฟรีตลอดชีพ 50 คิวต่อเดือน', items: ['50 คิว/เดือน', '1 ร้าน', '1 สาขา', '3 บริการ'] },
+  { code: 'professional', name: 'Professional', price: '990 บาท', period: '/เดือน', desc: 'สำหรับร้านที่เติบโต', items: ['1 ร้าน', '5 สาขา', 'ไม่จำกัดบริการ', '2,000 bookings/เดือน', 'LINE Auto Reply'], highlight: true },
+  { code: 'business', name: 'Business', price: '2,490 บาท', period: '/เดือน', desc: 'หลายสาขาและทีมใหญ่', items: ['หลายร้าน / หลายสาขา', 'ไม่จำกัดบริการ', '10,000 bookings/เดือน', 'Chat Inbox', 'Advanced Reports'] },
+  { code: 'enterprise', name: 'Enterprise', price: 'ติดต่อฝ่ายขาย', period: '', desc: 'แพ็กเกจเฉพาะองค์กร', items: ['Custom features', 'Dedicated support', 'SLA', 'On-premise option'], contactSales: true },
+];
+
+/**
+ * English mirror of `pricingPlans`. Prices must stay identical to the Thai list
+ * and to `subscription_plans.price_monthly` — the EN page used to advertise
+ * 1,490 / 3,990 for the same tiers, which contradicted both.
+ */
+export const pricingPlansEn: PricingPlan[] = [
+  { code: 'starter', name: 'Starter', price: 'Free', period: '', desc: 'Free forever, 50 bookings a month', items: ['50 bookings/month', '1 shop', '1 branch', '3 services'] },
+  { code: 'professional', name: 'Professional', price: '990 THB', period: '/month', desc: 'For growing shops', items: ['1 shop', '5 branches', 'Unlimited services', '2,000 bookings/month', 'LINE Auto Reply'], highlight: true },
+  { code: 'business', name: 'Business', price: '2,490 THB', period: '/month', desc: 'Multi-branch and larger teams', items: ['Multi-shop / multi-branch', 'Unlimited services', '10,000 bookings/month', 'Chat Inbox', 'Advanced Reports'] },
+  { code: 'enterprise', name: 'Enterprise', price: 'Contact sales', period: '', desc: 'Tailored for organisations', items: ['Custom features', 'Dedicated support', 'SLA', 'On-premise option'], contactSales: true },
 ];
 
 export const testimonials = [
@@ -112,8 +126,17 @@ export const featureCompare = [
   { key: 'SLA / Dedicated Support', starter: '-', pro: '-', business: '-', enterprise: '✓' },
 ];
 
+/**
+ * แสดงบนหน้าแรก /pricing และ /contact และใช้เป็น FAQPage JSON-LD ด้วย
+ * ต้องมองเห็นได้จริงบนหน้าเว็บ ไม่งั้นผิดนโยบาย rich result ของ Google
+ */
 export const faqs = [
-  { q: 'ต้องมี LINE OA ก่อนใช้งานไหม?', a: 'แนะนำให้มี LINE OA เพื่อให้ลูกค้าจองผ่านแชทได้ทันที' },
-  { q: 'รองรับหลายสาขาหรือไม่?', a: 'รองรับหลายสาขา และแยกการจัดการคิวตามสาขาได้' },
-  { q: 'เริ่มใช้งานใช้เวลานานไหม?', a: 'สามารถเริ่มใช้งานจริงได้ภายในไม่กี่นาทีหลังตั้งค่าเสร็จ' },
+  { q: 'ต้องมี LINE OA ก่อนใช้งานไหม?', a: 'แนะนำให้มี LINE OA เพื่อให้ลูกค้าจองผ่านแชทได้ทันที แต่เริ่มทดลองใช้ระบบหลังบ้านก่อนได้โดยยังไม่ต้องเชื่อม LINE' },
+  { q: 'รองรับหลายสาขาหรือไม่?', a: 'รองรับหลายสาขา แยกเวลาทำการ พนักงาน และคิวของแต่ละสาขาได้อิสระ' },
+  { q: 'เริ่มใช้งานใช้เวลานานไหม?', a: 'หลังสมัคร ระบบจะสร้างสาขา บริการ และเวลาทำการเริ่มต้นให้อัตโนมัติ จึงรับคิวได้ทันที ส่วนการเชื่อม LINE OA ใช้เวลาประมาณ 15-30 นาที และทีมงานช่วยตั้งค่าให้ได้' },
+  { q: 'แพ็กเกจฟรีใช้ได้นานแค่ไหน?', a: 'ใช้ได้ตลอด ไม่มีวันหมดอายุ จำกัดที่ 50 คิวต่อเดือน 1 สาขา และ 3 บริการ เมื่อโตเกินนี้ค่อยอัปเกรด' },
+  { q: 'ชำระเงินอย่างไร และมีสัญญาผูกมัดไหม?', a: 'ไม่มีสัญญาผูกมัด ยกเลิกได้ทุกเมื่อ ชำระเป็นรายเดือนผ่านโอนธนาคารหรือ PromptPay โดยทีมงานจะออกใบแจ้งหนี้และเปิดสิทธิ์ให้หลังยืนยันการชำระ' },
+  { q: 'ราคานี้รวมค่าส่งข้อความ LINE แล้วหรือยัง?', a: 'ยังไม่รวม ค่าบริการข้างต้นเป็นค่าระบบจองคิวเท่านั้น ส่วนค่าส่งข้อความคิดตามอัตราของ LINE Messaging API ซึ่งร้านชำระกับ LINE โดยตรง' },
+  { q: 'ข้อมูลลูกค้าเป็นของใคร?', a: 'ข้อมูลทั้งหมดเป็นของร้าน ส่งออกเป็นไฟล์ได้ตลอดเวลา และเราจัดเก็บตามหลัก PDPA' },
+  { q: 'ถ้าติดปัญหาระหว่างใช้งานติดต่อได้ทางไหน?', a: 'ติดต่อผ่าน LINE OA ของเราหรือโทรได้ในเวลาทำการ จันทร์-ศุกร์ 09:00-18:00' },
 ];

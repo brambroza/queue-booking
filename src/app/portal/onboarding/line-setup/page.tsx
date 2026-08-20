@@ -16,6 +16,7 @@ import {
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import { useToast } from '@/components/ui/toast';
+import { RichMenuIconStudio } from '@/components/onboarding/rich-menu-icon-studio';
 
 type LineSettings = {
   shop_key: string;
@@ -183,6 +184,8 @@ export default function LineSetupOnboardingPage() {
           </Stack>
         </CardContent>
       </Card>
+
+      <RichMenuIconStudio />
 
       <Divider />
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>

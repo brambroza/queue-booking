@@ -214,6 +214,7 @@ async function clearDemoData(ctx: { companyId: string; shopId: string }) {
   await admin.from('bookings').update({ is_deleted: true }).eq('company_id', companyId).eq('shop_id', shopId).eq('is_demo', true);
   await admin.from('booking_resources').update({ is_deleted: true, active: false }).eq('company_id', companyId).eq('shop_id', shopId).eq('is_demo', true);
   await admin.from('services').update({ is_deleted: true, active: false }).eq('company_id', companyId).eq('shop_id', shopId).eq('is_demo', true);
+  await admin.from('working_hours').update({ is_deleted: true, active: false }).eq('company_id', companyId).eq('shop_id', shopId).eq('is_demo', true);
   await admin.from('branches').update({ is_deleted: true, active: false }).eq('company_id', companyId).eq('shop_id', shopId).eq('is_demo', true);
   await admin.from('line_messages').update({ is_deleted: true }).eq('company_id', companyId).eq('shop_id', shopId).eq('is_demo', true);
   await admin.from('notifications').update({ is_deleted: true }).eq('company_id', companyId).eq('shop_id', shopId).eq('is_demo', true);
@@ -247,6 +248,27 @@ export async function createDemoSandbox(input: DemoContext) {
     .select('id,branch_name')
     .single();
   if (branchError) throw branchError;
+
+  // get_available_slots reads working_hours, not branch open_time/close_time.
+  // Without these rows the demo shop reports "closed" on every date and the
+  // sandbox cannot demonstrate the one thing the product does.
+  const { error: workingHoursError } = await admin.from('working_hours').insert(
+    Array.from({ length: 7 }, (_, weekday) => ({
+      company_id: input.companyId,
+      shop_id: input.shopId,
+      branch_id: branch.id,
+      weekday,
+      open_time: '09:00:00',
+      close_time: '20:00:00',
+      slot_interval_minutes: 30,
+      capacity_per_slot: 5,
+      active: true,
+      is_demo: true,
+      created_by: input.userId ?? null,
+      updated_by: input.userId ?? null,
+    })),
+  );
+  if (workingHoursError) throw workingHoursError;
 
   const { data: createdServices, error: serviceError } = await admin
     .from('services')
@@ -718,6 +740,17 @@ export async function convertDemoToReal(input: {
   if (input.keepBranches) {
     await admin
       .from('branches')
+      .update({ is_demo: false, updated_by: input.userId ?? null })
+      .eq('company_id', input.companyId)
+      .eq('shop_id', input.shopId)
+      .eq('is_demo', true)
+      .eq('is_deleted', false);
+
+    // Keep the branch's working hours with it — a real branch that loses them
+    // stops producing slots, which is exactly the trap this convert is meant
+    // to avoid.
+    await admin
+      .from('working_hours')
       .update({ is_demo: false, updated_by: input.userId ?? null })
       .eq('company_id', input.companyId)
       .eq('shop_id', input.shopId)

@@ -2,6 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { EmptyState } from '@/components/ui/empty-state';
+import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade-provider';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
@@ -21,6 +23,7 @@ export function SimpleCrud({
   defaults: Record<string, string | number | boolean>;
 }) {
   const { push } = useToast();
+  const { openPaywall } = useUpgrade();
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -80,6 +83,12 @@ export function SimpleCrud({
     const json = await res.json();
     setSaving(false);
 
+    const paywall = readPaywallDetail(res, json);
+    if (paywall) {
+      openPaywall(paywall);
+      return;
+    }
+
     if (!res.ok) {
       push(json.error ?? 'บันทึกไม่สำเร็จ', 'error');
       return;
@@ -115,7 +124,15 @@ export function SimpleCrud({
 
       <div className="card overflow-hidden">
         {loading ? <p className="p-4 text-sm">กำลังโหลด...</p> : null}
-        {!loading && rows.length === 0 ? <p className="p-4 text-sm text-slate-500">ยังไม่มีข้อมูล</p> : null}
+        {!loading && rows.length === 0 ? (
+          <EmptyState
+            title={`ยังไม่มี${title}`}
+            description={`เพิ่ม${title}แรกเพื่อให้ลูกค้าเลือกได้ตอนจองคิว`}
+            actionLabel={`เพิ่ม${title}`}
+            onAction={openCreate}
+            icon="🏪"
+          />
+        ) : null}
         {!loading && rows.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">

@@ -34,6 +34,7 @@ import ChecklistRoundedIcon from '@mui/icons-material/ChecklistRounded';
 import AppsRoundedIcon from '@mui/icons-material/AppsRounded';
 import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
 import SlideshowRoundedIcon from '@mui/icons-material/SlideshowRounded';
+import MarkEmailUnreadRoundedIcon from '@mui/icons-material/MarkEmailUnreadRounded';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@/components/i18n/i18n-provider';
 
@@ -99,6 +100,7 @@ const groups: NavGroup[] = [
     items: [
       { labelKey: 'menu.translations', fallback: 'การแปลภาษา', href: '/portal/translations', icon: <TranslateRoundedIcon fontSize="small" />, superAdminOnly: true },
       { labelKey: 'menu.shop_packages', fallback: 'แพ็กเกจร้าน', href: '/portal/shop-subscriptions', icon: <WorkspacePremiumRoundedIcon fontSize="small" />, superAdminOnly: true },
+      { labelKey: 'menu.sales_inbox', fallback: 'Sales Inbox', href: '/portal/sales-inbox', icon: <MarkEmailUnreadRoundedIcon fontSize="small" />, superAdminOnly: true },
     ],
   },
 ];

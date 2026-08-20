@@ -24,8 +24,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/en/contact`, lastModified: now, changeFrequency: 'monthly', priority: 0.75 },
     { url: `${base}/en/use-cases`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${base}/en/blog`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
-    { url: `${base}/login`, lastModified: now, changeFrequency: 'yearly', priority: 0.4 },
-    { url: `${base}/register`, lastModified: now, changeFrequency: 'monthly', priority: 0.65 },
+    // /login and /register are intentionally absent: both pages set
+    // robots: { index: false }, so submitting them produces
+    // "Submitted URL marked noindex" errors in Search Console.
   ];
 
   const useCasePages: MetadataRoute.Sitemap = useCases.map((u) => ({

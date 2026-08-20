@@ -34,6 +34,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import { useToast } from '@/components/ui/toast';
+import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade-provider';
 import { BookingModeChip } from '@/components/shared/booking-mode-chip';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
 
@@ -73,6 +74,7 @@ const BOOKING_MODE_LABELS: Record<(typeof BOOKING_MODES)[number], string> = {
 
 export function ServicesCrud() {
   const { push } = useToast();
+  const { openPaywall } = useUpgrade();
   const [rows, setRows] = useState<Service[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -269,6 +271,8 @@ export function ServicesCrud() {
     });
     const json = await res.json();
     setSaving(false);
+    const paywall = readPaywallDetail(res, json);
+    if (paywall) return openPaywall(paywall);
     if (!res.ok) return push(json.error ?? (editingId ? 'แก้ไขบริการไม่สำเร็จ' : 'เพิ่มบริการไม่สำเร็จ'), 'error');
     push(editingId ? 'แก้ไขบริการสำเร็จ' : 'เพิ่มบริการสำเร็จ');
     resetForm();

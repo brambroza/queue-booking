@@ -173,5 +173,11 @@ export async function requireAuthContext(opts?: { roles?: AppRole[] }) {
 
 export function getErrorStatus(e: unknown): number {
   if (e instanceof AuthError) return e.status;
+  // Subscription errors carry their own status (402 quota wall / 403 suspended)
+  // so route handlers do not have to special-case them.
+  if (e && typeof e === 'object' && 'status' in e) {
+    const status = Number((e as { status: unknown }).status);
+    if (Number.isInteger(status) && status >= 400 && status <= 599) return status;
+  }
   return 400;
 }

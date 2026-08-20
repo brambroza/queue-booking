@@ -4,6 +4,7 @@ import { FormEvent, useState } from 'react';
 import { z } from 'zod';
 import { Alert, Box, Button, MenuItem, Stack, TextField } from '@mui/material';
 import { useToast } from '@/components/ui/toast';
+import { track } from '@/lib/analytics/track';
 
 const schema = z.object({
   name: z.string().trim().min(2, 'กรุณากรอกชื่ออย่างน้อย 2 ตัวอักษร'),
@@ -58,6 +59,7 @@ export function ContactForm() {
 
       form.reset();
       setSuccess('ส่งข้อมูลเรียบร้อย ทีมงานจะติดต่อกลับเร็วที่สุด');
+      track('contact_submitted', { business_type: parsed.data.business_type });
       push('ส่งข้อมูลเรียบร้อย ทีมงานจะติดต่อกลับเร็วที่สุด', 'success');
     } catch {
       setError('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง');

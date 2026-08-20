@@ -5,8 +5,8 @@ import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { pushMessage } from '@/lib/line/client';
 import { bookingConfirmFlex } from '@/lib/line/messages';
 import { qrPaymentFlex } from '@/lib/line/messages-payment';
-import { assertFeatureQuota } from '@/lib/subscription/enforcement';
-import { createNotification } from '@/lib/notifications/createNotification';
+import { assertFeatureQuota, SubscriptionInactiveError, SubscriptionQuotaError } from '@/lib/subscription/enforcement';
+import { createNotification, safeCreateNotification } from '@/lib/notifications/createNotification';
 import { createBookingQrPayment } from '@/lib/payments/qr';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
 import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
@@ -42,7 +42,32 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     .eq('is_deleted', false)
     .gte('booking_date', monthStart)
     .lte('booking_date', monthEnd);
-  await assertFeatureQuota(shop.id, 'bookings', monthlyCount ?? 0);
+
+  // The quota belongs to the shop, not to the person booking. Never surface a
+  // plan error (or an unhandled 500) to an end customer on the LIFF screen —
+  // tell them politely and alert the shop owner, who is the one who can act.
+  try {
+    await assertFeatureQuota(shop.id, 'bookings', monthlyCount ?? 0);
+  } catch (quotaErr) {
+    if (quotaErr instanceof SubscriptionQuotaError || quotaErr instanceof SubscriptionInactiveError) {
+      await safeCreateNotification(admin, {
+        companyId: shop.company_id,
+        shopId: shop.id,
+        type: 'quota_exceeded',
+        category: 'system',
+        priority: 'high',
+        title: 'ลูกค้าจองไม่ได้ — โควต้าแพ็กเกจเต็ม',
+        message: 'มีลูกค้าพยายามจองคิวแต่ระบบปฏิเสธเพราะโควต้าการจองของแพ็กเกจเต็มแล้ว อัปเกรดแพ็กเกจเพื่อเปิดรับการจองต่อ',
+        actionUrl: '/portal/settings',
+        metadata: { feature: 'bookings', shop_key: shopKey },
+      });
+      return NextResponse.json(
+        { error: 'ขออภัย ขณะนี้ร้านยังไม่สามารถรับการจองเพิ่มได้ กรุณาติดต่อร้านโดยตรง' },
+        { status: 409 }
+      );
+    }
+    throw quotaErr;
+  }
 
   const [{ data: branch }, { data: service }] = await Promise.all([
     admin.from('branches').select('id,branch_name').eq('id', payload.branch_id).eq('shop_id', shop.id).eq('is_deleted', false).maybeSingle(),

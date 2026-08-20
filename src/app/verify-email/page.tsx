@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { identifyUser, track } from '@/lib/analytics/track';
 
 export default function VerifyEmailPage() {
   const router = useRouter();
@@ -29,11 +30,13 @@ export default function VerifyEmailPage() {
     setError('');
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.verifyOtp({ email, token: otp, type: 'email' });
+      const { data, error } = await supabase.auth.verifyOtp({ email, token: otp, type: 'email' });
       if (error) {
         setError(error.message);
         return;
       }
+      if (data.user) identifyUser(data.user.id);
+      track('email_verified');
       sessionStorage.removeItem('verify_email');
       router.push('/portal/dashboard');
     } finally {

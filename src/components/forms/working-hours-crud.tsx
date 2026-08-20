@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useToast } from '@/components/ui/toast';
+import { EmptyState } from '@/components/ui/empty-state';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
 
@@ -57,6 +58,9 @@ export function WorkingHoursCrud() {
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  // Creating one weekday at a time meant seven drawer submits to open a shop
+  // all week, which is where most owners stopped. Creation is multi-day.
+  const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
@@ -77,7 +81,12 @@ export function WorkingHoursCrud() {
 
   function openCreate() {
     setDraft({ ...EMPTY_DRAFT, branch_id: branches[0]?.id ?? '' });
+    setSelectedWeekdays([1, 2, 3, 4, 5]);
     setDrawerOpen(true);
+  }
+
+  function toggleWeekday(idx: number) {
+    setSelectedWeekdays((prev) => (prev.includes(idx) ? prev.filter((d) => d !== idx) : [...prev, idx].sort()));
   }
 
   function openEdit(row: WorkingHour) {
@@ -98,11 +107,9 @@ export function WorkingHoursCrud() {
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setSaving(true);
 
-    const payload = {
+    const basePayload = {
       branch_id: draft.branch_id,
-      weekday: Number(draft.weekday),
       open_time: draft.open_time,
       close_time: draft.close_time,
       break_start: draft.break_start || null,
@@ -112,18 +119,45 @@ export function WorkingHoursCrud() {
       active: draft.active,
     };
 
-    const res = await fetch('/api/working-hours', {
-      method: draft.id ? 'PATCH' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(draft.id ? { id: draft.id, ...payload } : payload),
-    });
+    if (draft.id) {
+      setSaving(true);
+      const res = await fetch('/api/working-hours', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: draft.id, weekday: Number(draft.weekday), ...basePayload }),
+      });
+      const json = await res.json();
+      setSaving(false);
+      if (!res.ok) return push(json.error ?? 'บันทึกไม่สำเร็จ', 'error');
+      push('แก้ไขเวลาทำการแล้ว');
+    } else {
+      if (selectedWeekdays.length === 0) return push('กรุณาเลือกอย่างน้อย 1 วัน', 'error');
 
-    const json = await res.json();
-    setSaving(false);
+      setSaving(true);
+      const results = await Promise.all(
+        selectedWeekdays.map(async (weekday) => {
+          const res = await fetch('/api/working-hours', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ weekday, ...basePayload }),
+          });
+          const json = await res.json();
+          return { weekday, ok: res.ok, error: json.error as string | undefined };
+        })
+      );
+      setSaving(false);
 
-    if (!res.ok) return push(json.error ?? 'บันทึกไม่สำเร็จ', 'error');
+      const failed = results.filter((r) => !r.ok);
+      if (failed.length === results.length) {
+        return push(failed[0]?.error ?? 'บันทึกไม่สำเร็จ', 'error');
+      }
+      if (failed.length > 0) {
+        push(`บันทึกได้ ${results.length - failed.length} วัน • ไม่สำเร็จ ${failed.length} วัน`, 'error');
+      } else {
+        push(`เพิ่มเวลาทำการ ${results.length} วันแล้ว`);
+      }
+    }
 
-    push(draft.id ? 'แก้ไขเวลาทำการแล้ว' : 'เพิ่มเวลาทำการแล้ว');
     setDrawerOpen(false);
     setDraft(EMPTY_DRAFT);
     void load();
@@ -148,7 +182,13 @@ export function WorkingHoursCrud() {
 
       <div className="card p-4 overflow-x-auto">
         {rows.length === 0 ? (
-          <p className="text-sm text-slate-500">ยังไม่มีข้อมูล</p>
+          <EmptyState
+            title="ยังไม่ได้ตั้งเวลาทำการ"
+            description="ถ้าไม่มีเวลาทำการ ระบบจะถือว่าร้านปิดทุกวัน และลูกค้าจะจองคิวไม่ได้เลย"
+            actionLabel="ตั้งเวลาทำการ"
+            onAction={openCreate}
+            icon="🕘"
+          />
         ) : (
           <table className="min-w-full text-sm">
             <thead>
@@ -215,12 +255,49 @@ export function WorkingHoursCrud() {
                 </select>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">วันในสัปดาห์</label>
-                <select className="input" value={draft.weekday} onChange={(e) => setDraft((p) => ({ ...p, weekday: e.target.value }))} required>
-                  {WEEKDAYS.map((name, idx) => <option key={name} value={idx}>{name}</option>)}
-                </select>
-              </div>
+              {draft.id ? (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">วันในสัปดาห์</label>
+                  <select className="input" value={draft.weekday} onChange={(e) => setDraft((p) => ({ ...p, weekday: e.target.value }))} required>
+                    {WEEKDAYS.map((name, idx) => <option key={name} value={idx}>{name}</option>)}
+                  </select>
+                </div>
+              ) : (
+                <div className="space-y-2 sm:col-span-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="text-xs font-medium text-slate-600">วันในสัปดาห์</label>
+                    <button type="button" className="text-xs font-medium text-emerald-700 underline" onClick={() => setSelectedWeekdays([0, 1, 2, 3, 4, 5, 6])}>
+                      ทุกวัน
+                    </button>
+                    <button type="button" className="text-xs font-medium text-emerald-700 underline" onClick={() => setSelectedWeekdays([1, 2, 3, 4, 5])}>
+                      จันทร์-ศุกร์
+                    </button>
+                    <button type="button" className="text-xs font-medium text-emerald-700 underline" onClick={() => setSelectedWeekdays([0, 6])}>
+                      เสาร์-อาทิตย์
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {WEEKDAYS.map((name, idx) => {
+                      const active = selectedWeekdays.includes(idx);
+                      return (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => toggleWeekday(idx)}
+                          className={`rounded-full border px-3 py-1 text-xs transition ${
+                            active ? 'border-emerald-500 bg-emerald-50 font-semibold text-emerald-700' : 'border-slate-200 text-slate-600'
+                          }`}
+                        >
+                          {name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    เลือกได้หลายวัน ระบบจะสร้างเวลาทำการให้ทุกวันที่เลือกด้วยค่าเดียวกัน
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-600">เวลาเปิด</label>

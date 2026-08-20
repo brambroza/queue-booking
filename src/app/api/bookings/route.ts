@@ -6,6 +6,7 @@ import { pushMessage } from '@/lib/line/client';
 import { bookingConfirmFlex } from '@/lib/line/messages';
 import { qrPaymentFlex } from '@/lib/line/messages-payment';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
+import { subscriptionErrorResponse } from '@/lib/subscription/response';
 import { safeCreateNotification } from '@/lib/notifications/createNotification';
 import { createBookingQrPayment } from '@/lib/payments/qr';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
@@ -325,6 +326,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ data: { ok: true, queue_number: queueNumber, line_push_sent: linePushSent, line_push_error: linePushError, qr_payment_created: qrPaymentCreated } });
   } catch (e) {
+    const quota = subscriptionErrorResponse(e);
+    if (quota) return quota;
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });
   }
 }

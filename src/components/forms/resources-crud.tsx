@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade-provider';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -27,6 +28,7 @@ const RESOURCE_TYPES: Array<Resource['resource_type']> = ['table', 'buffet_zone'
 
 export function ResourcesCrud() {
   const { push } = useToast();
+  const { openPaywall } = useUpgrade();
   const [rows, setRows] = useState<Resource[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -104,6 +106,8 @@ export function ResourcesCrud() {
       body: JSON.stringify(payload),
     });
     const json = await res.json();
+    const paywall = readPaywallDetail(res, json);
+    if (paywall) return openPaywall(paywall);
     if (!res.ok) return push(json.error ?? 'บันทึก resource ไม่สำเร็จ', 'error');
     push(isEdit ? 'อัปเดตทรัพยากรแล้ว' : 'เพิ่มทรัพยากรสำเร็จ');
     closeSingleDrawer();
