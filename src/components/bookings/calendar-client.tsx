@@ -8,6 +8,7 @@ import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
 import MeetingRoomRoundedIcon from '@mui/icons-material/MeetingRoomRounded';
 import { useToast } from '@/components/ui/toast';
 import { formatDateDMY } from '@/lib/utils/date-format';
+import { RESOURCE_TYPES, isPersonResourceType, resourceTypeLabel, type ResourceType } from '@/lib/booking/resource-types';
 
 type Row = {
   id: string;
@@ -25,7 +26,7 @@ type Row = {
 
 type Resource = {
   id: string;
-  resource_type: 'table' | 'buffet_zone' | 'meeting_room' | 'counter' | 'service_area';
+  resource_type: ResourceType;
   resource_name: string;
   capacity: number;
 };
@@ -79,7 +80,9 @@ function buildMonthGrid(baseMonth: Date): DayCell[] {
 export function CalendarClient() {
   const { push } = useToast();
   const today = new Date();
-  const [view, setView] = useState<'month' | 'meeting'>('month');
+  const [view, setView] = useState<'month' | 'resource'>('month');
+  /** Which kind of resource gets one lane per row in the timeline view. */
+  const [laneType, setLaneType] = useState<ResourceType>('meeting_room');
   const [monthCursor, setMonthCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [rows, setRows] = useState<Row[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(toISO(today));
@@ -116,18 +119,18 @@ export function CalendarClient() {
     if (serviceId) params.set('service_id', serviceId);
     const [calRes, resourceRes] = await Promise.all([
       fetch(`/api/calendar?${params.toString()}`, { cache: 'no-store' }),
-      fetch(`/api/resources?resource_type=meeting_room${branchId ? `&branch_id=${branchId}` : ''}&page_size=300`, { cache: 'no-store' }),
+      fetch(`/api/resources?resource_type=${laneType}${branchId ? `&branch_id=${branchId}` : ''}&page_size=300`, { cache: 'no-store' }),
     ]);
     const [calJson, resourceJson] = await Promise.all([calRes.json(), resourceRes.json()]);
-    if (!calRes.ok) return push(calJson.error ?? 'โหลดข้อมูลห้องประชุมไม่สำเร็จ', 'error');
-    if (!resourceRes.ok) return push(resourceJson.error ?? 'โหลดห้องประชุมไม่สำเร็จ', 'error');
+    if (!calRes.ok) return push(calJson.error ?? 'โหลดปฏิทินไม่สำเร็จ', 'error');
+    if (!resourceRes.ok) return push(resourceJson.error ?? `โหลด${resourceTypeLabel(laneType)}ไม่สำเร็จ`, 'error');
     setRows((calJson.data ?? []) as Row[]);
     setResources((resourceJson.data ?? []) as Resource[]);
-  }, [branchId, meetingDate, push, serviceId]);
+  }, [branchId, laneType, meetingDate, push, serviceId]);
 
   useEffect(() => { void loadRefs(); }, [loadRefs]);
   useEffect(() => { if (view === 'month') void loadMonth(); }, [loadMonth, view]);
-  useEffect(() => { if (view === 'meeting') void loadMeeting(); }, [loadMeeting, view]);
+  useEffect(() => { if (view === 'resource') void loadMeeting(); }, [loadMeeting, view]);
 
   const rowsByDate = useMemo(() => {
     const map = new Map<string, Row[]>();
@@ -140,6 +143,7 @@ export function CalendarClient() {
     return map;
   }, [rows]);
 
+  const laneLabel = resourceTypeLabel(laneType);
   const monthCells = useMemo(() => buildMonthGrid(monthCursor), [monthCursor]);
   const selectedRows = rowsByDate.get(selectedDate) ?? [];
   const todayIso = toISO(today);
@@ -162,15 +166,24 @@ export function CalendarClient() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-xs text-slate-500">Calendar</p>
-            <h3 className="text-lg font-semibold text-slate-800">{view === 'month' ? monthTitle(monthCursor) : `ตารางห้องประชุม ${formatDateDMY(meetingDate)}`}</h3>
+            <h3 className="text-lg font-semibold text-slate-800">{view === 'month' ? monthTitle(monthCursor) : `ตาราง${laneLabel} ${formatDateDMY(meetingDate)}`}</h3>
           </div>
           <div className="flex items-center gap-2">
             <button className={view === 'month' ? 'btn-primary inline-flex items-center gap-1' : 'btn-outline inline-flex items-center gap-1'} onClick={() => setView('month')}>
               <CalendarMonthRoundedIcon fontSize="small" /> เดือน
             </button>
-            <button className={view === 'meeting' ? 'btn-primary inline-flex items-center gap-1' : 'btn-outline inline-flex items-center gap-1'} onClick={() => setView('meeting')}>
-              <MeetingRoomRoundedIcon fontSize="small" /> ห้องประชุม
+            <button className={view === 'resource' ? 'btn-primary inline-flex items-center gap-1' : 'btn-outline inline-flex items-center gap-1'} onClick={() => setView('resource')}>
+              <MeetingRoomRoundedIcon fontSize="small" /> ตารางทรัพยากร
             </button>
+            {view === 'resource' ? (
+              <select
+                className="input text-sm w-40"
+                value={laneType}
+                onChange={(e) => setLaneType(e.target.value as ResourceType)}
+              >
+                {RESOURCE_TYPES.map((t) => <option key={t} value={t}>{resourceTypeLabel(t)}</option>)}
+              </select>
+            ) : null}
           </div>
         </div>
       </div>
@@ -239,9 +252,15 @@ export function CalendarClient() {
             </div>
           </div>
 
+          {resources.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+              ยังไม่มี{laneLabel}ในระบบ — เพิ่มได้ที่เมนู “ทรัพยากร”
+            </p>
+          ) : null}
+
           <div className="min-w-[980px] overflow-hidden rounded-2xl border border-slate-200">
             <div className="grid" style={{ gridTemplateColumns: '200px repeat(10, minmax(0,1fr))' }}>
-              <div className="border-b border-r border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">ห้อง / เวลา</div>
+              <div className="border-b border-r border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">{laneLabel} / เวลา</div>
               {HOURS.map((h) => <div key={h} className="border-b border-r border-slate-200 bg-slate-50 px-2 py-2 text-center text-sm font-semibold text-slate-700">{pad2(h)}:00</div>)}
 
               {resources.map((room) => {
@@ -250,7 +269,9 @@ export function CalendarClient() {
                   <Fragment key={room.id}>
                     <div key={`${room.id}-label`} className="border-b border-r border-slate-200 bg-white px-3 py-3">
                       <p className="font-semibold text-slate-800">{room.resource_name}</p>
-                      <p className="text-xs text-slate-500">({room.capacity} ที่นั่ง)</p>
+                      {isPersonResourceType(room.resource_type)
+                        ? null
+                        : <p className="text-xs text-slate-500">({room.capacity} ที่นั่ง)</p>}
                     </div>
                     <div key={`${room.id}-grid`} className="relative col-span-10 h-20 border-b border-slate-200 bg-[#eaf4e7]">
                       <div className="absolute inset-0 grid" style={{ gridTemplateColumns: 'repeat(10, minmax(0,1fr))' }}>

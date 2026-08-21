@@ -7,12 +7,13 @@ import { TablePaginationControls } from '@/components/ui/table-pagination-contro
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
+import { RESOURCE_TYPES, resourceTypeLabel, type ResourceType } from '@/lib/booking/resource-types';
 
 type Branch = { id: string; branch_name: string };
 type Resource = {
   id: string;
   branch_id: string | null;
-  resource_type: 'table' | 'buffet_zone' | 'meeting_room' | 'counter' | 'service_area';
+  resource_type: ResourceType;
   resource_code: string | null;
   resource_name: string;
   capacity: number;
@@ -23,8 +24,6 @@ type Resource = {
   active: boolean;
   branches?: { branch_name?: string } | null;
 };
-
-const RESOURCE_TYPES: Array<Resource['resource_type']> = ['table', 'buffet_zone', 'meeting_room', 'counter', 'service_area'];
 
 export function ResourcesCrud() {
   const { push } = useToast();
@@ -165,7 +164,7 @@ export function ResourcesCrud() {
           <input className="input" placeholder="ค้นหา code/name" value={q} onChange={(e) => setQ(e.target.value)} />
           <select className="input" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
             <option value="">ทุกประเภท</option>
-            {RESOURCE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            {RESOURCE_TYPES.map((t) => <option key={t} value={t}>{resourceTypeLabel(t)}</option>)}
           </select>
           <select className="input" value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)}>
             <option value="">ทุกสาขา</option>
@@ -210,7 +209,7 @@ export function ResourcesCrud() {
                 <tr key={r.id} className="border-t border-slate-100">
                   <td className="px-2 py-2">{r.resource_code ?? '-'}</td>
                   <td className="px-2 py-2">{r.resource_name}</td>
-                  <td className="px-2 py-2">{r.resource_type}</td>
+                  <td className="px-2 py-2">{resourceTypeLabel(r.resource_type)}</td>
                   <td className="px-2 py-2">{r.branches?.branch_name ?? '-'}</td>
                   <td className="px-2 py-2">{r.capacity}</td>
                   <td className="px-2 py-2">{Number(r.unit_price ?? 0).toLocaleString('th-TH')}</td>
@@ -268,7 +267,7 @@ export function ResourcesCrud() {
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-600">ประเภททรัพยากร</label>
                 <select className="input" name="resource_type" defaultValue={editing?.resource_type || 'table'} required>
-                  {RESOURCE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {RESOURCE_TYPES.map((t) => <option key={t} value={t}>{resourceTypeLabel(t)}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
@@ -329,7 +328,7 @@ export function ResourcesCrud() {
             </div>
             <form onSubmit={submitBulk} className="grid gap-3 sm:grid-cols-2">
               <select className="input" name="resource_type" defaultValue="table" required>
-                {RESOURCE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                {RESOURCE_TYPES.map((t) => <option key={t} value={t}>{resourceTypeLabel(t)}</option>)}
               </select>
               <select className="input" name="branch_id" defaultValue="">
                 <option value="">ทุกสาขา/ไม่ระบุ</option>

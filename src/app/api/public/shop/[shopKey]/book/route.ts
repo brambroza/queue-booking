@@ -10,6 +10,7 @@ import { createNotification, safeCreateNotification } from '@/lib/notifications/
 import { createBookingQrPayment } from '@/lib/payments/qr';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
 import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
+import { resourceBusyMessage, resourceTypeLabel } from '@/lib/booking/resource-types';
 
 const bookSchema = z.object({
   branch_id: z.string().uuid(),
@@ -146,20 +147,38 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   const endAt = new Date(startAt.getTime() + durationMin * 60000);
   const endTime = `${String(endAt.getHours()).padStart(2, '0')}:${String(endAt.getMinutes()).padStart(2, '0')}:00`;
 
-  let assignedResource: { resource_id: string; resource_name: string; capacity: number; unit_price: number } | null = null;
+  let assignedResource: {
+    resource_id: string;
+    resource_name: string;
+    resource_type: string | null;
+    capacity: number;
+    unit_price: number;
+  } | null = null;
   if (payload.resource_id) {
     const { data: selectedResource } = await admin
       .from('booking_resources')
-      .select('id,resource_name,capacity,unit_price')
+      .select('id,resource_name,resource_type,capacity,unit_price')
       .eq('id', payload.resource_id)
       .eq('shop_id', shop.id)
       .eq('active', true)
       .eq('is_deleted', false)
       .maybeSingle();
     if (selectedResource?.id) {
+      // The customer named a specific resource, so slot capacity is not enough —
+      // two people can pick the same trainer at the same time between renders.
+      const { data: isFree } = await admin.rpc('is_resource_available', {
+        p_shop_id: shop.id,
+        p_resource_id: selectedResource.id,
+        p_start: startAt.toISOString(),
+        p_end: endAt.toISOString(),
+      });
+      if (isFree === false) {
+        return NextResponse.json({ error: resourceBusyMessage(selectedResource.resource_type) }, { status: 409 });
+      }
       assignedResource = {
         resource_id: selectedResource.id as string,
         resource_name: String(selectedResource.resource_name ?? '-'),
+        resource_type: (selectedResource.resource_type as string | null) ?? null,
         capacity: Number(selectedResource.capacity ?? 1),
         unit_price: Number(selectedResource.unit_price ?? 0),
       };
@@ -184,6 +203,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       assignedResource = {
         resource_id: top.resource_id,
         resource_name: top.resource_name ?? '-',
+        resource_type: 'table',
         capacity: Number(top.capacity ?? 1),
         unit_price: Number(resourcePrice?.unit_price ?? 0),
       };
@@ -292,6 +312,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
             service: serviceName,
             date: dateLabel,
             time: timeLabel,
+            assignedTo: assignedResource?.resource_name ?? null,
+            assignedLabel: assignedResource ? resourceTypeLabel(assignedResource.resource_type) : null,
             liffUrl,
           }),
         /*   bookingConfirmMessage({

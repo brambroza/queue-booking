@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
+import { isPersonResourceType, resourceTypeIcon, resourceTypeLabel } from '@/lib/booking/resource-types';
 
 type Branch = { id: string; branch_name: string };
 type Service = { id: string; service_name: string; duration_minutes: number };
@@ -28,6 +29,8 @@ type MyBooking = {
   start_time: string;
   status: string;
   note?: string | null;
+  resource_id?: string | null;
+  resource_name?: string | null;
   branches?: { branch_name?: string } | null;
   services?: { service_name?: string } | null;
 };
@@ -166,22 +169,18 @@ function serviceMeta(s: Service): ServiceCardMeta {
   return { icon: '📌', subtitle: 'เลือกบริการที่ต้องการ' };
 }
 
-function resourceTypeLabel(resourceType?: string | null) {
-  const t = (resourceType || '').toLowerCase();
-  if (t === 'table') return 'โต๊ะ';
-  if (t === 'meeting_room') return 'ห้องประชุม';
-  if (t === 'buffet_zone') return 'โซนบุฟเฟ่ต์';
-  if (t === 'counter') return 'เคาน์เตอร์';
-  if (t === 'service_area') return 'พื้นที่บริการ';
-  return 'Resource';
-}
-
-function resourcePickerLabelByService(serviceName?: string) {
+/**
+ * What to call the resource picker. The resource's own type is the reliable
+ * answer ("เทรนเนอร์", "ห้องประชุม"); the service name is only a fallback for
+ * shops that never set a meaningful type.
+ */
+function resourcePickerLabel(resourceType?: string | null, serviceName?: string) {
+  if (resourceType) return `เลือก${resourceTypeLabel(resourceType)}`;
   const kind = detectServiceKind(serviceName);
   if (kind === 'barber' || kind === 'nail') return 'เลือกช่าง';
   if (kind === 'meeting') return 'เลือกห้อง';
   if (kind === 'buffet') return 'เลือกโต๊ะ';
-  return 'เลือก Resource';
+  return 'เลือกผู้ให้บริการ';
 }
 
 export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey: string; initialTab?: 'booking' | 'account' }) {
@@ -481,26 +480,25 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     [filteredResources, selectedResourceId],
   );
   const uiTheme = useMemo(() => detectUiTheme(selectedService?.service_name), [selectedService?.service_name]);
-  const resourceSelectLabel = useMemo(() => {
-    const type = selectedResource?.resource_type || filteredResources[0]?.resource_type;
-    return `เลือก${resourceTypeLabel(type)}`;
-  }, [selectedResource, filteredResources]);
-  const resourcePickerLabel = useMemo(
-    () => resourcePickerLabelByService(selectedService?.service_name),
-    [selectedService?.service_name],
+  const resourceType = selectedResource?.resource_type || filteredResources[0]?.resource_type;
+  const pickerLabel = useMemo(
+    () => resourcePickerLabel(resourceType, selectedService?.service_name),
+    [resourceType, selectedService?.service_name],
+  );
+  /** Label for a booking's assigned resource, resolved from the shop's resource list. */
+  const bookingResourceLabel = (bookingResourceId?: string | null) =>
+    resourceTypeLabel(resources.find((r) => r.id === bookingResourceId)?.resource_type);
+  const skipResourceLabel = useMemo(
+    () => (resourceType ? `ไม่ระบุ${resourceTypeLabel(resourceType)}` : 'ไม่ระบุผู้ให้บริการ'),
+    [resourceType],
   );
 
+  // Picking a resource is optional — never auto-select one, or a customer who
+  // just wants a time slot silently books a specific trainer.
   useEffect(() => {
-    if (!filteredResources.length) {
+    if (selectedResourceId && !filteredResources.some((r) => r.id === selectedResourceId)) {
       setSelectedResourceId('');
-      return;
     }
-    if (filteredResources.length === 1) {
-      setSelectedResourceId(filteredResources[0].id);
-      return;
-    }
-    if (selectedResourceId && filteredResources.some((r) => r.id === selectedResourceId)) return;
-    setSelectedResourceId('');
   }, [filteredResources, selectedResourceId]);
 
   async function cancelBooking(bookingId: string) {
@@ -634,9 +632,12 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                   </div>
 
 
-                  {filteredResources.length > 0 ? <p className="text-xs text-slate-500">{resourcePickerLabel}</p> : null}
+                  {filteredResources.length > 0 ? (
+                    <p className="text-xs text-slate-500">{pickerLabel} (เลือกหรือไม่เลือกก็ได้)</p>
+                  ) : null}
                   <div className="space-y-2">
                     {filteredResources.map((r) => {
+                      const isPerson = isPersonResourceType(r.resource_type);
                       return (
                         <button
                           key={`resource-${r.id}`}
@@ -646,21 +647,41 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                           onClick={() => setSelectedResourceId(r.id)}
                         >
                           <div className="flex items-start gap-2">
-                            <span className="mt-0.5 text-xl">
-                              {r.resource_type === 'meeting_room' ? '🏢' : r.resource_type === 'table' ? '🍽️' : '👤'}
-                            </span>
+                            <span className="mt-0.5 text-xl">{resourceTypeIcon(r.resource_type)}</span>
                             <div>
                               <div className="font-semibold">
                                 {r.resource_code ? `${r.resource_code} - ` : ''}{r.resource_name}
                               </div>
                               <div className={`text-xs ${selectedResourceId === r.id ? 'text-white/90' : 'text-slate-500'}`}>
-                                {[resourceTypeLabel(r.resource_type), r.capacity ? `${r.capacity} ที่นั่ง` : '', formatPrice(r.unit_price)].filter(Boolean).join(' • ')}
+                                {[
+                                  resourceTypeLabel(r.resource_type),
+                                  !isPerson && r.capacity ? `${r.capacity} ที่นั่ง` : '',
+                                  formatPrice(r.unit_price),
+                                ].filter(Boolean).join(' • ')}
                               </div>
                             </div>
                           </div>
                         </button>
                       );
                     })}
+                    {filteredResources.length > 0 ? (
+                      <button
+                        className={`w-full rounded-2xl border px-3 py-2.5 text-left text-sm transition ${selectedResourceId === '' ? 'border-transparent text-white shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
+                          }`}
+                        style={selectedResourceId === '' ? { background: uiTheme.accent } : undefined}
+                        onClick={() => setSelectedResourceId('')}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="mt-0.5 text-xl">🙋</span>
+                          <div>
+                            <div className="font-semibold">{skipResourceLabel}</div>
+                            <div className={`text-xs ${selectedResourceId === '' ? 'text-white/90' : 'text-slate-500'}`}>
+                              ทางร้านจัดให้ตามคิว
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ) : null}
                   </div>
 
                   
@@ -777,6 +798,12 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                         <span className="text-slate-500">บริการ</span>{' '}
                         {b.services?.service_name ?? '-'}
                       </p>
+                      {b.resource_name ? (
+                        <p className="text-slate-700">
+                          <span className="text-slate-500">{bookingResourceLabel(b.resource_id)}</span>{' '}
+                          {b.resource_name}
+                        </p>
+                      ) : null}
                     </div>
                     {(b.status === 'pending' || b.status === 'confirmed' || b.status === 'waiting') ? (
                       <button className="btn-outline mt-3 w-full" onClick={() => void cancelBooking(b.id)}>ยกเลิกคิว</button>
@@ -796,7 +823,11 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                       </span>
                     </div>
                     <p className="mt-2 text-slate-700">{formatDateDMY(b.booking_date)} • {String(b.start_time).slice(0, 5)}</p>
-                    <p className="text-slate-600">{b.branches?.branch_name ?? '-'} • {b.services?.service_name ?? '-'}</p>
+                    <p className="text-slate-600">
+                      {[b.branches?.branch_name ?? '-', b.services?.service_name ?? '-', b.resource_name ?? '']
+                        .filter(Boolean)
+                        .join(' • ')}
+                    </p>
                   </div>
                 ))}
               </div>

@@ -7,6 +7,7 @@ import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade
 import { track } from '@/lib/analytics/track';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
+import { resourceTypeLabel } from '@/lib/booking/resource-types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,7 @@ type BookingRow = {
   end_time?: string | null;
   status: string;
   payment_status?: string | null;
+  resource_id?: string | null;
   resource_name?: string | null;
   note?: string | null;
   service_id?: string | null;
@@ -95,6 +97,8 @@ export function BookingsCrud() {
   const [filterDate,   setFilterDate]   = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterSearch, setFilterSearch] = useState('');
+  /** '' = ทุกคน, 'none' = คิวที่ยังไม่ระบุผู้ให้บริการ, otherwise a resource id */
+  const [filterResource, setFilterResource] = useState('');
 
   // ── Reference data ──
   const [branches,  setBranches]  = useState<Branch[]>([]);
@@ -113,6 +117,7 @@ export function BookingsCrud() {
   const [editTarget,     setEditTarget]     = useState<BookingRow | null>(null);
   const [editDate,       setEditDate]       = useState('');
   const [editTime,       setEditTime]       = useState('');
+  const [editResource,   setEditResource]   = useState('');
   const [confirmCancel,  setConfirmCancel]  = useState(false);
   const [saving,         setSaving]         = useState(false);
 
@@ -125,6 +130,7 @@ export function BookingsCrud() {
       if (filterDate)   params.set('date',   filterDate);
       if (filterStatus) params.set('status', filterStatus);
       if (filterSearch) params.set('q',      filterSearch);
+      if (filterResource) params.set('resource_id', filterResource);
       const res = await fetch(`/api/bookings?${params.toString()}`, { cache: 'no-store' });
       const j = await res.json() as { data?: BookingRow[]; pagination?: { total: number } };
       setBookings(j.data ?? []);
@@ -132,7 +138,7 @@ export function BookingsCrud() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, filterDate, filterStatus, filterSearch]);
+  }, [page, pageSize, filterDate, filterStatus, filterSearch, filterResource]);
 
   const loadRefs = useCallback(async () => {
     const [brRes, sRes, uRes, rRes] = await Promise.all([
@@ -151,7 +157,7 @@ export function BookingsCrud() {
   }, []);
 
   useEffect(() => { void loadRefs(); }, [loadRefs]);
-  useEffect(() => { void loadBookings(1); setPage(1); }, [filterDate, filterStatus, filterSearch]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void loadBookings(1); setPage(1); }, [filterDate, filterStatus, filterSearch, filterResource]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { void loadBookings(page); }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Create ─────────────────────────────────────────────────────────────────
@@ -234,16 +240,43 @@ export function BookingsCrud() {
     }
   }
 
+  // ─── Assign resource (trainer / stylist / table) ─────────────────────────────
+
+  async function submitAssign(resourceId: string) {
+    if (!editTarget) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/bookings', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ id: editTarget.id, resource_id: resourceId || null }),
+      });
+      const j = await res.json() as { error?: string };
+      if (!res.ok) { push(j.error ?? 'เปลี่ยนผู้ให้บริการไม่สำเร็จ', 'error'); return; }
+      push(resourceId ? 'มอบหมายแล้ว' : 'ถอดผู้ให้บริการแล้ว');
+      setEditTarget(null);
+      void loadBookings(page);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   // ─── Open edit drawer ────────────────────────────────────────────────────────
 
   function openEdit(b: BookingRow) {
     setEditTarget(b);
     setEditDate(b.booking_date);
     setEditTime(b.start_time.slice(0, 5));
+    setEditResource(b.resource_id ?? '');
     setConfirmCancel(false);
   }
 
   // ─── Render ──────────────────────────────────────────────────────────────────
+
+  // A shop usually runs one kind of resource, so name the column after it
+  // ("เทรนเนอร์", "โต๊ะ"). Mixed shops fall back to a neutral word.
+  const resourceTypes = Array.from(new Set(resources.map((r) => r.resource_type)));
+  const assignLabel = resourceTypes.length === 1 ? resourceTypeLabel(resourceTypes[0]) : 'ผู้ให้บริการ';
 
   return (
     <div className="space-y-4">
@@ -273,6 +306,19 @@ export function BookingsCrud() {
             <option key={k} value={k}>{v.label}</option>
           ))}
         </select>
+        {resources.length > 0 ? (
+          <select
+            className="input text-sm w-44"
+            value={filterResource}
+            onChange={(e: ChangeEvent<HTMLSelectElement>) => setFilterResource(e.target.value)}
+          >
+            <option value="">{`ทุก${assignLabel}`}</option>
+            <option value="none">{`ยังไม่ระบุ${assignLabel}`}</option>
+            {resources.map((r) => (
+              <option key={r.id} value={r.id}>{r.resource_name}</option>
+            ))}
+          </select>
+        ) : null}
         <input
           className="input text-sm w-40"
           value={filterSearch}
@@ -299,6 +345,7 @@ export function BookingsCrud() {
                 <th className="px-3 py-2 text-left font-medium text-slate-600">วันที่ / เวลา</th>
                 <th className="px-3 py-2 text-left font-medium text-slate-600">ลูกค้า</th>
                 <th className="px-3 py-2 text-left font-medium text-slate-600 hidden sm:table-cell">บริการ / สาขา</th>
+                <th className="px-3 py-2 text-left font-medium text-slate-600 hidden lg:table-cell">{assignLabel}</th>
                 <th className="px-3 py-2 text-left font-medium text-slate-600">สถานะ</th>
                 <th className="px-3 py-2 text-left font-medium text-slate-600 hidden md:table-cell">ชำระ</th>
                 <th className="px-3 py-2 text-left font-medium text-slate-600">จัดการ</th>
@@ -321,6 +368,11 @@ export function BookingsCrud() {
                     <td className="px-3 py-2 hidden sm:table-cell">
                       <div>{(b.services as { service_name?: string } | null)?.service_name ?? '-'}</div>
                       <div className="text-slate-400 text-xs">{(b.branches as { branch_name?: string } | null)?.branch_name ?? ''}</div>
+                    </td>
+                    <td className="px-3 py-2 hidden lg:table-cell">
+                      {b.resource_name
+                        ? <span className="text-slate-700">{b.resource_name}</span>
+                        : <span className="text-slate-400 text-xs">ยังไม่ระบุ</span>}
                     </td>
                     <td className="px-3 py-2"><StatusBadge status={b.status} /></td>
                     <td className="px-3 py-2 hidden md:table-cell">
@@ -535,6 +587,34 @@ export function BookingsCrud() {
                   {saving ? 'กำลังบันทึก…' : 'บันทึกวันเวลาใหม่'}
                 </button>
               </section>
+
+              {/* ── Assign resource section ── */}
+              {resources.length > 0 && (
+                <section className="space-y-3">
+                  <h5 className="text-sm font-semibold text-slate-700 border-b border-slate-100 pb-1">🧑‍🏫 {assignLabel}</h5>
+                  <select
+                    className="input w-full"
+                    value={editResource}
+                    onChange={(e: ChangeEvent<HTMLSelectElement>) => setEditResource(e.target.value)}
+                  >
+                    <option value="">{`ไม่ระบุ${assignLabel}`}</option>
+                    {resources
+                      .filter((r) => !r.branch_id || r.branch_id === editTarget.branch_id)
+                      .map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.resource_code ? `${r.resource_code} - ` : ''}{r.resource_name}
+                        </option>
+                      ))}
+                  </select>
+                  <button
+                    className="btn-primary w-full"
+                    disabled={saving || editResource === (editTarget.resource_id ?? '')}
+                    onClick={() => void submitAssign(editResource)}
+                  >
+                    {saving ? 'กำลังบันทึก…' : `บันทึก${assignLabel}`}
+                  </button>
+                </section>
+              )}
 
               {/* ── Status transition section ── */}
               {(NEXT_STATUSES[editTarget.status] ?? []).length > 0 && (

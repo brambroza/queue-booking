@@ -85,7 +85,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
 
   const { data: bookings } = await admin
     .from('bookings')
-    .select('id,queue_number,booking_date,start_time,status,note,created_at,branches(branch_name),services(service_name)')
+    .select('id,queue_number,booking_date,start_time,status,note,created_at,resource_id,resource_name,branches(branch_name),services(service_name)')
     .eq('shop_id', shop.id)
     .eq('line_user_id', lineUser.id)
     .eq('is_deleted', false)

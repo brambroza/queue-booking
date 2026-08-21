@@ -13,6 +13,7 @@ type Booking = {
   booking_date: string;
   start_time: string;
   status: 'pending' | 'confirmed' | 'waiting' | 'serving' | 'completed' | 'cancelled' | 'no_show';
+  resource_name?: string | null;
   customers: { full_name?: string } | null;
   services: { service_name?: string } | null;
 };
@@ -58,6 +59,7 @@ export function QueueBoardClient() {
                   <p className="font-semibold">{r.queue_number}</p>
                   <p>{String(r.start_time).slice(0, 5)} - {r.customers?.full_name ?? '-'}</p>
                   <p className="text-xs text-slate-600">{r.services?.service_name ?? '-'}</p>
+                  {r.resource_name ? <p className="text-xs text-slate-500">👤 {r.resource_name}</p> : null}
                   <div className="mt-2 flex justify-end">
                     <ActionIconGroup
                       actions={[

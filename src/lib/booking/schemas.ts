@@ -51,7 +51,7 @@ export const bookingSchema = z.object({
 });
 
 export const bookingResourceSchema = z.object({
-  resource_type: z.enum(['table', 'buffet_zone', 'meeting_room', 'counter', 'service_area']),
+  resource_type: z.enum(['table', 'buffet_zone', 'meeting_room', 'counter', 'service_area', 'trainer']),
   resource_code: z.string().trim().min(1).max(40).optional().nullable(),
   resource_name: z.string().trim().min(1).max(120),
   capacity: z.coerce.number().int().min(1).max(1000).default(1),
@@ -63,7 +63,7 @@ export const bookingResourceSchema = z.object({
 });
 
 export const bookingResourceBulkSchema = z.object({
-  resource_type: z.enum(['table', 'buffet_zone', 'meeting_room', 'counter', 'service_area']),
+  resource_type: z.enum(['table', 'buffet_zone', 'meeting_room', 'counter', 'service_area', 'trainer']),
   branch_id: z.string().uuid().optional().nullable(),
   floor: z.string().trim().max(50).optional().nullable(),
   zone: z.string().trim().max(80).optional().nullable(),

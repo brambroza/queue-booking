@@ -11,10 +11,33 @@ import { safeCreateNotification } from '@/lib/notifications/createNotification';
 import { createBookingQrPayment } from '@/lib/payments/qr';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
 import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
+import { resourceBusyMessage, resourceTypeLabel } from '@/lib/booking/resource-types';
+
+/** Minimal shape needed to call a Postgres function — works for both the session and admin clients. */
+type RpcClient = { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown }> };
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
+
+/**
+ * True when nothing else holds this resource during the window.
+ * `excludeBookingId` lets a booking be rescheduled or reassigned without
+ * colliding with its own current row.
+ */
+async function isResourceFree(
+  supabase: RpcClient,
+  args: { shopId: string; resourceId: string; startAt: Date; endAt: Date; excludeBookingId?: string }
+): Promise<boolean> {
+  const { data } = await supabase.rpc('is_resource_available', {
+    p_shop_id: args.shopId,
+    p_resource_id: args.resourceId,
+    p_start: args.startAt.toISOString(),
+    p_end: args.endAt.toISOString(),
+    p_exclude_booking_id: args.excludeBookingId ?? null,
+  });
+  return data !== false;
 }
 
 export async function GET(req: Request) {
@@ -25,6 +48,7 @@ export async function GET(req: Request) {
     const status = searchParams.get('status');
     const branchId = searchParams.get('branch_id');
     const serviceId = searchParams.get('service_id');
+    const resourceId = searchParams.get('resource_id');
     const q = searchParams.get('q');
     const page = toInt(searchParams.get('page'), 1);
     const pageSize = Math.min(toInt(searchParams.get('page_size'), 20), 100);
@@ -43,6 +67,7 @@ export async function GET(req: Request) {
     if (status) query = query.eq('status', status);
     if (branchId) query = query.eq('branch_id', branchId);
     if (serviceId) query = query.eq('service_id', serviceId);
+    if (resourceId) query = resourceId === 'none' ? query.is('resource_id', null) : query.eq('resource_id', resourceId);
     if (q) query = query.or(`queue_number.ilike.%${q}%,note.ilike.%${q}%`);
 
     const { data, error, count } = await query.range(from, to);
@@ -135,20 +160,36 @@ export async function POST(req: Request) {
     const endAt = new Date(startAt.getTime() + Math.max(service?.duration_minutes ?? 30, 5) * 60000);
     const endTime = `${String(endAt.getHours()).padStart(2, '0')}:${String(endAt.getMinutes()).padStart(2, '0')}:00`;
 
-    let assignedResource: { resource_id: string; resource_name: string; capacity: number; unit_price: number } | null = null;
+    let assignedResource: {
+      resource_id: string;
+      resource_name: string;
+      resource_type: string | null;
+      capacity: number;
+      unit_price: number;
+    } | null = null;
     if (payload.resource_id) {
       const { data: selectedResource } = await supabase
         .from('booking_resources')
-        .select('id,resource_name,capacity,unit_price')
+        .select('id,resource_name,resource_type,capacity,unit_price')
         .eq('id', payload.resource_id)
         .eq('shop_id', profile.shop_id)
         .eq('is_deleted', false)
         .eq('active', true)
         .maybeSingle();
       if (selectedResource) {
+        const free = await isResourceFree(supabase, {
+          shopId: profile.shop_id,
+          resourceId: selectedResource.id as string,
+          startAt,
+          endAt,
+        });
+        if (!free) {
+          return NextResponse.json({ error: resourceBusyMessage(selectedResource.resource_type) }, { status: 409 });
+        }
         assignedResource = {
           resource_id: selectedResource.id as string,
           resource_name: String(selectedResource.resource_name ?? '-'),
+          resource_type: (selectedResource.resource_type as string | null) ?? null,
           capacity: Number(selectedResource.capacity ?? 1),
           unit_price: Number(selectedResource.unit_price ?? 0),
         };
@@ -173,6 +214,7 @@ export async function POST(req: Request) {
         assignedResource = {
           resource_id: top.resource_id,
           resource_name: top.resource_name ?? '-',
+          resource_type: 'table',
           capacity: Number(top.capacity ?? 1),
           unit_price: Number(resourcePrice?.unit_price ?? 0),
         };
@@ -278,6 +320,8 @@ export async function POST(req: Request) {
               service: (service as unknown as { service_name?: string } | null)?.service_name ?? '-',
               date: dateLabel,
               time: timeLabel,
+              assignedTo: assignedResource?.resource_name ?? null,
+              assignedLabel: assignedResource ? resourceTypeLabel(assignedResource.resource_type) : null,
               liffUrl,
             }),
           ]);
@@ -341,11 +385,106 @@ export async function PATCH(req: Request) {
 
     const { data: before } = await supabase
       .from('bookings')
-      .select('id,queue_number,status,branch_id,service_id,booking_date,start_time')
+      .select('id,queue_number,status,branch_id,service_id,booking_date,start_time,end_time,resource_id,resource_name')
       .eq('id', id)
       .eq('shop_id', profile.shop_id)
       .maybeSingle();
     if (!before) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+
+    // --- Assign / change / remove the resource (trainer, stylist, table) ---
+    if (body.resource_id !== undefined) {
+      const nextResourceId = (body.resource_id as string | null) || null;
+
+      let nextResource: { id: string; resource_name: string; resource_type: string | null; capacity: number } | null = null;
+      if (nextResourceId) {
+        const { data: selected } = await supabase
+          .from('booking_resources')
+          .select('id,resource_name,resource_type,capacity')
+          .eq('id', nextResourceId)
+          .eq('shop_id', profile.shop_id)
+          .eq('is_deleted', false)
+          .eq('active', true)
+          .maybeSingle();
+        if (!selected) return NextResponse.json({ error: 'ไม่พบผู้ให้บริการ/ทรัพยากรที่เลือก' }, { status: 400 });
+
+        const { data: svc } = await supabase
+          .from('services')
+          .select('duration_minutes')
+          .eq('id', before.service_id)
+          .eq('shop_id', profile.shop_id)
+          .maybeSingle();
+
+        const startLabel = String(before.start_time).length === 5 ? `${before.start_time}:00` : String(before.start_time);
+        const startAt = new Date(`${before.booking_date}T${startLabel}+07:00`);
+        const endAt = new Date(startAt.getTime() + Math.max(Number(svc?.duration_minutes ?? 30), 5) * 60_000);
+
+        const free = await isResourceFree(supabase, {
+          shopId: profile.shop_id,
+          resourceId: selected.id as string,
+          startAt,
+          endAt,
+          excludeBookingId: id,
+        });
+        if (!free) return NextResponse.json({ error: resourceBusyMessage(selected.resource_type) }, { status: 409 });
+
+        nextResource = {
+          id: selected.id as string,
+          resource_name: String(selected.resource_name ?? '-'),
+          resource_type: (selected.resource_type as string | null) ?? null,
+          capacity: Number(selected.capacity ?? 1),
+        };
+      }
+
+      const { error } = await supabase
+        .from('bookings')
+        .update({
+          resource_id: nextResource?.id ?? null,
+          resource_name: nextResource?.resource_name ?? null,
+          resource_capacity: nextResource?.capacity ?? null,
+          updated_by: user.id,
+        })
+        .eq('id', id)
+        .eq('shop_id', profile.shop_id);
+      if (error) throw error;
+
+      const assignedLabel = resourceTypeLabel(nextResource?.resource_type);
+      await supabase.from('booking_logs').insert({
+        company_id: profile.company_id,
+        shop_id: profile.shop_id,
+        booking_id: id,
+        action: 'update',
+        description: nextResource
+          ? `Assigned ${assignedLabel} ${nextResource.resource_name} to ${before.queue_number ?? id}`
+          : `Removed assigned resource from ${before.queue_number ?? id}`,
+        created_by: user.id,
+      });
+
+      await safeCreateNotification(supabase, {
+        companyId: profile.company_id,
+        shopId: profile.shop_id,
+        branchId: before.branch_id,
+        userId: user.id,
+        type: 'booking_updated',
+        category: 'bookings',
+        priority: 'medium',
+        title: `${before.queue_number ?? 'Queue'} — ${nextResource ? `${assignedLabel}: ${nextResource.resource_name}` : 'ถอดผู้ให้บริการ'}`,
+        message: nextResource
+          ? `Assigned to ${nextResource.resource_name}`
+          : 'Assignment cleared',
+        relatedType: 'booking',
+        relatedId: id,
+        actionUrl: '/portal/bookings',
+        icon: 'AssignmentInd',
+        color: '#1565c0',
+        metadata: {
+          prev_resource: before.resource_name ?? null,
+          next_resource: nextResource?.resource_name ?? null,
+        },
+        createdBy: user.id,
+      });
+      await safeSyncBookingToGoogleCalendar(profile.shop_id, id);
+      return NextResponse.json({ data: true });
+    }
 
     // --- Reschedule: date / time change ---
     if (body.booking_date !== undefined || body.start_time !== undefined) {
@@ -363,6 +502,27 @@ export async function PATCH(req: Request) {
       const startAt = new Date(`${newDate}T${newTime}+07:00`);
       const endAt = new Date(startAt.getTime() + Math.max(Number(svc?.duration_minutes ?? 30), 5) * 60_000);
       const endTime = `${String(endAt.getHours()).padStart(2, '0')}:${String(endAt.getMinutes()).padStart(2, '0')}:00`;
+
+      // Moving a booking must not park it on top of another one holding the same
+      // trainer / table. Exclude this booking so its own old slot never blocks it.
+      if (before.resource_id) {
+        const free = await isResourceFree(supabase, {
+          shopId: profile.shop_id,
+          resourceId: before.resource_id as string,
+          startAt,
+          endAt,
+          excludeBookingId: id,
+        });
+        if (!free) {
+          const { data: heldResource } = await supabase
+            .from('booking_resources')
+            .select('resource_type')
+            .eq('id', before.resource_id)
+            .eq('shop_id', profile.shop_id)
+            .maybeSingle();
+          return NextResponse.json({ error: resourceBusyMessage(heldResource?.resource_type) }, { status: 409 });
+        }
+      }
 
       const { error } = await supabase
         .from('bookings')

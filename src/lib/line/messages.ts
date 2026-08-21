@@ -32,10 +32,19 @@ export function fallbackMessage() {
   };
 }
 
-export function bookingConfirmMessage(payload: { queueNumber: string; branch: string; service: string; date: string; time: string }) {
+export function bookingConfirmMessage(payload: {
+  queueNumber: string;
+  branch: string;
+  service: string;
+  date: string;
+  time: string;
+  assignedTo?: string | null;
+  assignedLabel?: string | null;
+}) {
+  const assignedLine = payload.assignedTo ? `\n${payload.assignedLabel || 'ผู้ให้บริการ'}: ${payload.assignedTo}` : '';
   return {
     type: 'text',
-    text: `จองคิวสำเร็จค่ะ\nเลขคิว: ${payload.queueNumber}\nสาขา: ${payload.branch}\nบริการ: ${payload.service}\nวันที่: ${payload.date}\nเวลา: ${payload.time}\n\nกรุณามาก่อนเวลาประมาณ 10 นาทีค่ะ`,
+    text: `จองคิวสำเร็จค่ะ\nเลขคิว: ${payload.queueNumber}\nสาขา: ${payload.branch}\nบริการ: ${payload.service}${assignedLine}\nวันที่: ${payload.date}\nเวลา: ${payload.time}\n\nกรุณามาก่อนเวลาประมาณ 10 นาทีค่ะ`,
   };
 }
 
@@ -46,6 +55,10 @@ export function bookingConfirmFlex(payload: {
   service: string;
   date: string;
   time: string;
+  /** Trainer / stylist / table assigned to this booking, when the shop uses resources. */
+  assignedTo?: string | null;
+  /** Thai label matching the resource type, e.g. "เทรนเนอร์". */
+  assignedLabel?: string | null;
   liffUrl?: string;
 }) {
   const footerButtons: Array<Record<string, unknown>> = [
@@ -102,6 +115,15 @@ export function bookingConfirmFlex(payload: {
             contents: [
               { type: 'text', text: `สาขา: ${payload.branch}`, size: 'sm', color: '#374151', wrap: true },
               { type: 'text', text: `บริการ: ${payload.service}`, size: 'sm', color: '#374151', wrap: true },
+              ...(payload.assignedTo
+                ? [{
+                    type: 'text',
+                    text: `${payload.assignedLabel || 'ผู้ให้บริการ'}: ${payload.assignedTo}`,
+                    size: 'sm',
+                    color: '#374151',
+                    wrap: true,
+                  }]
+                : []),
               { type: 'text', text: `วันที่: ${payload.date}`, size: 'sm', color: '#374151' },
               { type: 'text', text: `เวลา: ${payload.time}`, size: 'sm', color: '#374151' },
             ],
