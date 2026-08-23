@@ -29,7 +29,7 @@ function labelForPath(pathname: string) {
     'queue-display': 'จอแสดงคิว', branches: 'สาขา', services: 'บริการ', resources: 'ทรัพยากร',
     'working-hours': 'เวลาทำการ', holidays: 'วันหยุด', staff: 'พนักงาน', customers: 'ลูกค้า',
     'line-settings': 'ตั้งค่า LINE', 'chat-inbox': 'กล่องข้อความ', notifications: 'การแจ้งเตือน',
-    reports: 'รายงาน', settings: 'ตั้งค่าร้าน', 'payment-settings': 'การชำระเงิน',
+    reports: 'รายงาน', settings: 'ตั้งค่าร้าน', 'payment-settings': 'การชำระเงิน', 'payment-verification': 'ตรวจสอบการชำระเงิน',
   };
   return labels[last] ?? last.replace(/-/g, ' ');
 }

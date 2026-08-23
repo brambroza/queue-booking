@@ -8,6 +8,7 @@ import { track } from '@/lib/analytics/track';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import { resourceTypeLabel } from '@/lib/booking/resource-types';
+import type { PaymentMethod, PaymentStatus } from '@/types/db';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,7 +19,10 @@ type BookingRow = {
   start_time: string;
   end_time?: string | null;
   status: string;
-  payment_status?: string | null;
+  payment_status?: PaymentStatus | null;
+  payment_method?: PaymentMethod | null;
+  payment_amount?: number | null;
+  payment_reject_reason?: string | null;
   resource_id?: string | null;
   resource_name?: string | null;
   note?: string | null;
@@ -46,12 +50,16 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   no_show:   { label: 'ไม่มาตามนัด',   cls: 'bg-slate-100  text-slate-500'  },
 };
 
-const PAYMENT_BADGE: Record<string, { label: string; cls: string }> = {
-  unpaid:          { label: 'ยังไม่ชำระ',   cls: 'bg-slate-100  text-slate-500'  },
-  pending_payment: { label: 'รอชำระ',        cls: 'bg-amber-100  text-amber-700'  },
-  paid:            { label: 'ชำระแล้ว',     cls: 'bg-green-100  text-green-700'  },
-  failed:          { label: 'ชำระไม่สำเร็จ', cls: 'bg-red-100   text-red-600'    },
-  refunded:        { label: 'คืนเงินแล้ว',  cls: 'bg-purple-100 text-purple-600' },
+// Typed as Record<PaymentStatus, …> on purpose: adding a status to PaymentStatus
+// without a label here is a compile error, not a raw English key rendered in the UI.
+const PAYMENT_BADGE: Record<PaymentStatus, { label: string; cls: string }> = {
+  unpaid:                { label: 'ยังไม่ชำระ',      cls: 'bg-slate-100  text-slate-500'  },
+  pending_payment:       { label: 'รอชำระ',           cls: 'bg-amber-100  text-amber-700'  },
+  awaiting_verification: { label: 'รอตรวจสอบสลิป',  cls: 'bg-amber-100  text-amber-800'  },
+  paid:                  { label: 'ชำระแล้ว',        cls: 'bg-green-100  text-green-700'  },
+  rejected:              { label: 'สลิปไม่ผ่าน',     cls: 'bg-rose-100   text-rose-700'   },
+  failed:                { label: 'ชำระไม่สำเร็จ',   cls: 'bg-red-100    text-red-600'    },
+  refunded:              { label: 'คืนเงินแล้ว',     cls: 'bg-purple-100 text-purple-600' },
 };
 
 // Next status transitions available per current status
@@ -70,8 +78,8 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${b.cls}`}>{b.label}</span>;
 }
 
-function PaymentBadge({ status }: { status: string }) {
-  const b = PAYMENT_BADGE[status] ?? { label: status, cls: 'bg-slate-100 text-slate-500' };
+function PaymentBadge({ status }: { status: PaymentStatus | string }) {
+  const b = PAYMENT_BADGE[status as PaymentStatus] ?? { label: status, cls: 'bg-slate-100 text-slate-500' };
   return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${b.cls}`}>{b.label}</span>;
 }
 
@@ -555,6 +563,29 @@ export function BookingsCrud() {
                 </p>
                 {editTarget.resource_name && <p className="text-slate-500 text-xs">ทรัพยากร: {editTarget.resource_name}</p>}
               </div>
+
+              {/* Payment — read-only here; verifying happens in the review queue */}
+              {editTarget.payment_method && (
+                <div className="rounded-xl border border-slate-200 p-4 text-sm space-y-1">
+                  <p className="text-slate-600">
+                    วิธีชำระ: <b>{editTarget.payment_method === 'bank_transfer' ? 'โอนเงิน + แนบสลิป' : 'QR อัตโนมัติ (Omise)'}</b>
+                  </p>
+                  <p className="text-slate-600">
+                    ยอด: <b>{Number(editTarget.payment_amount ?? 0).toLocaleString('th-TH')} บาท</b>
+                  </p>
+                  {editTarget.payment_reject_reason && (
+                    <p className="text-xs text-rose-600">เหตุผลที่ปฏิเสธ: {editTarget.payment_reject_reason}</p>
+                  )}
+                  {editTarget.payment_method === 'bank_transfer' && (
+                    <a
+                      className="btn-outline mt-2 inline-block !py-1 !text-xs"
+                      href={`/portal/payment-verification?booking_id=${editTarget.id}`}
+                    >
+                      ดูสลิป / ตรวจสอบ
+                    </a>
+                  )}
+                </div>
+              )}
 
               {/* ── Reschedule section ── */}
               <section className="space-y-3">

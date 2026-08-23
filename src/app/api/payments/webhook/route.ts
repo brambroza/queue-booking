@@ -20,6 +20,15 @@ interface OmiseWebhookEvent {
 }
 
 export async function POST(req: Request) {
+  // Omise does not sign its webhooks, so a shared secret in the URL is the
+  // cheapest way to stop this endpoint being an open oracle. Optional, so
+  // existing deployments keep working until they add it to their webhook URL.
+  const expectedSecret = process.env.OMISE_WEBHOOK_SECRET ?? '';
+  if (expectedSecret) {
+    const given = new URL(req.url).searchParams.get('key') ?? '';
+    if (given !== expectedSecret) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   let event: OmiseWebhookEvent;
   try {
     event = (await req.json()) as OmiseWebhookEvent;

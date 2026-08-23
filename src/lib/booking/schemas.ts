@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PAYMENT_METHODS } from '@/types/db';
 
 export const branchSchema = z.object({
   branch_name: z.string().min(2),
@@ -48,6 +49,8 @@ export const bookingSchema = z.object({
   resource_id: z.string().uuid().optional().nullable(),
   note: z.string().optional().default(''),
   status: z.enum(['pending', 'pending_approval', 'confirmed', 'waiting', 'called', 'seating', 'serving', 'in_service', 'checked_in', 'completed', 'skipped', 'cancelled', 'no_show']).default('confirmed'),
+  /** Lets staff force a method; otherwise the shop's first enabled method wins. */
+  payment_method: z.enum(PAYMENT_METHODS).optional(),
 });
 
 export const bookingResourceSchema = z.object({

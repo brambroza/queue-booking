@@ -27,6 +27,7 @@ import ChatRoundedIcon from '@mui/icons-material/ChatRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import QrCodeRoundedIcon from '@mui/icons-material/QrCodeRounded';
+import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import TranslateRoundedIcon from '@mui/icons-material/TranslateRounded';
 import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRounded';
 import ScienceRoundedIcon from '@mui/icons-material/ScienceRounded';
@@ -84,6 +85,7 @@ const groups: NavGroup[] = [
       { labelKey: 'menu.reports', fallback: 'รายงาน', href: '/portal/reports', icon: <InsightsRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.settings', fallback: 'ตั้งค่าร้าน', href: '/portal/settings', icon: <SettingsRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.payment_settings', fallback: 'ตั้งค่าการชำระเงิน', href: '/portal/payment-settings', icon: <QrCodeRoundedIcon fontSize="small" /> },
+      { labelKey: 'menu.payment_verification', fallback: 'ตรวจสอบการชำระเงิน', href: '/portal/payment-verification', icon: <ReceiptLongRoundedIcon fontSize="small" /> },
     ],
   },
   {

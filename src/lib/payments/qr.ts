@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createPromptPayCharge, resolveOmiseSecretKey } from './omise';
+import { createPromptPayCharge } from './omise';
+import type { ShopPaymentConfig } from './settings';
 
 function buildQrProxyUrl(bookingId: string) {
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/+$/, '');
@@ -15,9 +16,10 @@ export interface QrPaymentResult {
 }
 
 /**
- * Create a PromptPay QR charge for a booking and persist the charge info.
- * Uses the admin client to bypass RLS for reading omise_secret_key.
- * Returns null if QR payment is not enabled for this shop.
+ * Create an Omise PromptPay QR charge for a booking and persist the charge info.
+ *
+ * Whether this method is available at all is decided by the caller via
+ * ShopPaymentConfig, so there is no enable-check here.
  */
 export async function createBookingQrPayment(opts: {
   bookingId: string;
@@ -26,28 +28,9 @@ export async function createBookingQrPayment(opts: {
   amountTHB: number;
   shopName: string;
   queueNumber: string;
+  config: ShopPaymentConfig;
 }): Promise<QrPaymentResult | null> {
-  const admin = createAdminClient();
-  const { data: shop, error: shopErr } = await admin
-    .from('shops')
-    .select('qr_payment_enabled, omise_secret_key')
-    .eq('id', opts.shopId)
-    .maybeSingle();
-
-  if (shopErr) {
-    console.error('[QR] shop fetch error:', shopErr.message);
-    return null;
-  }
-
-  const secretKey = resolveOmiseSecretKey(shop?.omise_secret_key ?? null);
-  const isTestEnvBypass = secretKey.startsWith('skey_test_');
-
-  // Skip if not enabled — unless test key in env (dev convenience bypass)
-  if (!shop?.qr_payment_enabled && !isTestEnvBypass) {
-    console.log('[QR] skipped: qr_payment_enabled=false and no test-key bypass');
-    return null;
-  }
-
+  const secretKey = opts.config.omiseSecretKey;
   if (!secretKey) {
     console.log('[QR] skipped: no omise secret key');
     return null;
@@ -59,6 +42,7 @@ export async function createBookingQrPayment(opts: {
     return null;
   }
 
+  const admin = createAdminClient();
   const charge = await createPromptPayCharge({
     secretKey,
     amountTHB,
@@ -78,6 +62,7 @@ export async function createBookingQrPayment(opts: {
     .from('bookings')
     .update({
       payment_status: 'pending_payment',
+      payment_method: 'omise_promptpay',
       payment_amount: amountTHB,
       omise_charge_id: charge.id,
       omise_qr_image_url: omiseDownloadUri || null,
@@ -91,6 +76,7 @@ export async function createBookingQrPayment(opts: {
     shop_id: opts.shopId,
     booking_id: opts.bookingId,
     omise_charge_id: charge.id,
+    method: 'omise_promptpay',
     amount: amountTHB,
     currency: 'THB',
     status: 'pending',

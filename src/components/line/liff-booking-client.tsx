@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import { isPersonResourceType, resourceTypeIcon, resourceTypeLabel } from '@/lib/booking/resource-types';
+import { LiffPaymentPanel } from '@/components/line/liff-payment-panel';
+import type { PaymentMethod } from '@/types/db';
 
 type Branch = { id: string; branch_name: string };
-type Service = { id: string; service_name: string; duration_minutes: number };
+type Service = { id: string; service_name: string; duration_minutes: number; price?: number | null };
 type Resource = {
   id: string;
   branch_id?: string | null;
@@ -33,7 +35,27 @@ type MyBooking = {
   resource_name?: string | null;
   branches?: { branch_name?: string } | null;
   services?: { service_name?: string } | null;
+  payment_status?: string | null;
+  payment_method?: string | null;
+  payment_amount?: number | null;
 };
+
+type ShopPaymentMeta = {
+  methods: PaymentMethod[];
+  promptpay_display_name: string | null;
+  promptpay_masked: string | null;
+};
+
+/** Result of a completed booking, kept so the success screen can host payment. */
+type BookingResult = {
+  booking_id: string;
+  queue_number: string;
+  payment_method: string | null;
+};
+
+/** localStorage key holding a booking whose payment is still unfinished. */
+const pendingPaymentKey = (shopKey: string) => `queue.pendingPayment.${shopKey}`;
+const PENDING_PAYMENT_TTL_MS = 48 * 3600 * 1000;
 
 type UiTheme = {
   key: 'default' | 'nail' | 'clinic' | 'buffet' | 'meeting';
@@ -53,6 +75,7 @@ type LiffApi = {
   closeWindow?: () => void;
   sendMessages?: (messages: object[]) => Promise<void>;
   getProfile: () => Promise<{ userId: string; displayName: string; pictureUrl?: string }>;
+  getIDToken?: () => string | null;
 };
 
 function normalizeLiffId(input?: string | null): string {
@@ -203,7 +226,12 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const [lineUserId, setLineUserId] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [pictureUrl, setPictureUrl] = useState('');
+  const [liffIdToken, setLiffIdToken] = useState('');
   const [queueNo, setQueueNo] = useState('');
+  const [bookingResult, setBookingResult] = useState<BookingResult | null>(null);
+  const [shopPayment, setShopPayment] = useState<ShopPaymentMeta | null>(null);
+  const [chosenMethod, setChosenMethod] = useState<PaymentMethod | ''>('');
+  const [resumeBooking, setResumeBooking] = useState<BookingResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [memberReady, setMemberReady] = useState(false);
   const [memberStatus, setMemberStatus] = useState<'idle' | 'checking' | 'ready' | 'error'>('idle');
@@ -259,6 +287,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         setBranches(json.data.branches ?? []);
         setServices(json.data.services ?? []);
         setResources(json.data.resources ?? []);
+        setShopPayment((json.data.payment ?? null) as ShopPaymentMeta | null);
         if (json.data.branches?.[0]) setBranchId(json.data.branches[0].id);
         if (json.data.services?.[0]) setServiceId(json.data.services[0].id);
       } catch (e) {
@@ -323,6 +352,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         }
 
         const profile = await liff.getProfile();
+        try { setLiffIdToken(liff.getIDToken?.() ?? ''); } catch { /* token unavailable outside LINE */ }
         setLineUserId(profile.userId);
         setDisplayName(profile.displayName);
         setPictureUrl(profile.pictureUrl ?? '');
@@ -426,6 +456,46 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, branchId, serviceId, date]);
 
+  // Restore an unfinished payment after a reload. Anything older than the TTL is
+  // dropped rather than shown, since the invoice has almost certainly lapsed.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(pendingPaymentKey(shopKey));
+      if (!raw) return;
+      const saved = JSON.parse(raw) as BookingResult & { ts?: number };
+      if (!saved.booking_id || Date.now() - (saved.ts ?? 0) > PENDING_PAYMENT_TTL_MS) {
+        localStorage.removeItem(pendingPaymentKey(shopKey));
+        return;
+      }
+      setResumeBooking({ booking_id: saved.booking_id, queue_number: saved.queue_number, payment_method: 'bank_transfer' });
+    } catch {
+      // ignore unreadable storage
+    }
+  }, [shopKey]);
+
+  /** Clear the resume marker once the booking no longer owes money. */
+  function clearPendingPayment() {
+    try { localStorage.removeItem(pendingPaymentKey(shopKey)); } catch { /* ignore */ }
+    setResumeBooking(null);
+  }
+
+  /** Price the customer would pay, used to decide whether to show the method picker. */
+  const effectivePrice = useMemo(() => {
+    const resourcePrice = Number(selectedResourceId ? resources.find((r) => r.id === selectedResourceId)?.unit_price ?? 0 : 0);
+    const servicePrice = Number(services.find((s) => s.id === serviceId)?.price ?? 0);
+    return resourcePrice > 0 ? resourcePrice : servicePrice;
+  }, [selectedResourceId, resources, services, serviceId]);
+
+  const paymentMethods = useMemo(() => shopPayment?.methods ?? [], [shopPayment]);
+  const showMethodPicker = effectivePrice > 0 && paymentMethods.length > 1;
+
+  // With exactly one method there is nothing to choose — send it explicitly so
+  // the server does not have to fall back.
+  useEffect(() => {
+    if (paymentMethods.length === 1) setChosenMethod(paymentMethods[0]);
+    else if (paymentMethods.length === 0) setChosenMethod('');
+  }, [paymentMethods]);
+
   async function bookNow() {
     if (!canBook) return;
     setLoading(true);
@@ -441,12 +511,30 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         customer_name: customerName,
         customer_phone: customerPhone,
         line_user_id: lineUserId || undefined,
+        payment_method: chosenMethod || undefined,
       }),
     });
     const json = await res.json();
     setLoading(false);
     if (!res.ok) return push(json.error ?? 'จองคิวไม่สำเร็จ', 'error');
     setQueueNo(json.data.queue_number);
+
+    const paymentMethod: string | null = json.data?.payment?.method ?? null;
+    const result: BookingResult = {
+      booking_id: json.data?.booking_id ?? '',
+      queue_number: json.data?.queue_number ?? '',
+      payment_method: paymentMethod,
+    };
+    setBookingResult(result);
+    setResumeBooking(null);
+    // Remember an unfinished transfer so a reload does not strand the customer.
+    if (paymentMethod === 'bank_transfer' && result.booking_id) {
+      try {
+        localStorage.setItem(pendingPaymentKey(shopKey), JSON.stringify({ ...result, ts: Date.now() }));
+      } catch {
+        // storage unavailable (private mode) — the account tab is still the durable path
+      }
+    }
     if (!json.data?.line_push_sent) {
       const dateLabel = formatDateDMY(json.data?.booking_date ?? date);
       /*     const text = `จองคิวสำเร็จค่ะ\nเลขคิว: ${json.data?.queue_number ?? '-'}\nสาขา: ${json.data?.branch_name ?? selectedBranch?.branch_name ?? '-'}\nบริการ: ${json.data?.service_name ?? selectedService?.service_name ?? '-'}\nวันที่: ${dateLabel}\nเวลา: ${json.data?.booking_time ?? selectedTime}\n\nกรุณามาก่อนเวลาประมาณ 10 นาทีค่ะ`;
@@ -459,6 +547,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
 
     push('จองคิวสำเร็จ');
     void loadMe();
+    // Never auto-close while a payment panel is on screen — it would close the
+    // only place the customer can upload their slip.
+    if (paymentMethod === 'bank_transfer') return;
     try {
       const liff = await ensureLiffLoaded();
       if (liff?.isInClient?.() && liff?.closeWindow) {
@@ -540,12 +631,49 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
             <p>เวลา: <b>{selectedTime}</b></p>
             <p>สาขา: <b>{selectedBranch?.branch_name ?? '-'}</b></p>
             <p className="pt-2 text-xs text-slate-500">กรุณามาก่อนเวลาประมาณ 10 นาที</p>
+
+            {bookingResult?.payment_method === 'bank_transfer' && bookingResult.booking_id && lineUserId && (
+              <div className="pt-3">
+                <LiffPaymentPanel
+                  shopKey={shopKey}
+                  bookingId={bookingResult.booking_id}
+                  lineUserId={lineUserId}
+                  idToken={liffIdToken}
+                  accent={uiTheme.accent}
+                  onPaid={clearPendingPayment}
+                />
+              </div>
+            )}
+
             <div className="space-y-2 pt-2">
               <button className="btn-outline w-full" onClick={() => setTab('account')}>ดูคิวของฉัน</button>
-              <button className="btn-outline w-full" onClick={() => setQueueNo('')}>จองคิวอีกครั้ง</button>
+              <button className="btn-outline w-full" onClick={() => { setQueueNo(''); setBookingResult(null); }}>จองคิวอีกครั้ง</button>
               <button className="btn-primary w-full" style={{ background: uiTheme.accent }} onClick={() => setTab('account')}>เปิด LIFF อีกครั้ง</button>
             </div>
           </div>
+        </section>
+      </main>
+    );
+  }
+
+  // Reload landed here with an unfinished transfer — reopen the payment panel.
+  if (resumeBooking && lineUserId) {
+    return (
+      <main className="min-h-screen p-4" style={{ background: '#f4f6f8' }}>
+        <section className="mx-auto max-w-md space-y-3">
+          <div className="rounded-[22px] border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm font-bold text-amber-800">ยังชำระเงินไม่เสร็จ</p>
+            <p className="mt-0.5 text-xs text-amber-800">เลขคิว {resumeBooking.queue_number}</p>
+          </div>
+          <LiffPaymentPanel
+            shopKey={shopKey}
+            bookingId={resumeBooking.booking_id}
+            lineUserId={lineUserId}
+            idToken={liffIdToken}
+            accent={uiTheme.accent}
+            onPaid={clearPendingPayment}
+          />
+          <button className="btn-outline w-full" onClick={clearPendingPayment}>ข้ามไปก่อน</button>
         </section>
       </main>
     );
@@ -742,9 +870,25 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                     })}
                   </div>
 
+                  {showMethodPicker && (
+                    <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-xs font-semibold text-slate-700">เลือกวิธีชำระเงิน ({effectivePrice.toLocaleString('th-TH')} บาท)</p>
+                      {paymentMethods.map((m) => (
+                        <button
+                          key={m}
+                          className={chosenMethod === m ? 'btn-primary w-full !rounded-xl !py-2.5' : 'btn-outline w-full !rounded-xl !py-2.5'}
+                          style={chosenMethod === m ? { background: uiTheme.accent } : undefined}
+                          onClick={() => setChosenMethod(m)}
+                        >
+                          {m === 'bank_transfer' ? 'โอนเงิน + แนบสลิป' : 'สแกน QR ชำระอัตโนมัติ'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-2">
                     <button className="btn-outline" onClick={() => setStep(1)}>ย้อนกลับ</button>
-                    <button className="btn-primary" style={{ background: uiTheme.accent }} onClick={() => void bookNow()} disabled={!canBook || loading}>{loading ? 'กำลังบันทึก...' : 'ยืนยันจองคิว'}</button>
+                    <button className="btn-primary" style={{ background: uiTheme.accent }} onClick={() => void bookNow()} disabled={!canBook || loading || (showMethodPicker && !chosenMethod)}>{loading ? 'กำลังบันทึก...' : 'ยืนยันจองคิว'}</button>
                   </div>
                 </div>
               )}
@@ -805,6 +949,18 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                         </p>
                       ) : null}
                     </div>
+                    {b.payment_method === 'bank_transfer' && b.payment_status === 'awaiting_verification' ? (
+                      <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">รอร้านตรวจสอบสลิป</p>
+                    ) : null}
+                    {b.payment_method === 'bank_transfer' && (b.payment_status === 'pending_payment' || b.payment_status === 'rejected') ? (
+                      <button
+                        className="btn-primary mt-3 w-full"
+                        style={{ background: uiTheme.accent }}
+                        onClick={() => setResumeBooking({ booking_id: b.id, queue_number: b.queue_number, payment_method: 'bank_transfer' })}
+                      >
+                        {b.payment_status === 'rejected' ? 'อัปโหลดสลิปใหม่' : 'ชำระเงิน / อัปโหลดสลิป'}
+                      </button>
+                    ) : null}
                     {(b.status === 'pending' || b.status === 'confirmed' || b.status === 'waiting') ? (
                       <button className="btn-outline mt-3 w-full" onClick={() => void cancelBooking(b.id)}>ยกเลิกคิว</button>
                     ) : null}

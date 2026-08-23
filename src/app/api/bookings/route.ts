@@ -4,11 +4,10 @@ import { bookingSchema } from '@/lib/booking/schemas';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { pushMessage } from '@/lib/line/client';
 import { bookingConfirmFlex } from '@/lib/line/messages';
-import { qrPaymentFlex } from '@/lib/line/messages-payment';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 import { subscriptionErrorResponse } from '@/lib/subscription/response';
 import { safeCreateNotification } from '@/lib/notifications/createNotification';
-import { createBookingQrPayment } from '@/lib/payments/qr';
+import { resolvePaymentForBooking } from '@/lib/payments/resolve';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
 import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
 import { resourceBusyMessage, resourceTypeLabel } from '@/lib/booking/resource-types';
@@ -333,38 +332,31 @@ export async function POST(req: Request) {
         linePushError = 'LINE token not configured';
       }
 
-      // QR Payment — non-blocking
+      // Payment setup — non-blocking, never fails the booking
       try {
         const resourcePrice = Number(assignedResource?.unit_price ?? 0);
         const servicePrice = Number((service as unknown as { price?: number } | null)?.price ?? 0);
         const paymentPrice = resourcePrice > 0 ? resourcePrice : servicePrice;
-        const qrResult = await createBookingQrPayment({
+        const payment = await resolvePaymentForBooking({
           bookingId: inserted.id,
           shopId: profile.shop_id,
           companyId: profile.company_id,
+          shopKey: shop?.shop_key ?? null,
           amountTHB: paymentPrice,
           shopName,
           queueNumber,
+          serviceName: (service as unknown as { service_name?: string } | null)?.service_name ?? '-',
+          branchName: branch?.branch_name ?? '-',
+          dateLabel,
+          timeLabel,
+          requestedMethod: payload.payment_method ?? null,
         });
-        if (qrResult?.qrImageUrl && token) {
-          await pushMessage(token, payload.line_user_external_id, [
-            qrPaymentFlex({
-              shopName,
-              queueNumber,
-              service: (service as unknown as { service_name?: string } | null)?.service_name ?? '-',
-              branch: branch?.branch_name ?? '-',
-              date: dateLabel,
-              time: timeLabel,
-              amountTHB: qrResult.amountTHB,
-              qrImageUrl: qrResult.qrImageUrl,
-              expiresAt: qrResult.expiresAt,
-              isTest: qrResult.isTest,
-            }),
-          ]);
+        if (payment && token) {
+          await pushMessage(token, payload.line_user_external_id, [payment.flex]);
           qrPaymentCreated = true;
         }
-      } catch (qrErr) {
-        console.error('[QR] payment error (booking still created):', qrErr instanceof Error ? qrErr.message : qrErr);
+      } catch (payErr) {
+        console.error('[payments] setup error (booking still created):', payErr instanceof Error ? payErr.message : payErr);
       }
     }
 

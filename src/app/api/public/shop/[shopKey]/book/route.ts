@@ -4,13 +4,13 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { pushMessage } from '@/lib/line/client';
 import { bookingConfirmFlex } from '@/lib/line/messages';
-import { qrPaymentFlex } from '@/lib/line/messages-payment';
 import { assertFeatureQuota, SubscriptionInactiveError, SubscriptionQuotaError } from '@/lib/subscription/enforcement';
 import { createNotification, safeCreateNotification } from '@/lib/notifications/createNotification';
-import { createBookingQrPayment } from '@/lib/payments/qr';
+import { resolvePaymentForBooking, type PaymentBankInfo } from '@/lib/payments/resolve';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
 import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
 import { resourceBusyMessage, resourceTypeLabel } from '@/lib/booking/resource-types';
+import { PAYMENT_METHODS } from '@/types/db';
 
 const bookSchema = z.object({
   branch_id: z.string().uuid(),
@@ -22,6 +22,7 @@ const bookSchema = z.object({
   line_user_id: z.string().optional(),
   party_size: z.coerce.number().int().min(1).max(200).optional(),
   resource_id: z.string().uuid().optional(),
+  payment_method: z.enum(PAYMENT_METHODS).optional(),
 });
 
 export async function POST(req: Request, { params }: { params: Promise<{ shopKey: string }> }) {
@@ -339,22 +340,48 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     }
   }
 
-  // QR Payment — non-blocking, only if shop has qr_payment_enabled
+  // Payment setup — non-blocking, never fails the booking.
+  // Runs regardless of line_user_id: the QR and slip upload live on-screen in
+  // LIFF now, so a customer without a LINE push still needs a payable invoice.
   let qrPaymentCreated = false;
-  if (payload.line_user_id) {
-    try {
-      const resourcePrice = Number(assignedResource?.unit_price ?? 0);
-      const servicePrice = Number((service as unknown as { price?: number } | null)?.price ?? 0);
-      const paymentPrice = resourcePrice > 0 ? resourcePrice : servicePrice;
-      const qrResult = await createBookingQrPayment({
-        bookingId: booking.id,
-        shopId: shop.id,
-        companyId: shop.company_id,
-        amountTHB: paymentPrice,
-        shopName: shop.name ?? 'Queue Booking',
-        queueNumber,
-      });
-      if (qrResult?.qrImageUrl) {
+  let paymentInfo: {
+    method: string;
+    amount: number;
+    qr_image_url: string;
+    expires_at: string | null;
+    bank: PaymentBankInfo | null;
+  } | null = null;
+
+  try {
+    const resourcePrice = Number(assignedResource?.unit_price ?? 0);
+    const servicePrice = Number((service as unknown as { price?: number } | null)?.price ?? 0);
+    const paymentPrice = resourcePrice > 0 ? resourcePrice : servicePrice;
+    const dateLabel = formatThaiDateLabel(payload.booking_date);
+    const payment = await resolvePaymentForBooking({
+      bookingId: booking.id,
+      shopId: shop.id,
+      companyId: shop.company_id,
+      shopKey: shop.shop_key,
+      amountTHB: paymentPrice,
+      shopName: shop.name ?? 'Queue Booking',
+      queueNumber,
+      serviceName: service.service_name ?? '-',
+      branchName: branch.branch_name ?? '-',
+      dateLabel,
+      timeLabel: payload.start_time.slice(0, 5),
+      requestedMethod: payload.payment_method ?? null,
+    });
+
+    if (payment) {
+      paymentInfo = {
+        method: payment.method,
+        amount: payment.amountTHB,
+        qr_image_url: payment.qrImageUrl,
+        expires_at: payment.expiresAt,
+        bank: payment.bank,
+      };
+
+      if (payload.line_user_id) {
         const { data: shopLine } = await admin
           .from('shops')
           .select('line_channel_access_token')
@@ -362,27 +389,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
           .maybeSingle();
         const qrToken = shopLine?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
         if (qrToken) {
-          const dateLabel = formatThaiDateLabel(payload.booking_date);
-          await pushMessage(qrToken, payload.line_user_id, [
-            qrPaymentFlex({
-              shopName: shop.name ?? 'Queue Booking',
-              queueNumber,
-              service: service.service_name ?? '-',
-              branch: branch.branch_name ?? '-',
-              date: dateLabel,
-              time: payload.start_time.slice(0, 5),
-              amountTHB: qrResult.amountTHB,
-              qrImageUrl: qrResult.qrImageUrl,
-              expiresAt: qrResult.expiresAt,
-              isTest: qrResult.isTest,
-            }),
-          ]);
+          await pushMessage(qrToken, payload.line_user_id, [payment.flex]);
           qrPaymentCreated = true;
         }
       }
-    } catch (qrErr) {
-      console.error('[QR] payment error (booking still created):', qrErr instanceof Error ? qrErr.message : qrErr);
     }
+  } catch (payErr) {
+    console.error('[payments] setup error (booking still created):', payErr instanceof Error ? payErr.message : payErr);
   }
 
   return NextResponse.json({
@@ -396,6 +409,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       line_push_sent: linePushSent,
       line_push_error: linePushError,
       qr_payment_created: qrPaymentCreated,
+      payment: paymentInfo,
     },
   });
 }

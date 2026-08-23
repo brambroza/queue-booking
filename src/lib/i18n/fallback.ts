@@ -29,6 +29,7 @@ export const fallbackTh: TranslationMap = {
   'menu.reports': 'รายงาน',
   'menu.settings': 'ตั้งค่า',
   'menu.payment_settings' : 'ตั้งค่า payment gateway',
+  'menu.payment_verification' : 'ตรวจสอบการชำระเงิน',
   'menu.translations': 'จัดการภาษา',
   'menu.shop_packages': 'แพ็กเกจร้านค้า',
   'menu.shop_selector': 'เลือกร้าน',
@@ -137,6 +138,7 @@ export const fallbackEn: TranslationMap = {
   'menu.settings': 'Settings',
 
   'menu.payment_settings' : 'payment gateway setting',
+  'menu.payment_verification' : 'payment verification',
   'menu.translations': 'Translations',
   'menu.shop_packages': 'Shop Packages',
   'menu.shop_selector': 'Shop Selector',
