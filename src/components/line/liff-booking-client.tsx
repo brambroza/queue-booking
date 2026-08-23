@@ -750,7 +750,8 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                             <div>
                               <div className="font-semibold">{s.service_name}</div>
                               <div className={`text-xs ${serviceId === s.id ? 'text-white/90' : 'text-slate-500'}`}>
-                                {s.duration_minutes} นาที • {meta.subtitle}
+                               {/*  {s.duration_minutes} นาที • */}
+                                 {meta.subtitle}
                               </div>
                             </div>
                           </div>
