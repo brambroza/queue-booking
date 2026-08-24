@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { getSubscriptionState } from '@/lib/subscription/enforcement';
-import { countShopUsage } from '@/lib/subscription/usage';
+import { countShopUsage, getDailyBookingUsage } from '@/lib/subscription/usage';
 
 const querySchema = z.object({ shop_id: z.string().uuid() });
 
@@ -19,11 +19,16 @@ export async function GET(req: Request) {
     if (!parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
 
     const shopId = parsed.data.shop_id;
-    const [usage, state] = await Promise.all([countShopUsage(shopId), getSubscriptionState(shopId)]);
+    const [usage, state, daily] = await Promise.all([
+      countShopUsage(shopId),
+      getSubscriptionState(shopId),
+      getDailyBookingUsage(shopId),
+    ]);
 
     return NextResponse.json({
       data: {
         usage,
+        daily,
         effective: {
           plan_code: state.planCode,
           limits: state.limits,

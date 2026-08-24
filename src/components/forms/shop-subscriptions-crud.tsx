@@ -44,7 +44,20 @@ type Shop = {
   companies?: { name?: string; owner_name?: string | null; phone?: string | null; email?: string | null } | null;
 };
 
-type OwnerContact = { shop_id: string; full_name: string | null; email: string | null; phone: string | null };
+type OwnerContact = {
+  shop_id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  /** false = auth listing unavailable, so the dates below mean "unknown", not "never". */
+  auth_known?: boolean;
+  last_sign_in_at?: string | null;
+  email_confirmed_at?: string | null;
+  account_created_at?: string | null;
+};
+
+/** A shop with no owner login for this long is a churn signal, not just a quiet week. */
+const DORMANT_DAYS = 30;
 
 /** Where a contact detail came from, so a super_admin knows who they are calling. */
 type ContactSource = 'shop' | 'company' | 'owner';
@@ -74,8 +87,23 @@ type Sub = {
 
 type ShopUsage = Record<UsageKey, number>;
 
+type DailyPoint = { date: string; count: number };
+
+/** Per-day booking load, for judging whether a plan's monthly quota matches the real daily peak. */
+type DailyUsage = {
+  days: number;
+  series: DailyPoint[];
+  total: number;
+  averagePerDay: number;
+  averagePerActiveDay: number;
+  peak: DailyPoint | null;
+  today: number;
+  activeDays: number;
+};
+
 type UsageResponse = {
   usage: ShopUsage;
+  daily?: DailyUsage | null;
   effective: { plan_code: string | null; limits: PlanLimits; active: boolean; downgraded: boolean };
 };
 
@@ -133,6 +161,56 @@ function formatDate(value?: string | null): string {
   if (!value) return '-';
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString('th-TH', { dateStyle: 'medium' });
+}
+
+function formatDateTime(value?: string | null): string {
+  if (!value) return '-';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+/** Whole days between now and a timestamp, or null when the timestamp is missing/invalid. */
+function daysSince(value?: string | null): number | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return Math.floor((Date.now() - d.getTime()) / DAY_MS);
+}
+
+function relativeDayLabel(days: number): string {
+  if (days <= 0) return 'วันนี้';
+  if (days === 1) return 'เมื่อวาน';
+  return `${days} วันก่อน`;
+}
+
+/** Login + verification state of the owner account, as the list and summary both read it. */
+type AccountState = {
+  /** Auth listing readable at all — false means every field below is unknown. */
+  known: boolean;
+  lastSignInAt: string | null;
+  daysSinceSignIn: number | null;
+  neverSignedIn: boolean;
+  dormant: boolean;
+  verified: boolean;
+};
+
+/**
+ * Owner-account signals for one shop.
+ *
+ * @param owner - Owner contact row for the shop, when one is mapped.
+ */
+function resolveAccountState(owner: OwnerContact | undefined): AccountState {
+  const known = Boolean(owner?.auth_known);
+  const lastSignInAt = owner?.last_sign_in_at ?? null;
+  const days = daysSince(lastSignInAt);
+  return {
+    known,
+    lastSignInAt,
+    daysSinceSignIn: days,
+    neverSignedIn: known && !lastSignInAt,
+    dormant: days !== null && days >= DORMANT_DAYS,
+    verified: Boolean(owner?.email_confirmed_at),
+  };
 }
 
 type ResolvedContact = {
@@ -321,6 +399,95 @@ function ContactLines({ contact, showName = true }: { contact: ResolvedContact; 
   );
 }
 
+/** Last login and email verification of the owner account, in one table cell. */
+function AccountCell({ account }: { account: AccountState }) {
+  if (!account.known) {
+    return (
+      <span className="text-xs" style={{ color: 'var(--muted)' }}>
+        ไม่มีข้อมูลบัญชี
+      </span>
+    );
+  }
+
+  const signInLabel = account.neverSignedIn
+    ? 'ยังไม่เคยเข้าใช้'
+    : account.daysSinceSignIn === null
+      ? '-'
+      : relativeDayLabel(account.daysSinceSignIn);
+
+  const signInColor = account.neverSignedIn ? TONE_COLOR.danger : account.dormant ? TONE_COLOR.warn : 'var(--text)';
+
+  return (
+    <div className="text-xs leading-relaxed whitespace-nowrap">
+      <div style={{ color: signInColor }} title={account.lastSignInAt ? formatDateTime(account.lastSignInAt) : undefined}>
+        {signInLabel}
+      </div>
+      <div className="mt-1">
+        <Badge label={account.verified ? 'ยืนยันอีเมลแล้ว' : 'ยังไม่ยืนยันอีเมล'} tone={account.verified ? 'ok' : 'warn'} />
+      </div>
+    </div>
+  );
+}
+
+/** Per-day booking load over the trailing window — the shape a monthly quota hides. */
+function DailyUsagePanel({ daily }: { daily: DailyUsage }) {
+  const max = daily.peak?.count ?? 0;
+  const stats: Array<{ label: string; value: string; tone?: string }> = [
+    { label: 'วันนี้', value: `${daily.today.toLocaleString('th-TH')} คิว` },
+    { label: `เฉลี่ย/วัน (${daily.days} วัน)`, value: `${daily.averagePerDay.toFixed(1)} คิว` },
+    { label: 'เฉลี่ย/วันที่มีคิว', value: `${daily.averagePerActiveDay.toFixed(1)} คิว` },
+    {
+      label: 'พีคสูงสุด',
+      value: daily.peak ? `${daily.peak.count.toLocaleString('th-TH')} คิว (${daily.peak.date.slice(5)})` : '-',
+      tone: TONE_COLOR.warn,
+    },
+    { label: `รวม ${daily.days} วัน`, value: `${daily.total.toLocaleString('th-TH')} คิว` },
+    { label: 'วันที่มีคิว', value: `${daily.activeDays}/${daily.days} วัน` },
+  ];
+
+  return (
+    <div>
+      <div className="grid gap-x-4 gap-y-2 sm:grid-cols-3">
+        {stats.map((s) => (
+          <div key={s.label} className="text-sm">
+            <div className="text-xs" style={{ color: 'var(--muted)' }}>
+              {s.label}
+            </div>
+            <div style={{ color: s.tone ?? 'var(--text)', fontWeight: 600 }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {max > 0 ? (
+        <div className="mt-3">
+          <div className="flex h-16 items-end gap-[2px]">
+            {daily.series.map((point) => (
+              <div
+                key={point.date}
+                className="flex-1 rounded-sm"
+                title={`${point.date}: ${point.count} คิว`}
+                style={{
+                  height: `${Math.max(point.count === 0 ? 2 : 8, (point.count / max) * 100)}%`,
+                  background: point.count === 0 ? 'var(--line)' : 'var(--brand)',
+                  opacity: point.count === 0 ? 1 : 0.35 + 0.65 * (point.count / max),
+                }}
+              />
+            ))}
+          </div>
+          <div className="mt-1 flex justify-between text-xs" style={{ color: 'var(--muted)' }}>
+            <span>{daily.series[0]?.date.slice(5)}</span>
+            <span>{daily.series[daily.series.length - 1]?.date.slice(5)}</span>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
+          ยังไม่มีคิวในช่วง {daily.days} วันล่าสุด
+        </p>
+      )}
+    </div>
+  );
+}
+
 function Field({ label, hint, className, children }: { label: string; hint?: string; className?: string; children: ReactNode }) {
   return (
     <label className={className}>
@@ -376,11 +543,13 @@ export function ShopSubscriptionsCrud() {
     () =>
       shops.map((shop) => {
         const sub = subMap.get(shop.id);
+        const owner = ownerMap.get(shop.id);
         return {
           shop,
           sub,
           state: resolveRowState(sub, starterLimits),
-          contact: resolveContact(shop, ownerMap.get(shop.id)),
+          contact: resolveContact(shop, owner),
+          account: resolveAccountState(owner),
         };
       }),
     [shops, subMap, ownerMap, starterLimits],
@@ -395,9 +564,15 @@ export function ShopSubscriptionsCrud() {
     let expiringSoon = 0;
     let noSub = 0;
     let noContact = 0;
+    let unverified = 0;
+    let neverSignedIn = 0;
+    let dormant = 0;
 
-    rows.forEach(({ state, contact }) => {
+    rows.forEach(({ state, contact, account }) => {
       if (!contact.phone && !contact.email) noContact += 1;
+      if (account.known && !account.verified) unverified += 1;
+      if (account.neverSignedIn) neverSignedIn += 1;
+      if (account.dormant) dormant += 1;
       const key = state.hasSub ? state.planCode : 'ไม่มี subscription';
       byPlan.set(key, (byPlan.get(key) ?? 0) + 1);
       if (state.suspended) suspended += 1;
@@ -414,6 +589,9 @@ export function ShopSubscriptionsCrud() {
       expiringSoon,
       noSub,
       noContact,
+      unverified,
+      neverSignedIn,
+      dormant,
     };
   }, [rows]);
 
@@ -534,6 +712,7 @@ export function ShopSubscriptionsCrud() {
   }
 
   const editingSub = editing ? subMap.get(editing.id) : undefined;
+  const editingAccount = resolveAccountState(editing ? ownerMap.get(editing.id) : undefined);
 
   return (
     <div className="space-y-4">
@@ -567,6 +746,18 @@ export function ShopSubscriptionsCrud() {
             ไม่มีข้อมูลติดต่อ{' '}
             <strong style={{ color: summary.noContact > 0 ? TONE_COLOR.warn : 'var(--text)' }}>{summary.noContact}</strong>
           </span>
+          <span>
+            ยังไม่ยืนยันอีเมล{' '}
+            <strong style={{ color: summary.unverified > 0 ? TONE_COLOR.warn : 'var(--text)' }}>{summary.unverified}</strong>
+          </span>
+          <span>
+            ยังไม่เคยเข้าใช้{' '}
+            <strong style={{ color: summary.neverSignedIn > 0 ? TONE_COLOR.danger : 'var(--text)' }}>{summary.neverSignedIn}</strong>
+          </span>
+          <span>
+            เงียบ ≥{DORMANT_DAYS} วัน{' '}
+            <strong style={{ color: summary.dormant > 0 ? TONE_COLOR.warn : 'var(--text)' }}>{summary.dormant}</strong>
+          </span>
         </div>
       </div>
 
@@ -589,6 +780,7 @@ export function ShopSubscriptionsCrud() {
                   <th className="px-2 py-2 text-left">ร้านค้า</th>
                   <th className="px-2 py-2 text-left">บริษัท</th>
                   <th className="px-2 py-2 text-left">ติดต่อ</th>
+                  <th className="px-2 py-2 text-left">เข้าใช้ล่าสุด / ยืนยันบัญชี</th>
                   <th className="px-2 py-2 text-left">แพ็กเกจ</th>
                   <th className="px-2 py-2 text-left">สิทธิ์ที่มีผลจริง</th>
                   <th className="px-2 py-2 text-left">หมดอายุ</th>
@@ -598,7 +790,7 @@ export function ShopSubscriptionsCrud() {
                 </tr>
               </thead>
               <tbody>
-                {paged.map(({ shop, sub, state, contact }) => {
+                {paged.map(({ shop, sub, state, contact, account }) => {
                   const badge = statusBadge(state);
                   return (
                     <tr key={shop.id} className="border-t align-top" style={{ borderColor: 'var(--line)' }}>
@@ -613,6 +805,9 @@ export function ShopSubscriptionsCrud() {
                       <td className="px-2 py-2">{shop.companies?.name ?? '-'}</td>
                       <td className="px-2 py-2 whitespace-nowrap">
                         <ContactLines contact={contact} />
+                      </td>
+                      <td className="px-2 py-2">
+                        <AccountCell account={account} />
                       </td>
                       <td className="px-2 py-2 whitespace-nowrap">
                         <div style={{ color: 'var(--text)' }}>{state.planName ?? (state.hasSub ? state.planCode : 'ยังไม่กำหนด')}</div>
@@ -714,6 +909,21 @@ export function ShopSubscriptionsCrud() {
                 <div className="mt-1">
                   <ContactLines contact={resolveContact(editing, ownerMap.get(editing.id))} />
                 </div>
+                {editingAccount.known ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs" style={{ color: 'var(--muted)' }}>
+                    <Badge
+                      label={editingAccount.verified ? 'ยืนยันอีเมลแล้ว' : 'ยังไม่ยืนยันอีเมล'}
+                      tone={editingAccount.verified ? 'ok' : 'warn'}
+                    />
+                    <span>
+                      เข้าใช้ล่าสุด:{' '}
+                      <strong style={{ color: editingAccount.neverSignedIn ? TONE_COLOR.danger : 'var(--text)' }}>
+                        {editingAccount.neverSignedIn ? 'ยังไม่เคยเข้าใช้' : formatDateTime(editingAccount.lastSignInAt)}
+                      </strong>
+                    </span>
+                    <span>สมัครเมื่อ: {formatDate(ownerMap.get(editing.id)?.account_created_at)}</span>
+                  </div>
+                ) : null}
               </div>
               <button className="btn-outline" onClick={closeDrawer}>
                 ปิด
@@ -752,6 +962,23 @@ export function ShopSubscriptionsCrud() {
               ) : (
                 <p className="text-sm" style={{ color: 'var(--muted)' }}>
                   โหลดการใช้งานไม่สำเร็จ — ยังแก้แพ็กเกจได้ตามปกติ
+                </p>
+              )}
+            </div>
+
+            <div className="mb-4 rounded-xl border p-3" style={{ borderColor: 'var(--line)', background: 'var(--surface-soft)' }}>
+              <p className="mb-2 text-xs font-medium" style={{ color: 'var(--muted)' }}>
+                การใช้งานต่อวัน (ใช้ประเมินแผน scale)
+              </p>
+              {usageLoading ? (
+                <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                  กำลังโหลดการใช้งานรายวัน...
+                </p>
+              ) : usage?.daily ? (
+                <DailyUsagePanel daily={usage.daily} />
+              ) : (
+                <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                  ไม่มีข้อมูลการใช้งานรายวัน
                 </p>
               )}
             </div>

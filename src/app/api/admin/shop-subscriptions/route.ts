@@ -19,15 +19,60 @@ const updateSchema = z.object({
 });
 
 /** Owner contact per shop, for the renewal call the package editor exists to support. */
-type ShopOwnerContact = { shop_id: string; full_name: string | null; email: string | null; phone: string | null };
+type ShopOwnerContact = {
+  shop_id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  /** false when the auth listing could not be read — null dates then mean "unknown", not "never". */
+  auth_known: boolean;
+  last_sign_in_at: string | null;
+  email_confirmed_at: string | null;
+  account_created_at: string | null;
+};
+
+/** Auth fields the admin list needs. auth.users is not reachable through PostgREST. */
+type AuthAccount = { last_sign_in_at: string | null; email_confirmed_at: string | null; created_at: string | null };
+
+/** listUsers is paginated; a super_admin list must not silently stop at page 1. */
+const AUTH_PAGE_SIZE = 1000;
+const AUTH_MAX_PAGES = 20;
 
 /**
- * Contact details of each shop's owner account. Used only as the last fallback
- * when neither the shop nor its company carries a phone or email — a brand new
- * shop has an owner login before it has a filled-in profile.
+ * Auth-side state (last login, email verification) for every account, keyed by
+ * user id. Read through the auth admin API because auth.users is not exposed to
+ * PostgREST. Failure degrades to an empty map: knowing the plan matters more
+ * than knowing the login date.
+ */
+async function fetchAuthAccounts(admin: ReturnType<typeof createAdminClient>): Promise<Map<string, AuthAccount>> {
+  const map = new Map<string, AuthAccount>();
+  try {
+    for (let page = 1; page <= AUTH_MAX_PAGES; page += 1) {
+      const { data, error } = await admin.auth.admin.listUsers({ page, perPage: AUTH_PAGE_SIZE });
+      if (error || !data?.users?.length) break;
+      data.users.forEach((u) => {
+        map.set(u.id, {
+          last_sign_in_at: u.last_sign_in_at ?? null,
+          email_confirmed_at: u.email_confirmed_at ?? null,
+          created_at: u.created_at ?? null,
+        });
+      });
+      if (data.users.length < AUTH_PAGE_SIZE) break;
+    }
+  } catch {
+    return map;
+  }
+  return map;
+}
+
+/**
+ * Contact details and account state of each shop's owner. Contact is used as the
+ * last fallback when neither the shop nor its company carries a phone or email —
+ * a brand new shop has an owner login before it has a filled-in profile. Last
+ * sign-in and email verification come from the auth account itself.
  *
- * Two fixed queries regardless of shop count. Failures degrade to an empty map
- * rather than breaking the package list.
+ * A fixed number of queries regardless of shop count. Failures degrade to an
+ * empty list rather than breaking the package list.
  */
 async function fetchOwnerContacts(admin: ReturnType<typeof createAdminClient>): Promise<ShopOwnerContact[]> {
   try {
@@ -46,23 +91,28 @@ async function fetchOwnerContacts(admin: ReturnType<typeof createAdminClient>): 
       if (userId && shopId && !byUser.has(userId)) byUser.set(userId, shopId);
     });
 
-    const { data: profiles, error: profilesError } = await admin
-      .from('users_profile')
-      .select('id,full_name,email,phone')
-      .in('id', [...byUser.keys()])
-      .eq('is_deleted', false);
+    const [{ data: profiles, error: profilesError }, authAccounts] = await Promise.all([
+      admin.from('users_profile').select('id,full_name,email,phone').in('id', [...byUser.keys()]).eq('is_deleted', false),
+      fetchAuthAccounts(admin),
+    ]);
 
     if (profilesError || !profiles) return [];
 
     return profiles.flatMap((p) => {
-      const shopId = byUser.get(String(p.id));
+      const userId = String(p.id);
+      const shopId = byUser.get(userId);
       if (!shopId) return [];
+      const auth = authAccounts.get(userId);
       return [
         {
           shop_id: shopId,
           full_name: (p.full_name as string | null) ?? null,
           email: (p.email as string | null) ?? null,
           phone: (p.phone as string | null) ?? null,
+          auth_known: Boolean(auth),
+          last_sign_in_at: auth?.last_sign_in_at ?? null,
+          email_confirmed_at: auth?.email_confirmed_at ?? null,
+          account_created_at: auth?.created_at ?? null,
         },
       ];
     });
