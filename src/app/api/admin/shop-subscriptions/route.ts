@@ -18,25 +18,83 @@ const updateSchema = z.object({
   note: z.string().trim().max(500).optional().nullable(),
 });
 
+/** Owner contact per shop, for the renewal call the package editor exists to support. */
+type ShopOwnerContact = { shop_id: string; full_name: string | null; email: string | null; phone: string | null };
+
+/**
+ * Contact details of each shop's owner account. Used only as the last fallback
+ * when neither the shop nor its company carries a phone or email — a brand new
+ * shop has an owner login before it has a filled-in profile.
+ *
+ * Two fixed queries regardless of shop count. Failures degrade to an empty map
+ * rather than breaking the package list.
+ */
+async function fetchOwnerContacts(admin: ReturnType<typeof createAdminClient>): Promise<ShopOwnerContact[]> {
+  try {
+    const { data: ownerRoles, error: rolesError } = await admin
+      .from('user_roles')
+      .select('shop_id,user_id,roles!inner(code)')
+      .eq('roles.code', 'shop_owner')
+      .eq('is_deleted', false);
+
+    if (rolesError || !ownerRoles?.length) return [];
+
+    const byUser = new Map<string, string>();
+    ownerRoles.forEach((row) => {
+      const userId = row.user_id as string | null;
+      const shopId = row.shop_id as string | null;
+      if (userId && shopId && !byUser.has(userId)) byUser.set(userId, shopId);
+    });
+
+    const { data: profiles, error: profilesError } = await admin
+      .from('users_profile')
+      .select('id,full_name,email,phone')
+      .in('id', [...byUser.keys()])
+      .eq('is_deleted', false);
+
+    if (profilesError || !profiles) return [];
+
+    return profiles.flatMap((p) => {
+      const shopId = byUser.get(String(p.id));
+      if (!shopId) return [];
+      return [
+        {
+          shop_id: shopId,
+          full_name: (p.full_name as string | null) ?? null,
+          email: (p.email as string | null) ?? null,
+          phone: (p.phone as string | null) ?? null,
+        },
+      ];
+    });
+  } catch {
+    return [];
+  }
+}
+
 export async function GET() {
   try {
     await requireAuthContext({ roles: ['super_admin'] });
     const admin = createAdminClient();
 
-    const [{ data: plans, error: plansError }, { data: shops, error: shopsError }, { data: subs, error: subsError }] = await Promise.all([
+    const [{ data: plans, error: plansError }, { data: shops, error: shopsError }, { data: subs, error: subsError }, owners] = await Promise.all([
       admin.from('subscription_plans').select('*').eq('active', true).order('name'),
-      admin.from('shops').select('id,name,shop_key,company_id,companies(name)').eq('is_deleted', false).order('created_at', { ascending: true }),
+      admin
+        .from('shops')
+        .select('id,name,shop_key,phone,email,company_id,companies(name,owner_name,phone,email)')
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: true }),
       admin
         .from('shop_subscriptions')
         .select('*, subscription_plans(name,code,max_branches,max_services,max_staff,max_resources,max_monthly_bookings)')
         .eq('is_deleted', false),
+      fetchOwnerContacts(admin),
     ]);
 
     if (plansError) throw plansError;
     if (shopsError) throw shopsError;
     if (subsError) throw subsError;
 
-    return NextResponse.json({ data: { plans: plans ?? [], shops: shops ?? [], subscriptions: subs ?? [] } });
+    return NextResponse.json({ data: { plans: plans ?? [], shops: shops ?? [], subscriptions: subs ?? [], owners } });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });
   }
