@@ -93,6 +93,9 @@ export function ServicesCrud() {
   const [active, setActive] = useState(true);
   const [requiresApproval, setRequiresApproval] = useState(false);
   const [allowWalkIn, setAllowWalkIn] = useState(false);
+  /** Shop-wide display flag, not part of the per-service form. Default on. */
+  const [showDuration, setShowDuration] = useState(true);
+  const [savingDisplay, setSavingDisplay] = useState(false);
   const [category, setCategory] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [presetKey, setPresetKey] = useState('');
@@ -173,15 +176,40 @@ export function ServicesCrud() {
   const pagedRows = useMemo(() => rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage), [rows, page, rowsPerPage]);
 
   async function load() {
-    const [resServices, resTemplates] = await Promise.all([
+    const [resServices, resTemplates, resDisplay] = await Promise.all([
       fetch('/api/services', { cache: 'no-store' }),
       fetch('/api/service-templates', { cache: 'no-store' }),
+      fetch('/api/shop-display-settings', { cache: 'no-store' }),
     ]);
-    const [s, t] = await Promise.all([resServices.json(), resTemplates.json()]);
+    const [s, t, d] = await Promise.all([resServices.json(), resTemplates.json(), resDisplay.json()]);
+    // The display flag is secondary — a failure here must not hide the services.
+    if (resDisplay.ok) setShowDuration(d.data?.show_service_duration !== false);
     if (!resServices.ok) return push(s.error ?? 'โหลด services ไม่สำเร็จ', 'error');
     if (!resTemplates.ok) return push(t.error ?? 'โหลด templates ไม่สำเร็จ', 'error');
     setRows(s.data ?? []);
     setTemplates(t.data ?? []);
+  }
+
+  /**
+   * Save the shop-wide duration display flag straight away — there is no form
+   * to submit, so the switch itself is the commit. Revert on failure so the UI
+   * never shows a setting the server did not accept.
+   */
+  async function onToggleShowDuration(next: boolean) {
+    setShowDuration(next);
+    setSavingDisplay(true);
+    const res = await fetch('/api/shop-display-settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ show_service_duration: next }),
+    });
+    const json = await res.json();
+    setSavingDisplay(false);
+    if (!res.ok) {
+      setShowDuration(!next);
+      return push(json.error ?? 'บันทึกการตั้งค่าไม่สำเร็จ', 'error');
+    }
+    push('บันทึกการตั้งค่าแล้ว');
   }
 
   useEffect(() => { void load(); }, []);
@@ -300,6 +328,24 @@ export function ServicesCrud() {
              </Box>
             <Button startIcon={<AddRoundedIcon />} variant="contained" onClick={openCreate}>เพิ่มบริการ</Button>
           </Stack>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showDuration}
+                disabled={savingDisplay}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => void onToggleShowDuration(e.target.checked)}
+              />
+            }
+            label="แสดงระยะเวลาบริการในหน้าจอง LIFF"
+          />
+          <Typography variant="caption" color="text.secondary" display="block">
+            ปิดไว้ถ้าไม่ต้องการให้ลูกค้าเห็นจำนวนนาทีของแต่ละบริการ — มีผลกับการ์ดบริการ สรุปการจอง และรายการเลือกบริการ (ตั้งค่านี้ใช้ทั้งร้าน)
+          </Typography>
         </CardContent>
       </Card>
 

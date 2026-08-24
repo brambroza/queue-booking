@@ -32,6 +32,8 @@ type ShopMeta = {
   liff_id_login_shop?: string | null;
   /** Off when the shop does not want an echo message in the customer's chat. */
   booking_echo_enabled?: boolean;
+  /** Off when the shop hides service duration from customers. */
+  show_service_duration?: boolean;
 };
 type MyBooking = {
   id: string;
@@ -253,6 +255,10 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const [liffOpenUrl, setLiffOpenUrl] = useState('');
   const [resolvedLiffId, setResolvedLiffId] = useState('');
   const [shopMetaError, setShopMetaError] = useState('');
+
+  // Duration drives slot generation but is internal for some shops — they turn
+  // it off in the portal Services page. Unset means visible.
+  const showDuration = shop?.show_service_duration !== false;
 
   const canLoadSlots = branchId && serviceId && date;
   const canBook = memberReady && branchId && serviceId && date && selectedTime && customerName.trim().length >= 2 && customerPhone.trim().length >= 8;
@@ -772,8 +778,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                             <div>
                               <div className="font-semibold">{s.service_name}</div>
                               <div className={`text-xs ${serviceId === s.id ? 'text-white/90' : 'text-slate-500'}`}>
-                               {/*  {s.duration_minutes} นาที • */}
-                                 {meta.subtitle}
+                                {[showDuration ? `${s.duration_minutes} นาที` : '', meta.subtitle].filter(Boolean).join(' • ')}
                               </div>
                             </div>
                           </div>
@@ -852,7 +857,12 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                 <div className="space-y-3">
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
                     <p className="font-semibold text-slate-800">{selectedService?.service_name ?? '-'}</p>
-                    <p>สาขา {selectedBranch?.branch_name ?? '-'} • ระยะเวลา {selectedService?.duration_minutes ?? '-'} นาที</p>
+                    <p>
+                      {[
+                        `สาขา ${selectedBranch?.branch_name ?? '-'}`,
+                        showDuration ? `ระยะเวลา ${selectedService?.duration_minutes ?? '-'} นาที` : '',
+                      ].filter(Boolean).join(' • ')}
+                    </p>
                     {selectedResource ? (
                       <p className="mt-1">
                         {resourceTypeLabel(selectedResource.resource_type)} {selectedResource.resource_code ? `${selectedResource.resource_code} - ` : ''}
@@ -865,7 +875,11 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                     {branches.map((b) => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
                   </select>
                   <select className="input" value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
-                    {services.map((s) => <option key={s.id} value={s.id}>{s.service_name} ({s.duration_minutes} นาที)</option>)}
+                    {services.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.service_name}{showDuration ? ` (${s.duration_minutes} นาที)` : ''}
+                      </option>
+                    ))}
                   </select>
 
                   <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
