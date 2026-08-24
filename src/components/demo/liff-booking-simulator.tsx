@@ -2,14 +2,16 @@
 
 import { useMemo, useState } from 'react';
 import { Box, Button, Stack, TextField, Typography } from '@mui/material';
+import { DEMO_METHOD_LABELS, formatTHB } from '@/lib/demo/payment-demo';
 import type { DemoBooking } from '@/components/demo/line-demo-types';
+import { PAYMENT_METHODS, type PaymentMethod } from '@/types/db';
 
-type Service = { id: string; icon: string; name: string; duration: string; mode: string };
+type Service = { id: string; icon: string; name: string; duration: string; mode: string; price: number };
 
 const SERVICES: Service[] = [
-  { id: 'haircut', icon: '💈', name: 'ตัดผมชาย', duration: '30 นาที', mode: 'จองตามเวลาที่เลือกเอง' },
-  { id: 'buffet', icon: '🍽️', name: 'จองรอบบุฟเฟ่ต์', duration: '120 นาที', mode: 'รับจำนวนตามรอบ' },
-  { id: 'meeting', icon: '🏢', name: 'จองห้องประชุม', duration: '120 นาที', mode: 'จองรายชั่วโมง' },
+  { id: 'haircut', icon: '💈', name: 'ตัดผมชาย', duration: '30 นาที', mode: 'จองตามเวลาที่เลือกเอง', price: 300 },
+  { id: 'buffet', icon: '🍽️', name: 'จองรอบบุฟเฟ่ต์', duration: '120 นาที', mode: 'รับจำนวนตามรอบ', price: 599 },
+  { id: 'meeting', icon: '🏢', name: 'จองห้องประชุม', duration: '120 นาที', mode: 'จองรายชั่วโมง', price: 1200 },
 ];
 
 const TIMES = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00'];
@@ -29,8 +31,12 @@ export function LiffBookingSimulator({
     return nextDay.toISOString().slice(0, 10);
   });
   const [selectedTime, setSelectedTime] = useState('10:30');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('omise_promptpay');
 
   const selected = useMemo(() => SERVICES.find((s) => s.id === serviceId) ?? SERVICES[0], [serviceId]);
+  // Mirrors the real LIFF rule (`liff-booking-client.tsx`): the picker only
+  // appears once there is an amount to collect.
+  const showMethodPicker = selected.price > 0;
   const selectedResourceName = useMemo(() => {
     if (serviceId === 'haircut') return 'ช่างบอส';
     if (serviceId === 'buffet') return 'โต๊ะ T02';
@@ -48,6 +54,9 @@ export function LiffBookingSimulator({
       timeLabel: selectedTime,
       customerName,
       customerPhone: phone,
+      amount: selected.price,
+      paymentMethod: showMethodPicker ? paymentMethod : undefined,
+      paymentStatus: showMethodPicker ? 'pending_payment' : 'unpaid',
     });
   }
 
@@ -97,10 +106,15 @@ export function LiffBookingSimulator({
               >
                 <Stack direction="row" spacing={1} alignItems="center">
                   <Typography sx={{ fontSize: 26 }}>{s.icon}</Typography>
-                  <Box>
+                  <Box sx={{ flex: 1 }}>
                     <Typography sx={{ fontWeight: 800 }}>{s.name}</Typography>
                     <Typography sx={{ fontSize: 12, color: '#637182' }}>{s.duration} • {s.mode}</Typography>
                   </Box>
+                  {s.price > 0 ? (
+                    <Typography sx={{ fontWeight: 800, fontSize: 13, color: '#0a7043', whiteSpace: 'nowrap' }}>
+                      {formatTHB(s.price)} ฿
+                    </Typography>
+                  ) : null}
                 </Stack>
               </Box>
             );
@@ -134,6 +148,37 @@ export function LiffBookingSimulator({
               );
             })}
           </Box>
+
+          {showMethodPicker ? (
+            <Stack spacing={0.8} sx={{ borderRadius: 1, border: '1px solid #d8dfe7', bgcolor: '#fff', p: 1.2 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="baseline">
+                <Typography sx={{ fontSize: 13, color: '#637182' }}>ยอดที่ต้องชำระ</Typography>
+                <Typography sx={{ fontWeight: 900, fontSize: 20, color: '#0a7043' }}>{formatTHB(selected.price)} บาท</Typography>
+              </Stack>
+              <Typography sx={{ fontSize: 12, color: '#637182' }}>เลือกวิธีชำระเงิน</Typography>
+              {PAYMENT_METHODS.map((method) => {
+                const active = method === paymentMethod;
+                return (
+                  <Box
+                    key={method}
+                    onClick={() => setPaymentMethod(method)}
+                    sx={{
+                      borderRadius: 1,
+                      px: 1.2,
+                      py: 0.9,
+                      cursor: 'pointer',
+                      border: '1px solid',
+                      borderColor: active ? '#80ca9a' : '#d8dfe7',
+                      bgcolor: active ? '#e9f7ee' : '#fff',
+                    }}
+                  >
+                    <Typography sx={{ fontWeight: 800, fontSize: 14 }}>{DEMO_METHOD_LABELS[method].title}</Typography>
+                    <Typography sx={{ fontSize: 12, color: '#637182' }}>{DEMO_METHOD_LABELS[method].hint}</Typography>
+                  </Box>
+                );
+              })}
+            </Stack>
+          ) : null}
 
           <Button fullWidth variant="contained" sx={{ bgcolor: '#12a862', borderRadius: 1, py: 1.1, boxShadow: 'none', '&:hover': { bgcolor: '#5ead77' } }} onClick={handleConfirm}>
             ยืนยันการจอง

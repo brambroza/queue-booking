@@ -28,8 +28,11 @@ import {
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
 import PlayCircleRoundedIcon from '@mui/icons-material/PlayCircleRounded';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
+import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
+import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import { useToast } from '@/components/ui/toast';
 import { DemoLineExperiencePanel } from '@/components/demo/demo-line-experience-panel';
+import { drawDemoSlipPng } from '@/lib/demo/slip-image';
 
 type BusinessType = 'barber' | 'clinic' | 'restaurant' | 'buffet' | 'meeting_room' | 'general_service';
 
@@ -58,6 +61,8 @@ export default function DemoSandboxPage() {
     dashboard: false,
     create_booking: false,
     call_queue: false,
+    payment_qr: false,
+    payment_slip: false,
     signage: false,
     mock_chat: false,
     connect_line: false,
@@ -78,6 +83,8 @@ export default function DemoSandboxPage() {
       dashboard: Boolean(json.data?.session?.checklist?.dashboard),
       create_booking: Boolean(json.data?.session?.checklist?.create_booking),
       call_queue: Boolean(json.data?.session?.checklist?.call_queue),
+      payment_qr: Boolean(json.data?.session?.checklist?.payment_qr),
+      payment_slip: Boolean(json.data?.session?.checklist?.payment_slip),
       signage: Boolean(json.data?.session?.checklist?.signage),
       mock_chat: Boolean(json.data?.session?.checklist?.mock_chat),
       connect_line: Boolean(json.data?.session?.checklist?.connect_line),
@@ -122,6 +129,63 @@ export default function DemoSandboxPage() {
     if (action === 'create_booking') push('สร้าง Booking ตัวอย่างแล้ว');
     if (action === 'send_mock') push('ส่งข้อความ mock แล้ว');
     await load();
+  }
+
+  /** QR path: one call, booking comes back paid. Nothing is charged. */
+  async function runQrPaymentDemo() {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/demo-sandbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'demo_pay_qr' }),
+      });
+      const json = await res.json();
+      if (!res.ok) return push(json.error ?? 'จำลองการชำระเงินไม่สำเร็จ', 'error');
+      push(`คิว ${json.data?.queue_number} ชำระผ่าน QR แล้ว (${json.data?.amount} บาท)`);
+      await saveChecklist({ ...checklist, payment_qr: true });
+      await load();
+    } catch (e) {
+      push(e instanceof Error ? e.message : 'จำลองการชำระเงินไม่สำเร็จ', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /** Transfer path: draw a demo slip, upload it, land it in the real review queue. */
+  async function runSlipPaymentDemo() {
+    setSaving(true);
+    try {
+      // Ask which booking the server will pick first, so the drawn slip shows
+      // the amount that booking actually owes.
+      const targetRes = await fetch('/api/demo-sandbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'demo_payment_target' }),
+      });
+      const targetJson = await targetRes.json();
+      if (!targetRes.ok) return push(targetJson.error ?? 'ไม่พบคิวที่ยังไม่ได้ชำระเงิน', 'error');
+
+      const blob = await drawDemoSlipPng({
+        shopName: shop?.name ?? 'ร้านตัวอย่าง',
+        amountLabel: Number(targetJson.data?.amount ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        timestampLabel: new Date().toLocaleString('th-TH'),
+      });
+      const form = new FormData();
+      form.append('action', 'demo_upload_slip');
+      form.append('file', new File([blob], 'demo-slip.png', { type: 'image/png' }));
+
+      const res = await fetch('/api/demo-sandbox', { method: 'POST', body: form });
+      const json = await res.json();
+      if (!res.ok) return push(json.error ?? 'จำลองการส่งสลิปไม่สำเร็จ', 'error');
+      push(`ส่งสลิปของคิว ${json.data?.queue_number} แล้ว — ไปกดอนุมัติที่หน้าตรวจสอบสลิป`);
+      await saveChecklist({ ...checklist, payment_slip: true });
+      await load();
+    } catch (e) {
+      push(e instanceof Error ? e.message : 'จำลองการส่งสลิปไม่สำเร็จ', 'error');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function saveChecklist(next: Record<string, boolean>) {
@@ -289,6 +353,61 @@ export default function DemoSandboxPage() {
           </Card>
         </Grid>
 
+        <Grid size={{ xs: 12, md: 7 }}>
+          <Card sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', boxShadow: 'none', height: '100%' }}>
+            <CardContent>
+              <Typography variant="subtitle1" fontWeight={700}>ทดลองรับชำระเงิน 2 แบบ</Typography>
+              <Typography variant="body2" color="text.secondary" mb={1.6}>
+                ทดลองบนข้อมูลตัวอย่างเท่านั้น — ไม่มีการตัดเงินจริง และไม่เปิดการรับชำระเงินให้ร้านของคุณ
+              </Typography>
+
+              <Stack spacing={1.2}>
+                <Box sx={{ p: 1.4, borderRadius: 1.5, border: '1px solid #e8edf3', bgcolor: '#f8fafc' }}>
+                  <Typography variant="subtitle2" fontWeight={700}>1. สแกน QR PromptPay</Typography>
+                  <Typography variant="caption" color="text.secondary" display="block" mb={1}>
+                    ลูกค้าสแกนจ่าย ระบบยืนยันให้อัตโนมัติ ร้านไม่ต้องกดอะไรเพิ่ม
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    disabled={saving || !hasDemoData}
+                    startIcon={<QrCode2RoundedIcon />}
+                    sx={{ borderRadius: 1.5 }}
+                    onClick={() => void runQrPaymentDemo()}
+                  >
+                    จำลองลูกค้าจ่ายผ่าน QR
+                  </Button>
+                </Box>
+
+                <Box sx={{ p: 1.4, borderRadius: 1.5, border: '1px solid #e8edf3', bgcolor: '#f8fafc' }}>
+                  <Typography variant="subtitle2" fontWeight={700}>2. โอนเงิน + ส่งสลิป</Typography>
+                  <Typography variant="caption" color="text.secondary" display="block" mb={1}>
+                    ลูกค้าอัปโหลดสลิป แล้วร้านกดอนุมัติหรือปฏิเสธเองที่หน้าตรวจสอบสลิป
+                  </Typography>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button
+                      variant="outlined"
+                      disabled={saving || !hasDemoData}
+                      startIcon={<ReceiptLongRoundedIcon />}
+                      sx={{ borderRadius: 1.5 }}
+                      onClick={() => void runSlipPaymentDemo()}
+                    >
+                      จำลองลูกค้าโอน + ส่งสลิป
+                    </Button>
+                    <Button component={Link} href="/portal/payment-verification" variant="text" sx={{ borderRadius: 1.5 }}>
+                      ไปหน้าตรวจสอบสลิป
+                    </Button>
+                  </Stack>
+                </Box>
+              </Stack>
+
+              <Alert severity="info" sx={{ mt: 1.6, borderRadius: 1.5 }}>
+                อยากเปิดรับชำระเงินจริง ตั้งค่าได้ที่{' '}
+                <Link href="/portal/payment-settings">หน้าตั้งค่าการชำระเงิน</Link>
+              </Alert>
+            </CardContent>
+          </Card>
+        </Grid>
+
         <Grid size={{ xs: 12, md: 5 }}>
           <Card sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', boxShadow: 'none', height: '100%' }}>
             <CardContent>
@@ -297,6 +416,8 @@ export default function DemoSandboxPage() {
                 <ListItem sx={{ px: 0 }}><FormControlLabel control={<Checkbox checked={checklist.dashboard} onChange={(e) => void saveChecklist({ ...checklist, dashboard: e.target.checked })} />} label="ทดลองดู Dashboard" /></ListItem>
                 <ListItem sx={{ px: 0 }}><FormControlLabel control={<Checkbox checked={checklist.create_booking} onChange={(e) => void saveChecklist({ ...checklist, create_booking: e.target.checked })} />} label="ทดลองสร้างคิว" /></ListItem>
                 <ListItem sx={{ px: 0 }}><FormControlLabel control={<Checkbox checked={checklist.call_queue} onChange={(e) => void saveChecklist({ ...checklist, call_queue: e.target.checked })} />} label="ทดลองเรียกคิว" /></ListItem>
+                <ListItem sx={{ px: 0 }}><FormControlLabel control={<Checkbox checked={checklist.payment_qr} onChange={(e) => void saveChecklist({ ...checklist, payment_qr: e.target.checked })} />} label="ทดลองรับชำระผ่าน QR PromptPay" /></ListItem>
+                <ListItem sx={{ px: 0 }}><FormControlLabel control={<Checkbox checked={checklist.payment_slip} onChange={(e) => void saveChecklist({ ...checklist, payment_slip: e.target.checked })} />} label="ทดลองรับสลิปโอนเงินและอนุมัติ" /></ListItem>
                 <ListItem sx={{ px: 0 }}><FormControlLabel control={<Checkbox checked={checklist.signage} onChange={(e) => void saveChecklist({ ...checklist, signage: e.target.checked })} />} label="ทดลองดู Digital Signage" /></ListItem>
                 <ListItem sx={{ px: 0 }}><FormControlLabel control={<Checkbox checked={checklist.mock_chat} onChange={(e) => void saveChecklist({ ...checklist, mock_chat: e.target.checked })} />} label="ทดลอง Mock LINE Chat" /></ListItem>
                 <ListItem sx={{ px: 0 }}><FormControlLabel control={<Checkbox checked={checklist.connect_line} onChange={(e) => void saveChecklist({ ...checklist, connect_line: e.target.checked })} />} label="เชื่อม LINE OA จริง" /></ListItem>

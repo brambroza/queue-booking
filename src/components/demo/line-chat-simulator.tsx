@@ -6,6 +6,7 @@ import CallOutlinedIcon from '@mui/icons-material/CallOutlined';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import { FlexBookingSuccess } from '@/components/demo/flex-booking-success';
+import { FlexPaymentPaid, FlexPaymentRequest } from '@/components/demo/flex-payment-request';
 import { QuickReplyBar } from '@/components/demo/quick-reply-bar';
 import { DemoFlexCarousel } from '@/components/demo/demo-flex-carousel';
 import type { ChatMessage, DemoMemberProfile } from '@/components/demo/line-demo-types';
@@ -16,6 +17,17 @@ function Bubble({ msg, memberProfile }: { msg: ChatMessage; memberProfile: DemoM
       <Stack direction="row" spacing={1.2} alignItems="flex-start" sx={{ maxWidth: '100%' }}>
         <Avatar sx={{ width: 38, height: 38, bgcolor: '#fff' }}>◀</Avatar>
         <FlexBookingSuccess booking={msg.booking} />
+      </Stack>
+    );
+  }
+
+  if ((msg.type === 'flex_payment_request' || msg.type === 'flex_payment_paid') && msg.booking) {
+    return (
+      <Stack direction="row" spacing={1.2} alignItems="flex-start" sx={{ maxWidth: '100%' }}>
+        <Avatar sx={{ width: 38, height: 38, bgcolor: '#fff' }}>◀</Avatar>
+        {msg.type === 'flex_payment_request'
+          ? <FlexPaymentRequest booking={msg.booking} />
+          : <FlexPaymentPaid booking={msg.booking} />}
       </Stack>
     );
   }

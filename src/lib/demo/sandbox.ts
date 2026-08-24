@@ -1,5 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { writeAuditLog } from '@/lib/audit/activity-log';
+import { ensurePaymentSlipBucket, PAYMENT_SLIP_BUCKET } from '@/lib/storage/buckets';
+import type { PaymentMethod, PaymentStatus } from '@/types/db';
 
 export type DemoBusinessType = 'barber' | 'clinic' | 'restaurant' | 'buffet' | 'meeting_room' | 'general_service';
 
@@ -51,8 +53,41 @@ type SeedBooking = {
   customer_phone: string;
   party_size?: number;
   resource_code?: string;
+  /**
+   * Demo payment state. Seeded across the whole lifecycle so the portal's
+   * bookings grid and slip queue have something to render on day one.
+   * The service price is used as the amount when this is set.
+   */
+  payment_status?: PaymentStatus;
+  payment_method?: PaymentMethod;
 };
+
 type SeedChat = { direction: 'customer' | 'bot' | 'system'; message_text: string };
+
+/** Prefix for demo slip images inside the private payment-slips bucket. */
+function demoSlipPrefix(shopId: string) {
+  return `demo-slips/${shopId}`;
+}
+
+/**
+ * Delete every demo slip image for one shop.
+ *
+ * Storage failures are logged, not thrown: a leftover image is a tidiness
+ * problem, while a throw here would abort the whole demo reset.
+ */
+async function removeDemoSlipObjects(shopId: string) {
+  const admin = createAdminClient();
+  const prefix = demoSlipPrefix(shopId);
+  const { data: objects, error } = await admin.storage.from(PAYMENT_SLIP_BUCKET).list(prefix, { limit: 100 });
+  if (error) {
+    console.error('[demo] list demo slips failed:', error.message);
+    return;
+  }
+  const paths = (objects ?? []).map((o) => `${prefix}/${o.name}`);
+  if (paths.length === 0) return;
+  const { error: removeError } = await admin.storage.from(PAYMENT_SLIP_BUCKET).remove(paths);
+  if (removeError) console.error('[demo] remove demo slips failed:', removeError.message);
+}
 
 function getScenario(businessType: DemoBusinessType): {
   branch: SeedBranch;
@@ -90,14 +125,14 @@ function getScenario(businessType: DemoBusinessType): {
     return {
       branch: { branch_name: 'สาขาหลัก' },
       services: [
-        { service_name: 'จองรอบบุฟเฟ่ต์', booking_mode: 'capacity_based', duration_minutes: 120, capacity_per_slot: 50, price: 0 },
+        { service_name: 'จองรอบบุฟเฟ่ต์', booking_mode: 'capacity_based', duration_minutes: 120, capacity_per_slot: 50, price: 599 },
         { service_name: 'คิวหน้าร้านบุฟเฟ่ต์', booking_mode: 'walk_in', duration_minutes: 120, capacity_per_slot: 80, price: 0 },
       ],
       resources: [],
       bookings: [
-        { queue_number: 'BF001', service_name: 'จองรอบบุฟเฟ่ต์', start_time: '17:00', status: 'waiting', customer_name: 'คุณดา', customer_phone: '0810002001', party_size: 2 },
-        { queue_number: 'BF002', service_name: 'จองรอบบุฟเฟ่ต์', start_time: '17:30', status: 'called', customer_name: 'คุณดี', customer_phone: '0810002002', party_size: 5 },
-        { queue_number: 'BF003', service_name: 'จองรอบบุฟเฟ่ต์', start_time: '19:00', status: 'seating', customer_name: 'คุณเดย์', customer_phone: '0810002003', party_size: 3 },
+        { queue_number: 'BF001', service_name: 'จองรอบบุฟเฟ่ต์', start_time: '17:00', status: 'waiting', customer_name: 'คุณดา', customer_phone: '0810002001', party_size: 2, payment_status: 'paid', payment_method: 'omise_promptpay' },
+        { queue_number: 'BF002', service_name: 'จองรอบบุฟเฟ่ต์', start_time: '17:30', status: 'called', customer_name: 'คุณดี', customer_phone: '0810002002', party_size: 5, payment_status: 'pending_payment', payment_method: 'bank_transfer' },
+        { queue_number: 'BF003', service_name: 'จองรอบบุฟเฟ่ต์', start_time: '19:00', status: 'seating', customer_name: 'คุณเดย์', customer_phone: '0810002003', party_size: 3, payment_status: 'pending_payment', payment_method: 'bank_transfer' },
       ],
       chats: [
         { direction: 'customer', message_text: 'รอบเย็นว่างไหม' },
@@ -110,9 +145,9 @@ function getScenario(businessType: DemoBusinessType): {
     return {
       branch: { branch_name: 'สาขาหลัก' },
       services: [
-        { service_name: 'จองห้องประชุมรายชั่วโมง', booking_mode: 'fixed_slot', duration_minutes: 60, capacity_per_slot: 1, price: 0 },
-        { service_name: 'จองห้องประชุมครึ่งวัน', booking_mode: 'fixed_slot', duration_minutes: 240, capacity_per_slot: 1, price: 0 },
-        { service_name: 'จองห้องประชุมเต็มวัน', booking_mode: 'fixed_slot', duration_minutes: 480, capacity_per_slot: 1, price: 0 },
+        { service_name: 'จองห้องประชุมรายชั่วโมง', booking_mode: 'fixed_slot', duration_minutes: 60, capacity_per_slot: 1, price: 800 },
+        { service_name: 'จองห้องประชุมครึ่งวัน', booking_mode: 'fixed_slot', duration_minutes: 240, capacity_per_slot: 1, price: 2500 },
+        { service_name: 'จองห้องประชุมเต็มวัน', booking_mode: 'fixed_slot', duration_minutes: 480, capacity_per_slot: 1, price: 4500 },
       ],
       resources: [
         { resource_code: 'ROOM-A', resource_name: 'ห้องประชุม A', resource_type: 'meeting_room', capacity: 6 },
@@ -120,9 +155,9 @@ function getScenario(businessType: DemoBusinessType): {
         { resource_code: 'ROOM-C', resource_name: 'ห้องประชุม C', resource_type: 'meeting_room', capacity: 30 },
       ],
       bookings: [
-        { queue_number: 'M001', service_name: 'จองห้องประชุมรายชั่วโมง', start_time: '10:00', status: 'confirmed', customer_name: 'ทีม Product', customer_phone: '0810003001', resource_code: 'ROOM-A', party_size: 6 },
-        { queue_number: 'M002', service_name: 'จองห้องประชุมครึ่งวัน', start_time: '13:00', status: 'in_service', customer_name: 'ทีม Marketing', customer_phone: '0810003002', resource_code: 'ROOM-B', party_size: 10 },
-        { queue_number: 'M003', service_name: 'จองห้องประชุมเต็มวัน', start_time: '09:00', status: 'completed', customer_name: 'ทีม HR', customer_phone: '0810003003', resource_code: 'ROOM-C', party_size: 20 },
+        { queue_number: 'M001', service_name: 'จองห้องประชุมรายชั่วโมง', start_time: '10:00', status: 'confirmed', customer_name: 'ทีม Product', customer_phone: '0810003001', resource_code: 'ROOM-A', party_size: 6, payment_status: 'pending_payment', payment_method: 'bank_transfer' },
+        { queue_number: 'M002', service_name: 'จองห้องประชุมครึ่งวัน', start_time: '13:00', status: 'in_service', customer_name: 'ทีม Marketing', customer_phone: '0810003002', resource_code: 'ROOM-B', party_size: 10, payment_status: 'paid', payment_method: 'bank_transfer' },
+        { queue_number: 'M003', service_name: 'จองห้องประชุมเต็มวัน', start_time: '09:00', status: 'completed', customer_name: 'ทีม HR', customer_phone: '0810003003', resource_code: 'ROOM-C', party_size: 20, payment_status: 'paid', payment_method: 'omise_promptpay' },
       ],
       chats: [
         { direction: 'customer', message_text: 'ห้องประชุม 10 คนพรุ่งนี้ว่างไหม' },
@@ -135,15 +170,15 @@ function getScenario(businessType: DemoBusinessType): {
     return {
       branch: { branch_name: 'สาขาหลัก' },
       services: [
-        { service_name: 'ตรวจทั่วไป', booking_mode: 'fixed_slot', duration_minutes: 15, capacity_per_slot: 1, price: 0 },
-        { service_name: 'พบแพทย์เฉพาะทาง', booking_mode: 'request_approval', duration_minutes: 30, capacity_per_slot: 1, price: 0 },
-        { service_name: 'ปรึกษาออนไลน์', booking_mode: 'fixed_slot', duration_minutes: 30, capacity_per_slot: 1, price: 0 },
+        { service_name: 'ตรวจทั่วไป', booking_mode: 'fixed_slot', duration_minutes: 15, capacity_per_slot: 1, price: 500 },
+        { service_name: 'พบแพทย์เฉพาะทาง', booking_mode: 'request_approval', duration_minutes: 30, capacity_per_slot: 1, price: 1500 },
+        { service_name: 'ปรึกษาออนไลน์', booking_mode: 'fixed_slot', duration_minutes: 30, capacity_per_slot: 1, price: 800 },
       ],
       resources: [],
       bookings: [
-        { queue_number: 'C001', service_name: 'ตรวจทั่วไป', start_time: '09:30', status: 'waiting', customer_name: 'คุณหมวย', customer_phone: '0810004001' },
-        { queue_number: 'C002', service_name: 'ตรวจทั่วไป', start_time: '11:00', status: 'called', customer_name: 'คุณแก้ม', customer_phone: '0810004002' },
-        { queue_number: 'C003', service_name: 'พบแพทย์เฉพาะทาง', start_time: '14:30', status: 'serving', customer_name: 'คุณออม', customer_phone: '0810004003' },
+        { queue_number: 'C001', service_name: 'ตรวจทั่วไป', start_time: '09:30', status: 'waiting', customer_name: 'คุณหมวย', customer_phone: '0810004001', payment_status: 'paid', payment_method: 'omise_promptpay' },
+        { queue_number: 'C002', service_name: 'ตรวจทั่วไป', start_time: '11:00', status: 'called', customer_name: 'คุณแก้ม', customer_phone: '0810004002', payment_status: 'pending_payment', payment_method: 'bank_transfer' },
+        { queue_number: 'C003', service_name: 'พบแพทย์เฉพาะทาง', start_time: '14:30', status: 'serving', customer_name: 'คุณออม', customer_phone: '0810004003', payment_status: 'pending_payment', payment_method: 'bank_transfer' },
       ],
       chats: [
         { direction: 'customer', message_text: 'พรุ่งนี้มีคิวตรวจไหม' },
@@ -156,13 +191,13 @@ function getScenario(businessType: DemoBusinessType): {
     return {
       branch: { branch_name: 'สาขาหลัก' },
       services: [
-        { service_name: 'รับบริการทั่วไป', booking_mode: 'fixed_slot', duration_minutes: 30, capacity_per_slot: 1, price: 0 },
+        { service_name: 'รับบริการทั่วไป', booking_mode: 'fixed_slot', duration_minutes: 30, capacity_per_slot: 1, price: 350 },
         { service_name: 'รับบริการด่วน', booking_mode: 'walk_in', duration_minutes: 20, capacity_per_slot: 10, price: 0 },
       ],
       resources: [],
       bookings: [
-        { queue_number: 'G001', service_name: 'รับบริการทั่วไป', start_time: '10:00', status: 'waiting', customer_name: 'คุณนัท', customer_phone: '0810005001' },
-        { queue_number: 'G002', service_name: 'รับบริการทั่วไป', start_time: '10:30', status: 'called', customer_name: 'คุณฟ้า', customer_phone: '0810005002' },
+        { queue_number: 'G001', service_name: 'รับบริการทั่วไป', start_time: '10:00', status: 'waiting', customer_name: 'คุณนัท', customer_phone: '0810005001', payment_status: 'paid', payment_method: 'omise_promptpay' },
+        { queue_number: 'G002', service_name: 'รับบริการทั่วไป', start_time: '10:30', status: 'called', customer_name: 'คุณฟ้า', customer_phone: '0810005002', payment_status: 'pending_payment', payment_method: 'bank_transfer' },
       ],
       chats: [
         { direction: 'customer', message_text: 'วันนี้คิวว่างไหม' },
@@ -174,16 +209,16 @@ function getScenario(businessType: DemoBusinessType): {
   return {
     branch: { branch_name: 'สาขาหลัก' },
     services: [
-      { service_name: 'ตัดผมชาย', booking_mode: 'fixed_slot', duration_minutes: 30, capacity_per_slot: 1, price: 0 },
-      { service_name: 'สระผม', booking_mode: 'fixed_slot', duration_minutes: 20, capacity_per_slot: 1, price: 0 },
-      { service_name: 'ทำสีผม', booking_mode: 'flexible_duration', min_duration_minutes: 90, max_duration_minutes: 180, capacity_per_slot: 1, price: 0 },
+      { service_name: 'ตัดผมชาย', booking_mode: 'fixed_slot', duration_minutes: 30, capacity_per_slot: 1, price: 300 },
+      { service_name: 'สระผม', booking_mode: 'fixed_slot', duration_minutes: 20, capacity_per_slot: 1, price: 150 },
+      { service_name: 'ทำสีผม', booking_mode: 'flexible_duration', min_duration_minutes: 90, max_duration_minutes: 180, capacity_per_slot: 1, price: 1200 },
     ],
     resources: [],
     bookings: [
-      { queue_number: 'A001', service_name: 'ตัดผมชาย', start_time: '10:00', status: 'waiting', customer_name: 'คุณหนึ่ง', customer_phone: '0810006001' },
-      { queue_number: 'A002', service_name: 'ตัดผมชาย', start_time: '11:30', status: 'called', customer_name: 'คุณสอง', customer_phone: '0810006002' },
-      { queue_number: 'A003', service_name: 'สระผม', start_time: '14:00', status: 'serving', customer_name: 'คุณสาม', customer_phone: '0810006003' },
-      { queue_number: 'A004', service_name: 'ทำสีผม', start_time: '15:00', status: 'confirmed', customer_name: 'คุณสี่', customer_phone: '0810006004' },
+      { queue_number: 'A001', service_name: 'ตัดผมชาย', start_time: '10:00', status: 'waiting', customer_name: 'คุณหนึ่ง', customer_phone: '0810006001', payment_status: 'paid', payment_method: 'omise_promptpay' },
+      { queue_number: 'A002', service_name: 'ตัดผมชาย', start_time: '11:30', status: 'called', customer_name: 'คุณสอง', customer_phone: '0810006002', payment_status: 'pending_payment', payment_method: 'bank_transfer' },
+      { queue_number: 'A003', service_name: 'สระผม', start_time: '14:00', status: 'serving', customer_name: 'คุณสาม', customer_phone: '0810006003', payment_status: 'unpaid' },
+      { queue_number: 'A004', service_name: 'ทำสีผม', start_time: '15:00', status: 'confirmed', customer_name: 'คุณสี่', customer_phone: '0810006004', payment_status: 'pending_payment', payment_method: 'bank_transfer' },
     ],
     chats: [
       { direction: 'customer', message_text: 'คิวว่างวันนี้' },
@@ -209,6 +244,12 @@ async function clearDemoData(ctx: { companyId: string; shopId: string }) {
   if (demoResourceIds.length > 0) {
     await admin.from('booking_resource_assignments').delete().in('resource_id', demoResourceIds);
   }
+
+  // Demo slips must go before the bookings they hang off, otherwise they stay
+  // visible in the shop's verification queue with no booking behind them.
+  await admin.from('payment_slips').update({ is_deleted: true }).eq('company_id', companyId).eq('shop_id', shopId).eq('is_demo', true);
+  await admin.from('payment_transactions').delete().eq('company_id', companyId).eq('shop_id', shopId).eq('is_demo', true);
+  await removeDemoSlipObjects(shopId);
 
   await admin.from('booking_logs').update({ is_deleted: true }).eq('company_id', companyId).eq('shop_id', shopId).eq('is_demo', true);
   await admin.from('bookings').update({ is_deleted: true }).eq('company_id', companyId).eq('shop_id', shopId).eq('is_demo', true);
@@ -292,7 +333,7 @@ export async function createDemoSandbox(input: DemoContext) {
         updated_by: input.userId ?? null,
       })),
     )
-    .select('id,service_name,duration_minutes');
+    .select('id,service_name,duration_minutes,price');
   if (serviceError) throw serviceError;
 
   const servicesByName = new Map((createdServices ?? []).map((s) => [s.service_name, s]));
@@ -367,6 +408,12 @@ export async function createDemoSandbox(input: DemoContext) {
     const endTime = timeAddMinutes(b.start_time, Number(service.duration_minutes ?? 30));
     const bookingDate = b.status === 'completed' ? todayIso(-1) : todayIso(0);
 
+    // Payment columns are demo display data only — no charge is created and the
+    // shop's own qr_payment_enabled / transfer_payment_enabled stay untouched.
+    const servicePrice = Number(service.price ?? 0);
+    const paymentStatus: PaymentStatus = servicePrice > 0 ? (b.payment_status ?? 'unpaid') : 'unpaid';
+    const hasInvoice = servicePrice > 0 && paymentStatus !== 'unpaid';
+
     const { data: booking, error: bookingError } = await admin
       .from('bookings')
       .insert({
@@ -385,6 +432,11 @@ export async function createDemoSandbox(input: DemoContext) {
         resource_id: resource?.id ?? null,
         resource_name: resource?.resource_name ?? null,
         resource_capacity: resource?.capacity ?? null,
+        payment_status: paymentStatus,
+        payment_method: hasInvoice ? (b.payment_method ?? 'bank_transfer') : null,
+        payment_amount: hasInvoice ? servicePrice : null,
+        payment_expires_at: paymentStatus === 'pending_payment' ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null,
+        paid_at: paymentStatus === 'paid' ? new Date().toISOString() : null,
         note: 'Demo booking',
         is_demo: true,
         created_by: input.userId ?? null,
@@ -698,6 +750,213 @@ export async function callNextDemoQueue(input: { companyId: string; shopId: stri
   return { called: true, queue_number: booking.queue_number };
 }
 
+type DemoPayableBooking = {
+  id: string;
+  queue_number: string;
+  branch_id: string | null;
+  line_user_id: string | null;
+  payment_amount: number | null;
+  services: { price: number | null } | { price: number | null }[] | null;
+};
+
+/**
+ * Find one demo booking that still owes money, newest first.
+ *
+ * Falls back to the service price when the booking has no invoice yet, so a
+ * sandbox that was seeded before prices existed still has something to charge.
+ */
+async function findDemoPayableBooking(input: { companyId: string; shopId: string }) {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from('bookings')
+    .select('id,queue_number,branch_id,line_user_id,payment_amount,services(price)')
+    .eq('company_id', input.companyId)
+    .eq('shop_id', input.shopId)
+    .eq('is_demo', true)
+    .eq('is_deleted', false)
+    .neq('payment_status', 'paid')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle<DemoPayableBooking>();
+  if (error) throw error;
+  if (!data) throw new Error('ไม่พบคิว demo ที่ยังไม่ได้ชำระเงิน — กดสร้างข้อมูลตัวอย่างก่อน');
+
+  const service = Array.isArray(data.services) ? data.services[0] : data.services;
+  const amount = Number(data.payment_amount ?? service?.price ?? 0);
+  if (amount <= 0) throw new Error('คิว demo นี้ไม่มียอดที่ต้องชำระ — เลือกประเภทธุรกิจที่มีราคาบริการแล้วสร้างใหม่');
+
+  return { booking: data, amount };
+}
+
+/**
+ * Which demo booking the next payment demo will act on.
+ *
+ * The slip demo needs this up front: the slip image is drawn in the browser, so
+ * the client has to know the amount before it can render a believable receipt.
+ */
+export async function getDemoPaymentTarget(input: { companyId: string; shopId: string }) {
+  const { booking, amount } = await findDemoPayableBooking(input);
+  return { queue_number: booking.queue_number, amount };
+}
+
+/**
+ * Demo of the Omise PromptPay path: invoice then instant confirmation.
+ *
+ * The real flow gets that confirmation from an Omise webhook. Here it is
+ * applied directly — no charge is created, no Omise key is read, and the shop's
+ * qr_payment_enabled flag is never touched.
+ */
+export async function simulateDemoQrPayment(input: { companyId: string; shopId: string; userId?: string | null }) {
+  const admin = createAdminClient();
+  const { booking, amount } = await findDemoPayableBooking(input);
+  const now = new Date().toISOString();
+
+  const { error: updateError } = await admin
+    .from('bookings')
+    .update({
+      payment_method: 'omise_promptpay',
+      payment_amount: amount,
+      payment_status: 'paid',
+      paid_at: now,
+      payment_expires_at: null,
+      payment_reject_reason: null,
+      updated_by: input.userId ?? null,
+    })
+    .eq('id', booking.id);
+  if (updateError) throw updateError;
+
+  await admin.from('payment_transactions').insert({
+    company_id: input.companyId,
+    shop_id: input.shopId,
+    booking_id: booking.id,
+    omise_charge_id: null,
+    method: 'omise_promptpay',
+    amount,
+    currency: 'THB',
+    status: 'successful',
+    event_type: 'demo.charge.complete',
+    note: 'Demo payment — no money moved',
+    is_demo: true,
+    created_by: input.userId ?? null,
+    updated_by: input.userId ?? null,
+  });
+
+  await admin.from('booking_logs').insert({
+    company_id: input.companyId,
+    shop_id: input.shopId,
+    booking_id: booking.id,
+    action: 'demo_payment_qr',
+    description: `Demo QR payment ${booking.queue_number} — ${amount} THB`,
+    is_demo: true,
+    created_by: input.userId ?? null,
+    updated_by: input.userId ?? null,
+  });
+
+  await admin.from('demo_chat_messages').insert({
+    company_id: input.companyId,
+    shop_id: input.shopId,
+    branch_id: booking.branch_id ?? null,
+    direction: 'bot',
+    message_text: `ชำระเงินสำเร็จค่ะ คิว ${booking.queue_number} ยอด ${amount} บาท`,
+    message_type: 'text',
+    related_booking_id: booking.id,
+    is_demo: true,
+  });
+
+  return { queue_number: booking.queue_number, amount };
+}
+
+/**
+ * Demo of the bank-transfer path: the customer's slip lands in the shop's real
+ * verification queue, so the owner can approve or reject it with the same
+ * screen they would use in production.
+ */
+export async function createDemoPaymentSlip(input: {
+  companyId: string;
+  shopId: string;
+  userId?: string | null;
+  file: { bytes: ArrayBuffer; mimeType: string };
+}) {
+  const admin = createAdminClient();
+  const { booking, amount } = await findDemoPayableBooking(input);
+
+  await ensurePaymentSlipBucket(admin);
+
+  const objectKey = `${demoSlipPrefix(input.shopId)}/${booking.id}-${Date.now()}.png`;
+  const { error: uploadError } = await admin.storage
+    .from(PAYMENT_SLIP_BUCKET)
+    .upload(objectKey, input.file.bytes, { contentType: input.file.mimeType, upsert: true });
+  if (uploadError) throw uploadError;
+
+  const now = new Date().toISOString();
+
+  // Any earlier demo slip for this booking is history, same as production does
+  // when a customer re-uploads.
+  await admin
+    .from('payment_slips')
+    .update({ status: 'superseded', updated_at: now, updated_by: input.userId ?? null })
+    .eq('booking_id', booking.id)
+    .eq('status', 'pending')
+    .eq('is_deleted', false);
+
+  const { data: slip, error: slipError } = await admin
+    .from('payment_slips')
+    .insert({
+      company_id: input.companyId,
+      shop_id: input.shopId,
+      booking_id: booking.id,
+      storage_path: objectKey,
+      mime_type: input.file.mimeType,
+      file_size: input.file.bytes.byteLength,
+      amount_claimed: amount,
+      transferred_at: now,
+      status: 'pending',
+      uploaded_by_line_user: booking.line_user_id ?? null,
+      is_demo: true,
+      created_by: input.userId ?? null,
+      updated_by: input.userId ?? null,
+    })
+    .select('id')
+    .single();
+  if (slipError) throw slipError;
+
+  const { error: bookingError } = await admin
+    .from('bookings')
+    .update({
+      payment_method: 'bank_transfer',
+      payment_amount: amount,
+      payment_status: 'awaiting_verification',
+      payment_reject_reason: null,
+      updated_by: input.userId ?? null,
+    })
+    .eq('id', booking.id);
+  if (bookingError) throw bookingError;
+
+  await admin.from('booking_logs').insert({
+    company_id: input.companyId,
+    shop_id: input.shopId,
+    booking_id: booking.id,
+    action: 'demo_payment_slip',
+    description: `Demo transfer slip ${booking.queue_number} — ${amount} THB`,
+    is_demo: true,
+    created_by: input.userId ?? null,
+    updated_by: input.userId ?? null,
+  });
+
+  await admin.from('demo_chat_messages').insert({
+    company_id: input.companyId,
+    shop_id: input.shopId,
+    branch_id: booking.branch_id ?? null,
+    direction: 'customer',
+    message_text: `ส่งสลิปการโอนของคิว ${booking.queue_number} แล้วค่ะ`,
+    message_type: 'text',
+    related_booking_id: booking.id,
+    is_demo: true,
+  });
+
+  return { queue_number: booking.queue_number, amount, slip_id: slip.id, booking_id: booking.id };
+}
+
 export async function updateDemoChecklist(input: {
   companyId: string;
   shopId: string;
@@ -777,6 +1036,25 @@ export async function convertDemoToReal(input: {
       .eq('is_demo', true)
       .eq('is_deleted', false);
   }
+
+  // Demo slips go with the demo bookings — leaving them behind would put fake
+  // rows in a now-real verification queue.
+  await admin
+    .from('payment_slips')
+    .update({ is_deleted: true, updated_by: input.userId ?? null })
+    .eq('company_id', input.companyId)
+    .eq('shop_id', input.shopId)
+    .eq('is_demo', true)
+    .eq('is_deleted', false);
+
+  await admin
+    .from('payment_transactions')
+    .delete()
+    .eq('company_id', input.companyId)
+    .eq('shop_id', input.shopId)
+    .eq('is_demo', true);
+
+  await removeDemoSlipObjects(input.shopId);
 
   await admin
     .from('bookings')

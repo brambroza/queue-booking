@@ -6,16 +6,20 @@ import {
   callNextDemoQueue,
   convertDemoToReal,
   createDemoBooking,
+  createDemoPaymentSlip,
   createDemoSandbox,
+  getDemoPaymentTarget,
   resetDemoSandbox,
   sendDemoChatMessage,
+  simulateDemoQrPayment,
   updateDemoChecklist,
   type DemoBusinessType,
 } from '@/lib/demo/sandbox';
+import { SLIP_ALLOWED_MIME, SLIP_MAX_BYTES } from '@/lib/storage/buckets';
 import { writeAuditLog } from '@/lib/audit/activity-log';
 
 const actionSchema = z.object({
-  action: z.enum(['create', 'reset', 'disable', 'create_booking', 'call_next', 'send_mock', 'convert_to_real', 'update_checklist']),
+  action: z.enum(['create', 'reset', 'disable', 'create_booking', 'call_next', 'send_mock', 'convert_to_real', 'update_checklist', 'demo_pay_qr', 'demo_payment_target']),
   business_type: z.enum(['barber', 'clinic', 'restaurant', 'buffet', 'meeting_room', 'general_service']).optional(),
   message_text: z.string().optional(),
   direction: z.enum(['customer', 'bot', 'system']).optional(),
@@ -89,6 +93,35 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const { user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
+
+    // The slip demo posts an image, so it arrives as multipart and must be
+    // handled before the JSON branch below.
+    if (req.headers.get('content-type')?.includes('multipart/form-data')) {
+      const form = await req.formData();
+      if (form.get('action') !== 'demo_upload_slip') {
+        return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+      }
+      const file = form.get('file');
+      if (!(file instanceof File)) {
+        return NextResponse.json({ error: 'ไม่พบไฟล์สลิป' }, { status: 400 });
+      }
+      if (!(SLIP_ALLOWED_MIME as readonly string[]).includes(file.type)) {
+        return NextResponse.json({ error: 'รองรับเฉพาะไฟล์ JPG, PNG หรือ WebP' }, { status: 400 });
+      }
+      if (file.size > SLIP_MAX_BYTES) {
+        return NextResponse.json({ error: 'ไฟล์สลิปใหญ่เกินไป' }, { status: 400 });
+      }
+
+      const slipTenant = await resolveTenant(user.id, profile);
+      const result = await createDemoPaymentSlip({
+        companyId: slipTenant.companyId,
+        shopId: slipTenant.shopId,
+        userId: user.id,
+        file: { bytes: await file.arrayBuffer(), mimeType: file.type },
+      });
+      return NextResponse.json({ data: result });
+    }
+
     const body = await req.json();
     const parsed = actionSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues }, { status: 400 });
@@ -128,6 +161,20 @@ export async function POST(req: Request) {
 
     if (parsed.data.action === 'call_next') {
       const result = await callNextDemoQueue({
+        companyId: tenant.companyId,
+        shopId: tenant.shopId,
+        userId: user.id,
+      });
+      return NextResponse.json({ data: result });
+    }
+
+    if (parsed.data.action === 'demo_payment_target') {
+      const target = await getDemoPaymentTarget({ companyId: tenant.companyId, shopId: tenant.shopId });
+      return NextResponse.json({ data: target });
+    }
+
+    if (parsed.data.action === 'demo_pay_qr') {
+      const result = await simulateDemoQrPayment({
         companyId: tenant.companyId,
         shopId: tenant.shopId,
         userId: user.id,

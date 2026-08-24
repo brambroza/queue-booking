@@ -14,11 +14,13 @@ import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 import FullscreenRoundedIcon from '@mui/icons-material/FullscreenRounded';
 import { LineChatSimulator } from '@/components/demo/line-chat-simulator';
 import { LiffBookingSimulator } from '@/components/demo/liff-booking-simulator';
+import { DemoPaymentSimulator } from '@/components/demo/demo-payment-simulator';
 import { RichMenuSimulator } from '@/components/demo/rich-menu-simulator';
 import { DemoQueueBoard } from '@/components/demo/demo-queue-board';
 import { DemoSignage } from '@/components/demo/demo-signage';
 import type { PromoCard } from '@/components/demo/demo-flex-carousel';
 import type { ChatMessage, DemoBooking, DemoMemberProfile, DemoMenuAction, DemoQueueItem, DemoQueueStatus, DemoTemplate } from '@/components/demo/line-demo-types';
+import type { PaymentMethod } from '@/types/db';
 
 let demoIdSeq = 0;
 function id() {
@@ -77,20 +79,32 @@ const initialMessages: ChatMessage[] = [
 ];
 
 const seededQueue: DemoQueueItem[] = [
-  { id: id(), queueNo: 'A001', branchName: 'ประชาอุทิศ', serviceName: 'ตัดผมชาย', dateLabel: '16 พ.ค. 2569', timeLabel: '09:30', customerName: 'คุณเอ', resourceName: 'ช่างบอส', status: 'waiting', customerPhone: '0890000001' },
-  { id: id(), queueNo: 'A002', branchName: 'ประชาอุทิศ', serviceName: 'ตัดผม + สระ', dateLabel: '16 พ.ค. 2569', timeLabel: '10:00', customerName: 'คุณบี', resourceName: 'ช่างโต', status: 'called', customerPhone: '0890000002' },
-  { id: id(), queueNo: 'A003', branchName: 'ประชาอุทิศ', serviceName: 'ทำสีผม', dateLabel: '16 พ.ค. 2569', timeLabel: '10:30', customerName: 'คุณซี', resourceName: 'ช่างบั้ม', status: 'serving', customerPhone: '0890000003' },
-  { id: id(), queueNo: 'A004', branchName: 'ประชาอุทิศ', serviceName: 'สระผม', dateLabel: '16 พ.ค. 2569', timeLabel: '11:00', customerName: 'คุณดี', resourceName: 'ช่างบอส', status: 'completed', customerPhone: '0890000004' },
+  { id: id(), queueNo: 'A001', branchName: 'ประชาอุทิศ', serviceName: 'ตัดผมชาย', dateLabel: '16 พ.ค. 2569', timeLabel: '09:30', customerName: 'คุณเอ', resourceName: 'ช่างบอส', status: 'waiting', customerPhone: '0890000001', amount: 300, paymentMethod: 'omise_promptpay', paymentStatus: 'paid' },
+  { id: id(), queueNo: 'A002', branchName: 'ประชาอุทิศ', serviceName: 'ตัดผม + สระ', dateLabel: '16 พ.ค. 2569', timeLabel: '10:00', customerName: 'คุณบี', resourceName: 'ช่างโต', status: 'called', customerPhone: '0890000002', amount: 450, paymentMethod: 'bank_transfer', paymentStatus: 'awaiting_verification' },
+  { id: id(), queueNo: 'A003', branchName: 'ประชาอุทิศ', serviceName: 'ทำสีผม', dateLabel: '16 พ.ค. 2569', timeLabel: '10:30', customerName: 'คุณซี', resourceName: 'ช่างบั้ม', status: 'serving', customerPhone: '0890000003', amount: 1200, paymentMethod: 'bank_transfer', paymentStatus: 'pending_payment' },
+  { id: id(), queueNo: 'A004', branchName: 'ประชาอุทิศ', serviceName: 'สระผม', dateLabel: '16 พ.ค. 2569', timeLabel: '11:00', customerName: 'คุณดี', resourceName: 'ช่างบอส', status: 'completed', customerPhone: '0890000004', amount: 150, paymentMethod: 'omise_promptpay', paymentStatus: 'paid' },
 ];
 
-/** Ordered demo steps; index drives the progress bar and Next Step button. */
-const STEP_ORDER: Array<2 | 3 | 4 | 5 | 6> = [2, 3, 4, 5, 6];
+/** Ordered demo steps; index drives the chip label, progress bar and Next Step button. */
+type DemoStepKey = 'chat' | 'booking' | 'payment' | 'notify' | 'board' | 'signage';
+const STEP_ORDER: DemoStepKey[] = ['chat', 'booking', 'payment', 'notify', 'board', 'signage'];
+
+/** Which earlier steps a jump must unlock, so a walktour jump never lands on a locked panel. */
+function unlockedUpTo(step: DemoStepKey, prev: Record<DemoStepKey, boolean>): Record<DemoStepKey, boolean> {
+  const limit = STEP_ORDER.indexOf(step);
+  const next = { ...prev };
+  STEP_ORDER.forEach((key, index) => {
+    if (index <= limit) next[key] = true;
+  });
+  return next;
+}
 
 type SyncEvent =
   | { type: 'reset' }
   | { type: 'menu'; key: DemoMenuAction }
   | { type: 'quick'; key: 'today' | 'tomorrow' | 'morning' | 'afternoon' | 'contact' }
   | { type: 'booked'; booking: DemoBooking }
+  | { type: 'payment'; action: 'method' | 'slip' | 'paid' | 'reject'; method?: PaymentMethod; reason?: string }
   | { type: 'queue'; action: 'call_next' | 'recall' | 'near' | 'advance' | 'add' }
   | { type: 'template'; template: DemoTemplate };
 
@@ -108,13 +122,14 @@ export function DemoLineExperiencePanel() {
   const [showLiff, setShowLiff] = useState(true);
   const [lastBooking, setLastBooking] = useState<DemoBooking | null>(null);
   const [queueItems, setQueueItems] = useState<DemoQueueItem[]>(seededQueue);
-  const [currentStep, setCurrentStep] = useState<2 | 3 | 4 | 5 | 6>(2);
-  const [unlockedSteps, setUnlockedSteps] = useState<Record<2 | 3 | 4 | 5 | 6, boolean>>({
-    2: true,
-    3: false,
-    4: false,
-    5: false,
-    6: false,
+  const [currentStep, setCurrentStep] = useState<DemoStepKey>('chat');
+  const [unlockedSteps, setUnlockedSteps] = useState<Record<DemoStepKey, boolean>>({
+    chat: true,
+    booking: false,
+    payment: false,
+    notify: false,
+    board: false,
+    signage: false,
   });
   const [memberProfile, setMemberProfile] = useState<DemoMemberProfile>({
     name: 'ลูกค้าประจำ',
@@ -130,16 +145,17 @@ export function DemoLineExperiencePanel() {
   const templateConfig = useMemo(() => TEMPLATE_CONFIG[template], [template]);
   const currentStepIndex = STEP_ORDER.indexOf(currentStep);
   const nextStep = currentStepIndex >= 0 ? STEP_ORDER[currentStepIndex + 1] : undefined;
-  const walktourSteps: Array<{ step: 2 | 3 | 4 | 5 | 6; title: string; description: string }> = [
-    { step: 2, title: 'STEP 1: LINE Chat', description: 'เริ่มจากแชทลูกค้าใน LINE และกดเมนูจองคิวจาก Rich Menu' },
-    { step: 3, title: 'STEP 2: LIFF Booking', description: 'เลือกบริการ วัน เวลา และยืนยันการจองผ่าน LIFF' },
-    { step: 4, title: 'STEP 3: Queue Notification', description: 'ฝั่งร้านทดลองส่งแจ้งเตือน เรียกคิว และอัปเดตสถานะคิว' },
-    { step: 5, title: 'STEP 4: Queue Board', description: 'ดูภาพรวมคิวสำหรับพนักงาน พร้อมมุมมองลูกค้าแบบมือถือ' },
-    { step: 6, title: 'STEP 5: Signage View', description: 'แสดงจอเรียกคิวหน้าร้านสำหรับลูกค้าที่รอคิว' },
+  const walktourSteps: Array<{ step: DemoStepKey; title: string; description: string }> = [
+    { step: 'chat', title: 'STEP 1: LINE Chat', description: 'เริ่มจากแชทลูกค้าใน LINE และกดเมนูจองคิวจาก Rich Menu' },
+    { step: 'booking', title: 'STEP 2: LIFF Booking', description: 'เลือกบริการ วัน เวลา และยืนยันการจองผ่าน LIFF' },
+    { step: 'payment', title: 'STEP 3: ชำระเงิน', description: 'ทดลองรับชำระเงิน 2 แบบ — สแกน QR PromptPay ที่ยืนยันอัตโนมัติ และโอนเงินแล้วส่งสลิปให้ร้านอนุมัติเอง' },
+    { step: 'notify', title: 'STEP 4: Queue Notification', description: 'ฝั่งร้านทดลองส่งแจ้งเตือน เรียกคิว และอัปเดตสถานะคิว' },
+    { step: 'board', title: 'STEP 5: Queue Board', description: 'ดูภาพรวมคิวสำหรับพนักงาน พร้อมมุมมองลูกค้าแบบมือถือ' },
+    { step: 'signage', title: 'STEP 6: Signage View', description: 'แสดงจอเรียกคิวหน้าร้านสำหรับลูกค้าที่รอคิว' },
   ];
   const activeWalktourStep = walktourSteps[walktourIndex];
 
-  function unlockStep(step: 2 | 3 | 4 | 5 | 6) {
+  function unlockStep(step: DemoStepKey) {
     setUnlockedSteps((prev) => (prev[step] ? prev : { ...prev, [step]: true }));
   }
 
@@ -148,22 +164,15 @@ export function DemoLineExperiencePanel() {
     setCurrentStep(nextStep);
   }
 
-  function goToStepWithUnlock(step: 2 | 3 | 4 | 5 | 6) {
-    setUnlockedSteps((prev) => ({
-      ...prev,
-      2: true,
-      3: step >= 3 ? true : prev[3],
-      4: step >= 4 ? true : prev[4],
-      5: step >= 5 ? true : prev[5],
-      6: step >= 6 ? true : prev[6],
-    }));
+  function goToStepWithUnlock(step: DemoStepKey) {
+    setUnlockedSteps((prev) => unlockedUpTo(step, prev));
     setCurrentStep(step);
   }
 
   function startWalktour() {
     setWalktourIndex(0);
     setWalktourOpen(true);
-    goToStepWithUnlock(2);
+    goToStepWithUnlock('chat');
   }
 
   function moveWalktour(direction: 'next' | 'prev') {
@@ -184,8 +193,8 @@ export function DemoLineExperiencePanel() {
     goToStepWithUnlock(walktourSteps[nextIndex].step);
   }
 
-  async function openFullscreen(target: 'step5' | 'step6') {
-    const element = target === 'step5' ? step5FullscreenRef.current : step6FullscreenRef.current;
+  async function openFullscreen(target: 'board' | 'signage') {
+    const element = target === 'board' ? step5FullscreenRef.current : step6FullscreenRef.current;
     if (!element) return;
     await element.requestFullscreen?.();
   }
@@ -527,8 +536,8 @@ export function DemoLineExperiencePanel() {
   function onMenuSelect(key: DemoMenuAction) {
     setActiveMenu(key);
     if (key === 'booking' || key === 'open_liff') {
-      unlockStep(3);
-      setCurrentStep(3);
+      unlockStep('booking');
+      setCurrentStep('booking');
       setShowLiff(true);
       botReply('กรุณาเลือกบริการ วัน และเวลาใน LIFF Simulator ได้เลยค่ะ');
       return;
@@ -569,8 +578,16 @@ export function DemoLineExperiencePanel() {
   }
 
   function onBooked(booking: DemoBooking) {
-    unlockStep(4);
-    setCurrentStep(4);
+    const needsPayment = (booking.amount ?? 0) > 0;
+    // The real flow books first and invoices afterwards, so the queue card
+    // appears immediately — it just carries a "รอชำระ" badge until paid.
+    if (needsPayment) {
+      unlockStep('payment');
+      setCurrentStep('payment');
+    } else {
+      unlockStep('notify');
+      setCurrentStep('notify');
+    }
     setLastBooking(booking);
     setShowLiff(false);
     setQueueItems((prev) => [...prev, { id: id(), ...booking, status: 'waiting', resourceName: templateConfig.resourceLabel }]);
@@ -588,8 +605,49 @@ export function DemoLineExperiencePanel() {
       setTyping(false);
       pushMessage({ id: id(), role: 'bot', text: 'จองคิวสำเร็จค่ะ' });
       pushMessage({ id: id(), role: 'bot', type: 'flex_booking_success', booking });
+      if (needsPayment) pushMessage({ id: id(), role: 'bot', type: 'flex_payment_request', booking });
       setActiveMenu('check');
     }, 650);
+  }
+
+  /** Applies a payment change to both the last booking and its queue card. */
+  function patchLastBooking(patch: Partial<DemoBooking>) {
+    setLastBooking((prev) => (prev ? { ...prev, ...patch } : prev));
+    setQueueItems((prev) => prev.map((q) => (lastBooking && q.queueNo === lastBooking.queueNo ? { ...q, ...patch } : q)));
+  }
+
+  function onPaymentEvent(action: 'method' | 'slip' | 'paid' | 'reject', method?: PaymentMethod, reason?: string) {
+    if (!lastBooking) return;
+
+    if (action === 'method') {
+      if (!method) return;
+      // Switching method re-issues the invoice, exactly as the real flow does.
+      patchLastBooking({ paymentMethod: method, paymentStatus: 'pending_payment' });
+      pushMessage({ id: id(), role: 'bot', type: 'flex_payment_request', booking: { ...lastBooking, paymentMethod: method, paymentStatus: 'pending_payment' } });
+      return;
+    }
+
+    if (action === 'slip') {
+      patchLastBooking({ paymentStatus: 'awaiting_verification' });
+      pushMessage({ id: id(), role: 'customer', text: 'ส่งสลิปการโอนแล้วค่ะ' });
+      botReply('ได้รับสลิปแล้วค่ะ กำลังรอร้านตรวจสอบ จะแจ้งผลให้ทราบทางนี้ค่ะ', 320);
+      return;
+    }
+
+    if (action === 'reject') {
+      patchLastBooking({ paymentStatus: 'rejected' });
+      botReply(`สลิปไม่ผ่านการตรวจสอบค่ะ\nเหตุผล: ${reason ?? 'ยอดเงินไม่ตรง'}\nกรุณาอัปโหลดสลิปใหม่อีกครั้งค่ะ`, 320);
+      return;
+    }
+
+    patchLastBooking({ paymentStatus: 'paid' });
+    unlockStep('notify');
+    setTyping(true);
+    window.setTimeout(() => {
+      setTyping(false);
+      pushMessage({ id: id(), role: 'bot', type: 'flex_payment_paid', booking: { ...lastBooking, paymentStatus: 'paid' } });
+      setCurrentStep('notify');
+    }, 480);
   }
 
   function resetDemo() {
@@ -599,8 +657,8 @@ export function DemoLineExperiencePanel() {
     setShowLiff(true);
     setTyping(false);
     setQueueItems(seededQueue);
-    setCurrentStep(2);
-    setUnlockedSteps({ 2: true, 3: false, 4: false, 5: false, 6: false });
+    setCurrentStep('chat');
+    setUnlockedSteps({ chat: true, booking: false, payment: false, notify: false, board: false, signage: false });
     setMemberProfile({
       name: 'ลูกค้าประจำ',
       phone: '085-608-3298',
@@ -616,14 +674,16 @@ export function DemoLineExperiencePanel() {
     if (payload.type === 'menu') onMenuSelect(payload.key);
     if (payload.type === 'quick') onQuickReply(payload.key);
     if (payload.type === 'booked') onBooked(payload.booking);
+    if (payload.type === 'payment') onPaymentEvent(payload.action, payload.method, payload.reason);
     if (payload.type === 'template') {
       setTemplate(payload.template);
       botReply(`เปลี่ยนเทมเพลตเป็น ${payload.template} แล้ว`);
     }
     if (payload.type === 'queue') {
-      unlockStep(5);
-      unlockStep(6);
-      setCurrentStep(5);
+      unlockStep('notify');
+      unlockStep('board');
+      unlockStep('signage');
+      setCurrentStep('board');
       if (payload.action === 'call_next') onCallNextQueue();
       if (payload.action === 'recall') onRecallQueue();
       if (payload.action === 'near') onNearQueue();
@@ -670,18 +730,17 @@ export function DemoLineExperiencePanel() {
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'center', md: 'center' }}>
             <Typography variant="caption" color="text.secondary">ลำดับการทดลอง:</Typography>
             <Stack direction="row" spacing={0.8} flexWrap="wrap">
-              {[2, 3, 4, 5, 6].map((step) => {
-                const typedStep = step as 2 | 3 | 4 | 5 | 6;
-                const unlocked = unlockedSteps[typedStep];
-                const active = currentStep === typedStep;
+              {STEP_ORDER.map((stepKey, index) => {
+                const unlocked = unlockedSteps[stepKey];
+                const active = currentStep === stepKey;
                 return (
                   <Chip
-                    key={step}
+                    key={stepKey}
                     data-demo-step-chip
                     data-demo-active-step={active ? 'true' : undefined}
-                    label={`STEP ${step-1}`}
+                    label={`STEP ${index + 1}`}
                     clickable={unlocked}
-                    onClick={unlocked ? () => setCurrentStep(typedStep) : undefined}
+                    onClick={unlocked ? () => setCurrentStep(stepKey) : undefined}
                     variant={active ? 'filled' : 'outlined'}
                     sx={{
                       bgcolor: active ? '#EAF3DE' : undefined,
@@ -732,9 +791,9 @@ export function DemoLineExperiencePanel() {
         </CardContent>
       </Card>
 
-      {currentStep === 2 || currentStep === 3 || currentStep === 4 ? (
+      {currentStep === 'chat' || currentStep === 'booking' || currentStep === 'payment' || currentStep === 'notify' ? (
         <Grid data-demo-stage container spacing={2.2}>
-          {currentStep !== 3 ? (
+          {currentStep !== 'booking' ? (
             <Grid size={{ xs: 12, xl: 6 }}>
               <Card
                 data-demo-panel
@@ -758,14 +817,14 @@ export function DemoLineExperiencePanel() {
             </Grid>
           ) : null}
 
-          <Grid size={{ xs: 12, xl: currentStep === 3 ? 12 : 6 }}>
+          <Grid size={{ xs: 12, xl: currentStep === 'booking' ? 12 : 6 }}>
             <Stack spacing={2} alignItems="center">
-              {unlockedSteps[3] ? (
+              {unlockedSteps.booking ? (
                 <Card
                   data-demo-panel
                   sx={{
                     borderRadius: 1,
-                    border: currentStep === 3 ? '2px solid #12a862' : undefined,
+                    border: currentStep === 'booking' ? '2px solid #12a862' : undefined,
                     maxWidth: 420,
                     mx: 'auto',
                     width: '100%',
@@ -784,26 +843,51 @@ export function DemoLineExperiencePanel() {
               ) : (
                 <Card data-demo-panel sx={{ borderRadius: 1, border: '1px dashed #c6d5e2', maxWidth: 420, mx: 'auto', width: '100%' }}>
                   <CardContent>
-                    <Typography variant="caption" color="text.secondary">STEP 3: LIFF Booking</Typography>
+                    <Typography variant="caption" color="text.secondary">STEP 2: LIFF Booking</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>
-                      ไปที่ STEP 2 แล้วกดเมนู &quot;จองคิว&quot; ก่อน เพื่อปลดล็อกขั้นตอนนี้
+                      ไปที่ STEP 1 แล้วกดเมนู &quot;จองคิว&quot; ก่อน เพื่อปลดล็อกขั้นตอนนี้
                     </Typography>
                   </CardContent>
                 </Card>
               )}
 
-              {unlockedSteps[4] ? (
+              {unlockedSteps.payment && lastBooking ? (
                 <Card
                   data-demo-panel
                   sx={{
                     borderRadius: 1,
-                    border: currentStep === 4 ? '2px solid #12a862' : undefined,
+                    border: currentStep === 'payment' ? '2px solid #12a862' : undefined,
+                    maxWidth: 420,
+                    mx: 'auto',
+                    width: '100%',
+                  }}
+                >
+                  <CardContent>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.6 }}>STEP 3: ชำระเงิน (2 แบบ)</Typography>
+                    <Typography fontWeight={800} sx={{ mb: 1 }}>Payment Simulator</Typography>
+                    <DemoPaymentSimulator
+                      booking={lastBooking}
+                      onMethodChange={(method) => handleEvent({ type: 'payment', action: 'method', method })}
+                      onSlipUploaded={() => handleEvent({ type: 'payment', action: 'slip' })}
+                      onPaid={() => handleEvent({ type: 'payment', action: 'paid' })}
+                      onRejected={(reason) => handleEvent({ type: 'payment', action: 'reject', reason })}
+                    />
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {unlockedSteps.notify ? (
+                <Card
+                  data-demo-panel
+                  sx={{
+                    borderRadius: 1,
+                    border: currentStep === 'notify' ? '2px solid #12a862' : undefined,
                     maxWidth: 420,
                     width: '100%',
                   }}
                 >
                   <CardContent>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.6 }}>STEP 3: Queue Notification (สำหรับร้านค้า)</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.6 }}>STEP 4: Queue Notification (สำหรับร้านค้า)</Typography>
                     <Typography fontWeight={800} sx={{ mb: 1 }}>Queue Notification Simulator</Typography>
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap">
                       <Button variant="outlined" startIcon={<QueueRoundedIcon />} onClick={() => handleEvent({ type: 'queue', action: 'call_next' })}>เรียกคิวถัดไป</Button>
@@ -822,18 +906,18 @@ export function DemoLineExperiencePanel() {
         </Grid>
       ) : null}
 
-      {unlockedSteps[5] && currentStep === 5 ? (
+      {unlockedSteps.board && currentStep === 'board' ? (
         <Grid data-demo-stage container spacing={2.2}>
           <Grid size={{ xs: 12 }}>
-            <Card data-demo-panel ref={step5FullscreenRef} sx={{ borderRadius: 1, border: currentStep === 5 ? '2px solid #12a862' : undefined, position: 'relative', overflow: 'visible' }}>
+            <Card data-demo-panel ref={step5FullscreenRef} sx={{ borderRadius: 1, border: '2px solid #12a862', position: 'relative', overflow: 'visible' }}>
               <CardContent>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.6 }}>
-                  <Typography variant="caption" color="text.secondary">STEP 4 Queue Board (สำหรับร้าน)</Typography>
+                  <Typography variant="caption" color="text.secondary">STEP 5: Queue Board (สำหรับร้าน)</Typography>
                   <Button
                     size="small"
                     variant="outlined"
                     startIcon={<FullscreenRoundedIcon />}
-                    onClick={() => void openFullscreen('step5')}
+                    onClick={() => void openFullscreen('board')}
                     aria-label="Open queue board fullscreen"
                   >
                     Fullscreen
@@ -882,19 +966,19 @@ export function DemoLineExperiencePanel() {
         </Grid>
       ) : null}
 
-      {unlockedSteps[6] && currentStep === 6 ? (
+      {unlockedSteps.signage && currentStep === 'signage' ? (
         <Grid data-demo-stage container spacing={2.2}>
 
           <Grid size={{ xs: 12 }}>
-            <Card data-demo-panel ref={step6FullscreenRef} sx={{ borderRadius: 1, border: currentStep === 6 ? '2px solid #12a862' : undefined }}>
+            <Card data-demo-panel ref={step6FullscreenRef} sx={{ borderRadius: 1, border: '2px solid #12a862' }}>
               <CardContent>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.6 }}>
-                  <Typography variant="caption" color="text.secondary">STEP 5: Signage View (แสดงจอในร้าน)</Typography>
+                  <Typography variant="caption" color="text.secondary">STEP 6: Signage View (แสดงจอในร้าน)</Typography>
                   <Button
                     size="small"
                     variant="outlined"
                     startIcon={<FullscreenRoundedIcon />}
-                    onClick={() => void openFullscreen('step6')}
+                    onClick={() => void openFullscreen('signage')}
                     aria-label="Open signage fullscreen"
                   >
                     Fullscreen

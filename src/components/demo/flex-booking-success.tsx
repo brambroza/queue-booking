@@ -1,6 +1,7 @@
 'use client';
 
-import { Box, Button, Stack, Typography } from '@mui/material';
+import { Box, Button, Chip, Stack, Typography } from '@mui/material';
+import { DEMO_PAYMENT_LABELS, formatTHB } from '@/lib/demo/payment-demo';
 import type { DemoBooking } from '@/components/demo/line-demo-types';
 
 function resourceLabelByService(serviceName?: string) {
@@ -41,6 +42,20 @@ export function FlexBookingSuccess({
         {booking.resourceName ? <Typography>{resourceLabel}: {booking.resourceName}</Typography> : null}
         <Typography>วันที่: {booking.dateLabel}</Typography>
         <Typography>เวลา: {booking.timeLabel}</Typography>
+        {(booking.amount ?? 0) > 0 ? (
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+            <Typography>ยอดชำระ: {formatTHB(booking.amount)} บาท</Typography>
+            <Chip
+              size="small"
+              label={DEMO_PAYMENT_LABELS[booking.paymentStatus ?? 'pending_payment']}
+              sx={{
+                fontWeight: 700,
+                bgcolor: booking.paymentStatus === 'paid' ? '#e7f7ee' : '#eef2f7',
+                color: booking.paymentStatus === 'paid' ? '#0a7043' : '#475569',
+              }}
+            />
+          </Stack>
+        ) : null}
         <Box sx={{ borderRadius: 2, bgcolor: '#f2f4f7', px: 1.6, py: 1, color: '#546171' }}>
           กรุณามาก่อนเวลาประมาณ 10 นาที
         </Box>

@@ -1,7 +1,9 @@
 'use client';
 
 import { Box, Chip, Stack, Typography } from '@mui/material';
+import { DEMO_PAYMENT_LABELS, formatTHB } from '@/lib/demo/payment-demo';
 import type { DemoQueueItem, DemoQueueStatus } from '@/components/demo/line-demo-types';
+import type { PaymentStatus } from '@/types/db';
 
 const COLUMNS: Array<{ key: DemoQueueStatus; label: string }> = [
   { key: 'waiting', label: 'Waiting' },
@@ -15,6 +17,14 @@ function statusColor(status: DemoQueueStatus) {
   if (status === 'called') return 'warning';
   if (status === 'serving') return 'info';
   return 'success';
+}
+
+/** Colours for the payment badge staff see on each queue card. */
+function paymentChipSx(status: PaymentStatus) {
+  if (status === 'paid') return { bgcolor: '#e7f7ee', color: '#0a7043' };
+  if (status === 'awaiting_verification') return { bgcolor: '#fef3c7', color: '#92400e' };
+  if (status === 'rejected') return { bgcolor: '#ffe4e6', color: '#9f1239' };
+  return { bgcolor: '#eef2f7', color: '#475569' };
 }
 
 export function DemoQueueBoard({ items }: { items: DemoQueueItem[] }) {
@@ -47,6 +57,16 @@ export function DemoQueueBoard({ items }: { items: DemoQueueItem[] }) {
                     <Typography sx={{ fontWeight: 900, fontSize: 20, lineHeight: 1 }}>{row.queueNo}</Typography>
                     <Typography sx={{ fontSize: 13 }}>{row.serviceName}</Typography>
                     <Typography sx={{ fontSize: 12, color: '#687483' }}>{row.timeLabel} • {row.resourceName || row.branchName}</Typography>
+                    {(row.amount ?? 0) > 0 ? (
+                      <Stack direction="row" spacing={0.6} alignItems="center" sx={{ mt: 0.6 }} flexWrap="wrap" useFlexGap>
+                        <Chip
+                          size="small"
+                          label={DEMO_PAYMENT_LABELS[row.paymentStatus ?? 'pending_payment']}
+                          sx={{ ...paymentChipSx(row.paymentStatus ?? 'pending_payment'), fontSize: 11, fontWeight: 700, height: 20 }}
+                        />
+                        <Typography sx={{ fontSize: 11, color: '#687483' }}>{formatTHB(row.amount)} ฿</Typography>
+                      </Stack>
+                    ) : null}
                   </Box>
                 ))}
               </Stack>
