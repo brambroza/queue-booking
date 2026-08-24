@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { getShopPaymentConfig, toPublicPaymentInfo } from '@/lib/payments/settings';
+import { isBookingEchoEnabled } from '@/lib/line/booking-echo';
 
 export async function GET(_: Request, { params }: { params: Promise<{ shopKey: string }> }) {
   const { shopKey } = await params;
@@ -12,7 +13,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ shopKey: s
 
   // `price` is needed so LIFF can tell whether a booking costs anything and
   // therefore whether to show the payment method picker at all.
-  const [{ data: branches }, { data: services }, { data: resources }, paymentConfig] = await Promise.all([
+  const [{ data: branches }, { data: services }, { data: resources }, paymentConfig, bookingEchoEnabled] = await Promise.all([
     admin.from('branches').select('id,branch_name').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
     admin.from('services').select('id,service_name,duration_minutes,price').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
     admin
@@ -23,11 +24,12 @@ export async function GET(_: Request, { params }: { params: Promise<{ shopKey: s
       .eq('is_deleted', false)
       .order('resource_name', { ascending: true }),
     getShopPaymentConfig(admin, shop.id),
+    isBookingEchoEnabled(admin, shop.id),
   ]);
 
   return NextResponse.json({
     data: {
-      shop,
+      shop: { ...shop, booking_echo_enabled: bookingEchoEnabled },
       branches: branches ?? [],
       services: services ?? [],
       resources: resources ?? [],

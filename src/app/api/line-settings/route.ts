@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { writeAuditLog } from '@/lib/audit/activity-log';
 import { isValidLiffId, normalizeLiffId } from '@/lib/line/liff-id';
+import { isBookingEchoEnabled } from '@/lib/line/booking-echo';
 
 const PatchSchema = z.object({
   line_channel_access_token: z.string().trim().max(500).optional().nullable(),
@@ -10,6 +11,7 @@ const PatchSchema = z.object({
   liff_id: z.string().trim().max(200).optional().nullable(),
   liff_id_login_shop: z.string().trim().max(200).optional().nullable(),
   auto_reply_enabled: z.boolean().optional(),
+  booking_echo_enabled: z.boolean().optional(),
 });
 
 export async function GET() {
@@ -21,7 +23,9 @@ export async function GET() {
       .eq('id', profile.shop_id)
       .single();
     if (error) throw error;
-    return NextResponse.json({ data });
+    // Read separately so a not-yet-migrated column cannot blank the whole page.
+    const bookingEchoEnabled = await isBookingEchoEnabled(supabase, profile.shop_id as string);
+    return NextResponse.json({ data: { ...data, booking_echo_enabled: bookingEchoEnabled } });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });
   }
@@ -68,6 +72,18 @@ export async function PATCH(req: Request) {
       .eq('id', profile.shop_id);
     if (error) throw error;
 
+    // Kept out of the update above on purpose: the column ships in migration
+    // 202608240002, and a missing column must not block a token change.
+    let bookingEchoEnabled: boolean | null = null;
+    if (body.booking_echo_enabled !== undefined) {
+      const { error: echoError } = await supabase
+        .from('shops')
+        .update({ booking_echo_enabled: body.booking_echo_enabled, updated_by: user.id })
+        .eq('id', profile.shop_id);
+      if (echoError) console.error('[line_settings_booking_echo_failed]', echoError.message);
+      else bookingEchoEnabled = body.booking_echo_enabled;
+    }
+
     await writeAuditLog({
       companyId: profile.company_id,
       shopId: profile.shop_id,
@@ -87,6 +103,7 @@ export async function PATCH(req: Request) {
           liff_id: liffId || null,
           liff_id_login_shop: liffIdLoginShop || null,
           auto_reply_enabled: Boolean(body.auto_reply_enabled),
+          booking_echo_enabled: bookingEchoEnabled,
           has_line_channel_access_token: Boolean(body.line_channel_access_token),
           has_line_channel_secret: Boolean(body.line_channel_secret),
         },

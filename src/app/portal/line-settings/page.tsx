@@ -18,6 +18,7 @@ export default function LineSettingsPage() {
     liff_id: '',
     liff_id_login_shop: '',
     auto_reply_enabled: true,
+    booking_echo_enabled: true,
     shop_key: '',
   });
   const [checks, setChecks] = useState<ConnectionCheck[] | null>(null);
@@ -34,6 +35,7 @@ export default function LineSettingsPage() {
         liff_id: json.data.liff_id ?? '',
         liff_id_login_shop: json.data.liff_id_login_shop ?? '',
         auto_reply_enabled: Boolean(json.data.auto_reply_enabled),
+        booking_echo_enabled: json.data.booking_echo_enabled !== false,
         shop_key: json.data.shop_key ?? '',
       });
     })();
@@ -116,6 +118,22 @@ export default function LineSettingsPage() {
         <label className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
           <input type="checkbox" checked={form.auto_reply_enabled} onChange={(e) => setForm((s) => ({ ...s, auto_reply_enabled: e.target.checked }))} />
           เปิด Auto Reply
+        </label>
+        <label className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={form.booking_echo_enabled}
+            onChange={(e) => setForm((s) => ({ ...s, booking_echo_enabled: e.target.checked }))}
+          />
+          <span>
+            แจ้งเตือนร้านใน LINE OA Chat เมื่อมีคิวใหม่
+            <span className="mt-0.5 block text-xs text-slate-500">
+              หลังลูกค้าจองสำเร็จ ระบบจะส่งข้อความ &quot;ยืนยันคิว...&quot; เข้าห้องแชทแทนลูกค้า
+              เพื่อให้ chat.line.biz เด้งแจ้งเตือน — ข้อความจะแสดงในแชทเหมือนลูกค้าพิมพ์เอง
+              ต้องเปิด scope <code>chat_message.write</code> ใน LIFF app ด้วย
+            </span>
+          </span>
         </label>
         <div className="flex flex-wrap gap-2 pt-1">
           <button className="btn-primary">บันทึก</button>

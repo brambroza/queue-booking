@@ -4,6 +4,7 @@ import { parseIntent } from '@/lib/intent/rule-based';
 import { verifyLineSignature } from '@/lib/line/signature';
 import { replyMessage } from '@/lib/line/client';
 import { bookingConfirmMessage, fallbackMessage, liffEntryMessage, slotMessage } from '@/lib/line/messages';
+import { isBookingEcho } from '@/lib/line/booking-echo';
 import type { LineWebhookBody, LineWebhookEvent } from '@/lib/line/types';
 import { env } from '@/lib/utils/env';
 
@@ -63,6 +64,11 @@ async function handleTextEvent(admin: ReturnType<typeof createAdminClient>, shop
     message_text: text,
     payload: event as unknown as Record<string, unknown>,
   });
+
+  // The booking echo exists only to raise an unread badge in LINE OA Chat. It is
+  // already logged above so the portal chat inbox sees it — replying would stack
+  // an intent menu on top of the Flex confirmation the customer just received.
+  if (isBookingEcho(text)) return;
 
   const parsed = parseIntent(text);
 

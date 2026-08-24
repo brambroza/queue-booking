@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import { isPersonResourceType, resourceTypeIcon, resourceTypeLabel } from '@/lib/booking/resource-types';
+import { buildBookingEchoText } from '@/lib/line/booking-echo';
 import { LiffPaymentPanel } from '@/components/line/liff-payment-panel';
 import type { PaymentMethod } from '@/types/db';
 
@@ -23,7 +24,15 @@ type SlotMeta = {
   reason: 'ok' | 'holiday' | 'closed' | 'full';
   hint?: string;
 };
-type ShopMeta = { id: string; name: string; shop_key: string; liff_id?: string | null; liff_id_login_shop?: string | null };
+type ShopMeta = {
+  id: string;
+  name: string;
+  shop_key: string;
+  liff_id?: string | null;
+  liff_id_login_shop?: string | null;
+  /** Off when the shop does not want an echo message in the customer's chat. */
+  booking_echo_enabled?: boolean;
+};
 type MyBooking = {
   id: string;
   queue_number: string;
@@ -535,14 +544,27 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         // storage unavailable (private mode) — the account tab is still the durable path
       }
     }
-    if (!json.data?.line_push_sent) {
-      const dateLabel = formatDateDMY(json.data?.booking_date ?? date);
-      /*     const text = `จองคิวสำเร็จค่ะ\nเลขคิว: ${json.data?.queue_number ?? '-'}\nสาขา: ${json.data?.branch_name ?? selectedBranch?.branch_name ?? '-'}\nบริการ: ${json.data?.service_name ?? selectedService?.service_name ?? '-'}\nวันที่: ${dateLabel}\nเวลา: ${json.data?.booking_time ?? selectedTime}\n\nกรุณามาก่อนเวลาประมาณ 10 นาทีค่ะ`;
-          try {
-            const liff = await ensureLiffLoaded();
-            if (liff?.sendMessages) await liff.sendMessages([{ type: 'text', text }]);
-          } catch { 
-          } */
+    // Wake up the shop. The Flex confirmation the server pushed is outbound, so
+    // it never raises an unread badge in LINE OA Chat — only a message from the
+    // customer does. Send one on their behalf; the webhook recognises it and
+    // stays silent so the bot does not reply on top of the confirmation.
+    // Shops that would rather keep the customer's chat clean turn this off in
+    // LINE Settings.
+    try {
+      const liff = shop?.booking_echo_enabled === false ? null : await ensureLiffLoaded();
+      if (liff?.isInClient?.() && liff.sendMessages) {
+        const text = buildBookingEchoText({
+          queueNumber: json.data?.queue_number ?? '',
+          branch: json.data?.branch_name ?? selectedBranch?.branch_name ?? '',
+          service: json.data?.service_name ?? selectedService?.service_name ?? '',
+          dateLabel: formatDateDMY(json.data?.booking_date ?? date),
+          time: json.data?.booking_time ?? selectedTime,
+        });
+        await liff.sendMessages([{ type: 'text', text }]);
+      }
+    } catch {
+      // Booking already succeeded — a failed echo must stay invisible to the
+      // customer. The shop still sees it in the portal notification bell.
     }
 
     push('จองคิวสำเร็จ');
