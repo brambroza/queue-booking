@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { useBranchScope } from '@/components/layout/branch-scope-provider';
 import {
   Alert,
   Card,
@@ -43,6 +44,7 @@ type DashboardData = {
 
 export function DashboardCharts() {
   const { push } = useToast();
+  const { branchQuery } = useBranchScope();
   const { t } = useTranslation('dashboard');
   const theme = useTheme();
   const [data, setData] = useState<DashboardData | null>(null);
@@ -51,12 +53,12 @@ export function DashboardCharts() {
 
   useEffect(() => {
     void (async () => {
-      const res = await fetch('/api/dashboard', { cache: 'no-store' });
+      const res = await fetch(`/api/dashboard${branchQuery ? `?${branchQuery}` : ''}`, { cache: 'no-store' });
       const json = await res.json();
       if (!res.ok) return push(json.error ?? t('load_failed', 'โหลด dashboard ไม่สำเร็จ'), 'error');
       setData(json.data);
     })();
-  }, [push, t]);
+  }, [push, t, branchQuery]);
 
   const max = useMemo(() => Math.max(...(data?.by_day.map((x) => x.count) ?? [1]), 1), [data]);
   const dayLabelStep = useMemo(() => {

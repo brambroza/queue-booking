@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { useBranchScope } from '@/components/layout/branch-scope-provider';
 
 type ReportData = {
   range: { from: string; to: string };
@@ -20,17 +21,20 @@ type ReportData = {
 
 export function ReportsClient() {
   const { push } = useToast();
+  const { branchQuery } = useBranchScope();
   const today = new Date().toISOString().slice(0, 10);
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
   const [data, setData] = useState<ReportData | null>(null);
 
+  const branchParam = branchQuery ? `&${branchQuery}` : '';
+
   const load = useCallback(async () => {
-    const res = await fetch(`/api/reports?from=${from}&to=${to}`, { cache: 'no-store' });
+    const res = await fetch(`/api/reports?from=${from}&to=${to}${branchParam}`, { cache: 'no-store' });
     const json = await res.json();
     if (!res.ok) return push(json.error ?? 'โหลดรายงานไม่สำเร็จ', 'error');
     setData(json.data);
-  }, [from, to, push]);
+  }, [from, to, branchParam, push]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -39,8 +43,8 @@ export function ReportsClient() {
       <div className="card p-4 flex flex-wrap gap-2 items-end">
         <label className="text-sm">From<input className="input mt-1" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
         <label className="text-sm">To<input className="input mt-1" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
-        <a className="btn-outline" href={`/api/reports?from=${from}&to=${to}&mode=csv`}>Export CSV</a>
-        <a className="btn-outline" href={`/api/reports?from=${from}&to=${to}&mode=csv&group=staff`}>Export CSV (รายผู้ให้บริการ)</a>
+        <a className="btn-outline" href={`/api/reports?from=${from}&to=${to}&mode=csv${branchParam}`}>Export CSV</a>
+        <a className="btn-outline" href={`/api/reports?from=${from}&to=${to}&mode=csv&group=staff${branchParam}`}>Export CSV (รายผู้ให้บริการ)</a>
       </div>
 
       {!data ? <div className="card p-4 text-sm">กำลังโหลด...</div> : (

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
+import { applyBranchScope } from '@/lib/auth/branch-scope';
 
 function csvEscape(v: unknown): string {
   const s = String(v ?? '');
@@ -9,7 +10,7 @@ function csvEscape(v: unknown): string {
 
 export async function GET(req: Request) {
   try {
-    const { supabase, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
+    const { supabase, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
     const { searchParams } = new URL(req.url);
     const mode = searchParams.get('mode') ?? 'json';
     const from = searchParams.get('from') ?? new Date().toISOString().slice(0, 10);
@@ -27,7 +28,7 @@ export async function GET(req: Request) {
       .gte('booking_date', from)
       .lte('booking_date', to);
 
-    if (branchId) query = query.eq('branch_id', branchId);
+    query = applyBranchScope(query, branchScope, branchId);
     if (serviceId) query = query.eq('service_id', serviceId);
     if (resourceId) query = resourceId === 'none' ? query.is('resource_id', null) : query.eq('resource_id', resourceId);
 

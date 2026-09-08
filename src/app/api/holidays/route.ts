@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
+import { applyNullableBranchScope, assertBranchWritable } from '@/lib/auth/branch-scope';
 import { writeAuditLog } from '@/lib/audit/activity-log';
 
 const holidaySchema = z.object({
@@ -11,7 +12,7 @@ const holidaySchema = z.object({
 
 export async function GET(req: Request) {
   try {
-    const { supabase, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
+    const { supabase, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get('branch_id');
 
@@ -22,7 +23,8 @@ export async function GET(req: Request) {
       .eq('is_deleted', false)
       .order('holiday_date', { ascending: true });
 
-    if (branchId) query = query.eq('branch_id', branchId);
+    // branch_id NULL = shop-wide holiday; branch-bound users must still see those.
+    query = applyNullableBranchScope(query, branchScope, branchId);
 
     const { data, error } = await query;
     if (error) throw error;
@@ -34,9 +36,10 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const { supabase, user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
+    const { supabase, user, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
     const parsed = holidaySchema.safeParse(await req.json());
     if (!parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    assertBranchWritable(branchScope, parsed.data.branch_id);
 
     const { error } = await supabase.from('holidays').insert({
       ...parsed.data,
@@ -55,13 +58,22 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
-    const { supabase, user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
+    const { supabase, user, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
     const body = await req.json();
     const id = String(body?.id ?? '');
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
 
     const parsed = holidaySchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    assertBranchWritable(branchScope, parsed.data.branch_id);
+    const { data: current } = await supabase
+      .from('holidays')
+      .select('branch_id')
+      .eq('id', id)
+      .eq('shop_id', profile.shop_id)
+      .maybeSingle();
+    if (!current) return NextResponse.json({ error: 'Holiday not found' }, { status: 404 });
+    assertBranchWritable(branchScope, current.branch_id);
 
     const { error } = await supabase
       .from('holidays')
@@ -88,10 +100,19 @@ export async function PATCH(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const { supabase, user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
+    const { supabase, user, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+
+    const { data: current } = await supabase
+      .from('holidays')
+      .select('branch_id')
+      .eq('id', id)
+      .eq('shop_id', profile.shop_id)
+      .maybeSingle();
+    if (!current) return NextResponse.json({ error: 'Holiday not found' }, { status: 404 });
+    assertBranchWritable(branchScope, current.branch_id);
 
     const { error } = await supabase
       .from('holidays')

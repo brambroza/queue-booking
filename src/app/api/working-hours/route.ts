@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
+import { applyBranchScope, assertBranchAllowed } from '@/lib/auth/branch-scope';
 import { workingHourSchema } from '@/lib/booking/schemas';
 import { writeAuditLog } from '@/lib/audit/activity-log';
 
 export async function GET(req: Request) {
   try {
-    const { supabase, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
+    const { supabase, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get('branch_id');
     const weekday = searchParams.get('weekday');
@@ -17,7 +18,7 @@ export async function GET(req: Request) {
       .eq('is_deleted', false)
       .order('weekday');
 
-    if (branchId) query = query.eq('branch_id', branchId);
+    query = applyBranchScope(query, branchScope, branchId);
     if (weekday) query = query.eq('weekday', Number(weekday));
 
     const { data, error } = await query;
@@ -30,9 +31,10 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const { supabase, user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
+    const { supabase, user, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
     const parsed = workingHourSchema.safeParse(await req.json());
     if (!parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    assertBranchAllowed(branchScope, parsed.data.branch_id);
 
     const { error } = await supabase.from('working_hours').insert({
       ...parsed.data,
@@ -80,13 +82,23 @@ export async function DELETE(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
-    const { supabase, user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
+    const { supabase, user, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
     const body = await req.json();
     const id = String(body?.id ?? '');
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
 
     const parsed = workingHourSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    // Both the row being edited and the branch it is being moved to must be in scope.
+    assertBranchAllowed(branchScope, parsed.data.branch_id);
+    const { data: current } = await supabase
+      .from('working_hours')
+      .select('branch_id')
+      .eq('id', id)
+      .eq('shop_id', profile.shop_id)
+      .maybeSingle();
+    if (!current) return NextResponse.json({ error: 'Working hour not found' }, { status: 404 });
+    assertBranchAllowed(branchScope, current.branch_id);
 
     const { error } = await supabase
       .from('working_hours')

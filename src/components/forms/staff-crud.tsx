@@ -9,9 +9,15 @@ type RefUser = { id: string; full_name: string | null; email: string | null; pho
 type RefBranch = { id: string; branch_name: string };
 type StaffRow = { id: string; user_id: string; display_name: string; active: boolean; branches: Array<{ id: string; branch_name: string }> };
 
+/** 'existing' picks an account already in the shop; 'invite' creates a new login. */
+type StaffMode = 'existing' | 'invite';
+
 type FormState = {
   id: string | null;
+  mode: StaffMode;
   user_id: string;
+  email: string;
+  role: 'branch_manager' | 'staff';
   display_name: string;
   active: boolean;
   branch_ids: string[];
@@ -19,7 +25,10 @@ type FormState = {
 
 const initialForm: FormState = {
   id: null,
+  mode: 'invite',
   user_id: '',
+  email: '',
+  role: 'staff',
   display_name: '',
   active: true,
   branch_ids: [],
@@ -63,7 +72,9 @@ export function StaffCrud() {
 
   function openEdit(row: StaffRow) {
     setForm({
+      ...initialForm,
       id: row.id,
+      mode: 'existing',
       user_id: row.user_id,
       display_name: row.display_name,
       active: row.active,
@@ -74,8 +85,18 @@ export function StaffCrud() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!form.user_id || !form.display_name.trim()) {
-      push('กรุณาเลือกผู้ใช้และชื่อแสดงผล', 'error');
+    const invitingNew = !editing && form.mode === 'invite';
+
+    if (!form.display_name.trim()) {
+      push('กรุณากรอกชื่อแสดงผล', 'error');
+      return;
+    }
+    if (invitingNew ? !form.email.trim() : !form.user_id) {
+      push(invitingNew ? 'กรุณากรอกอีเมลผู้ใช้ใหม่' : 'กรุณาเลือกผู้ใช้', 'error');
+      return;
+    }
+    if (invitingNew && form.role === 'branch_manager' && form.branch_ids.length === 0) {
+      push('ผู้จัดการสาขาต้องผูกอย่างน้อย 1 สาขา', 'error');
       return;
     }
 
@@ -85,7 +106,7 @@ export function StaffCrud() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: form.id,
-        user_id: form.user_id,
+        ...(invitingNew ? { email: form.email.trim(), role: form.role } : { user_id: form.user_id }),
         display_name: form.display_name,
         active: form.active,
         branch_ids: form.branch_ids,
@@ -192,29 +213,79 @@ export function StaffCrud() {
             </div>
 
             <form onSubmit={onSubmit} className="space-y-4">
+              {!editing ? (
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="staff-mode"
+                      checked={form.mode === 'invite'}
+                      onChange={() => setForm((prev) => ({ ...prev, mode: 'invite', user_id: '' }))}
+                    />
+                    เชิญผู้ใช้ใหม่ทางอีเมล
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="staff-mode"
+                      checked={form.mode === 'existing'}
+                      onChange={() => setForm((prev) => ({ ...prev, mode: 'existing', email: '' }))}
+                    />
+                    เลือกจากผู้ใช้ที่มีอยู่
+                  </label>
+                </div>
+              ) : null}
+
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-sm">
-                  <span className="mb-1 block text-slate-600">User Account</span>
-                  <select
-                    className="input"
-                    value={form.user_id}
-                    onChange={(e) => {
-                      const uid = e.target.value;
-                      const u = users.find((x) => x.id === uid);
-                      setForm((prev) => ({
-                        ...prev,
-                        user_id: uid,
-                        display_name: prev.display_name || u?.full_name || u?.email || '',
-                      }));
-                    }}
-                    required
-                  >
-                    <option value="">เลือก user</option>
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>
-                    ))}
-                  </select>
-                </label>
+                {!editing && form.mode === 'invite' ? (
+                  <>
+                    <label className="text-sm">
+                      <span className="mb-1 block text-slate-600">Email</span>
+                      <input
+                        className="input"
+                        type="email"
+                        value={form.email}
+                        onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
+                        placeholder="staff@example.com"
+                        required
+                      />
+                    </label>
+                    <label className="text-sm">
+                      <span className="mb-1 block text-slate-600">สิทธิ์</span>
+                      <select
+                        className="input"
+                        value={form.role}
+                        onChange={(e) => setForm((prev) => ({ ...prev, role: e.target.value as FormState['role'] }))}
+                      >
+                        <option value="staff">พนักงาน (staff)</option>
+                        <option value="branch_manager">ผู้จัดการสาขา (branch_manager)</option>
+                      </select>
+                    </label>
+                  </>
+                ) : (
+                  <label className="text-sm">
+                    <span className="mb-1 block text-slate-600">User Account</span>
+                    <select
+                      className="input"
+                      value={form.user_id}
+                      onChange={(e) => {
+                        const uid = e.target.value;
+                        const u = users.find((x) => x.id === uid);
+                        setForm((prev) => ({
+                          ...prev,
+                          user_id: uid,
+                          display_name: prev.display_name || u?.full_name || u?.email || '',
+                        }));
+                      }}
+                      required
+                    >
+                      <option value="">เลือก user</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
 
                 <label className="text-sm">
                   <span className="mb-1 block text-slate-600">Display Name</span>

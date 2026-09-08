@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { NotificationCategory, NotificationItem, NotificationPriority, NotificationType } from '@/types/notification';
+import { applyNullableBranchScope, type BranchScope } from '@/lib/auth/branch-scope';
 
 type CreateNotificationInput = {
   companyId: string;
@@ -152,7 +153,11 @@ export async function archiveNotification(supabase: SupabaseClient, id: string, 
   }
 }
 
-export async function getUnreadNotificationCount(supabase: SupabaseClient, scope: { companyId: string; shopId?: string | null; userId?: string | null }) {
+export async function getUnreadNotificationCount(
+  supabase: SupabaseClient,
+  scope: { companyId: string; shopId?: string | null; userId?: string | null; branchScope?: BranchScope },
+) {
+  const branchScope = scope.branchScope ?? null;
   let q = supabase
     .from('notifications')
     .select('id', { count: 'exact', head: true })
@@ -161,6 +166,7 @@ export async function getUnreadNotificationCount(supabase: SupabaseClient, scope
     .eq('is_archived', false)
     .eq('is_read', false);
   if (scope.shopId) q = q.eq('shop_id', scope.shopId);
+  q = applyNullableBranchScope(q, branchScope);
   const { count, error } = await q;
   if (error) {
     if (!isMissingColumnError(error)) throw error;
@@ -171,6 +177,7 @@ export async function getUnreadNotificationCount(supabase: SupabaseClient, scope
       .eq('is_deleted', false)
       .is('read_at', null);
     if (scope.shopId) legacy = legacy.eq('shop_id', scope.shopId);
+    legacy = applyNullableBranchScope(legacy, branchScope);
     const { count: legacyCount, error: legacyError } = await legacy;
     if (legacyError) throw legacyError;
     return legacyCount ?? 0;
@@ -191,8 +198,11 @@ export async function getNotifications(
     limit?: number;
     offset?: number;
     includeArchived?: boolean;
+    /** Branches the caller may see; `null`/omitted = the whole shop. */
+    branchScope?: BranchScope;
   },
 ) {
+  const branchScope = input.branchScope ?? null;
   let q = supabase
     .from('notifications')
     .select('*', { count: 'exact' })
@@ -203,6 +213,7 @@ export async function getNotifications(
 
   if (!input.includeArchived) q = q.eq('is_archived', false);
   if (input.shopId) q = q.eq('shop_id', input.shopId);
+  q = applyNullableBranchScope(q, branchScope);
   if (input.unreadOnly) q = q.eq('is_read', false);
   if (input.category) q = q.eq('category', input.category);
   if (input.priority) q = q.eq('priority', input.priority);
@@ -224,6 +235,7 @@ export async function getNotifications(
       .eq('is_deleted', false)
       .order('created_at', { ascending: false });
     if (input.shopId) legacy = legacy.eq('shop_id', input.shopId);
+    legacy = applyNullableBranchScope(legacy, branchScope);
     if (input.unreadOnly) legacy = legacy.is('read_at', null);
     if (input.search?.trim()) {
       const v = input.search.trim();

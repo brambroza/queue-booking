@@ -7,6 +7,7 @@ import TodayRoundedIcon from '@mui/icons-material/TodayRounded';
 import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
 import MeetingRoomRoundedIcon from '@mui/icons-material/MeetingRoomRounded';
 import { useToast } from '@/components/ui/toast';
+import { useBranchScope } from '@/components/layout/branch-scope-provider';
 import { formatDateDMY } from '@/lib/utils/date-format';
 import { RESOURCE_TYPES, isPersonResourceType, resourceTypeLabel, type ResourceType } from '@/lib/booking/resource-types';
 
@@ -90,18 +91,21 @@ export function CalendarClient() {
   const [branches, setBranches] = useState<RefItem[]>([]);
   const [services, setServices] = useState<RefItem[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
-  const [branchId, setBranchId] = useState('');
+  // Branch selection is shared with the topbar switcher so both views agree.
+  const { branchId, setBranchId } = useBranchScope();
   const [serviceId, setServiceId] = useState('');
 
   const firstOfMonth = useMemo(() => toISO(new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1)), [monthCursor]);
   const lastOfMonth = useMemo(() => toISO(new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 0)), [monthCursor]);
 
   const loadMonth = useCallback(async () => {
-    const res = await fetch(`/api/calendar?from=${firstOfMonth}&to=${lastOfMonth}`, { cache: 'no-store' });
+    const params = new URLSearchParams({ from: firstOfMonth, to: lastOfMonth });
+    if (branchId) params.set('branch_id', branchId);
+    const res = await fetch(`/api/calendar?${params.toString()}`, { cache: 'no-store' });
     const json = await res.json();
     if (!res.ok) return push(json.error ?? 'โหลดปฏิทินไม่สำเร็จ', 'error');
     setRows((json.data ?? []) as Row[]);
-  }, [firstOfMonth, lastOfMonth, push]);
+  }, [firstOfMonth, lastOfMonth, branchId, push]);
 
   const loadRefs = useCallback(async () => {
     const [bRes, sRes] = await Promise.all([

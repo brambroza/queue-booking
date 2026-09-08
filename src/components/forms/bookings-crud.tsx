@@ -4,6 +4,7 @@ import { ChangeEvent, useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { EmptyState } from '@/components/ui/empty-state';
 import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade-provider';
+import { useBranchScope } from '@/components/layout/branch-scope-provider';
 import { track } from '@/lib/analytics/track';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
@@ -93,6 +94,8 @@ const EMPTY_DRAFT = {
 export function BookingsCrud() {
   const { push } = useToast();
   const { openPaywall } = useUpgrade();
+  // Topbar branch selection narrows the list; the API enforces the caller's own scope.
+  const { branchId, withBranch } = useBranchScope();
 
   // ── List state ──
   const [bookings, setBookings]   = useState<BookingRow[]>([]);
@@ -134,7 +137,7 @@ export function BookingsCrud() {
   const loadBookings = useCallback(async (pg = page) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(pg), page_size: String(pageSize) });
+      const params = withBranch(new URLSearchParams({ page: String(pg), page_size: String(pageSize) }));
       if (filterDate)   params.set('date',   filterDate);
       if (filterStatus) params.set('status', filterStatus);
       if (filterSearch) params.set('q',      filterSearch);
@@ -146,7 +149,7 @@ export function BookingsCrud() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, filterDate, filterStatus, filterSearch, filterResource]);
+  }, [page, pageSize, filterDate, filterStatus, filterSearch, filterResource, withBranch]);
 
   const loadRefs = useCallback(async () => {
     const [brRes, sRes, uRes, rRes] = await Promise.all([
@@ -165,7 +168,7 @@ export function BookingsCrud() {
   }, []);
 
   useEffect(() => { void loadRefs(); }, [loadRefs]);
-  useEffect(() => { void loadBookings(1); setPage(1); }, [filterDate, filterStatus, filterSearch, filterResource]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void loadBookings(1); setPage(1); }, [filterDate, filterStatus, filterSearch, filterResource, branchId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { void loadBookings(page); }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Create ─────────────────────────────────────────────────────────────────

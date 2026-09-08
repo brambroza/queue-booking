@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
+import { applyBranchScope, assertBranchAllowed } from '@/lib/auth/branch-scope';
 import { branchSchema } from '@/lib/booking/schemas';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
@@ -13,7 +14,7 @@ function toInt(v: string | null, fallback: number) {
 
 export async function GET(req: Request) {
   try {
-    const { supabase, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
+    const { supabase, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
     const { searchParams } = new URL(req.url);
     const q = searchParams.get('q');
     const active = searchParams.get('active');
@@ -26,6 +27,10 @@ export async function GET(req: Request) {
       .eq('shop_id', profile.shop_id)
       .eq('is_deleted', false)
       .order('created_at', { ascending: false });
+
+    // The branch list drives every branch picker in the portal, so it must already
+    // be narrowed to what the caller may access. Scope lives on `id` here, not `branch_id`.
+    query = applyBranchScope(query, branchScope, null, 'id');
 
     if (q) query = query.or(`branch_name.ilike.%${q}%,address.ilike.%${q}%`);
     if (active === 'true' || active === 'false') query = query.eq('active', active === 'true');
@@ -41,7 +46,9 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const { supabase, user, profile, roles } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
+    // Creating a branch is an owner-level act: a branch_manager is bound to the
+    // branches assigned to them and could not see a branch they created.
+    const { supabase, user, profile, roles } = await requireAuthContext({ roles: ['super_admin', 'shop_owner'] });
     const body = await req.json();
     const parsed = branchSchema.safeParse(body);
     if (!parsed.success) {
@@ -165,12 +172,13 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
-    const { supabase, user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
+    const { supabase, user, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
     const body = await req.json();
     const id = body.id as string;
     const parsed = branchSchema.safeParse(body);
     if (!id || !parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
- 
+    assertBranchAllowed(branchScope, id);
+
     const { error } = await supabase
       .from('branches')
       .update({
@@ -191,10 +199,10 @@ export async function PATCH(req: Request) {
       companyId: profile.company_id,
       shopId: profile.shop_id,
       userId: user.id,
-      action: 'data_deleted',
+      action: 'data_updated',
       targetTable: 'branches',
       targetId: id,
-      payload: { soft_delete: true },
+      payload: { branch_name: parsed.data.branch_name, active: parsed.data.active },
     });
     return NextResponse.json({ data: true });
   } catch (e) {

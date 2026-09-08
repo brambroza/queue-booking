@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
+import { assertBranchAllowed } from '@/lib/auth/branch-scope';
 
 export async function GET(req: Request) {
   try {
-    const { supabase, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
+    const { supabase, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
     const { searchParams } = new URL(req.url);
 
     const branchId = searchParams.get('branch_id');
@@ -16,6 +17,7 @@ export async function GET(req: Request) {
     if (!branchId || !serviceId || !date) {
       return NextResponse.json({ error: 'Missing branch_id, service_id or date' }, { status: 400 });
     }
+    assertBranchAllowed(branchScope, branchId);
 
     const { data, error } = await supabase.rpc('get_available_slots', {
       p_shop_id: profile.shop_id,

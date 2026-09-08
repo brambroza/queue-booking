@@ -38,8 +38,17 @@ import SlideshowRoundedIcon from '@mui/icons-material/SlideshowRounded';
 import MarkEmailUnreadRoundedIcon from '@mui/icons-material/MarkEmailUnreadRounded';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@/components/i18n/i18n-provider';
+import { useBranchScope } from '@/components/layout/branch-scope-provider';
 
-type NavItem = { labelKey: string; fallback: string; href: string; icon: React.ReactNode; superAdminOnly?: boolean };
+type NavItem = {
+  labelKey: string;
+  fallback: string;
+  href: string;
+  icon: React.ReactNode;
+  superAdminOnly?: boolean;
+  /** Hidden from users bound to specific branches — these screens are shop-wide admin. */
+  shopWideOnly?: boolean;
+};
 type NavGroup = { titleKey: string; fallback: string; items: NavItem[] };
 
 const groups: NavGroup[] = [
@@ -58,12 +67,12 @@ const groups: NavGroup[] = [
     titleKey: 'menu.group_shop',
     fallback: 'จัดการร้าน',
     items: [
-      { labelKey: 'menu.branches', fallback: 'สาขา', href: '/portal/branches', icon: <StoreRoundedIcon fontSize="small" /> },
+      { labelKey: 'menu.branches', fallback: 'สาขา', href: '/portal/branches', icon: <StoreRoundedIcon fontSize="small" />, shopWideOnly: true },
       { labelKey: 'menu.services', fallback: 'บริการ', href: '/portal/services', icon: <DesignServicesRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.resources', fallback: 'ทรัพยากร', href: '/portal/resources', icon: <TableRestaurantRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.working_hours', fallback: 'เวลาทำการ', href: '/portal/working-hours', icon: <ScheduleRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.holidays', fallback: 'วันหยุด', href: '/portal/holidays', icon: <EventBusyRoundedIcon fontSize="small" /> },
-      { labelKey: 'menu.staff', fallback: 'พนักงาน', href: '/portal/staff', icon: <GroupRoundedIcon fontSize="small" /> },
+      { labelKey: 'menu.staff', fallback: 'พนักงาน', href: '/portal/staff', icon: <GroupRoundedIcon fontSize="small" />, shopWideOnly: true },
       { labelKey: 'menu.customers', fallback: 'ลูกค้า', href: '/portal/customers', icon: <PeopleRoundedIcon fontSize="small" /> },
     ],
   },
@@ -111,11 +120,16 @@ export function PortalNav({ isSuperAdmin = false }: { isSuperAdmin?: boolean }) 
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useI18n();
+  const { loading: branchScopeLoading, scope } = useBranchScope();
+  // Until the scope is known, assume shop-wide so the menu does not flicker items away.
+  const isBranchBound = !branchScopeLoading && scope === 'branch';
 
   return (
     <Stack spacing={2.2}>
       {groups.map((g) => {
-        const visibleItems = g.items.filter((it) => !it.superAdminOnly || isSuperAdmin);
+        const visibleItems = g.items.filter(
+          (it) => (!it.superAdminOnly || isSuperAdmin) && (!it.shopWideOnly || !isBranchBound)
+        );
         if (visibleItems.length === 0) return null;
         return (
           <Stack key={g.titleKey} spacing={0.4}>

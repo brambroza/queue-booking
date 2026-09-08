@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
+import { applyBranchScope } from '@/lib/auth/branch-scope';
 
 type QueueRow = {
   id: string;
@@ -17,18 +18,22 @@ type QueueRow = {
 
 export async function GET(req: Request) {
   try {
-    const { supabase, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
+    const { supabase, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get('branch_id');
     const date = searchParams.get('date') ?? new Date().toISOString().slice(0, 10);
 
     const [{ data: branches, error: branchesError }, { data: shopMeta, error: shopError }] = await Promise.all([
-      supabase
-      .from('branches')
-      .select('id,branch_name,active')
-      .eq('shop_id', profile.shop_id)
-      .eq('is_deleted', false)
-      .order('branch_name', { ascending: true }),
+      applyBranchScope(
+        supabase
+          .from('branches')
+          .select('id,branch_name,active')
+          .eq('shop_id', profile.shop_id)
+          .eq('is_deleted', false),
+        branchScope,
+        null,
+        'id',
+      ).order('branch_name', { ascending: true }),
       supabase.from('shops').select('demo_mode_enabled,demo_business_type,name').eq('id', profile.shop_id).maybeSingle(),
     ]);
     if (branchesError) throw branchesError;
@@ -42,7 +47,7 @@ export async function GET(req: Request) {
       .eq('is_deleted', false)
       .order('start_time', { ascending: true });
 
-    if (branchId) query = query.eq('branch_id', branchId);
+    query = applyBranchScope(query, branchScope, branchId);
 
     const { data, error } = await query;
     if (error) throw error;

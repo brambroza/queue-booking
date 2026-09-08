@@ -1,18 +1,37 @@
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { AppRole } from '@/types/db';
+import { AuthError } from './errors';
+import { resolveBranchScope, type BranchScope } from './branch-scope';
 
-class AuthError extends Error {
-  status: number;
-
-  constructor(message: string, status: number) {
-    super(message);
-    this.status = status;
-  }
-}
+export { AuthError };
+export type { BranchScope };
 
 function ensureRole(userRoles: AppRole[], required: AppRole[]) {
   return required.some((r) => userRoles.includes(r));
+}
+
+/**
+ * Keep only the role grants that apply to the shop the caller is acting in.
+ *
+ * A user can hold roles in several shops; without this filter a `shop_owner` grant
+ * in shop A would leak shop-wide privileges (and shop-wide branch scope) into shop B.
+ * Rows with a null `shop_id` are global grants (e.g. super_admin) and always count.
+ * When the profile has no shop yet, nothing is filtered out so tenant hydration
+ * further down can still recover the context.
+ *
+ * @param rows Raw `user_roles` rows carrying `role_id` and `shop_id`.
+ * @param shopId Shop the caller is acting in, or null when not yet known.
+ * @returns Role ids that apply in this tenant.
+ */
+function pickRoleIdsForShop(
+  rows: Array<{ role_id: string | null; shop_id: string | null }> | null,
+  shopId: string | null
+): string[] {
+  return (rows ?? [])
+    .filter((r) => !shopId || !r.shop_id || r.shop_id === shopId)
+    .map((r) => r.role_id)
+    .filter((id): id is string => Boolean(id));
 }
 
 export async function requireAuthContext(opts?: { roles?: AppRole[] }) {
@@ -62,13 +81,13 @@ export async function requireAuthContext(opts?: { roles?: AppRole[] }) {
 
   const { data: roleRows, error: roleError } = await supabase
     .from('user_roles')
-    .select('role_id')
+    .select('role_id, shop_id')
     .eq('user_id', user.id)
     .eq('is_deleted', false);
 
   if (roleError) throw new AuthError('Unable to read roles', 403);
 
-  const roleIds = (roleRows ?? []).map((r) => r.role_id).filter(Boolean) as string[];
+  const roleIds = pickRoleIdsForShop(roleRows, profile.shop_id);
   let roles: AppRole[] = [];
 
   if (roleIds.length > 0) {
@@ -109,12 +128,12 @@ export async function requireAuthContext(opts?: { roles?: AppRole[] }) {
       const admin = createAdminClient();
       const { data: adminRoleRows, error: adminRoleRowsError } = await admin
         .from('user_roles')
-        .select('role_id')
+        .select('role_id, shop_id')
         .eq('user_id', user.id)
         .eq('is_deleted', false);
 
       if (!adminRoleRowsError && (adminRoleRows?.length ?? 0) > 0) {
-        const adminRoleIds = (adminRoleRows ?? []).map((r) => r.role_id).filter(Boolean) as string[];
+        const adminRoleIds = pickRoleIdsForShop(adminRoleRows, profile.shop_id);
         const { data: adminRoleDefs, error: adminRoleDefsError } = await admin
           .from('roles')
           .select('code')
@@ -168,7 +187,10 @@ export async function requireAuthContext(opts?: { roles?: AppRole[] }) {
     }
   }
 
-  return { supabase, user, profile, roles };
+  // Branches this caller may read/write. `null` = every branch of the shop.
+  const branchScope = await resolveBranchScope(supabase, user.id, profile.shop_id, roles);
+
+  return { supabase, user, profile, roles, branchScope };
 }
 
 export function getErrorStatus(e: unknown): number {

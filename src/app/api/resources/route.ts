@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
+import { applyNullableBranchScope, assertBranchWritable } from '@/lib/auth/branch-scope';
 import { bookingResourceSchema } from '@/lib/booking/schemas';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 import { subscriptionErrorResponse } from '@/lib/subscription/response';
@@ -25,7 +26,7 @@ function getErrorPayload(e: unknown) {
 
 export async function GET(req: Request) {
   try {
-    const { supabase, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
+    const { supabase, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
     const { searchParams } = new URL(req.url);
     const resourceType = searchParams.get('resource_type');
     const branchId = searchParams.get('branch_id');
@@ -44,7 +45,8 @@ export async function GET(req: Request) {
       .order('resource_code', { ascending: true });
 
     if (resourceType) query = query.eq('resource_type', resourceType);
-    if (branchId) query = query.eq('branch_id', branchId);
+    // branch_id NULL = resource shared across the shop, visible to every branch.
+    query = applyNullableBranchScope(query, branchScope, branchId);
     if (active === 'true' || active === 'false') query = query.eq('active', active === 'true');
     if (zone) query = query.ilike('zone', `%${zone}%`);
     if (q) query = query.or(`resource_name.ilike.%${q}%,resource_code.ilike.%${q}%,description.ilike.%${q}%`);
@@ -60,7 +62,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const { supabase, user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
+    const { supabase, user, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
     const body = await req.json();
     const normalizedBody = {
       ...body,
@@ -89,6 +91,7 @@ export async function POST(req: Request) {
     await assertFeatureQuota(profile.shop_id, 'resources', resourceCount ?? 0);
 
     const branchId = typeof body.branch_id === 'string' && body.branch_id.trim() ? body.branch_id : null;
+    assertBranchWritable(branchScope, branchId);
     if (branchId) {
       const { data: branch, error: branchError } = await supabase
         .from('branches')
@@ -137,7 +140,7 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
-    const { supabase, user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
+    const { supabase, user, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
     const body = await req.json();
     const id = String(body.id ?? '');
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
@@ -160,6 +163,16 @@ export async function PATCH(req: Request) {
     }
 
     const branchId = typeof body.branch_id === 'string' && body.branch_id.trim() ? body.branch_id : null;
+    // Both the branch the resource is moving to and the one it currently sits in.
+    assertBranchWritable(branchScope, branchId);
+    const { data: currentResource } = await supabase
+      .from('booking_resources')
+      .select('branch_id')
+      .eq('id', id)
+      .eq('shop_id', profile.shop_id)
+      .maybeSingle();
+    if (!currentResource) return NextResponse.json({ error: 'Resource not found' }, { status: 404 });
+    assertBranchWritable(branchScope, currentResource.branch_id);
     if (branchId) {
       const { data: branch, error: branchError } = await supabase
         .from('branches')

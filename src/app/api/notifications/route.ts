@@ -52,7 +52,7 @@ const patchSchema = z.object({
 
 export async function GET(req: Request) {
   try {
-    const { supabase, user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
+    const { supabase, user, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
     const { searchParams } = new URL(req.url);
     const unreadOnly = searchParams.get('unread_only') === 'true';
     const category = (searchParams.get('category') ?? '') as NotificationCategory | '';
@@ -73,12 +73,14 @@ export async function GET(req: Request) {
       limit,
       offset,
       includeArchived,
+      branchScope,
     });
 
     const unread_count = await getUnreadNotificationCount(supabase, {
       companyId: profile.company_id,
       shopId: profile.shop_id,
       userId: user.id,
+      branchScope,
     });
 
     return NextResponse.json({ data, pagination: { total, limit, offset }, unread_count });

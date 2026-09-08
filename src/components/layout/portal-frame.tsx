@@ -21,6 +21,8 @@ import { LanguageSwitch } from '@/components/layout/language-switch';
 import { ColorModeToggle } from '@/components/theme/color-mode-toggle';
 import { NotificationsMenu } from '@/components/layout/notifications-menu';
 import { TopbarUserMenu } from '@/components/layout/topbar-user-menu';
+import { BranchScopeProvider } from '@/components/layout/branch-scope-provider';
+import { BranchSwitch } from '@/components/layout/branch-switch';
 import { useI18n } from '@/components/i18n/i18n-provider';
 import { DemoModeBanner } from '@/components/demo/demo-mode-banner';
 import { PortalTour } from '@/components/layout/portal-tour';
@@ -100,6 +102,7 @@ export function PortalFrame({
   );
 
   return (
+    <BranchScopeProvider>
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
       <AppBar
         position="fixed"
@@ -142,6 +145,7 @@ export function PortalFrame({
             >
               โหมดทดลอง
             </Button> */}
+            <BranchSwitch />
             <PortalTour />
             <ColorModeToggle />
             <LanguageSwitch />
@@ -177,5 +181,6 @@ export function PortalFrame({
         </Container>
       </Box>
     </Box>
+    </BranchScopeProvider>
   );
 }

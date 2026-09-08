@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
+import { applyBranchScope, assertBranchAllowed } from '@/lib/auth/branch-scope';
 import { bookingSchema } from '@/lib/booking/schemas';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { pushMessage } from '@/lib/line/client';
@@ -41,7 +42,7 @@ async function isResourceFree(
 
 export async function GET(req: Request) {
   try {
-    const { supabase, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
+    const { supabase, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
     const { searchParams } = new URL(req.url);
     const date = searchParams.get('date');
     const status = searchParams.get('status');
@@ -64,7 +65,7 @@ export async function GET(req: Request) {
 
     if (date) query = query.eq('booking_date', date);
     if (status) query = query.eq('status', status);
-    if (branchId) query = query.eq('branch_id', branchId);
+    query = applyBranchScope(query, branchScope, branchId);
     if (serviceId) query = query.eq('service_id', serviceId);
     if (resourceId) query = resourceId === 'none' ? query.is('resource_id', null) : query.eq('resource_id', resourceId);
     if (q) query = query.or(`queue_number.ilike.%${q}%,note.ilike.%${q}%`);
@@ -79,11 +80,12 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const { supabase, user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
+    const { supabase, user, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
     const parsed = bookingSchema.safeParse(await req.json());
     if (!parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
 
     const payload = parsed.data;
+    assertBranchAllowed(branchScope, payload.branch_id);
     const monthStart = `${payload.booking_date.slice(0, 7)}-01`;
     const monthEnd = `${payload.booking_date.slice(0, 7)}-31`;
     const { count: monthlyCount } = await supabase
@@ -370,7 +372,7 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
-    const { supabase, user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
+    const { supabase, user, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
     const body = await req.json();
     const id = body.id as string;
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
@@ -382,6 +384,7 @@ export async function PATCH(req: Request) {
       .eq('shop_id', profile.shop_id)
       .maybeSingle();
     if (!before) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+    assertBranchAllowed(branchScope, before.branch_id);
 
     // --- Assign / change / remove the resource (trainer, stylist, table) ---
     if (body.resource_id !== undefined) {
@@ -584,7 +587,7 @@ export async function PATCH(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const { supabase, user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
+    const { supabase, user, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
@@ -595,6 +598,8 @@ export async function DELETE(req: Request) {
       .eq('id', id)
       .eq('shop_id', profile.shop_id)
       .maybeSingle();
+    if (!before) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+    assertBranchAllowed(branchScope, before.branch_id);
 
     const { error } = await supabase
       .from('bookings')

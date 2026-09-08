@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
+import { applyBranchScope, type BranchScope } from '@/lib/auth/branch-scope';
 import { writeAuditLog } from '@/lib/audit/activity-log';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 const customerSchema = z.object({
   full_name: z.string().min(2),
@@ -15,13 +17,39 @@ function toInt(v: string | null, fallback: number) {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
 }
 
+/**
+ * `customers` has no branch column, so a branch-bound user's visible customers are
+ * derived from the bookings they may see.
+ *
+ * @returns Customer ids reachable from the caller's branches, or `null` when the
+ *   caller sees the whole shop and no id filter is needed.
+ */
+async function customerIdsInBranchScope(
+  supabase: SupabaseClient,
+  shopId: string | null,
+  scope: BranchScope
+): Promise<string[] | null> {
+  if (scope === null) return null;
+  const { data, error } = await applyBranchScope(
+    supabase.from('bookings').select('customer_id').eq('shop_id', shopId).eq('is_deleted', false),
+    scope
+  );
+  if (error) throw error;
+  const ids = (data ?? [])
+    .map((row) => row.customer_id as string | null)
+    .filter((id): id is string => Boolean(id));
+  return Array.from(new Set(ids));
+}
+
 export async function GET(req: Request) {
   try {
-    const { supabase, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
+    const { supabase, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
     const { searchParams } = new URL(req.url);
     const q = searchParams.get('q');
     const page = toInt(searchParams.get('page'), 1);
     const pageSize = Math.min(toInt(searchParams.get('page_size'), 20), 100);
+
+    const allowedCustomerIds = await customerIdsInBranchScope(supabase, profile.shop_id, branchScope);
 
     let query = supabase
       .from('customers')
@@ -29,6 +57,8 @@ export async function GET(req: Request) {
       .eq('shop_id', profile.shop_id)
       .eq('is_deleted', false)
       .order('created_at', { ascending: false });
+
+    if (allowedCustomerIds) query = query.in('id', allowedCustomerIds);
 
     if (q) {
       query = query.or(`full_name.ilike.%${q}%,phone.ilike.%${q}%,note.ilike.%${q}%`);
@@ -83,13 +113,18 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
-    const { supabase, user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
+    const { supabase, user, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
     const body = await req.json();
     const id = body.id as string;
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
 
     const parsed = customerSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues }, { status: 400 });
+
+    const allowedCustomerIds = await customerIdsInBranchScope(supabase, profile.shop_id, branchScope);
+    if (allowedCustomerIds && !allowedCustomerIds.includes(id)) {
+      return NextResponse.json({ error: 'Forbidden (customer out of branch scope)' }, { status: 403 });
+    }
 
     const payload = parsed.data;
     const { error } = await supabase
@@ -109,10 +144,10 @@ export async function PATCH(req: Request) {
       companyId: profile.company_id,
       shopId: profile.shop_id,
       userId: user.id,
-      action: 'data_deleted',
+      action: 'data_updated',
       targetTable: 'customers',
       targetId: id,
-      payload: { soft_delete: true },
+      payload: { full_name: payload.full_name },
     });
     return NextResponse.json({ data: true });
   } catch (e) {
@@ -122,10 +157,15 @@ export async function PATCH(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const { supabase, user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
+    const { supabase, user, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+
+    const allowedCustomerIds = await customerIdsInBranchScope(supabase, profile.shop_id, branchScope);
+    if (allowedCustomerIds && !allowedCustomerIds.includes(id)) {
+      return NextResponse.json({ error: 'Forbidden (customer out of branch scope)' }, { status: 403 });
+    }
 
     const { error } = await supabase
       .from('customers')

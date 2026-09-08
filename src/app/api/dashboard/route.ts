@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
+import { applyBranchScope } from '@/lib/auth/branch-scope';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const { supabase, profile, user, roles } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
+    const { supabase, profile, user, roles, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
+    // Owners may drill into one branch; branch-bound users are narrowed regardless.
+    const requestedBranchId = new URL(req.url).searchParams.get('branch_id');
 
     let targetShopId = profile.shop_id;
     if (!targetShopId) {
@@ -52,23 +55,39 @@ export async function GET() {
     const today = new Date().toISOString().slice(0, 10);
 
     const [{ count: branchCount }, { count: serviceCount }, { count: bookingCount }, { data: bookings, error }, { data: todayBookings, error: todayError }, { data: shopMeta }] = await Promise.all([
-      supabase.from('branches').select('*', { count: 'exact', head: true }).eq('shop_id', targetShopId).eq('is_deleted', false),
+      applyBranchScope(
+        supabase.from('branches').select('*', { count: 'exact', head: true }).eq('shop_id', targetShopId).eq('is_deleted', false),
+        branchScope,
+        requestedBranchId,
+        'id',
+      ),
       supabase.from('services').select('*', { count: 'exact', head: true }).eq('shop_id', targetShopId).eq('is_deleted', false),
-      supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('shop_id', targetShopId).eq('is_deleted', false),
-      supabase
-        .from('bookings')
-        .select('booking_date,status')
-        .eq('shop_id', targetShopId)
-        .eq('is_deleted', false)
-        .gte('booking_date', from)
-        .lte('booking_date', to),
-      supabase
-        .from('bookings')
-        .select('id,queue_number,booking_date,start_time,status,services(service_name),branches(branch_name),customers(full_name),service_id,branch_id')
-        .eq('shop_id', targetShopId)
-        .eq('is_deleted', false)
-        .eq('booking_date', today)
-        .order('start_time', { ascending: true }),
+      applyBranchScope(
+        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('shop_id', targetShopId).eq('is_deleted', false),
+        branchScope,
+        requestedBranchId,
+      ),
+      applyBranchScope(
+        supabase
+          .from('bookings')
+          .select('booking_date,status')
+          .eq('shop_id', targetShopId)
+          .eq('is_deleted', false)
+          .gte('booking_date', from)
+          .lte('booking_date', to),
+        branchScope,
+        requestedBranchId,
+      ),
+      applyBranchScope(
+        supabase
+          .from('bookings')
+          .select('id,queue_number,booking_date,start_time,status,services(service_name),branches(branch_name),customers(full_name),service_id,branch_id')
+          .eq('shop_id', targetShopId)
+          .eq('is_deleted', false)
+          .eq('booking_date', today),
+        branchScope,
+        requestedBranchId,
+      ).order('start_time', { ascending: true }),
       supabase.from('shops').select('id,demo_mode_enabled,demo_business_type,line_setup_completed,shop_key').eq('id', targetShopId).maybeSingle(),
     ]);
 

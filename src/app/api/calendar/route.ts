@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
+import { applyBranchScope } from '@/lib/auth/branch-scope';
 
 export async function GET(req: Request) {
   try {
-    const { supabase, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
+    const { supabase, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
     const { searchParams } = new URL(req.url);
     const from = searchParams.get('from');
     const to = searchParams.get('to');
@@ -22,7 +23,7 @@ export async function GET(req: Request) {
     if (from) query = query.gte('booking_date', from);
     if (to) query = query.lte('booking_date', to);
     if (status) query = query.eq('status', status);
-    if (branchId) query = query.eq('branch_id', branchId);
+    query = applyBranchScope(query, branchScope, branchId);
     if (serviceId) query = query.eq('service_id', serviceId);
 
     const { data, error } = await query;
