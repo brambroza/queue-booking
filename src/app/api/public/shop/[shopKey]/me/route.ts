@@ -53,7 +53,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   if (customer) {
     customerId = customer.id;
     if (payload.mode === 'update' && (payload.full_name || payload.phone)) {
-      const { data: updated } = await admin
+      const { data: updated, error: updateError } = await admin
         .from('customers')
         .update({
           full_name: payload.full_name?.trim() || customer.full_name,
@@ -62,6 +62,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
         .eq('id', customer.id)
         .select('id,full_name,phone,line_user_id')
         .single();
+      // Swallowing this let a phone that collides with unique(shop_id, phone)
+      // look saved while the old value stayed in the row.
+      if (updateError) {
+        const duplicate = updateError.code === '23505';
+        return NextResponse.json(
+          { error: duplicate ? 'เบอร์นี้ถูกใช้กับลูกค้ารายอื่นในร้านแล้ว' : 'บันทึกข้อมูลไม่สำเร็จ' },
+          { status: 400 },
+        );
+      }
       customer = updated ?? customer;
     }
   } else {

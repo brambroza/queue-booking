@@ -39,7 +39,7 @@ export const workingHourSchema = z.object({
 export const bookingSchema = z.object({
   branch_id: z.string().uuid(),
   service_id: z.string().uuid(),
-  customer_name: z.string().min(2),
+  customer_name: z.string().trim().min(1),
   customer_phone: z.string().min(8),
   line_user_pk: z.string().uuid().optional(),
   line_user_external_id: z.string().optional(),

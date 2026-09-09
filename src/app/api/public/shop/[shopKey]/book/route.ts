@@ -17,7 +17,9 @@ const bookSchema = z.object({
   service_id: z.string().uuid(),
   booking_date: z.string(),
   start_time: z.string(),
-  customer_name: z.string().min(2),
+  // A LINE display name can legitimately be a single character, so length is
+  // only there to reject blank names.
+  customer_name: z.string().trim().min(1),
   customer_phone: z.string().min(8),
   line_user_id: z.string().optional(),
   party_size: z.coerce.number().int().min(1).max(200).optional(),
@@ -25,10 +27,32 @@ const bookSchema = z.object({
   payment_method: z.enum(PAYMENT_METHODS).optional(),
 });
 
+/**
+ * Thai label for the first field a customer got wrong. A bare "Invalid payload"
+ * leaves them (and support) with no idea which box to fix, but the raw Zod
+ * message must not reach the response body either.
+ */
+function invalidFieldMessage(path: PropertyKey | undefined) {
+  const labels: Record<string, string> = {
+    customer_name: 'ชื่อผู้จอง',
+    customer_phone: 'เบอร์โทร',
+    booking_date: 'วันที่จอง',
+    start_time: 'เวลาที่จอง',
+    branch_id: 'สาขา',
+    service_id: 'บริการ',
+    resource_id: 'ผู้ให้บริการ',
+    payment_method: 'วิธีชำระเงิน',
+  };
+  const label = typeof path === 'string' ? labels[path] : undefined;
+  return label ? `ข้อมูลไม่ถูกต้อง: ${label}` : 'ข้อมูลการจองไม่ครบถ้วน';
+}
+
 export async function POST(req: Request, { params }: { params: Promise<{ shopKey: string }> }) {
   const { shopKey } = await params;
   const parsed = bookSchema.safeParse(await req.json());
-  if (!parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+  if (!parsed.success) {
+    return NextResponse.json({ error: invalidFieldMessage(parsed.error.issues[0]?.path[0]) }, { status: 400 });
+  }
 
   const admin = createAdminClient();
   const shop = await resolveShopByKeyOrId(admin, shopKey);

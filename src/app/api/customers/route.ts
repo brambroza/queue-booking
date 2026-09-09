@@ -6,7 +6,9 @@ import { writeAuditLog } from '@/lib/audit/activity-log';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 const customerSchema = z.object({
-  full_name: z.string().min(2),
+  // A LINE display name can legitimately be a single character, so length is
+  // only there to reject blank names.
+  full_name: z.string().trim().min(1),
   phone: z.string().min(8),
   note: z.string().optional().nullable(),
   line_user_id: z.string().uuid().optional().nullable(),

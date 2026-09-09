@@ -263,6 +263,19 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const canLoadSlots = branchId && serviceId && date;
   const canBook = memberReady && branchId && serviceId && date && selectedTime && customerName.trim().length >= 1 && customerPhone.trim().length >= 8;
 
+  /**
+   * Why step 1 cannot be left yet, or '' when it can. A silently dead button
+   * gave the customer nothing to act on and support nothing to go on.
+   */
+  const nextBlockedReason =
+    memberStatus !== 'ready'
+      ? 'กำลังตรวจสอบสมาชิกของร้าน กรุณารอสักครู่'
+      : !customerName.trim()
+        ? 'กรุณากรอกชื่อผู้จอง'
+        : customerPhone.trim().length < 8
+          ? 'กรุณากรอกเบอร์โทรให้ครบ'
+          : '';
+
   async function loadMe(opts?: { mode?: 'view' | 'update' }) {
     if (!lineUserId) return;
     setAccountLoading(true);
@@ -281,8 +294,16 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     const json = await res.json();
     setAccountLoading(false);
     if (!res.ok) return push(json.error ?? 'โหลดข้อมูลสมาชิกไม่สำเร็จ', 'error');
-    if (json.data?.customer?.full_name) setCustomerName(json.data.customer.full_name);
-    if (json.data?.customer?.phone) setCustomerPhone(json.data.customer.phone);
+    // A plain view must never overwrite what the customer is typing — this runs
+    // after booking and on the account tab, so a late response would otherwise
+    // clobber the form. On an explicit save the server's copy is the truth.
+    const isUpdate = (opts?.mode ?? 'view') === 'update';
+    if (json.data?.customer?.full_name) {
+      setCustomerName((prev) => (!isUpdate && prev.trim() ? prev : json.data.customer.full_name));
+    }
+    if (json.data?.customer?.phone) {
+      setCustomerPhone((prev) => (!isUpdate && prev.trim() ? prev : json.data.customer.phone));
+    }
     setUpcoming(json.data?.upcoming ?? []);
     setHistory(json.data?.history ?? []);
   }
@@ -371,7 +392,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         setLineUserId(profile.userId);
         setDisplayName(profile.displayName);
         setPictureUrl(profile.pictureUrl ?? '');
-        if (!customerName) setCustomerName(profile.displayName);
+        setCustomerName((prev) => (prev.trim() ? prev : profile.displayName));
 
         const memberRes = await fetch(`/api/public/shop/${shopKey}/member-context`, {
           method: 'POST',
@@ -391,8 +412,13 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
           return;
         }
 
-        if (memberJson.data?.customer?.full_name) setCustomerName(memberJson.data.customer.full_name);
-        if (memberJson.data?.customer?.phone) setCustomerPhone(memberJson.data.customer.phone);
+        // Prefill only into empty fields. The shop's stored copy can be worse
+        // than what the customer just typed (a one-character LINE name, a phone
+        // that was never filled in), and overwriting it left them unable to fix
+        // either one.
+        const member = memberJson.data?.customer;
+        if (member?.full_name) setCustomerName((prev) => (prev.trim() ? prev : member.full_name));
+        if (member?.phone) setCustomerPhone((prev) => (prev.trim() ? prev : member.phone));
         if (memberJson.data?.was_registered) push('สมัครสมาชิกกับร้านสำเร็จแล้ว กรุณายืนยันข้อมูลก่อนจองคิว', 'success');
         setMemberReady(true);
         setMemberStatus('ready');
@@ -404,7 +430,12 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         setMemberError(msg);
       }
     })();
-  }, [shop, customerName, push, shopKey, initialTab]);
+    // customerName must stay out of this list: with it, every keystroke in the
+    // name field re-ran LIFF init and member-context, and the late response
+    // overwrote what was being typed — including after the customer had already
+    // moved to step 2, where the name field is not on screen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shop, push, shopKey, initialTab]);
 
   useEffect(() => {
     if (!lineUserId || memberStatus !== 'ready') return;
@@ -844,11 +875,12 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                   <button
                     className="btn-primary w-full"
                     style={{ background: '#111111' }}
-                    disabled={memberStatus !== 'ready' || customerName.trim().length < 1 || customerPhone.trim().length < 8}
+                    disabled={Boolean(nextBlockedReason)}
                     onClick={() => setStep(2)}
                   >
                     ถัดไป: เลือกคิว
                   </button>
+                  {nextBlockedReason ? <p className="text-xs text-amber-700">{nextBlockedReason}</p> : null}
                   <button className="btn-outline w-full !bg-slate-100 !text-slate-700 !border-slate-200" onClick={() => void closeLiffOrBack()}>
                     ยกเลิก
                   </button>
