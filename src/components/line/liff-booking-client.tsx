@@ -261,7 +261,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const showDuration = shop?.show_service_duration !== false;
 
   const canLoadSlots = branchId && serviceId && date;
-  const canBook = memberReady && branchId && serviceId && date && selectedTime && customerName.trim().length >= 2 && customerPhone.trim().length >= 8;
+  const canBook = memberReady && branchId && serviceId && date && selectedTime && customerName.trim().length >= 1 && customerPhone.trim().length >= 8;
 
   async function loadMe(opts?: { mode?: 'view' | 'update' }) {
     if (!lineUserId) return;
