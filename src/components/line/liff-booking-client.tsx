@@ -844,7 +844,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                   <button
                     className="btn-primary w-full"
                     style={{ background: '#111111' }}
-                    disabled={memberStatus !== 'ready' || customerName.trim().length < 2 || customerPhone.trim().length < 8}
+                    disabled={memberStatus !== 'ready' || customerName.trim().length < 1 || customerPhone.trim().length < 8}
                     onClick={() => setStep(2)}
                   >
                     ถัดไป: เลือกคิว
