@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { Container } from '@mui/material';
-import { PublicNavbar } from '@/components/public/public-navbar';
+import { LandingNavbar } from '@/components/public/landing-navbar';
 import { PublicFooter } from '@/components/public/public-footer';
 import { DemoHero } from '@/components/demo/demo-hero';
 import { DemoLineExperiencePanel } from '@/components/demo/demo-line-experience-panel';
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export default function SandboxDemoPage() {
   return (
     <main>
-      <PublicNavbar />
+      <LandingNavbar />
       <Container maxWidth="xl" sx={{ py: 4 }}>
         <DemoHero />
         <div id="sandbox-panel" style={{ scrollMarginTop: 88 }}>

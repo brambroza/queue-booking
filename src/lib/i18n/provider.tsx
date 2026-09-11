@@ -65,14 +65,19 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     return dictionary[normalized] ?? dictionary[key] ?? fallback ?? normalized;
   }, [dictionary]);
 
+  const tNamespace = useCallback(
+    (namespace: string, key: string, fallback?: string) => t(`${namespace}.${key}`, fallback),
+    [t],
+  );
+
   const value = useMemo<I18nContextValue>(() => ({
     lang,
     setLang,
     t,
-    tNamespace: (namespace, key, fallback) => t(`${namespace}.${key}`, fallback),
+    tNamespace,
     languages,
     loading,
-  }), [lang, t, languages, loading]);
+  }), [lang, t, tNamespace, languages, loading]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }

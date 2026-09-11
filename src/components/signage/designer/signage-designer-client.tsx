@@ -73,6 +73,11 @@ export function SignageDesignerClient() {
   const [saving, setSaving] = useState(false);
   const [calling, setCalling] = useState(false);
   const branchInitialised = useRef(false);
+  // Keep the loaders' identity stable across dictionary reloads: they sit in the
+  // deps of the initial-load effect, and a changing identity there would cancel
+  // the in-flight load and leave the page on its skeleton forever.
+  const tRef = useRef(t);
+  tRef.current = t;
 
   const dirty = !isSameConfig(saved, draft);
 
@@ -80,17 +85,17 @@ export function SignageDesignerClient() {
     const qs = branch ? `?branch_id=${encodeURIComponent(branch)}` : '';
     const res = await fetch(`/api/signage-settings${qs}`, { cache: 'no-store' });
     const json = (await res.json()) as { data?: SettingsPayload; error?: string };
-    if (!res.ok || !json.data) throw new Error(json.error ?? t('load_failed', 'โหลดการตั้งค่าจอไม่สำเร็จ'));
+    if (!res.ok || !json.data) throw new Error(json.error ?? tRef.current('load_failed', 'โหลดการตั้งค่าจอไม่สำเร็จ'));
     return json.data;
-  }, [t]);
+  }, []);
 
   const loadLive = useCallback(async (branch: string) => {
     const qs = branch ? `?branch_id=${encodeURIComponent(branch)}` : '';
     const res = await fetch(`/api/queue-display${qs}`, { cache: 'no-store' });
     const json = (await res.json()) as { data?: QueueDisplayPayload; error?: string };
-    if (!res.ok || !json.data) throw new Error(json.error ?? t('load_failed', 'โหลดข้อมูลคิวไม่สำเร็จ'));
+    if (!res.ok || !json.data) throw new Error(json.error ?? tRef.current('load_failed', 'โหลดข้อมูลคิวไม่สำเร็จ'));
     return json.data;
-  }, [t]);
+  }, []);
 
   // Initial load: figure out whether the caller may edit shop-wide; branch managers start on their first branch.
   useEffect(() => {

@@ -4048,6 +4048,31 @@
 
 /* ---------- Navbar (v2) ---------- */
 
+/* Same design tokens as .page so the navbar can be mounted on pages without the landing wrapper. */
+.navScope {
+  --landing-ink: #111714;
+  --landing-muted: #66706b;
+  --landing-green: #0eaa5c;
+  --landing-green-dark: #087f45;
+  --landing-mint: #edf9f2;
+  --landing-mint-strong: #dff4e8;
+  --landing-blue: #2364d8;
+  --landing-line: #dce4df;
+  --landing-white: #fff;
+  color: var(--landing-ink);
+  font-family: var(--font-sans), 'Kanit', system-ui, sans-serif;
+}
+
+.navScope a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.mobileLinkActive {
+  color: var(--landing-green-dark);
+  background: var(--landing-mint);
+}
+
 .navbar {
   position: sticky;
   z-index: 50;
@@ -4362,14 +4387,13 @@
 }
 
 .mobileGroupLabel {
-  margin: 14px 0 6px;
+  margin: 16px 0 6px;
   padding: 0 12px;
   color: var(--landing-muted);
-  font-size: 11px;
-  line-height: 1.8;
+  font-size: 12px;
+  line-height: 2;
   font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  letter-spacing: 0.1em;
 }
 
 .mobileLink {
