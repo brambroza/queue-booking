@@ -13,7 +13,8 @@ import {
   formatTHB,
 } from '@/lib/demo/payment-demo';
 import type { DemoBooking } from '@/components/demo/line-demo-types';
-import { PAYMENT_METHODS, type PaymentMethod, type PaymentStatus } from '@/types/db';
+import type { PaymentMethod, PaymentStatus } from '@/types/db';
+import { DEMO_PAYMENT_METHODS } from '@/lib/demo/payment-demo';
 
 /** Non-scannable QR artwork. Labelled so nobody mistakes it for a real code. */
 function FakeQr({ seed }: { seed: string }) {
@@ -97,7 +98,7 @@ export function DemoPaymentSimulator({
 
       {/* Method switch — the whole point is seeing both paths without a reset. */}
       <Stack direction="row" spacing={1}>
-        {PAYMENT_METHODS.map((m) => (
+        {DEMO_PAYMENT_METHODS.map((m) => (
           <Button
             key={m}
             fullWidth

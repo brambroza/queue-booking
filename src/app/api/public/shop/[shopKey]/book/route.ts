@@ -6,26 +6,34 @@ import { pushMessage } from '@/lib/line/client';
 import { bookingConfirmFlex } from '@/lib/line/messages';
 import { assertFeatureQuota, SubscriptionInactiveError, SubscriptionQuotaError } from '@/lib/subscription/enforcement';
 import { createNotification, safeCreateNotification } from '@/lib/notifications/createNotification';
-import { resolvePaymentForBooking, type PaymentBankInfo } from '@/lib/payments/resolve';
+import { resolvePaymentForBooking, type PaymentBankInfo, type PaymentDeeplinkInfo } from '@/lib/payments/resolve';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
 import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
 import { resourceBusyMessage, resourceTypeLabel } from '@/lib/booking/resource-types';
-import { PAYMENT_METHODS } from '@/types/db';
+import { BANK_PROVIDERS, PAYMENT_METHODS } from '@/types/db';
 
-const bookSchema = z.object({
-  branch_id: z.string().uuid(),
-  service_id: z.string().uuid(),
-  booking_date: z.string(),
-  start_time: z.string(),
-  // A LINE display name can legitimately be a single character, so length is
-  // only there to reject blank names.
-  customer_name: z.string().trim().min(1),
-  customer_phone: z.string().min(8),
-  line_user_id: z.string().optional(),
-  party_size: z.coerce.number().int().min(1).max(200).optional(),
-  resource_id: z.string().uuid().optional(),
-  payment_method: z.enum(PAYMENT_METHODS).optional(),
-});
+const bookSchema = z
+  .object({
+    branch_id: z.string().uuid(),
+    service_id: z.string().uuid(),
+    booking_date: z.string(),
+    start_time: z.string(),
+    // A LINE display name can legitimately be a single character, so length is
+    // only there to reject blank names.
+    customer_name: z.string().trim().min(1),
+    customer_phone: z.string().min(8),
+    line_user_id: z.string().optional(),
+    party_size: z.coerce.number().int().min(1).max(200).optional(),
+    resource_id: z.string().uuid().optional(),
+    payment_method: z.enum(PAYMENT_METHODS).optional(),
+    /** Which bank app to open; required with `bank_deeplink`, ignored otherwise. */
+    bank_provider: z.enum(BANK_PROVIDERS).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.payment_method === 'bank_deeplink' && !value.bank_provider) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['bank_provider'], message: 'bank_provider is required' });
+    }
+  });
 
 /**
  * Thai label for the first field a customer got wrong. A bare "Invalid payload"
@@ -42,6 +50,7 @@ function invalidFieldMessage(path: PropertyKey | undefined) {
     service_id: 'บริการ',
     resource_id: 'ผู้ให้บริการ',
     payment_method: 'วิธีชำระเงิน',
+    bank_provider: 'ธนาคารที่เลือก',
   };
   const label = typeof path === 'string' ? labels[path] : undefined;
   return label ? `ข้อมูลไม่ถูกต้อง: ${label}` : 'ข้อมูลการจองไม่ครบถ้วน';
@@ -374,6 +383,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     qr_image_url: string;
     expires_at: string | null;
     bank: PaymentBankInfo | null;
+    deeplink: PaymentDeeplinkInfo | null;
   } | null = null;
 
   try {
@@ -394,6 +404,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       dateLabel,
       timeLabel: payload.start_time.slice(0, 5),
       requestedMethod: payload.payment_method ?? null,
+      requestedBankProvider: payload.bank_provider ?? null,
     });
 
     if (payment) {
@@ -403,6 +414,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
         qr_image_url: payment.qrImageUrl,
         expires_at: payment.expiresAt,
         bank: payment.bank,
+        deeplink: payment.deeplink,
       };
 
       if (payload.line_user_id) {

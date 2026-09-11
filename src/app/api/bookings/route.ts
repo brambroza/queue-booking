@@ -352,6 +352,7 @@ export async function POST(req: Request) {
           dateLabel,
           timeLabel,
           requestedMethod: payload.payment_method ?? null,
+          requestedBankProvider: payload.bank_provider ?? null,
         });
         if (payment && token) {
           await pushMessage(token, payload.line_user_external_id, [payment.flex]);

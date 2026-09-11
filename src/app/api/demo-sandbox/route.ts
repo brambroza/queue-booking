@@ -27,6 +27,8 @@ const actionSchema = z.object({
   keep_services: z.boolean().optional(),
   keep_resources: z.boolean().optional(),
   checklist: z.record(z.boolean()).optional(),
+  /** Narrow `call_next` to one branch (signage designer preview). */
+  branch_id: z.string().uuid().optional(),
 });
 
 async function resolveTenant(userId: string, profile: { company_id: string | null; shop_id: string | null }) {
@@ -164,6 +166,7 @@ export async function POST(req: Request) {
         companyId: tenant.companyId,
         shopId: tenant.shopId,
         userId: user.id,
+        branchId: parsed.data.branch_id ?? null,
       });
       return NextResponse.json({ data: result });
     }

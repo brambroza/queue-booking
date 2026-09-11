@@ -571,7 +571,7 @@ export function BookingsCrud() {
               {editTarget.payment_method && (
                 <div className="rounded-xl border border-slate-200 p-4 text-sm space-y-1">
                   <p className="text-slate-600">
-                    วิธีชำระ: <b>{editTarget.payment_method === 'bank_transfer' ? 'โอนเงิน + แนบสลิป' : 'QR อัตโนมัติ (Omise)'}</b>
+                    วิธีชำระ: <b>{editTarget.payment_method === 'bank_transfer' ? 'โอนเงิน + แนบสลิป' : editTarget.payment_method === 'bank_deeplink' ? 'จ่ายผ่านแอปธนาคาร' : 'QR อัตโนมัติ (Omise)'}</b>
                   </p>
                   <p className="text-slate-600">
                     ยอด: <b>{Number(editTarget.payment_amount ?? 0).toLocaleString('th-TH')} บาท</b>

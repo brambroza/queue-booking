@@ -13,6 +13,9 @@ export interface ResolvedBookingOwner {
     payment_amount: number | null;
     payment_expires_at: string | null;
     payment_reject_reason: string | null;
+    bank_provider: string | null;
+    bank_txn_id: string | null;
+    bank_deeplink_url: string | null;
   };
 }
 
@@ -64,7 +67,7 @@ export async function resolveBookingForLineUser(
 
   const { data: booking } = await admin
     .from('bookings')
-    .select('id,queue_number,payment_status,payment_method,payment_amount,payment_expires_at,payment_reject_reason')
+    .select('id,queue_number,payment_status,payment_method,payment_amount,payment_expires_at,payment_reject_reason,bank_provider,bank_txn_id,bank_deeplink_url')
     .eq('id', bookingId)
     .eq('shop_id', shop.id)
     .eq('line_user_id', lineUser.id)

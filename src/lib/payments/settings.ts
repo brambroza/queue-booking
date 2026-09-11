@@ -1,7 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { PaymentMethod } from '@/types/db';
+import type { BankProvider, PaymentMethod } from '@/types/db';
 import { resolveOmiseSecretKey } from './omise';
 import { maskPromptPayId, normalizePromptPayTarget } from './promptpay';
+import { loadShopDeeplinkProviders } from './deeplink/settings';
+import { providerDisplayName } from './deeplink/registry';
+import type { DeeplinkProviderConfig } from './deeplink/types';
 
 /**
  * A shop's resolved payment configuration — the single place that decides which
@@ -10,6 +13,8 @@ import { maskPromptPayId, normalizePromptPayTarget } from './promptpay';
 export interface ShopPaymentConfig {
   /** Methods this shop can actually charge with, in picker order. */
   enabledMethods: PaymentMethod[];
+  // TODO(security): omise_secret_key is stored in plain text on shops. Move it
+  // behind src/lib/crypto/secret-box.ts the way bank deeplink credentials are.
   omiseSecretKey: string;
   /** Raw PromptPay target. Server-only — never send this to a client. */
   promptpayId: string | null;
@@ -18,6 +23,13 @@ export interface ShopPaymentConfig {
   bankAccountNo: string | null;
   bankAccountName: string | null;
   transferWindowMinutes: number;
+  /** Banks the customer may pay through in-app, in picker order. Server-only (holds credentials). */
+  deeplinkProviders: DeeplinkProviderConfig[];
+}
+
+export interface PublicDeeplinkBank {
+  provider: BankProvider;
+  display_name: string;
 }
 
 /** Customer-safe subset of the config, suitable for /meta and LIFF responses. */
@@ -28,27 +40,30 @@ export interface PublicPaymentInfo {
   bank_name: string | null;
   bank_account_no: string | null;
   bank_account_name: string | null;
+  /** One button per entry when `bank_deeplink` is in `methods`. */
+  deeplink_banks: PublicDeeplinkBank[];
 }
 
 const SHOP_PAYMENT_COLUMNS =
   'qr_payment_enabled, omise_secret_key, transfer_payment_enabled, promptpay_id, promptpay_display_name, bank_name, bank_account_no, bank_account_name, transfer_payment_window_minutes';
 
 /**
- * Load a shop's payment configuration in one query.
+ * Load a shop's payment configuration in one round trip per source.
  *
  * A method is only reported as enabled when it is both toggled on AND usable:
- * bank transfer needs a parseable PromptPay id, Omise needs a secret key.
- * Anything else would produce a booking stuck at pending_payment with no way to pay.
+ * bank transfer needs a parseable PromptPay id, Omise needs a secret key, bank
+ * deeplink needs at least one configured bank plus PAYMENT_LINK_SECRET (the
+ * bank-app return page authenticates with that token alone). Anything else
+ * would produce a booking stuck at pending_payment with no way to pay.
  */
 export async function getShopPaymentConfig(
   admin: SupabaseClient,
   shopId: string,
 ): Promise<ShopPaymentConfig> {
-  const { data, error } = await admin
-    .from('shops')
-    .select(SHOP_PAYMENT_COLUMNS)
-    .eq('id', shopId)
-    .maybeSingle();
+  const [{ data, error }, deeplinkProviders] = await Promise.all([
+    admin.from('shops').select(SHOP_PAYMENT_COLUMNS).eq('id', shopId).maybeSingle(),
+    loadShopDeeplinkProviders(admin, shopId),
+  ]);
 
   if (error) console.error('[payments] shop config fetch error:', error.message);
 
@@ -57,6 +72,9 @@ export async function getShopPaymentConfig(
   const promptpayId = (shop.promptpay_id as string | null) ?? null;
 
   const enabledMethods: PaymentMethod[] = [];
+  if (deeplinkProviders.length > 0 && process.env.PAYMENT_LINK_SECRET) {
+    enabledMethods.push('bank_deeplink');
+  }
   if (shop.transfer_payment_enabled && promptpayId && normalizePromptPayTarget(promptpayId)) {
     enabledMethods.push('bank_transfer');
   }
@@ -73,6 +91,7 @@ export async function getShopPaymentConfig(
     bankAccountNo: (shop.bank_account_no as string | null) ?? null,
     bankAccountName: (shop.bank_account_name as string | null) ?? null,
     transferWindowMinutes: Number(shop.transfer_payment_window_minutes ?? 1440) || 1440,
+    deeplinkProviders: enabledMethods.includes('bank_deeplink') ? deeplinkProviders : [],
   };
 }
 
@@ -86,5 +105,9 @@ export function toPublicPaymentInfo(config: ShopPaymentConfig): PublicPaymentInf
     bank_name: showTransfer ? config.bankName : null,
     bank_account_no: showTransfer ? config.bankAccountNo : null,
     bank_account_name: showTransfer ? config.bankAccountName : null,
+    deeplink_banks: config.deeplinkProviders.map((p) => ({
+      provider: p.provider,
+      display_name: providerDisplayName(p.provider),
+    })),
   };
 }

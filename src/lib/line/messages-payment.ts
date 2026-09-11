@@ -219,6 +219,119 @@ export function transferPaymentFlex(payload: {
   };
 }
 
+/**
+ * Flex Message สำหรับชำระผ่านแอปธนาคาร (deeplink) — ปุ่มหลักเปิดแอปธนาคาร
+ * ปุ่มรองกลับเข้า LIFF เพื่อออกลิงก์ใหม่ถ้าหมดอายุ
+ *
+ * LINE accepts only http(s)/line/tel URIs in Flex actions, so a bank scheme
+ * link (`scbeasy://…`) is routed through `fallbackUrl` (our return page, which
+ * re-opens the deeplink in the system browser) instead of being put in the
+ * button directly.
+ */
+export function deeplinkPaymentFlex(payload: {
+  shopName: string;
+  queueNumber: string;
+  service: string;
+  branch: string;
+  date: string;
+  time: string;
+  amountTHB: number;
+  bankName: string;
+  deeplinkUrl: string;
+  /** https page that can relaunch the bank app when the deeplink itself is not https. */
+  fallbackUrl: string;
+  expiresAt?: string | null;
+  accountUrl?: string | null;
+}) {
+  const expireLabel = payload.expiresAt
+    ? new Date(payload.expiresAt).toLocaleString('th-TH', {
+        day: 'numeric', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok',
+      })
+    : null;
+
+  const buttonUri = /^https:\/\//i.test(payload.deeplinkUrl) ? payload.deeplinkUrl : payload.fallbackUrl;
+
+  const noteContents: Array<Record<string, unknown>> = [
+    { type: 'text', text: `กดปุ่มเพื่อเปิดแอป ${payload.bankName} ยอดเงินและผู้รับถูกตั้งไว้แล้ว ยืนยันด้วย PIN ได้เลย`, size: 'xs', color: '#4b5563', wrap: true },
+  ];
+  if (expireLabel) {
+    noteContents.push({ type: 'text', text: `ชำระภายใน: ${expireLabel}`, size: 'xs', color: '#ef4444', margin: 'sm', wrap: true });
+  }
+
+  const footerButtons: Array<Record<string, unknown>> = [
+    {
+      type: 'button',
+      style: 'primary',
+      color: '#1d4ed8',
+      action: { type: 'uri', label: `เปิดแอป ${payload.bankName}`, uri: buttonUri },
+    },
+  ];
+  if (payload.accountUrl) {
+    footerButtons.push({
+      type: 'button',
+      style: 'link',
+      height: 'sm',
+      action: { type: 'uri', label: 'ดูสถานะ / ออกลิงก์ใหม่', uri: payload.accountUrl },
+    });
+  }
+
+  return {
+    type: 'flex',
+    altText: `ชำระเงิน ${formatTHB(payload.amountTHB)} บาท ผ่าน ${payload.bankName} – คิว ${payload.queueNumber}`,
+    contents: {
+      type: 'bubble',
+      size: 'kilo',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: '#1d4ed8',
+        paddingAll: '16px',
+        contents: [
+          { type: 'text', text: payload.shopName, color: '#ffffff99', size: 'xs' },
+          { type: 'text', text: `ชำระผ่าน ${payload.bankName}`, color: '#ffffff', weight: 'bold', size: 'xl', margin: 'sm' },
+        ],
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'md',
+        contents: [
+          {
+            type: 'box',
+            layout: 'vertical',
+            spacing: 'xs',
+            contents: [
+              { type: 'text', text: `คิว ${payload.queueNumber}`, weight: 'bold', size: 'lg', color: '#111827' },
+              { type: 'text', text: `บริการ: ${payload.service}`, size: 'sm', color: '#374151', wrap: true },
+              { type: 'text', text: `สาขา: ${payload.branch}`, size: 'sm', color: '#374151', wrap: true },
+              { type: 'text', text: `${payload.date}  ${payload.time}`, size: 'sm', color: '#374151' },
+            ],
+          },
+          { type: 'separator' },
+          {
+            type: 'box',
+            layout: 'vertical',
+            alignItems: 'center',
+            contents: [
+              { type: 'text', text: `${formatTHB(payload.amountTHB)} บาท`, weight: 'bold', size: 'xxl', color: '#1d4ed8' },
+            ],
+          },
+          {
+            type: 'box',
+            layout: 'vertical',
+            backgroundColor: '#eff6ff',
+            cornerRadius: '8px',
+            paddingAll: '10px',
+            contents: noteContents,
+          },
+        ],
+      },
+      footer: { type: 'box', layout: 'vertical', spacing: 'sm', contents: footerButtons },
+    },
+  };
+}
+
 /** Flex Message ยืนยันว่าได้รับสลิปแล้ว กำลังรอร้านตรวจสอบ */
 export function slipReceivedFlex(payload: {
   shopName: string;

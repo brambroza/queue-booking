@@ -1,8 +1,9 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { PageShell } from '@/components/ui/page-shell';
 import { useToast } from '@/components/ui/toast';
+import { DeeplinkProviderCard, type DeeplinkProviderView } from '@/components/portal/deeplink-provider-card';
 
 interface PaymentSettings {
   qr_payment_enabled: boolean;
@@ -42,6 +43,19 @@ export default function PaymentSettingsPage() {
   // Bumped after every save so the preview <img> refetches instead of showing a
   // stale QR for the previous PromptPay id.
   const [previewNonce, setPreviewNonce] = useState(0);
+  const [deeplinkProviders, setDeeplinkProviders] = useState<DeeplinkProviderView[]>([]);
+  const [linkSecretConfigured, setLinkSecretConfigured] = useState(true);
+
+  const loadDeeplink = useCallback(async () => {
+    const res = await fetch('/api/shop-payment-settings/deeplink');
+    const json = await res.json();
+    // A missing table (migration not applied yet) hides the section instead of breaking the page.
+    if (!res.ok) { setDeeplinkProviders([]); return; }
+    setDeeplinkProviders((json.data?.providers ?? []) as DeeplinkProviderView[]);
+    setLinkSecretConfigured(Boolean(json.data?.link_secret_configured));
+  }, []);
+
+  useEffect(() => { void loadDeeplink(); }, [loadDeeplink]);
 
   useEffect(() => {
     void (async () => {
@@ -100,7 +114,8 @@ export default function PaymentSettingsPage() {
     form.omise_public_key.startsWith('pkey_test_') ||
     (form.omise_secret_key_hint?.includes('skey_test_') ?? form.omise_public_key.startsWith('pkey_test_'));
 
-  const enabledCount = Number(form.qr_payment_enabled) + Number(form.transfer_payment_enabled);
+  const deeplinkEnabled = deeplinkProviders.some((p) => p.enabled && p.available && p.credentials_set && p.biller_id.trim());
+  const enabledCount = Number(form.qr_payment_enabled) + Number(form.transfer_payment_enabled) + Number(deeplinkEnabled);
   const transferMisconfigured = form.transfer_payment_enabled && !form.promptpay_id.trim();
 
   if (loading) return <PageShell title="Payment Settings"><p className="text-sm text-slate-500">กำลังโหลด...</p></PageShell>;
@@ -112,7 +127,7 @@ export default function PaymentSettingsPage() {
       <div className={`max-w-2xl rounded-xl px-4 py-3 text-sm font-medium ${enabledCount > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>
         {enabledCount === 0 && 'ยังไม่เปิดช่องทางชำระเงิน — ลูกค้าจองโดยไม่ต้องชำระล่วงหน้า'}
         {enabledCount === 1 && '✓ เปิดรับชำระเงิน 1 ช่องทาง — ระบบจะส่งวิธีชำระให้ลูกค้าหลังจองสำเร็จ'}
-        {enabledCount === 2 && '✓ เปิดรับชำระเงิน 2 ช่องทาง — ลูกค้าจะเลือกวิธีชำระเองตอนจอง'}
+        {enabledCount >= 2 && `✓ เปิดรับชำระเงิน ${enabledCount} ช่องทาง — ลูกค้าจะเลือกวิธีชำระเองตอนจอง`}
       </div>
 
       {transferMisconfigured && (
@@ -297,6 +312,22 @@ export default function PaymentSettingsPage() {
           </button>
         </div>
       </form>
+
+      {/* ─── Card 3+: bank deeplink (one card per bank, saved separately) ── */}
+      {deeplinkProviders.length > 0 && (
+        <div className="mt-8 max-w-2xl space-y-5">
+          <div>
+            <h2 className="text-base font-semibold text-slate-800">จ่ายผ่านแอปธนาคาร (Deeplink)</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              ลูกค้าเลือกธนาคารตอนจอง → เด้งเข้าแอปธนาคารพร้อมยอดที่ล็อกไว้ → ใส่ PIN → ระบบยืนยันอัตโนมัติ
+              เงินเข้าบัญชีร้านโดยตรง ต้องสมัครกับธนาคารก่อน (ดูขั้นตอนในแต่ละการ์ด)
+            </p>
+          </div>
+          {deeplinkProviders.map((p) => (
+            <DeeplinkProviderCard key={p.provider} view={p} linkSecretConfigured={linkSecretConfigured} onSaved={() => void loadDeeplink()} />
+          ))}
+        </div>
+      )}
     </PageShell>
   );
 }

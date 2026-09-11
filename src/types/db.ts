@@ -18,11 +18,23 @@ export type PaymentStatus =
   | 'failed'
   | 'refunded';
 
-/** How a booking is being paid for. Null on bookings with no payment. */
-export type PaymentMethod = 'omise_promptpay' | 'bank_transfer';
+/**
+ * How a booking is being paid for. Null on bookings with no payment.
+ *
+ * `bank_deeplink` covers every bank-app deeplink flow (SCB Easy, K PLUS, …);
+ * the bank itself lives in `bookings.bank_provider`, because all banks share
+ * one flow: open app → bank confirms → auto `paid` → receipt.
+ */
+export type PaymentMethod = 'omise_promptpay' | 'bank_transfer' | 'bank_deeplink';
 
 /** Source of truth for zod enums and method-picker ordering. */
-export const PAYMENT_METHODS = ['omise_promptpay', 'bank_transfer'] as const satisfies readonly PaymentMethod[];
+export const PAYMENT_METHODS = ['omise_promptpay', 'bank_transfer', 'bank_deeplink'] as const satisfies readonly PaymentMethod[];
+
+/** Bank whose app a deeplink payment opens. */
+export type BankProvider = 'scb' | 'kbank';
+
+/** Source of truth for zod enums and the per-bank button order in LIFF. */
+export const BANK_PROVIDERS = ['scb', 'kbank'] as const satisfies readonly BankProvider[];
 
 /** Review state of an uploaded transfer slip. */
 export type SlipStatus = 'pending' | 'approved' | 'rejected' | 'superseded';

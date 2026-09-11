@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PAYMENT_METHODS } from '@/types/db';
+import { BANK_PROVIDERS, PAYMENT_METHODS } from '@/types/db';
 
 export const branchSchema = z.object({
   branch_name: z.string().min(2),
@@ -51,6 +51,8 @@ export const bookingSchema = z.object({
   status: z.enum(['pending', 'pending_approval', 'confirmed', 'waiting', 'called', 'seating', 'serving', 'in_service', 'checked_in', 'completed', 'skipped', 'cancelled', 'no_show']).default('confirmed'),
   /** Lets staff force a method; otherwise the shop's first enabled method wins. */
   payment_method: z.enum(PAYMENT_METHODS).optional(),
+  /** Bank app for `bank_deeplink`; the shop's first configured bank when omitted. */
+  bank_provider: z.enum(BANK_PROVIDERS).optional(),
 });
 
 export const bookingResourceSchema = z.object({

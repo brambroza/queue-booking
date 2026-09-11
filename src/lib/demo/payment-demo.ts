@@ -1,4 +1,10 @@
-import type { PaymentMethod, PaymentStatus } from '@/types/db';
+import { PAYMENT_METHODS, type PaymentMethod, type PaymentStatus } from '@/types/db';
+
+/**
+ * Methods the sandbox can act out. Bank deeplink needs a real bank app on the
+ * other end, so the demo leaves it out rather than fake a PIN screen.
+ */
+export const DEMO_PAYMENT_METHODS: readonly PaymentMethod[] = PAYMENT_METHODS.filter((m) => m !== 'bank_deeplink');
 
 /**
  * Shared, dependency-free helpers for the payment *demonstration*.
@@ -27,6 +33,10 @@ export const DEMO_METHOD_LABELS: Record<PaymentMethod, { title: string; hint: st
   bank_transfer: {
     title: 'โอนเงิน + ส่งสลิป',
     hint: 'ลูกค้าอัปโหลดสลิป แล้วร้านกดอนุมัติเอง',
+  },
+  bank_deeplink: {
+    title: 'จ่ายผ่านแอปธนาคาร',
+    hint: 'เด้งเข้าแอปธนาคาร ยอดล็อกไว้ ใส่ PIN แล้วระบบยืนยันอัตโนมัติ',
   },
 };
 

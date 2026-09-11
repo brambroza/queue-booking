@@ -112,6 +112,10 @@ src/
 | `/api/line-settings` | LINE OA configuration |
 | `/api/settings` | Shop settings |
 | `/api/shop-profile` | Shop profile |
+| `/api/shop-payment-settings` | Omise + bank transfer settings |
+| `/api/shop-payment-settings/deeplink` | Bank deeplink (SCB/KBank) credentials per shop + `/test` connection check |
+| `/api/payments/webhook` | Omise webhook (shared secret `?key=`) |
+| `/api/payments/bank/[provider]/webhook/[shopKey]` | Bank deeplink confirmation (per-shop secret `?key=`, verified by inquiry) |
 | `/api/me-profile` | Current user profile |
 | `/api/available-slots` | Slot availability check |
 | `/api/service-templates` | Service templates |
@@ -125,6 +129,10 @@ src/
 | `/api/public/shop/[shopKey]/slots` | Available slots |
 | `/api/public/shop/[shopKey]/book` | Create booking (LIFF) |
 | `/api/public/shop/[shopKey]/cancel-booking` | Cancel booking |
+| `/api/public/shop/[shopKey]/payment/status` | Payment state for LIFF panel (heals missed bank webhooks) |
+| `/api/public/shop/[shopKey]/payment/slip` | Slip upload |
+| `/api/public/shop/[shopKey]/payment/deeplink` | Re-issue bank deeplink for a booking |
+| `/api/public/shop/[shopKey]/payment/deeplink-return` | Status for bank-app return page (HMAC `?t=` only) |
 | `/api/public/shop/[shopKey]/display` | Queue display data |
 | `/api/public/shop/[shopKey]/me` | LIFF user profile |
 | `/api/public/shop/[shopKey]/member-context` | Member context |
@@ -237,6 +245,16 @@ await safeCreateNotification({ shopId, type: 'booking_created', ... });
 pending → confirmed → waiting → serving → completed
                     ↘ cancelled / no_show
 ```
+
+## Payment Methods
+
+| `payment_method` | Flow | Confirmed by |
+|---|---|---|
+| `omise_promptpay` | Omise QR | Omise webhook + charge re-fetch |
+| `bank_transfer` | Shop PromptPay QR + slip upload | Staff approves slip |
+| `bank_deeplink` | Open bank app (SCB Easy / K PLUS) via `src/lib/payments/deeplink/` adapters; bank in `bookings.bank_provider` | Bank inquiry API (`confirmDeeplinkPayment`) — never the webhook body |
+
+Bank deeplink field names are unverified against bank portals — every literal in `deeplink/scb.ts` and `deeplink/kbank.ts` is marked `VERIFY`. KBank ships disabled (`DEEPLINK_KBANK_ENABLED`). Requires `PAYMENT_LINK_SECRET`.
 
 ---
 

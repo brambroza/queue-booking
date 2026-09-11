@@ -5,7 +5,7 @@ import { useToast } from '@/components/ui/toast';
 import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import { isPersonResourceType, resourceTypeIcon, resourceTypeLabel } from '@/lib/booking/resource-types';
 import { buildBookingEchoText } from '@/lib/line/booking-echo';
-import { LiffPaymentPanel } from '@/components/line/liff-payment-panel';
+import { LiffPaymentPanel, openBankDeeplink } from '@/components/line/liff-payment-panel';
 import type { PaymentMethod } from '@/types/db';
 
 type Branch = { id: string; branch_name: string };
@@ -49,12 +49,23 @@ type MyBooking = {
   payment_status?: string | null;
   payment_method?: string | null;
   payment_amount?: number | null;
+  bank_provider?: string | null;
 };
 
 type ShopPaymentMeta = {
   methods: PaymentMethod[];
   promptpay_display_name: string | null;
   promptpay_masked: string | null;
+  /** Banks offered for in-app payment; one picker button each. */
+  deeplink_banks?: Array<{ provider: string; display_name: string }>;
+};
+
+/** One button in the payment method picker. */
+type PaymentOption = {
+  key: string;
+  method: PaymentMethod;
+  bank?: string;
+  label: string;
 };
 
 /** Result of a completed booking, kept so the success screen can host payment. */
@@ -63,6 +74,9 @@ type BookingResult = {
   queue_number: string;
   payment_method: string | null;
 };
+
+/** Methods where the customer still has something to do after booking. */
+const ON_SCREEN_PAYMENT_METHODS = new Set(['bank_transfer', 'bank_deeplink']);
 
 /** localStorage key holding a booking whose payment is still unfinished. */
 const pendingPaymentKey = (shopKey: string) => `queue.pendingPayment.${shopKey}`;
@@ -84,6 +98,9 @@ type LiffApi = {
   isInClient?: () => boolean;
   login: () => void;
   closeWindow?: () => void;
+  /** `external: true` hands the URL to the system browser — needed for bank app schemes. */
+  openWindow?: (params: { url: string; external?: boolean }) => void;
+  getOS?: () => 'ios' | 'android' | 'web';
   sendMessages?: (messages: object[]) => Promise<void>;
   getProfile: () => Promise<{ userId: string; displayName: string; pictureUrl?: string }>;
   getIDToken?: () => string | null;
@@ -242,6 +259,10 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const [bookingResult, setBookingResult] = useState<BookingResult | null>(null);
   const [shopPayment, setShopPayment] = useState<ShopPaymentMeta | null>(null);
   const [chosenMethod, setChosenMethod] = useState<PaymentMethod | ''>('');
+  const [chosenBank, setChosenBank] = useState('');
+  // Bank apps only exist on phones; assume mobile until the browser says otherwise
+  // so the first paint in LINE does not flash without the bank buttons.
+  const [isMobileLike, setIsMobileLike] = useState(true);
   const [resumeBooking, setResumeBooking] = useState<BookingResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [memberReady, setMemberReady] = useState(false);
@@ -513,11 +534,16 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         localStorage.removeItem(pendingPaymentKey(shopKey));
         return;
       }
-      setResumeBooking({ booking_id: saved.booking_id, queue_number: saved.queue_number, payment_method: 'bank_transfer' });
+      setResumeBooking({ booking_id: saved.booking_id, queue_number: saved.queue_number, payment_method: saved.payment_method ?? 'bank_transfer' });
     } catch {
       // ignore unreadable storage
     }
   }, [shopKey]);
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined') return;
+    setIsMobileLike(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+  }, []);
 
   /** Clear the resume marker once the booking no longer owes money. */
   function clearPendingPayment() {
@@ -532,15 +558,55 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     return resourcePrice > 0 ? resourcePrice : servicePrice;
   }, [selectedResourceId, resources, services, serviceId]);
 
-  const paymentMethods = useMemo(() => shopPayment?.methods ?? [], [shopPayment]);
-  const showMethodPicker = effectivePrice > 0 && paymentMethods.length > 1;
+  /**
+   * Picker buttons: `bank_deeplink` expands into one button per bank, and is
+   * dropped entirely on desktop where no bank app can open.
+   */
+  const paymentOptions = useMemo<PaymentOption[]>(() => {
+    const methods = shopPayment?.methods ?? [];
+    const options: PaymentOption[] = [];
+    for (const m of methods) {
+      if (m === 'bank_deeplink') {
+        if (!isMobileLike) continue;
+        for (const bank of shopPayment?.deeplink_banks ?? []) {
+          options.push({ key: `deeplink:${bank.provider}`, method: m, bank: bank.provider, label: `จ่ายผ่านแอป ${bank.display_name}` });
+        }
+      } else if (m === 'bank_transfer') {
+        options.push({ key: m, method: m, label: 'โอนเงิน + แนบสลิป' });
+      } else {
+        options.push({ key: m, method: m, label: 'สแกน QR ชำระอัตโนมัติ' });
+      }
+    }
+    return options;
+  }, [shopPayment, isMobileLike]);
+  const showMethodPicker = effectivePrice > 0 && paymentOptions.length > 1;
+  const chosenOptionKey = chosenMethod === 'bank_deeplink' ? `deeplink:${chosenBank}` : chosenMethod;
 
-  // With exactly one method there is nothing to choose — send it explicitly so
-  // the server does not have to fall back.
+  // With exactly one option there is nothing to choose — send it explicitly so
+  // the server does not have to fall back. Also drop a choice that is no longer
+  // offered (e.g. the bank buttons disappeared after mobile detection).
   useEffect(() => {
-    if (paymentMethods.length === 1) setChosenMethod(paymentMethods[0]);
-    else if (paymentMethods.length === 0) setChosenMethod('');
-  }, [paymentMethods]);
+    if (paymentOptions.length === 1) {
+      setChosenMethod(paymentOptions[0].method);
+      setChosenBank(paymentOptions[0].bank ?? '');
+      return;
+    }
+    if (paymentOptions.length === 0) {
+      setChosenMethod('');
+      setChosenBank('');
+      return;
+    }
+    setChosenMethod((current) => {
+      if (!current) return current;
+      const stillOffered = paymentOptions.some((o) => o.method === current && (current !== 'bank_deeplink' || o.bank === chosenBank));
+      return stillOffered ? current : '';
+    });
+  }, [paymentOptions, chosenBank]);
+
+  function chooseOption(option: PaymentOption) {
+    setChosenMethod(option.method);
+    setChosenBank(option.bank ?? '');
+  }
 
   async function bookNow() {
     if (!canBook) return;
@@ -558,6 +624,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         customer_phone: customerPhone,
         line_user_id: lineUserId || undefined,
         payment_method: chosenMethod || undefined,
+        bank_provider: chosenMethod === 'bank_deeplink' && chosenBank ? chosenBank : undefined,
       }),
     });
     const json = await res.json();
@@ -573,13 +640,19 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     };
     setBookingResult(result);
     setResumeBooking(null);
-    // Remember an unfinished transfer so a reload does not strand the customer.
-    if (paymentMethod === 'bank_transfer' && result.booking_id) {
+    // Remember an unfinished payment so a reload does not strand the customer.
+    if (paymentMethod && ON_SCREEN_PAYMENT_METHODS.has(paymentMethod) && result.booking_id) {
       try {
         localStorage.setItem(pendingPaymentKey(shopKey), JSON.stringify({ ...result, ts: Date.now() }));
       } catch {
         // storage unavailable (private mode) — the account tab is still the durable path
       }
+    }
+    // Hand off to the bank app right away, while the tap that confirmed the
+    // booking still counts as a user gesture for the browser.
+    const deeplinkUrl: string | undefined = json.data?.payment?.deeplink?.deeplink_url;
+    if (paymentMethod === 'bank_deeplink' && deeplinkUrl) {
+      try { openBankDeeplink(deeplinkUrl); } catch { /* the panel still offers the button */ }
     }
     // Wake up the shop. The Flex confirmation the server pushed is outbound, so
     // it never raises an unread badge in LINE OA Chat — only a message from the
@@ -607,8 +680,8 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     push('จองคิวสำเร็จ');
     void loadMe();
     // Never auto-close while a payment panel is on screen — it would close the
-    // only place the customer can upload their slip.
-    if (paymentMethod === 'bank_transfer') return;
+    // only place the customer can upload their slip or reopen the bank app.
+    if (paymentMethod && ON_SCREEN_PAYMENT_METHODS.has(paymentMethod)) return;
     try {
       const liff = await ensureLiffLoaded();
       if (liff?.isInClient?.() && liff?.closeWindow) {
@@ -691,7 +764,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
             <p>สาขา: <b>{selectedBranch?.branch_name ?? '-'}</b></p>
             <p className="pt-2 text-xs text-slate-500">กรุณามาก่อนเวลาประมาณ 10 นาที</p>
 
-            {bookingResult?.payment_method === 'bank_transfer' && bookingResult.booking_id && lineUserId && (
+            {bookingResult?.payment_method && ON_SCREEN_PAYMENT_METHODS.has(bookingResult.payment_method) && bookingResult.booking_id && lineUserId && (
               <div className="pt-3">
                 <LiffPaymentPanel
                   shopKey={shopKey}
@@ -942,14 +1015,14 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                   {showMethodPicker && (
                     <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
                       <p className="text-xs font-semibold text-slate-700">เลือกวิธีชำระเงิน ({effectivePrice.toLocaleString('th-TH')} บาท)</p>
-                      {paymentMethods.map((m) => (
+                      {paymentOptions.map((option) => (
                         <button
-                          key={m}
-                          className={chosenMethod === m ? 'btn-primary w-full !rounded-xl !py-2.5' : 'btn-outline w-full !rounded-xl !py-2.5'}
-                          style={chosenMethod === m ? { background: uiTheme.accent } : undefined}
-                          onClick={() => setChosenMethod(m)}
+                          key={option.key}
+                          className={chosenOptionKey === option.key ? 'btn-primary w-full !rounded-xl !py-2.5' : 'btn-outline w-full !rounded-xl !py-2.5'}
+                          style={chosenOptionKey === option.key ? { background: uiTheme.accent } : undefined}
+                          onClick={() => chooseOption(option)}
                         >
-                          {m === 'bank_transfer' ? 'โอนเงิน + แนบสลิป' : 'สแกน QR ชำระอัตโนมัติ'}
+                          {option.label}
                         </button>
                       ))}
                     </div>
@@ -1028,6 +1101,15 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                         onClick={() => setResumeBooking({ booking_id: b.id, queue_number: b.queue_number, payment_method: 'bank_transfer' })}
                       >
                         {b.payment_status === 'rejected' ? 'อัปโหลดสลิปใหม่' : 'ชำระเงิน / อัปโหลดสลิป'}
+                      </button>
+                    ) : null}
+                    {b.payment_method === 'bank_deeplink' && (b.payment_status === 'pending_payment' || b.payment_status === 'failed') ? (
+                      <button
+                        className="btn-primary mt-3 w-full"
+                        style={{ background: uiTheme.accent }}
+                        onClick={() => setResumeBooking({ booking_id: b.id, queue_number: b.queue_number, payment_method: 'bank_deeplink' })}
+                      >
+                        {b.payment_status === 'failed' ? 'ชำระเงินใหม่ผ่านแอปธนาคาร' : 'ชำระเงินผ่านแอปธนาคาร'}
                       </button>
                     ) : null}
                     {(b.status === 'pending' || b.status === 'confirmed' || b.status === 'waiting') ? (

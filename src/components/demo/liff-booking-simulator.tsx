@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import { Box, Button, Stack, TextField, Typography } from '@mui/material';
-import { DEMO_METHOD_LABELS, formatTHB } from '@/lib/demo/payment-demo';
+import { DEMO_METHOD_LABELS, DEMO_PAYMENT_METHODS, formatTHB } from '@/lib/demo/payment-demo';
 import type { DemoBooking } from '@/components/demo/line-demo-types';
-import { PAYMENT_METHODS, type PaymentMethod } from '@/types/db';
+import type { PaymentMethod } from '@/types/db';
 
 type Service = { id: string; icon: string; name: string; duration: string; mode: string; price: number };
 
@@ -156,7 +156,7 @@ export function LiffBookingSimulator({
                 <Typography sx={{ fontWeight: 900, fontSize: 20, color: '#0a7043' }}>{formatTHB(selected.price)} บาท</Typography>
               </Stack>
               <Typography sx={{ fontSize: 12, color: '#637182' }}>เลือกวิธีชำระเงิน</Typography>
-              {PAYMENT_METHODS.map((method) => {
+              {DEMO_PAYMENT_METHODS.map((method) => {
                 const active = method === paymentMethod;
                 return (
                   <Box

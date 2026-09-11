@@ -13,6 +13,11 @@ interface SlipInfo {
   image_url: string | null;
 }
 
+interface DeeplinkBank {
+  provider: string;
+  display_name: string;
+}
+
 interface PaymentState {
   booking_id: string;
   queue_number: string;
@@ -28,14 +33,26 @@ interface PaymentState {
     bank_name: string | null;
     bank_account_no: string | null;
     bank_account_name: string | null;
+    deeplink_banks?: DeeplinkBank[];
   } | null;
+  bank_provider: string | null;
+  bank_provider_name: string | null;
+  bank_deeplink_url: string | null;
+  return_url: string | null;
   slip: SlipInfo | null;
 }
 
+type LiffWindowApi = {
+  isInClient?: () => boolean;
+  openWindow?: (params: { url: string; external?: boolean }) => void;
+};
+
 /** Client-side ceiling before compression — anything larger is a mistake, not a slip. */
 const MAX_RAW_BYTES = 12 * 1024 * 1024;
-const POLL_INTERVAL_MS = 10_000;
-const MAX_POLLS = 30; // 5 minutes
+const SLIP_POLL_INTERVAL_MS = 10_000;
+const SLIP_MAX_POLLS = 30; // 5 minutes
+const DEEPLINK_POLL_INTERVAL_MS = 3_000;
+const DEEPLINK_MAX_POLLS = 100; // 5 minutes
 
 function formatTHB(amount: number) {
   return amount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -43,25 +60,49 @@ function formatTHB(amount: number) {
 
 function useCountdown(expiresAt: string | null | undefined) {
   const [label, setLabel] = useState('');
+  const [expired, setExpired] = useState(false);
   useEffect(() => {
-    if (!expiresAt) return setLabel('');
+    if (!expiresAt) {
+      setLabel('');
+      setExpired(false);
+      return;
+    }
     const tick = () => {
       const left = new Date(expiresAt).getTime() - Date.now();
-      if (left <= 0) return setLabel('หมดเวลาชำระแล้ว');
+      if (left <= 0) {
+        setExpired(true);
+        return setLabel('หมดเวลาชำระแล้ว');
+      }
+      setExpired(false);
       const h = Math.floor(left / 3_600_000);
       const m = Math.floor((left % 3_600_000) / 60_000);
       setLabel(h > 0 ? `เหลือเวลา ${h} ชม. ${m} นาที` : `เหลือเวลา ${m} นาที`);
     };
     tick();
-    const id = setInterval(tick, 30_000);
+    const id = setInterval(tick, 15_000);
     return () => clearInterval(id);
   }, [expiresAt]);
-  return label;
+  return { label, expired };
 }
 
 /**
- * Payment panel shown after a booking is made with the bank-transfer method:
- * the shop's PromptPay QR, the payee details, and the slip upload.
+ * Open a bank deeplink. Inside LINE the in-app browser cannot hand custom
+ * schemes to other apps reliably, so LIFF's openWindow(external) sends it to the
+ * system browser, which can. Elsewhere a plain navigation is enough.
+ */
+export function openBankDeeplink(url: string) {
+  const liff = (window as Window & { liff?: LiffWindowApi }).liff;
+  if (liff?.isInClient?.() && liff.openWindow) {
+    liff.openWindow({ url, external: true });
+    return;
+  }
+  window.location.href = url;
+}
+
+/**
+ * Payment panel shown after a booking is made with a method that needs the
+ * customer to act: bank transfer (QR + slip upload) or bank deeplink (open the
+ * bank app, then wait for confirmation).
  */
 export function LiffPaymentPanel({
   shopKey,
@@ -82,6 +123,7 @@ export function LiffPaymentPanel({
   const [state, setState] = useState<PaymentState | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [reissuing, setReissuing] = useState(false);
   const [error, setError] = useState('');
   const [amountClaimed, setAmountClaimed] = useState('');
   const [transferredAt, setTransferredAt] = useState('');
@@ -108,15 +150,21 @@ export function LiffPaymentPanel({
 
   useEffect(() => { void load(); }, [load]);
 
+  const isDeeplink = state?.payment_method === 'bank_deeplink';
+
   // Poll only while a decision is pending, and give up rather than polling forever.
+  // Deeplink confirmations arrive within seconds of the bank PIN, so poll faster.
   useEffect(() => {
-    if (state?.payment_status !== 'awaiting_verification' || pollCount >= MAX_POLLS) return;
+    const status = state?.payment_status;
+    const waiting = isDeeplink ? status === 'pending_payment' : status === 'awaiting_verification';
+    const maxPolls = isDeeplink ? DEEPLINK_MAX_POLLS : SLIP_MAX_POLLS;
+    if (!waiting || pollCount >= maxPolls) return;
     const id = setTimeout(() => {
       setPollCount((n) => n + 1);
       void load();
-    }, POLL_INTERVAL_MS);
+    }, isDeeplink ? DEEPLINK_POLL_INTERVAL_MS : SLIP_POLL_INTERVAL_MS);
     return () => clearTimeout(id);
-  }, [state?.payment_status, pollCount, load]);
+  }, [state?.payment_status, isDeeplink, pollCount, load]);
 
   useEffect(() => {
     if (state?.payment_status === 'paid') onPaid?.();
@@ -158,10 +206,33 @@ export function LiffPaymentPanel({
     }
   }
 
+  /** Ask the server for a fresh bank deeplink and open it. */
+  async function reissueDeeplink(provider: string) {
+    setReissuing(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/public/shop/${shopKey}/payment/deeplink`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ line_user_id: lineUserId, booking_id: bookingId, id_token: idToken || undefined, bank_provider: provider }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'ออกลิงก์ชำระเงินไม่สำเร็จ');
+      setPollCount(0);
+      await load();
+      const url = (json.data as { deeplink_url?: string } | undefined)?.deeplink_url;
+      if (url) openBankDeeplink(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'ออกลิงก์ชำระเงินไม่สำเร็จ');
+    } finally {
+      setReissuing(false);
+    }
+  }
+
   if (loading) {
     return <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-500">กำลังโหลดข้อมูลการชำระเงิน...</div>;
   }
-  if (!state || state.payment_method !== 'bank_transfer') return null;
+  if (!state || (state.payment_method !== 'bank_transfer' && state.payment_method !== 'bank_deeplink')) return null;
 
   const amount = Number(state.payment_amount ?? 0);
   const status = state.payment_status;
@@ -173,6 +244,81 @@ export function LiffPaymentPanel({
         <p className="text-3xl">✓</p>
         <p className="mt-1 text-base font-bold text-green-700">ชำระเงินเรียบร้อยแล้ว</p>
         <p className="mt-1 text-sm text-green-700">{formatTHB(amount)} บาท</p>
+      </div>
+    );
+  }
+
+  // ── Bank deeplink: open the app, wait for the bank ──
+  if (isDeeplink) {
+    const bankName = state.bank_provider_name ?? 'ธนาคาร';
+    const banks = state.payee?.deeplink_banks ?? [];
+    const canOpen = Boolean(state.bank_deeplink_url) && status === 'pending_payment' && !countdown.expired;
+    return (
+      <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
+        {status === 'failed' && (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+            <p className="text-sm font-semibold text-rose-700">การชำระเงินไม่สำเร็จ</p>
+            <p className="mt-1 text-xs text-rose-600">กดออกลิงก์ใหม่เพื่อลองอีกครั้ง</p>
+          </div>
+        )}
+
+        <div className="text-center">
+          <p className="text-xs text-slate-500">ยอดที่ต้องชำระ</p>
+          <p className="text-3xl font-extrabold" style={{ color: accent }}>{formatTHB(amount)} บาท</p>
+          {countdown.label && <p className={`mt-1 text-xs ${countdown.expired ? 'text-rose-600' : 'text-slate-500'}`}>{countdown.label}</p>}
+        </div>
+
+        {canOpen ? (
+          <button
+            className="btn-primary w-full"
+            style={{ background: accent }}
+            onClick={() => state.bank_deeplink_url && openBankDeeplink(state.bank_deeplink_url)}
+          >
+            เปิดแอป {bankName}
+          </button>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-xs text-slate-600">ลิงก์ชำระเงินหมดอายุหรือใช้ไม่ได้แล้ว เลือกธนาคารเพื่อออกลิงก์ใหม่</p>
+            {(banks.length ? banks : state.bank_provider ? [{ provider: state.bank_provider, display_name: bankName }] : []).map((b) => (
+              <button
+                key={b.provider}
+                className="btn-primary w-full"
+                style={{ background: accent }}
+                disabled={reissuing}
+                onClick={() => void reissueDeeplink(b.provider)}
+              >
+                {reissuing ? 'กำลังออกลิงก์...' : `ออกลิงก์ใหม่ · ${b.display_name}`}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+          <p>ยอดเงินและผู้รับถูกตั้งไว้แล้วในแอป {bankName} ยืนยันด้วย PIN ได้เลย</p>
+          <p className="mt-1">ชำระเสร็จแล้วกลับมาที่หน้านี้ ระบบตรวจสอบกับธนาคารอัตโนมัติ</p>
+        </div>
+
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-slate-500">
+            {status === 'pending_payment' && pollCount < DEEPLINK_MAX_POLLS ? 'กำลังรอธนาคารยืนยัน...' : 'หยุดตรวจสอบอัตโนมัติแล้ว'}
+          </p>
+          <button className="btn-outline !py-1.5 !text-xs" onClick={() => { setPollCount(0); void load(); }}>ตรวจสอบสถานะ</button>
+        </div>
+
+        {canOpen && banks.length > 1 && (
+          <div className="border-t border-slate-100 pt-3">
+            <p className="text-xs text-slate-500">เปลี่ยนธนาคาร</p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {banks.filter((b) => b.provider !== state.bank_provider).map((b) => (
+                <button key={b.provider} className="btn-outline !py-2 !text-xs" disabled={reissuing} onClick={() => void reissueDeeplink(b.provider)}>
+                  {b.display_name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
       </div>
     );
   }
@@ -193,7 +339,7 @@ export function LiffPaymentPanel({
         >
           ตรวจสอบสถานะอีกครั้ง
         </button>
-        {pollCount >= MAX_POLLS && (
+        {pollCount >= SLIP_MAX_POLLS && (
           <p className="text-xs text-amber-700">หยุดตรวจสอบอัตโนมัติแล้ว กดปุ่มด้านบนเพื่อเช็คใหม่</p>
         )}
       </div>
@@ -216,7 +362,7 @@ export function LiffPaymentPanel({
       <div className="text-center">
         <p className="text-xs text-slate-500">ยอดที่ต้องชำระ</p>
         <p className="text-3xl font-extrabold" style={{ color: accent }}>{formatTHB(amount)} บาท</p>
-        {countdown && <p className="mt-1 text-xs text-slate-500">{countdown}</p>}
+        {countdown.label && <p className="mt-1 text-xs text-slate-500">{countdown.label}</p>}
       </div>
 
       {state.qr_image_url && (

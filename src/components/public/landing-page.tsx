@@ -15,6 +15,7 @@ import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
 import EventBusyRoundedIcon from '@mui/icons-material/EventBusyRounded';
 import KeyboardArrowLeftRoundedIcon from '@mui/icons-material/KeyboardArrowLeftRounded';
 import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRightRounded';
+import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import LocalHospitalRoundedIcon from '@mui/icons-material/LocalHospitalRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import NotificationsNoneRoundedIcon from '@mui/icons-material/NotificationsNoneRounded';
@@ -25,23 +26,38 @@ import ShieldMoonRoundedIcon from '@mui/icons-material/ShieldMoonRounded';
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
 import SupportAgentRoundedIcon from '@mui/icons-material/SupportAgentRounded';
 import TranslateRoundedIcon from '@mui/icons-material/TranslateRounded';
+import TvRoundedIcon from '@mui/icons-material/TvRounded';
 import UpdateRoundedIcon from '@mui/icons-material/UpdateRounded';
 import { faqs, pricingPlans } from './content';
+import { DigitalSignageShowcase } from './landing-signage-showcase';
 import styles from './landing-page.module.css';
 
 const lineFriendUrl = 'https://lin.ee/oViqAoh';
 
-const navItems = [
-  { label: 'ภาพรวม', href: '#overview' },
-  { label: 'วิธีทำงาน', href: '#workflow' },
-  { label: 'รับมัดจำ', href: '#deposit' },
-  { label: 'ฟีเจอร์', href: '#features' },
-  { label: 'ราคา', href: '#pricing' },
-  { label: 'ซัพพอร์ต', href: '#support' },
-  { label: 'คำถามที่พบบ่อย', href: '#faq' },
-  { label: 'โหมดทดลอง', href: '/sandbox-demo' },
+type NavChild = { label: string; desc: string; href: string; icon: typeof QrCode2RoundedIcon };
+type NavItem = { label: string; href: string; id?: string; children?: NavChild[] };
+
+const navItems: NavItem[] = [
+  { label: 'ภาพรวม', href: '#overview', id: 'overview' },
+  { label: 'วิธีทำงาน', href: '#workflow', id: 'workflow' },
+  {
+    label: 'ฟีเจอร์',
+    href: '#features',
+    id: 'features',
+    children: [
+      { label: 'รับมัดจำ PromptPay', desc: 'ล็อกคิวด้วย QR ใน LINE ไม่ต้องเช็คสลิป', href: '#deposit', icon: QrCode2RoundedIcon },
+      { label: 'จอเรียกคิว / Digital Signage', desc: 'เทมเพลตจอ TV และป้ายตั้งพื้น พร้อมติดตั้ง', href: '#signage', icon: TvRoundedIcon },
+      { label: 'Google Calendar', desc: 'ซิงก์ทุกการจองเข้าปฏิทินของร้าน', href: '#google-calendar', icon: CalendarMonthRoundedIcon },
+      { label: 'ฟีเจอร์ทั้งหมด', desc: 'Queue Board หลายสาขา รายงาน และอื่น ๆ', href: '#features', icon: DashboardRoundedIcon },
+    ],
+  },
+  { label: 'ราคา', href: '#pricing', id: 'pricing' },
+  { label: 'ซัพพอร์ต', href: '#support', id: 'support' },
+  { label: 'คำถามที่พบบ่อย', href: '#faq', id: 'faq' },
   { label: 'บทความ', href: '/blog' },
 ];
+
+const sectionIds = navItems.flatMap((item) => (item.id ? [item.id] : []));
 
 const workflowSteps = [
   { number: '01', label: 'ทัก LINE', icon: ChatBubbleOutlineRoundedIcon },
@@ -139,61 +155,197 @@ function ArrowIcon() {
 
 function LandingNavbar() {
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [featuresOpen, setFeaturesOpen] = useState(false);
+  const [activeId, setActiveId] = useState<string>('overview');
+  const featuresRef = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Scroll spy: highlight the nav item whose section is closest to the top.
+  useEffect(() => {
+    const sections = sectionIds.map((id) => document.getElementById(id)).filter((el): el is HTMLElement => Boolean(el));
+    if (sections.length === 0 || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting).sort((x, y) => x.boundingClientRect.top - y.boundingClientRect.top);
+        if (visible[0]) setActiveId(visible[0].target.id);
+      },
+      { rootMargin: '-40% 0px -50% 0px', threshold: 0 },
+    );
+    sections.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
+  // Mobile drawer: lock body scroll and close on Escape.
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = previous;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  // Desktop dropdown: close on outside click or Escape.
+  useEffect(() => {
+    if (!featuresOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!featuresRef.current?.contains(e.target as Node)) setFeaturesOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFeaturesOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [featuresOpen]);
+
+  const openFeatures = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    setFeaturesOpen(true);
+  };
+  const closeFeaturesSoon = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    closeTimer.current = setTimeout(() => setFeaturesOpen(false), 140);
+  };
+
+  const featureItem = navItems.find((item) => item.children);
 
   return (
-    <header className={styles.navbar}>
+    <>
+    <header className={`${styles.navbar} ${scrolled ? styles.navbarScrolled : ''}`}>
       <div className={styles.navInner}>
         <Brand />
+
         <nav className={styles.desktopNav} aria-label="เมนูหลัก">
-          {navItems.map((item) => <Link key={item.href} href={item.href}>{item.label}</Link>)}
+          {navItems.map((item) =>
+            item.children ? (
+              <div
+                key={item.href}
+                ref={featuresRef}
+                className={`${styles.navDropdown} ${featuresOpen ? styles.navDropdownOpen : ''}`}
+                onMouseEnter={openFeatures}
+                onMouseLeave={closeFeaturesSoon}
+              >
+                <button
+                  type="button"
+                  className={`${styles.navLink} ${activeId === item.id || featuresOpen ? styles.navLinkActive : ''}`}
+                  aria-haspopup="menu"
+                  aria-expanded={featuresOpen}
+                  onClick={() => setFeaturesOpen((v) => !v)}
+                >
+                  {item.label} <KeyboardArrowDownRoundedIcon className={styles.navCaret} />
+                </button>
+                <div className={styles.navMenu} role="menu" aria-label="ฟีเจอร์">
+                  {item.children.map(({ label, desc, href, icon: Icon }) => (
+                    <Link key={label} href={href} role="menuitem" className={styles.navMenuItem} onClick={() => setFeaturesOpen(false)}>
+                      <span className={styles.navMenuIcon}><Icon /></span>
+                      <span>
+                        <strong>{label}</strong>
+                        <small>{desc}</small>
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`${styles.navLink} ${item.id && activeId === item.id ? styles.navLinkActive : ''} ${
+                  item.id === 'support' || item.id === 'faq' ? styles.navLinkSecondary : ''
+                }`}
+                aria-current={item.id && activeId === item.id ? 'true' : undefined}
+              >
+                {item.label}
+              </Link>
+            ),
+          )}
         </nav>
+
         <div className={styles.navActions}>
-          <Link href="/login" className={styles.loginLink}>เข้าสู่ระบบ</Link>
-          <a
-            href={lineFriendUrl}
-            className={styles.lineFriendNav}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <ChatBubbleOutlineRoundedIcon /> เพิ่มเพื่อน
+          <Link href="/sandbox-demo" className={styles.navGhost}>โหมดทดลอง</Link>
+          <Link href="/login" className={styles.navGhost}>เข้าสู่ระบบ</Link>
+          <a href={lineFriendUrl} className={styles.lineFriendNav} target="_blank" rel="noopener noreferrer" aria-label="เพิ่มเพื่อนใน LINE">
+            <ChatBubbleOutlineRoundedIcon /> <span>เพิ่มเพื่อน</span>
           </a>
-          <Link href="/register" className={styles.navCta}>เริ่มใช้ฟรี</Link>
+          <Link href="/register" className={styles.navCta}>เริ่มใช้ฟรี <ArrowIcon /></Link>
           <button
             type="button"
             className={styles.menuButton}
-            aria-label="เปิดเมนู"
+            aria-label={open ? 'ปิดเมนู' : 'เปิดเมนู'}
             aria-expanded={open}
-            onClick={() => setOpen(true)}
+            aria-controls="landing-mobile-menu"
+            onClick={() => setOpen((v) => !v)}
           >
-            <MenuRoundedIcon />
+            {open ? <CloseRoundedIcon /> : <MenuRoundedIcon />}
           </button>
         </div>
       </div>
-      <div className={`${styles.mobileMenu} ${open ? styles.mobileMenuOpen : ''}`} aria-hidden={!open}>
+    </header>
+
+    {/* Drawer lives outside <header>: backdrop-filter on the navbar would otherwise become the containing block for position: fixed. */}
+    <div className={`${styles.mobileBackdrop} ${open ? styles.mobileBackdropOpen : ''}`} aria-hidden="true" onClick={() => setOpen(false)} />
+      <aside id="landing-mobile-menu" className={`${styles.mobileMenu} ${open ? styles.mobileMenuOpen : ''}`} aria-hidden={!open}>
         <div className={styles.mobileMenuHeader}>
           <Brand />
           <button type="button" className={styles.menuButton} aria-label="ปิดเมนู" onClick={() => setOpen(false)}>
             <CloseRoundedIcon />
           </button>
         </div>
-        <nav aria-label="เมนูมือถือ">
-          {navItems.map((item) => (
-            <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>{item.label}</Link>
+        <nav className={styles.mobileNav} aria-label="เมนูมือถือ">
+          <p className={styles.mobileGroupLabel}>เมนู</p>
+          {navItems.filter((item) => !item.children).map((item) => (
+            <Link key={item.href} href={item.href} className={styles.mobileLink} onClick={() => setOpen(false)}>
+              {item.label} <KeyboardArrowRightRoundedIcon />
+            </Link>
           ))}
-          <Link href="/login" onClick={() => setOpen(false)}>เข้าสู่ระบบ</Link>
-          <a
-            href={lineFriendUrl}
-            className={styles.mobileLineFriend}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => setOpen(false)}
-          >
+          {featureItem?.children ? (
+            <>
+              <p className={styles.mobileGroupLabel}>ฟีเจอร์</p>
+              <div className={styles.mobileFeatureGrid}>
+                {featureItem.children.map(({ label, desc, href, icon: Icon }) => (
+                  <Link key={label} href={href} className={styles.mobileFeature} onClick={() => setOpen(false)}>
+                    <span className={styles.navMenuIcon}><Icon /></span>
+                    <span>
+                      <strong>{label}</strong>
+                      <small>{desc}</small>
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </>
+          ) : null}
+          <Link href="/sandbox-demo" className={styles.mobileLink} onClick={() => setOpen(false)}>
+            โหมดทดลอง <KeyboardArrowRightRoundedIcon />
+          </Link>
+          <Link href="/login" className={styles.mobileLink} onClick={() => setOpen(false)}>
+            เข้าสู่ระบบ <KeyboardArrowRightRoundedIcon />
+          </Link>
+        </nav>
+        <div className={styles.mobileMenuFooter}>
+          <a href={lineFriendUrl} className={styles.mobileLineFriend} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)}>
             <ChatBubbleOutlineRoundedIcon /> เพิ่มเพื่อนใน LINE
           </a>
-          <Link href="/register" className={styles.navCta} onClick={() => setOpen(false)}>เริ่มใช้ฟรี</Link>
-        </nav>
-      </div>
-    </header>
+          <Link href="/register" className={styles.navCta} onClick={() => setOpen(false)}>เริ่มใช้ฟรี <ArrowIcon /></Link>
+        </div>
+      </aside>
+    </>
   );
 }
 
@@ -539,7 +691,7 @@ function OutcomeSection() {
         <div className={styles.outcomeGrid}>
           <div className={styles.outcomeCopy}>
             <div className={styles.sectionIntro} data-reveal>
-              <p className={styles.sectionNumber}>04 / ผลลัพธ์</p>
+              <p className={styles.sectionNumber}>05 / ผลลัพธ์</p>
               <h2>คิวลื่น ทีมเบา<br />ลูกค้าไม่ต้องรอ</h2>
               <p>ลดงานตอบแชทซ้ำ ลดคิวซ้อน และเห็นภาพรวมทุกสาขา</p>
             </div>
@@ -567,7 +719,7 @@ function OutcomeSection() {
           </div>
         </div>
         <div className={styles.featureRail} aria-label="ฟีเจอร์หลัก" data-reveal>
-          {['LINE OA Booking', 'LIFF Booking', 'Auto Reply', 'Queue Board', 'Multi-branch', 'PromptPay Deposit', 'Reports', 'Google Calendar Sync'].map((feature, index) => (
+          {['LINE OA Booking', 'LIFF Booking', 'Auto Reply', 'Queue Board', 'Digital Signage', 'Multi-branch', 'PromptPay Deposit', 'Reports', 'Google Calendar Sync'].map((feature, index) => (
             <span key={feature}><i>{String(index + 1).padStart(2, '0')}</i>{feature}</span>
           ))}
         </div>
@@ -583,7 +735,7 @@ function PricingSection() {
     <section className={styles.pricingSection} id="pricing">
       <div className={styles.container}>
         <div className={`${styles.sectionIntro} ${styles.pricingIntro}`} data-reveal>
-          <p className={styles.sectionNumber}>05 / ราคา</p>
+          <p className={styles.sectionNumber}>06 / ราคา</p>
           <h2>เริ่มเล็ก แล้วโตไป<br />พร้อมทุกสาขา</h2>
           <p>เริ่มต้นฟรี 50 คิวต่อเดือน เปลี่ยนแพ็กเกจได้ตลอด</p>
         </div>
@@ -626,7 +778,7 @@ function LandingFaqSection() {
     <section className={styles.supportSection} id="faq">
       <div className={styles.container}>
         <div className={styles.sectionIntro} data-reveal>
-          <p className={styles.sectionNumber}>07 / คำถามที่พบบ่อย</p>
+          <p className={styles.sectionNumber}>08 / คำถามที่พบบ่อย</p>
           <h2>เคลียร์ก่อนเริ่ม</h2>
         </div>
         <div className="mx-auto mt-6 max-w-3xl space-y-2">
@@ -647,7 +799,7 @@ function SupportSection() {
     <section className={styles.supportSection} id="support">
       <div className={styles.container}>
         <div className={styles.sectionIntro} data-reveal>
-          <p className={styles.sectionNumber}>06 / ซัพพอร์ต</p>
+          <p className={styles.sectionNumber}>07 / ซัพพอร์ต</p>
           <h2>ทีมงานพร้อมช่วย<br />ตลอด 24 ชั่วโมง</h2>
           <p>ติดตั้ง ปรับระบบ หรือแก้ปัญหาเร่งด่วน ทักหาเราได้ทุกวัน ไม่มีวันหยุด</p>
         </div>
@@ -852,6 +1004,44 @@ export function LandingPage() {
           .from('[data-calendar-panel="calendar"]', { x: 44, autoAlpha: 0, duration: 0.8 }, '-=0.62')
           .from('[data-calendar-event]', { scaleY: 0, autoAlpha: 0, duration: 0.45, stagger: 0.1, transformOrigin: 'top center' }, '-=0.4');
 
+        const signageTimeline = gsap.timeline({
+          scrollTrigger: { trigger: '[data-signage-section]', start: 'top 76%', once: true },
+          defaults: { ease: 'power3.out' },
+        });
+        signageTimeline
+          .from('[data-signage-copy]', { x: -38, autoAlpha: 0, duration: 0.75, stagger: 0.08 })
+          .from('[data-signage-tv]', { y: 44, scale: 0.96, autoAlpha: 0, duration: 0.9 }, '-=0.5')
+          .from('[data-signage-chip]', { y: 16, autoAlpha: 0, duration: 0.5, stagger: 0.08 }, '-=0.45');
+
+        gsap.from('[data-signage-devices-intro]', {
+          y: 30,
+          autoAlpha: 0,
+          duration: 0.7,
+          ease: 'power3.out',
+          scrollTrigger: { trigger: '[data-signage-devices-intro]', start: 'top 86%', once: true },
+        });
+        gsap.from('[data-signage-device]', {
+          y: 46,
+          autoAlpha: 0,
+          duration: 0.8,
+          stagger: 0.12,
+          ease: 'power3.out',
+          scrollTrigger: { trigger: '[data-signage-device]', start: 'top 84%', once: true },
+        });
+        gsap.from('[data-signage-plan]', {
+          y: 40,
+          autoAlpha: 0,
+          duration: 0.75,
+          stagger: 0.1,
+          ease: 'power3.out',
+          scrollTrigger: { trigger: '[data-signage-plan]', start: 'top 84%', once: true },
+        });
+        gsap.from('[data-signage-services]', {
+          autoAlpha: 0,
+          duration: 0.6,
+          scrollTrigger: { trigger: '[data-signage-services]', start: 'top 92%', once: true },
+        });
+
         gsap.utils.toArray<HTMLElement>('[data-outcome]').forEach((item) => {
           gsap.from(item, {
             x: -34,
@@ -921,6 +1111,7 @@ export function LandingPage() {
         <WorkflowSection />
         <PromptPayDepositSection />
         <GoogleCalendarShowcase />
+        <DigitalSignageShowcase />
         <OutcomeSection />
         <PricingSection />
         <SupportSection />

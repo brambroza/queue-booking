@@ -8,6 +8,10 @@ export const env = {
   googleOAuthClientId: process.env.GOOGLE_OAUTH_CLIENT_ID ?? '',
   googleOAuthClientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET ?? '',
   googleTokenEncryptionKey: process.env.GOOGLE_TOKEN_ENCRYPTION_KEY ?? '',
+  /** Seals per-shop bank deeplink credentials. Falls back to the Google token key / service-role key. */
+  paymentCredentialsKey: process.env.PAYMENT_CREDENTIALS_KEY ?? '',
+  /** HMAC key for public payment links; mandatory for bank deeplink (the return page relies on it). */
+  paymentLinkSecret: process.env.PAYMENT_LINK_SECRET ?? '',
 };
 
 export function assertEnv() {

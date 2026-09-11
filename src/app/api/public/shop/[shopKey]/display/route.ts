@@ -1,82 +1,84 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
+import { getTodayISOInBangkok } from '@/lib/utils/date-format';
+import { loadSignageSettings } from '@/lib/signage/settings';
+import { buildSignageData, SIGNAGE_ALL_STATUSES, SIGNAGE_BOOKING_SELECT, type SignageBookingRow } from '@/lib/signage/normalize';
 
-type Row = {
-  id: string;
-  queue_number: string;
-  status: string;
-  start_time: string;
-  resource_name: string | null;
-  customers: { full_name?: string | null } | null;
-  services: { service_name?: string | null } | null;
-};
+const BranchIdSchema = z.string().uuid();
 
-function maskName(name?: string | null) {
-  if (!name) return 'ลูกค้า';
-  const trimmed = name.trim();
-  if (trimmed.length <= 1) return `${trimmed}*`;
-  return `${trimmed.slice(0, 1)}${'*'.repeat(Math.max(trimmed.length - 1, 1))}`;
-}
-
-export async function GET(_: Request, { params }: { params: Promise<{ shopKey: string }> }) {
+/**
+ * Public feed for the TV signage at `/display/[shopKey]`.
+ *
+ * Uses the admin client on purpose: the signage runs unauthenticated on a TV and
+ * there is no anon RLS path for bookings. This is the documented exception in
+ * CLAUDE.md for public display; every query below is pinned to `shop.id`, and
+ * customer names are reduced server-side per the shop's `customer_name_mode`.
+ */
+export async function GET(req: Request, { params }: { params: Promise<{ shopKey: string }> }) {
   const admin = createAdminClient();
   const { shopKey } = await params;
-  const date = new Date().toISOString().slice(0, 10);
+  const { searchParams } = new URL(req.url);
 
-  const { data: shop, error: shopError } = await admin
-    .from('shops')
-    .select('id,name,demo_mode_enabled,demo_business_type')
-    .eq('shop_key', shopKey)
-    .eq('is_deleted', false)
-    .maybeSingle();
-  if (shopError) return NextResponse.json({ error: shopError.message }, { status: 400 });
+  const shop = await resolveShopByKeyOrId(admin, shopKey);
   if (!shop) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
 
-  const { data, error } = await admin
-    .from('bookings')
-    .select('id,queue_number,status,start_time,resource_name,customers(full_name),services(service_name)')
-    .eq('shop_id', shop.id)
-    .eq('booking_date', date)
-    .eq('is_deleted', false)
-    .in('status', ['waiting', 'called', 'seating', 'serving', 'in_service'])
-    .order('start_time', { ascending: true });
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  const branchParam = searchParams.get('branch_id');
+  let branch: { id: string; name: string } | null = null;
+  if (branchParam) {
+    const parsed = BranchIdSchema.safeParse(branchParam);
+    if (!parsed.success) return NextResponse.json({ error: 'Invalid branch_id' }, { status: 400 });
+    const { data: branchRow } = await admin
+      .from('branches')
+      .select('id,branch_name')
+      .eq('id', parsed.data)
+      .eq('shop_id', shop.id)
+      .eq('is_deleted', false)
+      .maybeSingle<{ id: string; branch_name: string }>();
+    if (!branchRow) return NextResponse.json({ error: 'Branch not found' }, { status: 404 });
+    branch = { id: branchRow.id, name: branchRow.branch_name };
+  }
 
-  const rows = (data ?? []) as Row[];
-  const nowCalling = rows.find((r) => r.status === 'called' || r.status === 'serving' || r.status === 'in_service') ?? rows[0] ?? null;
-  const next = rows.filter((r) => !nowCalling || r.id !== nowCalling.id).slice(0, 5);
-  const waiting = rows.filter((r) => r.status === 'waiting').slice(0, 10);
+  const headers = { 'Cache-Control': 'no-store' };
 
-  return NextResponse.json({
-    data: {
+  try {
+    const { config } = await loadSignageSettings(admin, shop.id, branch?.id ?? null);
+    if (!config.enabled) {
+      return NextResponse.json({ data: { enabled: false, shop: { name: shop.name } } }, { headers });
+    }
+
+    const date = getTodayISOInBangkok();
+    let query = admin
+      .from('bookings')
+      .select(SIGNAGE_BOOKING_SELECT)
+      .eq('shop_id', shop.id)
+      .eq('booking_date', date)
+      .eq('is_deleted', false)
+      .eq('signage_display', true)
+      .in('status', SIGNAGE_ALL_STATUSES)
+      .order('start_time', { ascending: true });
+    if (branch) query = query.eq('branch_id', branch.id);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const signage = buildSignageData({
+      rows: (data ?? []) as unknown as SignageBookingRow[],
+      config,
       date,
       shop: {
         name: shop.name,
-        demo_mode_enabled: Boolean(shop.demo_mode_enabled),
-        demo_business_type: shop.demo_business_type,
+        logo_url: shop.logo_url,
+        demo_mode_enabled: shop.demo_mode_enabled,
+        liff_id: shop.liff_id,
       },
-      now_calling: nowCalling
-        ? {
-            queue_number: nowCalling.queue_number,
-            service_name: nowCalling.services?.service_name ?? '-',
-            resource_name: nowCalling.resource_name,
-            customer_name: maskName(nowCalling.customers?.full_name),
-            start_time: String(nowCalling.start_time).slice(0, 5),
-          }
-        : null,
-      next_queue: next.map((r) => ({
-        queue_number: r.queue_number,
-        service_name: r.services?.service_name ?? '-',
-        resource_name: r.resource_name,
-        customer_name: maskName(r.customers?.full_name),
-        start_time: String(r.start_time).slice(0, 5),
-      })),
-      waiting_queue: waiting.map((r) => ({
-        queue_number: r.queue_number,
-        resource_name: r.resource_name,
-        customer_name: maskName(r.customers?.full_name),
-      })),
-    },
-  });
-}
+      branch,
+    });
 
+    return NextResponse.json({ data: { enabled: true, config, signage } }, { headers });
+  } catch (e) {
+    console.error('[public_display_failed]', e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: 'ไม่สามารถโหลดข้อมูลจอคิวได้' }, { status: 500, headers });
+  }
+}

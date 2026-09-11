@@ -1,11 +1,10 @@
 import { PageShell } from '@/components/ui/page-shell';
-import { QueueDisplayClient } from '@/components/bookings/queue-display-client';
+import { SignageDesignerClient } from '@/components/signage/designer/signage-designer-client';
 
 export default function QueueDisplayPage() {
   return (
-    <PageShell title="Queue Display" description="หน้าจอแสดงคิวหน้าร้าน (Now/Next)">
-      <QueueDisplayClient />
+    <PageShell title="จอแสดงคิว (Digital Signage)" description="เลือกเทมเพลต ปรับสี แล้วเปิดบนจอ TV หน้าร้าน ระบบอัปเดตคิวให้อัตโนมัติ">
+      <SignageDesignerClient />
     </PageShell>
   );
 }
-

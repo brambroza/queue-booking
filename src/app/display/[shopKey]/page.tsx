@@ -1,80 +1,137 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
+import { z } from 'zod';
+import { SIGNAGE_LAYOUTS, SIGNAGE_TEMPLATES, SIGNAGE_THEMES, type SignageConfig } from '@/lib/signage/types';
+import { SignageBoard, SignageDisabled } from '@/components/signage/signage-board';
+import { useSignageFeed } from '@/components/signage/use-signage-feed';
 
-type DisplayData = {
-  date: string;
-  shop: { name: string; demo_mode_enabled: boolean; demo_business_type?: string | null };
-  now_calling: { queue_number: string; service_name: string; resource_name: string | null; customer_name: string; start_time: string } | null;
-  next_queue: Array<{ queue_number: string; service_name: string; resource_name: string | null; customer_name: string; start_time: string }>;
-  waiting_queue: Array<{ queue_number: string; resource_name: string | null; customer_name: string }>;
-};
+const OverrideSchema = z.object({
+  template: z.enum(SIGNAGE_TEMPLATES).optional(),
+  theme: z.enum(SIGNAGE_THEMES).optional(),
+  layout: z.enum(SIGNAGE_LAYOUTS).optional(),
+});
 
-export default function PublicDisplayPage() {
+type FullscreenElement = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
+type FullscreenDocument = Document & { webkitExitFullscreen?: () => Promise<void> | void; webkitFullscreenElement?: Element | null };
+
+function DisplayInner() {
   const { shopKey } = useParams<{ shopKey: string }>();
-  const [data, setData] = useState<DisplayData | null>(null);
-  const [clock, setClock] = useState('');
+  const searchParams = useSearchParams();
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [showControls, setShowControls] = useState(true);
+  const [canFullscreen, setCanFullscreen] = useState(false);
 
-  async function load() {
-    const res = await fetch(`/api/public/shop/${encodeURIComponent(shopKey)}/display`, { cache: 'no-store' });
-    const json = await res.json();
-    if (res.ok) setData(json.data);
-  }
+  const branchId = searchParams.get('branch_id');
+  const overrides = useMemo(() => {
+    const parsed = OverrideSchema.safeParse({
+      template: searchParams.get('template') ?? undefined,
+      theme: searchParams.get('theme') ?? undefined,
+      layout: searchParams.get('layout') ?? undefined,
+    });
+    return parsed.success ? parsed.data : {};
+  }, [searchParams]);
 
+  const feedUrl = useMemo(() => {
+    if (!shopKey) return null;
+    const qs = new URLSearchParams();
+    if (branchId) qs.set('branch_id', branchId);
+    const query = qs.toString();
+    return `/api/public/shop/${encodeURIComponent(shopKey)}/display${query ? `?${query}` : ''}`;
+  }, [shopKey, branchId]);
+
+  const feed = useSignageFeed(feedUrl, { keepAwake: true });
+
+  // Hide the floating control after a few seconds of no pointer activity.
   useEffect(() => {
-    void load();
-    const t = setInterval(() => void load(), 10000);
-    return () => clearInterval(t);
-  }, [shopKey]);
-
-  useEffect(() => {
-    const tick = () => setClock(new Date().toLocaleTimeString('th-TH', { hour12: false }));
-    tick();
-    const t = setInterval(tick, 1000);
-    return () => clearInterval(t);
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const arm = () => {
+      setShowControls(true);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => setShowControls(false), 3000);
+    };
+    arm();
+    window.addEventListener('pointermove', arm);
+    window.addEventListener('keydown', arm);
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener('pointermove', arm);
+      window.removeEventListener('keydown', arm);
+    };
   }, []);
 
+  useEffect(() => {
+    const el = document.documentElement as FullscreenElement;
+    setCanFullscreen(Boolean(el.requestFullscreen || el.webkitRequestFullscreen));
+  }, []);
+
+  async function toggleFullscreen() {
+    const doc = document as FullscreenDocument;
+    const el = (rootRef.current ?? document.documentElement) as FullscreenElement;
+    try {
+      const active = doc.fullscreenElement ?? doc.webkitFullscreenElement;
+      if (active) {
+        if (doc.exitFullscreen) await doc.exitFullscreen();
+        else doc.webkitExitFullscreen?.();
+      } else if (el.requestFullscreen) {
+        await el.requestFullscreen();
+      } else {
+        el.webkitRequestFullscreen?.();
+      }
+    } catch {
+      // Some TV browsers reject fullscreen; the page is already full-viewport anyway.
+    }
+  }
+
+  const payload = feed.payload;
+  const config: SignageConfig | null = payload?.enabled ? { ...payload.config, ...overrides } : null;
+
   return (
-    <main className="min-h-screen bg-[#070d07] text-[#eef8ee] p-4 md:p-6">
-      <section className="mx-auto max-w-7xl">
-        <div className="mb-4 flex items-center justify-between rounded-2xl border border-[#243424] bg-[#101910] px-4 py-3">
-          <div>
-            <p className="text-sm text-[#89a589]">{data?.shop?.name ?? 'Queue Display'}</p>
-            {data?.shop?.demo_mode_enabled ? <p className="text-xs text-amber-300">Demo Mode</p> : null}
-          </div>
-          <p className="font-mono text-2xl text-[#4ade80]">{clock}</p>
+    <div ref={rootRef} style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: '#070d07' }}>
+      {payload?.enabled === false ? (
+        <SignageDisabled shopName={payload.shop.name} />
+      ) : payload?.enabled && config ? (
+        <SignageBoard data={payload.signage} config={config} mode="live" status={{ offline: feed.offline }} />
+      ) : (
+        <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: '#8ca98c', fontFamily: 'var(--font-sans), sans-serif' }}>
+          {feed.loading ? 'กำลังโหลดจอคิว...' : feed.error ? 'ไม่สามารถโหลดข้อมูลจอคิวได้ กำลังลองใหม่' : null}
         </div>
+      )}
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <article className="rounded-2xl border border-[#2b452b] bg-[#0d160d] p-5">
-            <p className="text-sm text-[#8ca98c]">Now Calling</p>
-            {data?.now_calling ? (
-              <div className="mt-2">
-                <p className="text-7xl font-black tracking-tight text-[#4ade80]">{data.now_calling.queue_number}</p>
-                <p className="text-lg">{data.now_calling.service_name}</p>
-                {data.now_calling.resource_name ? <p className="text-[#9fc59f]">{data.now_calling.resource_name}</p> : null}
-              </div>
-            ) : <p className="mt-2 text-slate-400">ยังไม่มีคิวที่กำลังเรียก</p>}
-          </article>
-
-          <article className="rounded-2xl border border-[#2b452b] bg-[#0d160d] p-5">
-            <p className="text-sm text-[#8ca98c]">Next Queue</p>
-            <div className="mt-2 space-y-2">
-              {(data?.next_queue ?? []).map((q) => (
-                <div key={`${q.queue_number}-${q.start_time}`} className="rounded-xl bg-[#111f11] px-3 py-2">
-                  <div className="flex justify-between">
-                    <p className="text-2xl font-bold">{q.queue_number}</p>
-                    <p className="text-sm text-[#8ca98c]">{q.start_time}</p>
-                  </div>
-                  <p className="text-sm">{q.service_name}</p>
-                </div>
-              ))}
-            </div>
-          </article>
-        </div>
-      </section>
-    </main>
+      {canFullscreen ? (
+        <button
+          type="button"
+          onClick={() => void toggleFullscreen()}
+          aria-label="Toggle fullscreen"
+          style={{
+            position: 'absolute',
+            right: 16,
+            bottom: 16,
+            zIndex: 5,
+            padding: '8px 14px',
+            borderRadius: 999,
+            border: '1px solid rgba(255,255,255,0.25)',
+            background: 'rgba(0,0,0,0.55)',
+            color: '#fff',
+            fontSize: 13,
+            cursor: 'pointer',
+            opacity: showControls ? 1 : 0,
+            transition: 'opacity 300ms ease',
+            pointerEvents: showControls ? 'auto' : 'none',
+          }}
+        >
+          ⛶ Fullscreen
+        </button>
+      ) : null}
+    </div>
   );
 }
 
+export default function PublicDisplayPage() {
+  return (
+    <Suspense fallback={null}>
+      <DisplayInner />
+    </Suspense>
+  );
+}

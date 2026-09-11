@@ -1,9 +1,10 @@
 import { createAdminClient } from '@/lib/supabase/admin';
-import { qrPaymentFlex, transferPaymentFlex } from '@/lib/line/messages-payment';
-import type { PaymentMethod } from '@/types/db';
+import { deeplinkPaymentFlex, qrPaymentFlex, transferPaymentFlex } from '@/lib/line/messages-payment';
+import type { BankProvider, PaymentMethod } from '@/types/db';
 import { getShopPaymentConfig } from './settings';
 import { createBookingQrPayment } from './qr';
 import { createBookingTransferPayment } from './transfer';
+import { createBookingDeeplinkPayment } from './deeplink';
 
 export interface PaymentBankInfo {
   payeeName: string | null;
@@ -13,9 +14,17 @@ export interface PaymentBankInfo {
   bankAccountName: string | null;
 }
 
+export interface PaymentDeeplinkInfo {
+  provider: BankProvider;
+  provider_name: string;
+  deeplink_url: string;
+  return_url: string;
+}
+
 export interface PaymentSetupResult {
   method: PaymentMethod;
   amountTHB: number;
+  /** Empty string on the deeplink path — there is nothing to scan. */
   qrImageUrl: string;
   expiresAt: string | null;
   isTest: boolean;
@@ -23,6 +32,8 @@ export interface PaymentSetupResult {
   flex: object;
   /** Payee details — only present on the bank-transfer path. */
   bank: PaymentBankInfo | null;
+  /** Bank-app link — only present on the deeplink path. */
+  deeplink: PaymentDeeplinkInfo | null;
 }
 
 /** Statuses where re-issuing an invoice would destroy state the customer already advanced. */
@@ -55,6 +66,8 @@ export async function resolvePaymentForBooking(opts: {
   dateLabel: string;
   timeLabel: string;
   requestedMethod?: PaymentMethod | null;
+  /** Which bank the customer tapped; only meaningful with `bank_deeplink`. */
+  requestedBankProvider?: BankProvider | null;
 }): Promise<PaymentSetupResult | null> {
   if (!(opts.amountTHB > 0)) return null;
 
@@ -74,6 +87,59 @@ export async function resolvePaymentForBooking(opts: {
     opts.requestedMethod && config.enabledMethods.includes(opts.requestedMethod)
       ? opts.requestedMethod
       : config.enabledMethods[0];
+
+  const common = {
+    shopName: opts.shopName,
+    queueNumber: opts.queueNumber,
+    service: opts.serviceName,
+    branch: opts.branchName,
+    date: opts.dateLabel,
+    time: opts.timeLabel,
+  };
+
+  if (method === 'bank_deeplink') {
+    // A deeplink needs a public return URL, which needs the shop key.
+    if (!opts.shopKey) return null;
+    const providerConfig =
+      config.deeplinkProviders.find((p) => p.provider === opts.requestedBankProvider) ?? config.deeplinkProviders[0];
+    if (!providerConfig) return null;
+
+    const result = await createBookingDeeplinkPayment({
+      bookingId: opts.bookingId,
+      shopId: opts.shopId,
+      companyId: opts.companyId,
+      shopKey: opts.shopKey,
+      shopName: opts.shopName,
+      queueNumber: opts.queueNumber,
+      amountTHB: opts.amountTHB,
+      providerConfig,
+    });
+    if (!result) return null;
+
+    return {
+      method,
+      amountTHB: result.amountTHB,
+      qrImageUrl: '',
+      expiresAt: result.expiresAt,
+      isTest: providerConfig.environment === 'sandbox',
+      bank: null,
+      deeplink: {
+        provider: result.provider,
+        provider_name: result.providerName,
+        deeplink_url: result.deeplinkUrl,
+        return_url: result.returnUrl,
+      },
+      flex: deeplinkPaymentFlex({
+        ...common,
+        amountTHB: result.amountTHB,
+        bankName: result.providerName,
+        deeplinkUrl: result.deeplinkUrl,
+        fallbackUrl: result.returnUrl,
+        expiresAt: result.expiresAt,
+        accountUrl: liffUrl(opts.shopKey),
+      }),
+    };
+  }
 
   if (method === 'bank_transfer') {
     const result = await createBookingTransferPayment({
@@ -98,13 +164,9 @@ export async function resolvePaymentForBooking(opts: {
         bankAccountNo: result.bankAccountNo,
         bankAccountName: result.bankAccountName,
       },
+      deeplink: null,
       flex: transferPaymentFlex({
-        shopName: opts.shopName,
-        queueNumber: opts.queueNumber,
-        service: opts.serviceName,
-        branch: opts.branchName,
-        date: opts.dateLabel,
-        time: opts.timeLabel,
+        ...common,
         amountTHB: result.amountTHB,
         qrImageUrl: result.qrImageUrl,
         payeeName: result.payeeName,
@@ -135,13 +197,9 @@ export async function resolvePaymentForBooking(opts: {
     expiresAt: result.expiresAt,
     isTest: result.isTest,
     bank: null,
+    deeplink: null,
     flex: qrPaymentFlex({
-      shopName: opts.shopName,
-      queueNumber: opts.queueNumber,
-      service: opts.serviceName,
-      branch: opts.branchName,
-      date: opts.dateLabel,
-      time: opts.timeLabel,
+      ...common,
       amountTHB: result.amountTHB,
       qrImageUrl: result.qrImageUrl,
       expiresAt: result.expiresAt,

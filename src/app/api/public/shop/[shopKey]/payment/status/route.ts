@@ -3,6 +3,9 @@ import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getShopPaymentConfig, toPublicPaymentInfo } from '@/lib/payments/settings';
 import { buildPromptPayQrUrl } from '@/lib/payments/transfer';
+import { buildDeeplinkReturnUrl } from '@/lib/payments/deeplink';
+import { confirmDeeplinkPayment } from '@/lib/payments/deeplink/confirm';
+import { parseBankProvider, providerDisplayName } from '@/lib/payments/deeplink/registry';
 import { isOwnerLookupFailure, resolveBookingForLineUser } from '@/lib/payments/liff-auth';
 import { signSlipUrl } from '@/lib/storage/buckets';
 
@@ -26,7 +29,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   const owner = await resolveBookingForLineUser(admin, shopKey, parsed.data.line_user_id, parsed.data.booking_id, parsed.data.id_token);
   if (isOwnerLookupFailure(owner)) return NextResponse.json({ error: owner.error }, { status: owner.status });
 
-  const { booking, shop } = owner;
+  let { booking } = owner;
+  const { shop } = owner;
+
+  // A bank-app payment the bank never told us about (unreachable dev URL,
+  // outage) is healed here: ask the bank, then re-read the row.
+  if (booking.payment_method === 'bank_deeplink' && booking.payment_status === 'pending_payment' && booking.bank_txn_id) {
+    const outcome = await confirmDeeplinkPayment(admin, { shopId: shop.id, bookingId: booking.id });
+    if (outcome === 'paid' || outcome === 'already_paid' || outcome === 'failed') {
+      const refreshed = await resolveBookingForLineUser(admin, shopKey, parsed.data.line_user_id, parsed.data.booking_id, parsed.data.id_token);
+      if (!isOwnerLookupFailure(refreshed)) booking = refreshed.booking;
+    }
+  }
+
   const config = await getShopPaymentConfig(admin, shop.id);
 
   // Latest slip the customer submitted for this booking, superseded ones excluded.
@@ -43,6 +58,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
 
   const slipUrl = slip?.storage_path ? await signSlipUrl(admin, slip.storage_path) : null;
 
+  const isDeeplink = booking.payment_method === 'bank_deeplink';
+  const bankProvider = isDeeplink ? parseBankProvider(booking.bank_provider) : null;
+
   return NextResponse.json({
     data: {
       booking_id: booking.id,
@@ -54,6 +72,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       payment_reject_reason: booking.payment_reject_reason,
       qr_image_url: booking.payment_method === 'bank_transfer' ? buildPromptPayQrUrl(booking.id) : null,
       payee: toPublicPaymentInfo(config),
+      // The deeplink is only handed to the verified owner of the booking.
+      bank_provider: bankProvider,
+      bank_provider_name: bankProvider ? providerDisplayName(bankProvider) : null,
+      bank_deeplink_url: isDeeplink && booking.payment_status === 'pending_payment' ? booking.bank_deeplink_url : null,
+      return_url: isDeeplink ? buildDeeplinkReturnUrl(shop.shop_key, booking.id) : null,
       slip: slip
         ? {
             id: slip.id,

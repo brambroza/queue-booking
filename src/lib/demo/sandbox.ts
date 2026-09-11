@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { writeAuditLog } from '@/lib/audit/activity-log';
 import { ensurePaymentSlipBucket, PAYMENT_SLIP_BUCKET } from '@/lib/storage/buckets';
+import { signageDefaultsForBusiness } from '@/lib/signage/settings';
 import type { PaymentMethod, PaymentStatus } from '@/types/db';
 
 export type DemoBusinessType = 'barber' | 'clinic' | 'restaurant' | 'buffet' | 'meeting_room' | 'general_service';
@@ -470,16 +471,21 @@ export async function createDemoSandbox(input: DemoContext) {
     })),
   );
 
+  const signagePreset = signageDefaultsForBusiness(input.businessType);
   await admin.from('signage_settings').upsert({
     company_id: input.companyId,
     shop_id: input.shopId,
     branch_id: branch.id,
     enabled: true,
-    theme: 'dark',
+    template: signagePreset.template,
+    theme: signagePreset.theme,
+    layout: 'landscape',
     customer_name_mode: 'masked',
     show_logo: true,
     show_service_name: true,
     show_resource_name: true,
+    show_clock: true,
+    show_qr: true,
     next_queue_limit: 5,
     waiting_queue_limit: 10,
     refresh_seconds: 10,

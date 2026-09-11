@@ -1,96 +1,109 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { applyBranchScope } from '@/lib/auth/branch-scope';
+import { getTodayISOInBangkok } from '@/lib/utils/date-format';
+import { loadSignageSettings } from '@/lib/signage/settings';
+import { buildSignageData, SIGNAGE_ALL_STATUSES, SIGNAGE_BOOKING_SELECT, type SignageBookingRow } from '@/lib/signage/normalize';
 
-type QueueRow = {
-  id: string;
-  queue_number: string;
-  booking_date: string;
-  start_time: string;
-  status: string;
-  customer_id: string | null;
-  line_user_id: string | null;
-  customers: { full_name?: string | null; phone?: string | null } | null;
-  line_users: { display_name?: string | null; picture_url?: string | null } | null;
-  resource_name?: string | null;
-  services?: { service_name?: string | null } | null;
+const DateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const BranchIdSchema = z.string().uuid();
+
+type BranchRow = { id: string; branch_name: string; active: boolean };
+type ShopRow = {
+  name: string | null;
+  shop_key: string | null;
+  logo_url: string | null;
+  liff_id: string | null;
+  demo_mode_enabled: boolean | null;
+  demo_business_type: string | null;
 };
 
+/**
+ * Portal preview feed for the signage designer. Same normalisation as the public
+ * TV route so what staff see in the portal is what the TV shows.
+ */
 export async function GET(req: Request) {
   try {
-    const { supabase, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
-    const { searchParams } = new URL(req.url);
-    const branchId = searchParams.get('branch_id');
-    const date = searchParams.get('date') ?? new Date().toISOString().slice(0, 10);
+    const { supabase, profile, branchScope } = await requireAuthContext({
+      roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'],
+    });
+    if (!profile.shop_id) return NextResponse.json({ error: 'No shop in profile' }, { status: 400 });
 
-    const [{ data: branches, error: branchesError }, { data: shopMeta, error: shopError }] = await Promise.all([
+    const { searchParams } = new URL(req.url);
+    const branchParam = searchParams.get('branch_id');
+    const branchId = branchParam ? BranchIdSchema.safeParse(branchParam) : null;
+    if (branchParam && !branchId?.success) return NextResponse.json({ error: 'Invalid branch_id' }, { status: 400 });
+    const resolvedBranchId = branchId?.success ? branchId.data : null;
+    const dateParam = searchParams.get('date');
+    const date = dateParam && DateSchema.safeParse(dateParam).success ? dateParam : getTodayISOInBangkok();
+
+    const [{ data: branches, error: branchesError }, { data: shopMeta, error: shopError }, loaded] = await Promise.all([
       applyBranchScope(
-        supabase
-          .from('branches')
-          .select('id,branch_name,active')
-          .eq('shop_id', profile.shop_id)
-          .eq('is_deleted', false),
+        supabase.from('branches').select('id,branch_name,active').eq('shop_id', profile.shop_id).eq('is_deleted', false),
         branchScope,
         null,
         'id',
       ).order('branch_name', { ascending: true }),
-      supabase.from('shops').select('demo_mode_enabled,demo_business_type,name').eq('id', profile.shop_id).maybeSingle(),
+      supabase
+        .from('shops')
+        .select('name,shop_key,logo_url,liff_id,demo_mode_enabled,demo_business_type')
+        .eq('id', profile.shop_id)
+        .maybeSingle<ShopRow>(),
+      loadSignageSettings(supabase, profile.shop_id, resolvedBranchId),
     ]);
     if (branchesError) throw branchesError;
     if (shopError) throw shopError;
 
     let query = supabase
       .from('bookings')
-      .select('id,queue_number,booking_date,start_time,status,customer_id,line_user_id,resource_name,customers(full_name,phone),line_users(display_name,picture_url),services(service_name)')
+      .select(SIGNAGE_BOOKING_SELECT)
       .eq('shop_id', profile.shop_id)
       .eq('booking_date', date)
       .eq('is_deleted', false)
+      .eq('signage_display', true)
+      .in('status', SIGNAGE_ALL_STATUSES)
       .order('start_time', { ascending: true });
-
-    query = applyBranchScope(query, branchScope, branchId);
+    query = applyBranchScope(query, branchScope, resolvedBranchId);
 
     const { data, error } = await query;
     if (error) throw error;
-    const rows = (data ?? []) as QueueRow[];
 
-    const activeStatuses = new Set(['pending', 'confirmed', 'waiting', 'called', 'seating', 'serving', 'in_service']);
-    const remaining = rows.filter((r) => activeStatuses.has(r.status));
-    const serving = remaining.find((r) => r.status === 'serving') ?? null;
-    const waitingQueue = remaining.filter((r) => r.status !== 'serving');
-    const current = serving ?? waitingQueue[0] ?? null;
-    const nextTwo = current
-      ? waitingQueue.filter((r) => r.id !== current.id).slice(0, 2)
-      : waitingQueue.slice(0, 2);
+    const branchRows = (branches ?? []) as BranchRow[];
+    const branch = resolvedBranchId
+      ? (() => {
+          const b = branchRows.find((x) => x.id === resolvedBranchId);
+          return b ? { id: b.id, name: b.branch_name } : null;
+        })()
+      : null;
 
-    function mapPerson(r: QueueRow | null) {
-      if (!r) return null;
-      return {
-        booking_id: r.id,
-        queue_number: r.queue_number,
-        status: r.status,
-        start_time: String(r.start_time).slice(0, 5),
-        display_name: r.line_users?.display_name ?? r.customers?.full_name ?? 'ลูกค้า',
-        avatar_url: r.line_users?.picture_url ?? null,
-        service_name: r.services?.service_name ?? null,
-        resource_name: r.resource_name ?? null,
-      };
-    }
+    const signage = buildSignageData({
+      rows: (data ?? []) as unknown as SignageBookingRow[],
+      config: loaded.config,
+      date,
+      shop: {
+        name: shopMeta?.name ?? '',
+        logo_url: shopMeta?.logo_url ?? null,
+        demo_mode_enabled: shopMeta?.demo_mode_enabled ?? false,
+        liff_id: shopMeta?.liff_id ?? null,
+      },
+      branch,
+    });
 
     return NextResponse.json({
       data: {
         date,
-        branches: branches ?? [],
-        totals: {
-          all_today: rows.length,
-          remaining_today: remaining.length,
-        },
+        branches: branchRows,
         shop: {
-          demo_mode_enabled: Boolean((shopMeta as { demo_mode_enabled?: boolean } | null)?.demo_mode_enabled),
-          demo_business_type: (shopMeta as { demo_business_type?: string | null } | null)?.demo_business_type ?? null,
-          name: (shopMeta as { name?: string | null } | null)?.name ?? null,
+          name: shopMeta?.name ?? null,
+          shop_key: shopMeta?.shop_key ?? null,
+          logo_url: shopMeta?.logo_url ?? null,
+          demo_mode_enabled: Boolean(shopMeta?.demo_mode_enabled),
+          demo_business_type: shopMeta?.demo_business_type ?? null,
         },
-        now_serving: mapPerson(current),
-        next_two: nextTwo.map((x) => mapPerson(x)),
+        config: loaded.config,
+        scope: { branch_id: resolvedBranchId, source: loaded.source, settings_id: loaded.settings_id },
+        signage,
       },
     });
   } catch (e) {
