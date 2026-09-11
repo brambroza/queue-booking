@@ -19,56 +19,77 @@ const schema = z.object({
   website: z.string().optional().default(''),
 });
 
+/** Postgres/PostgREST codes returned when the contact_leads table has not been migrated yet. */
+const MISSING_TABLE_CODES = new Set(['42P01', 'PGRST205']);
+
+const MSG_SUBMIT_FAILED = 'ส่งข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง หรือติดต่อทีมงานทาง LINE';
+
+/** Emails the lead to sales. Never throws; returns whether delivery succeeded. */
+async function notifySales(lead: z.infer<typeof schema>, note?: string): Promise<boolean> {
+  return sendSalesEmail({
+    subject: `Contact Lead: ${lead.name} (${lead.company_name || lead.business_type})`,
+    html: buildDetailTable('New Contact Lead', [
+      ['Name', lead.name],
+      ['Company', lead.company_name],
+      ['Business Type', lead.business_type],
+      ['Phone', lead.phone],
+      ['Email', lead.email],
+      ['Message', lead.message],
+      ['Received At', new Date().toISOString()],
+      ['Note', note],
+    ]),
+  });
+}
+
+/** Public endpoint: stores a website enquiry and notifies sales. */
 export async function POST(req: Request) {
   try {
     let body: unknown;
     try {
       body = await req.json();
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+      return NextResponse.json({ error: 'ข้อมูลที่ส่งมาไม่ถูกต้อง' }, { status: 400 });
     }
     const parsed = schema.safeParse(body);
-    if (!parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้อง' }, { status: 400 });
+    }
+    // Honeypot filled in — bots only. Pretend success so they stop retrying.
     if (parsed.data.website) return NextResponse.json({ data: true });
 
+    const lead = parsed.data;
     const admin = createAdminClient();
     const { error } = await admin.from('contact_leads').insert({
-      name: parsed.data.name,
-      company_name: parsed.data.company_name ?? null,
-      phone: parsed.data.phone,
-      email: parsed.data.email,
-      business_type: parsed.data.business_type,
-      message: parsed.data.message,
+      name: lead.name,
+      company_name: lead.company_name ?? null,
+      phone: lead.phone,
+      email: lead.email,
+      business_type: lead.business_type,
+      message: lead.message,
       source: 'website',
       status: 'new',
     });
 
     if (error) {
-      if (error.code === '42P01' || error.code === 'PGRST205') {
-        return NextResponse.json({ error: 'contact_leads table is missing. Please run migrations.' }, { status: 503 });
+      console.error('[contact-leads] insert failed:', error.code, error.message);
+      // Table not migrated yet: the visitor still deserves a working form, so
+      // deliver the lead by email and only fail if that channel is down too.
+      if (MISSING_TABLE_CODES.has(error.code)) {
+        const emailed = await notifySales(lead, 'contact_leads table missing — run migration 202605100003');
+        if (emailed) return NextResponse.json({ data: true });
+        return NextResponse.json({ error: MSG_SUBMIT_FAILED }, { status: 503 });
       }
-      throw error;
+      return NextResponse.json({ error: MSG_SUBMIT_FAILED }, { status: 500 });
     }
 
     // A lead sitting unread in Postgres is a lost lead. Notify sales immediately;
     // failure here must not fail the submission the visitor just made.
-    await sendSalesEmail({
-      subject: `Contact Lead: ${parsed.data.name} (${parsed.data.company_name ?? parsed.data.business_type})`,
-      html: buildDetailTable('New Contact Lead', [
-        ['Name', parsed.data.name],
-        ['Company', parsed.data.company_name],
-        ['Business Type', parsed.data.business_type],
-        ['Phone', parsed.data.phone],
-        ['Email', parsed.data.email],
-        ['Message', parsed.data.message],
-        ['Received At', new Date().toISOString()],
-      ]),
-    });
+    await notifySales(lead);
 
     return NextResponse.json({ data: true });
   } catch (e) {
-    console.log("error::>>" , e);
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: 500 });
+    console.error('[contact-leads] unexpected error:', e);
+    return NextResponse.json({ error: MSG_SUBMIT_FAILED }, { status: 500 });
   }
 }
 

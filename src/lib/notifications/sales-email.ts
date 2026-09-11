@@ -38,18 +38,38 @@ async function sendViaSmtp(email: SalesEmail): Promise<boolean> {
   return true;
 }
 
-async function sendViaResend(email: SalesEmail): Promise<boolean> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM_EMAIL ?? 'QueueBooking <onboarding@resend.dev>';
-  const to = resolveRecipient(email.to);
+/** Sender Resend accepts without a verified domain (delivers only to the account owner). */
+const RESEND_DEFAULT_FROM = 'QueueBooking <onboarding@resend.dev>';
 
-  if (!apiKey) return false;
-
-  const res = await fetch('https://api.resend.com/emails', {
+async function postResend(apiKey: string, from: string, to: string, email: SalesEmail): Promise<Response> {
+  return fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ from, to: [to], subject: email.subject, html: email.html }),
   });
+}
+
+async function sendViaResend(email: SalesEmail): Promise<boolean> {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL ?? RESEND_DEFAULT_FROM;
+  const to = resolveRecipient(email.to);
+
+  if (!apiKey) return false;
+
+  let res = await postResend(apiKey, from, to, email);
+
+  // 403 "domain is not verified": the configured sender domain is not set up in
+  // Resend yet. Retry with Resend's shared sender so the lead still lands.
+  if (res.status === 403 && from !== RESEND_DEFAULT_FROM) {
+    const detail = await res.text();
+    if (detail.includes('not verified')) {
+      console.warn(`[sales-email] resend sender "${from}" not verified, retrying with ${RESEND_DEFAULT_FROM}`);
+      res = await postResend(apiKey, RESEND_DEFAULT_FROM, to, email);
+    } else {
+      console.warn(`[sales-email] resend failed 403: ${detail}`);
+      return false;
+    }
+  }
 
   if (!res.ok) {
     console.warn(`[sales-email] resend failed ${res.status}: ${await res.text()}`);
