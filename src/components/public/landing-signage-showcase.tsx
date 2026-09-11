@@ -276,36 +276,7 @@ export function DigitalSignageShowcase() {
           </article>
         </div>
 
-        <div className={styles.signagePlans}>
-          {packages.map((pkg) => (
-            <article key={pkg.id} className={`${styles.signagePlan} ${pkg.featured ? styles.signagePlanFeatured : ''}`} data-signage-plan>
-              <span className={styles.signagePlanTag}>{pkg.tag}</span>
-              <h3>{pkg.title}</h3>
-              <p>{pkg.desc}</p>
-              <ul>
-                {pkg.bullets.map((b) => (
-                  <li key={b}><CheckRoundedIcon /> {b}</li>
-                ))}
-              </ul>
-              {pkg.cta.external ? (
-                <a href={pkg.cta.href} className={pkg.featured ? styles.primaryButton : styles.signageSecondary} target="_blank" rel="noopener noreferrer">
-                  <ChatBubbleOutlineRoundedIcon /> {pkg.cta.label}
-                </a>
-              ) : (
-                <Link href={pkg.cta.href} className={styles.signageSecondary}>
-                  {pkg.cta.label} <ArrowOutwardRoundedIcon />
-                </Link>
-              )}
-            </article>
-          ))}
-        </div>
-
-        <div className={styles.signageServices} data-signage-services>
-          {services.map(({ icon: Icon, label }) => (
-            <span key={label}><Icon /> {label}</span>
-          ))}
-          <em>ราคาจอขึ้นกับขนาดและรุ่น ทัก LINE เพื่อรับใบเสนอราคาตามหน้าร้านของคุณ</em>
-        </div>
+        
       </div>
     </section>
   );
