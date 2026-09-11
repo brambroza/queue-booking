@@ -36,17 +36,20 @@ export const workingHourSchema = z.object({
   active: z.coerce.boolean().default(true),
 });
 
+/** HTML inputs send '' for an untouched field; treat that as "not provided". */
+const emptyToUndefined = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
+
 export const bookingSchema = z.object({
   branch_id: z.string().uuid(),
   service_id: z.string().uuid(),
   customer_name: z.string().trim().min(1),
   customer_phone: z.string().min(8),
-  line_user_pk: z.string().uuid().optional(),
-  line_user_external_id: z.string().optional(),
+  line_user_pk: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
+  line_user_external_id: z.preprocess(emptyToUndefined, z.string().optional()),
   booking_date: z.string(),
   start_time: z.string(),
-  party_size: z.coerce.number().int().min(1).max(200).optional(),
-  resource_id: z.string().uuid().optional().nullable(),
+  party_size: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(200).optional()),
+  resource_id: z.preprocess(emptyToUndefined, z.string().uuid().optional().nullable()),
   note: z.string().optional().default(''),
   status: z.enum(['pending', 'pending_approval', 'confirmed', 'waiting', 'called', 'seating', 'serving', 'in_service', 'checked_in', 'completed', 'skipped', 'cancelled', 'no_show']).default('confirmed'),
   /** Lets staff force a method; otherwise the shop's first enabled method wins. */

@@ -82,7 +82,14 @@ export async function POST(req: Request) {
   try {
     const { supabase, user, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
     const parsed = bookingSchema.safeParse(await req.json());
-    if (!parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    if (!parsed.success) {
+      // Field names only — enough for staff to see which box is wrong, no internal detail leaked.
+      const fields = Array.from(new Set(parsed.error.issues.map((i) => i.path.join('.')).filter(Boolean)));
+      return NextResponse.json(
+        { error: fields.length ? `ข้อมูลไม่ถูกต้อง: ${fields.join(', ')}` : 'ข้อมูลไม่ถูกต้อง' },
+        { status: 400 },
+      );
+    }
 
     const payload = parsed.data;
     assertBranchAllowed(branchScope, payload.branch_id);

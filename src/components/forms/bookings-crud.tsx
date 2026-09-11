@@ -37,7 +37,7 @@ type BookingRow = {
 type Branch   = { id: string; branch_name: string };
 type Service  = { id: string; service_name: string; price?: number | null };
 type LineUser = { id: string; line_user_id: string; display_name: string | null; picture_url?: string | null };
-type Resource = { id: string; resource_name: string; resource_code?: string | null; capacity: number; resource_type: string; branch_id?: string | null };
+type Resource = { id: string; resource_name: string; resource_code?: string | null; capacity: number; resource_type: string; branch_id?: string | null; active?: boolean | null };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -84,6 +84,15 @@ function PaymentBadge({ status }: { status: PaymentStatus | string }) {
   return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${b.cls}`}>{b.label}</span>;
 }
 
+/** Label with a red asterisk when the field is required. */
+function FieldLabel({ text, required = false }: { text: string; required?: boolean }) {
+  return (
+    <label className="text-xs text-slate-500">
+      {text}{required && <span className="text-red-500"> *</span>}
+    </label>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 const EMPTY_DRAFT = {
@@ -123,6 +132,7 @@ export function BookingsCrud() {
   const [selectedLineUser, setSelectedLineUser] = useState('');
   const [draft,            setDraft]            = useState(EMPTY_DRAFT);
   const [lastResult,       setLastResult]       = useState<{ queueNo: string; branch: string; service: string; date: string; time: string } | null>(null);
+  const [creating,         setCreating]         = useState(false);
 
   // ── Edit drawer ──
   const [editTarget,     setEditTarget]     = useState<BookingRow | null>(null);
@@ -174,7 +184,12 @@ export function BookingsCrud() {
   // ─── Create ─────────────────────────────────────────────────────────────────
 
   async function submitCreate() {
-    const payload: Record<string, unknown> = { ...draft };
+    if (creating) return;
+    // Untouched optional inputs hold '' — the API validates party_size/resource_id as
+    // number/uuid, so sending '' fails the whole payload. Drop blanks instead.
+    const payload: Record<string, unknown> = Object.fromEntries(
+      Object.entries(draft).filter(([, v]) => String(v ?? '').trim() !== ''),
+    );
     const selected = lineUsers.find((x) => x.id === selectedLineUser);
     if (selected) {
       payload.line_user_pk          = selected.id;
@@ -183,31 +198,36 @@ export function BookingsCrud() {
         payload.customer_name = selected.display_name;
     }
 
-    const res = await fetch('/api/bookings', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(payload),
-    });
-    const j = await res.json() as { data?: { queue_number?: string; line_push_sent?: boolean; line_push_error?: string }; error?: string };
+    setCreating(true);
+    try {
+      const res = await fetch('/api/bookings', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+      });
+      const j = await res.json().catch(() => ({})) as { data?: { queue_number?: string; line_push_sent?: boolean; line_push_error?: string }; error?: string };
 
-    const paywall = readPaywallDetail(res, j);
-    if (paywall) { openPaywall(paywall); return; }
-    if (!res.ok) { push(j.error ?? 'เพิ่มคิวไม่สำเร็จ', 'error'); return; }
+      const paywall = readPaywallDetail(res, j);
+      if (paywall) { openPaywall(paywall); return; }
+      if (!res.ok) { push(j.error ?? 'เพิ่มคิวไม่สำเร็จ', 'error'); return; }
 
-    track('booking_created', { channel: 'portal', line_push_sent: Boolean(j.data?.line_push_sent) });
-    if (j.data?.line_push_sent)     push('เพิ่มคิวสำเร็จ และส่งข้อความ LINE แล้ว');
-    else if (selected)              push(`เพิ่มคิวสำเร็จ แต่ส่ง LINE ไม่สำเร็จ: ${j.data?.line_push_error ?? '-'}`, 'error');
-    else                            push('เพิ่มคิวสำเร็จ');
+      track('booking_created', { channel: 'portal', line_push_sent: Boolean(j.data?.line_push_sent) });
+      if (j.data?.line_push_sent)     push('เพิ่มคิวสำเร็จ และส่งข้อความ LINE แล้ว');
+      else if (selected)              push(`เพิ่มคิวสำเร็จ แต่ส่ง LINE ไม่สำเร็จ: ${j.data?.line_push_error ?? '-'}`, 'error');
+      else                            push('เพิ่มคิวสำเร็จ');
 
-    setLastResult({
-      queueNo: String(j.data?.queue_number ?? '-'),
-      branch:  String(branches.find((b) => b.id === draft.branch_id)?.branch_name  ?? '-'),
-      service: String(services.find((s) => s.id === draft.service_id)?.service_name ?? '-'),
-      date:    draft.booking_date,
-      time:    draft.start_time,
-    });
-    setCreateStep(3);
-    void loadBookings(1); setPage(1);
+      setLastResult({
+        queueNo: String(j.data?.queue_number ?? '-'),
+        branch:  String(branches.find((b) => b.id === draft.branch_id)?.branch_name  ?? '-'),
+        service: String(services.find((s) => s.id === draft.service_id)?.service_name ?? '-'),
+        date:    draft.booking_date,
+        time:    draft.start_time,
+      });
+      setCreateStep(3);
+      void loadBookings(1); setPage(1);
+    } finally {
+      setCreating(false);
+    }
   }
 
   // ─── Reschedule ─────────────────────────────────────────────────────────────
@@ -288,6 +308,9 @@ export function BookingsCrud() {
   // ("เทรนเนอร์", "โต๊ะ"). Mixed shops fall back to a neutral word.
   const resourceTypes = Array.from(new Set(resources.map((r) => r.resource_type)));
   const assignLabel = resourceTypes.length === 1 ? resourceTypeLabel(resourceTypes[0]) : 'ผู้ให้บริการ';
+  // Assigning work to a deactivated resource makes no sense, so selection lists only
+  // active ones. The filter dropdown keeps every resource so old bookings stay findable.
+  const activeResources = resources.filter((r) => r.active !== false);
 
   return (
     <div className="space-y-4">
@@ -452,7 +475,7 @@ export function BookingsCrud() {
               {createStep === 1 && (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="sm:col-span-2 text-sm space-y-1">
-                    <span className="text-slate-600">LINE User (ส่งยืนยันอัตโนมัติ)</span>
+                    <span className="text-xs text-slate-500">LINE User (ไม่บังคับ — ส่งยืนยันอัตโนมัติ)</span>
                     <select className="input w-full" value={selectedLineUser} onChange={(e) => setSelectedLineUser(e.target.value)}>
                       <option value="">ไม่เลือก</option>
                       {lineUsers.map((u) => (
@@ -460,20 +483,32 @@ export function BookingsCrud() {
                       ))}
                     </select>
                   </label>
-                  <select className="input" value={draft.branch_id} onChange={(e) => setDraft((p) => ({ ...p, branch_id: e.target.value }))} required>
-                    <option value="">เลือกสาขา</option>
-                    {branches.map((b) => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
-                  </select>
-                  <select className="input" value={draft.service_id} onChange={(e) => setDraft((p) => ({ ...p, service_id: e.target.value }))} required>
-                    <option value="">เลือกบริการ</option>
-                    {services.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.service_name}{s.price ? ` — ฿${s.price}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <input className="input" value={draft.customer_name}  onChange={(e) => setDraft((p) => ({ ...p, customer_name:  e.target.value }))} placeholder="ชื่อลูกค้า *" required />
-                  <input className="input" value={draft.customer_phone} onChange={(e) => setDraft((p) => ({ ...p, customer_phone: e.target.value }))} placeholder="เบอร์โทร *"  required />
+                  <div className="space-y-1">
+                    <FieldLabel text="สาขา" required />
+                    <select className="input w-full" value={draft.branch_id} onChange={(e) => setDraft((p) => ({ ...p, branch_id: e.target.value }))} required>
+                      <option value="">เลือกสาขา</option>
+                      {branches.map((b) => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <FieldLabel text="บริการ" required />
+                    <select className="input w-full" value={draft.service_id} onChange={(e) => setDraft((p) => ({ ...p, service_id: e.target.value }))} required>
+                      <option value="">เลือกบริการ</option>
+                      {services.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.service_name}{s.price ? ` — ฿${s.price}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <FieldLabel text="ชื่อลูกค้า" required />
+                    <input className="input w-full" value={draft.customer_name}  onChange={(e) => setDraft((p) => ({ ...p, customer_name:  e.target.value }))} placeholder="ชื่อลูกค้า" required />
+                  </div>
+                  <div className="space-y-1">
+                    <FieldLabel text="เบอร์โทร" required />
+                    <input className="input w-full" value={draft.customer_phone} onChange={(e) => setDraft((p) => ({ ...p, customer_phone: e.target.value }))} placeholder="0812345678" required />
+                  </div>
                   <div className="sm:col-span-2 flex gap-2 pt-2">
                     <button
                       className="btn-primary"
@@ -489,28 +524,39 @@ export function BookingsCrud() {
               {createStep === 2 && (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
-                    <label className="text-xs text-slate-500">วันที่</label>
+                    <FieldLabel text="วันที่" required />
                     <input className="input w-full" type="date" value={draft.booking_date} onChange={(e) => setDraft((p) => ({ ...p, booking_date: e.target.value }))} required />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-slate-500">เวลาเริ่ม</label>
+                    <FieldLabel text="เวลาเริ่ม" required />
                     <input className="input w-full" type="time" value={draft.start_time} onChange={(e) => setDraft((p) => ({ ...p, start_time: e.target.value }))} required />
                   </div>
-                  <input className="input" type="number" min={1} max={200} value={draft.party_size} onChange={(e) => setDraft((p) => ({ ...p, party_size: e.target.value }))} placeholder="จำนวนคน (Party Size)" />
-                  <select className="input" value={draft.resource_id} onChange={(e) => setDraft((p) => ({ ...p, resource_id: e.target.value }))}>
-                    <option value="">เลือกทรัพยากร (ถ้ามี)</option>
-                    {resources.map((r) => (
-                      <option key={r.id} value={r.id}>{r.resource_code ? `${r.resource_code} • ` : ''}{r.resource_name} (cap {r.capacity})</option>
-                    ))}
-                  </select>
-                  <input className="input sm:col-span-2" value={draft.note} onChange={(e) => setDraft((p) => ({ ...p, note: e.target.value }))} placeholder="หมายเหตุ" />
+                  <div className="space-y-1">
+                    <FieldLabel text="จำนวนคน (ไม่บังคับ)" />
+                    <input className="input w-full" type="number" min={1} max={200} value={draft.party_size} onChange={(e) => setDraft((p) => ({ ...p, party_size: e.target.value }))} placeholder="Party Size" />
+                  </div>
+                  {activeResources.length > 0 && (
+                    <div className="space-y-1">
+                      <FieldLabel text={`${assignLabel} (ไม่บังคับ)`} />
+                      <select className="input w-full" value={draft.resource_id} onChange={(e) => setDraft((p) => ({ ...p, resource_id: e.target.value }))}>
+                        <option value="">{`ไม่ระบุ${assignLabel}`}</option>
+                        {activeResources.map((r) => (
+                          <option key={r.id} value={r.id}>{r.resource_code ? `${r.resource_code} • ` : ''}{r.resource_name} (cap {r.capacity})</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div className="sm:col-span-2 space-y-1">
+                    <FieldLabel text="หมายเหตุ (ไม่บังคับ)" />
+                    <input className="input w-full" value={draft.note} onChange={(e) => setDraft((p) => ({ ...p, note: e.target.value }))} placeholder="หมายเหตุ" />
+                  </div>
                   <div className="sm:col-span-2 flex gap-2 pt-2">
                     <button className="btn-outline" onClick={() => setCreateStep(1)}>ย้อนกลับ</button>
                     <button
                       className="btn-primary"
-                      disabled={!draft.booking_date || !draft.start_time}
+                      disabled={creating || !draft.booking_date || !draft.start_time}
                       onClick={() => void submitCreate()}
-                    >ยืนยันสร้างคิว</button>
+                    >{creating ? 'กำลังสร้าง…' : 'ยืนยันสร้างคิว'}</button>
                   </div>
                 </div>
               )}
@@ -633,6 +679,9 @@ export function BookingsCrud() {
                   >
                     <option value="">{`ไม่ระบุ${assignLabel}`}</option>
                     {resources
+                      // Keep the one already assigned even if it was deactivated later,
+                      // otherwise the select renders blank and a save silently unassigns it.
+                      .filter((r) => r.active !== false || r.id === editTarget.resource_id)
                       .filter((r) => !r.branch_id || r.branch_id === editTarget.branch_id)
                       .map((r) => (
                         <option key={r.id} value={r.id}>
