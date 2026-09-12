@@ -92,3 +92,12 @@ export function getTodayISOInBangkok(): string {
   const { day, month, year } = getPartsInBangkok(new Date());
   return `${year}-${month}-${day}`;
 }
+
+/**
+ * Current hour of day (0–23) in Asia/Bangkok.
+ */
+export function getNowHourInBangkok(): number {
+  const { hour } = getPartsInBangkok(new Date(), true);
+  const h = Number.parseInt(hour, 10);
+  return Number.isFinite(h) ? h % 24 : 0;
+}

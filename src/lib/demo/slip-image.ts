@@ -19,15 +19,21 @@ export async function drawDemoSlipPng(options: {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('เบราว์เซอร์นี้ไม่รองรับการสร้างรูปสลิปตัวอย่าง');
 
+  // Same face as the page (Kanit via next/font) so the slip matches the app.
+  // Wait for the webfont so the first slip is not drawn in the OS fallback.
+  try { await document.fonts.ready; } catch { /* older browsers: draw with whatever is loaded */ }
+  const family = window.getComputedStyle(document.body).fontFamily || 'sans-serif';
+  const font = (spec: string) => `${spec} ${family}`;
+
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, width, height);
 
   ctx.fillStyle = '#12a862';
   ctx.fillRect(0, 0, width, 140);
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 34px sans-serif';
+  ctx.font = font('bold 34px');
   ctx.fillText('โอนเงินสำเร็จ', 40, 70);
-  ctx.font = '20px sans-serif';
+  ctx.font = font('20px');
   ctx.fillText('สลิปตัวอย่างสำหรับทดลองระบบ', 40, 108);
 
   const lines: Array<[string, string]> = [
@@ -41,10 +47,10 @@ export async function drawDemoSlipPng(options: {
   let y = 220;
   lines.forEach(([label, value]) => {
     ctx.fillStyle = '#7f8b98';
-    ctx.font = '20px sans-serif';
+    ctx.font = font('20px');
     ctx.fillText(label, 40, y);
     ctx.fillStyle = '#152131';
-    ctx.font = 'bold 26px sans-serif';
+    ctx.font = font('bold 26px');
     ctx.fillText(value, 40, y + 34);
     ctx.strokeStyle = '#e4e8ee';
     ctx.beginPath();
@@ -58,13 +64,13 @@ export async function drawDemoSlipPng(options: {
   ctx.translate(width / 2, height - 180);
   ctx.rotate(-Math.PI / 12);
   ctx.fillStyle = 'rgba(18,168,98,0.16)';
-  ctx.font = 'bold 96px sans-serif';
+  ctx.font = font('bold 96px');
   ctx.textAlign = 'center';
   ctx.fillText('DEMO', 0, 0);
   ctx.restore();
 
   ctx.fillStyle = '#9aa6b2';
-  ctx.font = '18px sans-serif';
+  ctx.font = font('18px');
   ctx.textAlign = 'center';
   ctx.fillText('ไม่ใช่หลักฐานการโอนเงินจริง', width / 2, height - 60);
 

@@ -50,7 +50,7 @@ export const metadata: Metadata = {
     title: 'QueueBooking LINE | ระบบจองคิวผ่าน LINE OA',
     description: 'ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ | LINE OA queue booking platform for modern service businesses.',
     url: '/',
-    images: [{ url: '/og-image', width: 1200, height: 630, alt: 'QueueBooking LINE' }],
+    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'QueueBooking LINE' }],
   },
   twitter: {
     card: 'summary_large_image',

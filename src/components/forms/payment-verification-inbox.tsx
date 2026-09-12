@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { EmptyState } from '@/components/ui/empty-state';
 import { formatDateDMY } from '@/lib/utils/date-format';
+import { customerLabel } from '@/lib/booking/customer-label';
 import type { SlipStatus } from '@/types/db';
 
 type SlipRow = {
@@ -22,7 +23,7 @@ type SlipRow = {
     start_time?: string;
     payment_amount?: number | null;
     payment_status?: string | null;
-    customers?: { full_name?: string | null; phone?: string | null } | null;
+    customers?: { full_name?: string | null; nickname?: string | null; phone?: string | null } | null;
   } | null;
 };
 
@@ -151,7 +152,7 @@ export function PaymentVerificationInbox({ initialBookingId }: { initialBookingI
                   <tr key={r.id} className="border-t border-slate-100">
                     <td className="px-3 py-2 font-medium text-slate-900">{r.bookings?.queue_number ?? '-'}</td>
                     <td className="px-3 py-2 text-slate-700">
-                      {r.bookings?.customers?.full_name ?? '-'}
+                      {customerLabel(r.bookings?.customers)}
                       <span className="block text-xs text-slate-400">{r.bookings?.customers?.phone ?? ''}</span>
                     </td>
                     <td className="px-3 py-2 text-slate-700">
@@ -193,7 +194,7 @@ export function PaymentVerificationInbox({ initialBookingId }: { initialBookingI
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="text-base font-bold text-slate-900">คิว {selected.bookings?.queue_number ?? '-'}</h2>
-                <p className="text-xs text-slate-500">{selected.bookings?.customers?.full_name ?? '-'} {selected.bookings?.customers?.phone ?? ''}</p>
+                <p className="text-xs text-slate-500">{customerLabel(selected.bookings?.customers)} {selected.bookings?.customers?.phone ?? ''}</p>
               </div>
               <button className="text-slate-400" onClick={() => setSelected(null)}>✕</button>
             </div>

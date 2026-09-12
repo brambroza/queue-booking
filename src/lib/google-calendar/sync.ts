@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { createAdminClient } from '@/lib/supabase/admin';
+import { customerLabel, customerNickname } from '@/lib/booking/customer-label';
 import {
   googleCalendarRequest,
   type GoogleCalendarConnection,
@@ -59,7 +60,7 @@ function bookingEvent(booking: BookingForCalendar) {
   const details = [
     `หมายเลขคิว: ${booking.queue_number}`,
     `สถานะ: ${booking.status}`,
-    `ลูกค้า: ${customer?.full_name || '-'}`,
+    `ลูกค้า: ${customerLabel(customer)}`,
     `โทร: ${customer?.phone || '-'}`,
     booking.party_size ? `จำนวน: ${booking.party_size}` : null,
     booking.resource_name ? `ทรัพยากร: ${booking.resource_name}` : null,
@@ -68,7 +69,7 @@ function bookingEvent(booking: BookingForCalendar) {
   ].filter(Boolean);
 
   return {
-    summary: `คิว ${booking.queue_number} • ${service?.service_name || 'บริการ'} • ${customer?.full_name || 'ลูกค้า'}`,
+    summary: `คิว ${booking.queue_number} • ${service?.service_name || 'บริการ'} • ${customerNickname(customer) || customer?.full_name || 'ลูกค้า'}`,
     description: details.join('\n'),
     location: [branch?.branch_name, branch?.address].filter(Boolean).join(' • ') || undefined,
     start: { dateTime: start.toISOString(), timeZone: 'Asia/Bangkok' },
@@ -102,7 +103,7 @@ export async function syncBookingToGoogleCalendar(shopId: string, bookingId: str
       .maybeSingle(),
     admin
       .from('bookings')
-      .select('id,company_id,shop_id,booking_date,start_time,queue_number,status,note,party_size,resource_name,is_deleted,is_demo,branches(branch_name,address),services(service_name,duration_minutes),customers(full_name,phone)')
+      .select('id,company_id,shop_id,booking_date,start_time,queue_number,status,note,party_size,resource_name,is_deleted,is_demo,branches(branch_name,address),services(service_name,duration_minutes),customers(full_name,nickname,phone)')
       .eq('id', bookingId)
       .eq('shop_id', shopId)
       .maybeSingle(),

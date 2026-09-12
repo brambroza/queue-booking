@@ -2,19 +2,13 @@
 
 import { Chip } from '@mui/material';
 import { useTranslation } from '@/lib/i18n/useTranslation';
+import { getStatusMeta } from '@/lib/booking/status-meta';
 
-const colorMap: Record<string, 'warning' | 'info' | 'primary' | 'secondary' | 'success' | 'error' | 'default'> = {
-  pending: 'warning',
-  pending_approval: 'info',
-  confirmed: 'primary',
-  waiting: 'secondary',
-  serving: 'success',
-  completed: 'success',
-  cancelled: 'error',
-  no_show: 'default',
-};
-
+/**
+ * Booking status chip. Colour comes from the shared `STATUS_META` map so it matches
+ * the dashboard donut and every other status colour in the portal.
+ */
 export function StatusChip({ status }: { status: string }) {
   const { t } = useTranslation('status');
-  return <Chip size="small" label={t(status, status)} color={colorMap[status] ?? 'default'} variant="filled" />;
+  return <Chip size="small" label={t(status, status)} color={getStatusMeta(status).palette} variant="filled" />;
 }

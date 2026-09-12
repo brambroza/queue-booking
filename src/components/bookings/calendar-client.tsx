@@ -9,6 +9,7 @@ import MeetingRoomRoundedIcon from '@mui/icons-material/MeetingRoomRounded';
 import { useToast } from '@/components/ui/toast';
 import { useBranchScope } from '@/components/layout/branch-scope-provider';
 import { formatDateDMY } from '@/lib/utils/date-format';
+import { customerLabel } from '@/lib/booking/customer-label';
 import { RESOURCE_TYPES, isPersonResourceType, resourceTypeLabel, type ResourceType } from '@/lib/booking/resource-types';
 
 type Row = {
@@ -22,7 +23,7 @@ type Row = {
   resource_name?: string | null;
   branches: { branch_name?: string } | null;
   services: { service_name?: string } | null;
-  customers: { full_name?: string } | null;
+  customers: { full_name?: string | null; nickname?: string | null } | null;
 };
 
 type Resource = {
@@ -229,7 +230,7 @@ export function CalendarClient() {
               {selectedRows.length === 0 ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">ไม่มีคิวในวันที่เลือก</div> : selectedRows.map((r) => (
                 <div key={r.id} className={`rounded-xl border p-3 text-xs ${statusClass(String(r.status))}`}>
                   <div className="flex items-center justify-between gap-2"><p className="font-semibold text-slate-900">{r.queue_number}</p><span className="rounded-full border border-current/20 px-2 py-0.5">{r.status}</span></div>
-                  <p className="mt-1 text-slate-700">{hhmm(r.start_time)} • {r.customers?.full_name ?? '-'}</p>
+                  <p className="mt-1 text-slate-700">{hhmm(r.start_time)} • {customerLabel(r.customers)}</p>
                   <p className="text-slate-600">{r.branches?.branch_name ?? '-'} • {r.services?.service_name ?? '-'}</p>
                 </div>
               ))}
@@ -291,10 +292,10 @@ export function CalendarClient() {
                             key={b.id}
                             className={`absolute top-1.5 h-[74px] rounded-xl px-2 py-1 text-xs shadow-sm ${blockColor(b.status)}`}
                             style={{ left: `${left}%`, width: `${width}%` }}
-                            title={`${hhmm(b.start_time)}-${hhmm(b.end_time || b.start_time)} ${b.customers?.full_name ?? '-'} ${b.services?.service_name ?? ''}`}
+                            title={`${hhmm(b.start_time)}-${hhmm(b.end_time || b.start_time)} ${customerLabel(b.customers)} ${b.services?.service_name ?? ''}`}
                           >
                             <p className="font-semibold">{hhmm(b.start_time)} - {hhmm(b.end_time || b.start_time)}</p>
-                            <p className="truncate opacity-95">{b.customers?.full_name ?? b.queue_number}</p>
+                            <p className="truncate opacity-95">{b.customers ? customerLabel(b.customers) : b.queue_number}</p>
                           </div>
                         );
                       })}

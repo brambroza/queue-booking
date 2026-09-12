@@ -3,11 +3,13 @@
 import { usePathname } from 'next/navigation';
 import {
   Box,
+  Divider,
   List,
   ListItemButton,
   ListItemIcon,
   ListItemText,
   Stack,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
@@ -116,7 +118,19 @@ const groups: NavGroup[] = [
   },
 ];
 
-export function PortalNav({ isSuperAdmin = false }: { isSuperAdmin?: boolean }) {
+type PortalNavProps = {
+  isSuperAdmin?: boolean;
+  /** Render icon-only rail with tooltips (desktop collapsed sidebar). */
+  collapsed?: boolean;
+  /** Called after a nav item is clicked — used to close the mobile drawer. */
+  onNavigate?: () => void;
+};
+
+/**
+ * Portal side navigation. Renders grouped menu items filtered by role and
+ * branch scope. In collapsed mode only icons are shown with hover tooltips.
+ */
+export function PortalNav({ isSuperAdmin = false, collapsed = false, onNavigate }: PortalNavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useI18n();
@@ -124,15 +138,20 @@ export function PortalNav({ isSuperAdmin = false }: { isSuperAdmin?: boolean }) 
   // Until the scope is known, assume shop-wide so the menu does not flicker items away.
   const isBranchBound = !branchScopeLoading && scope === 'branch';
 
+  const visibleGroups = groups
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((it) => (!it.superAdminOnly || isSuperAdmin) && (!it.shopWideOnly || !isBranchBound)),
+    }))
+    .filter((g) => g.items.length > 0);
+
   return (
-    <Stack spacing={2.2}>
-      {groups.map((g) => {
-        const visibleItems = g.items.filter(
-          (it) => (!it.superAdminOnly || isSuperAdmin) && (!it.shopWideOnly || !isBranchBound)
-        );
-        if (visibleItems.length === 0) return null;
-        return (
-          <Stack key={g.titleKey} spacing={0.4}>
+    <Stack spacing={collapsed ? 1 : 2.2}>
+      {visibleGroups.map((g, groupIdx) => (
+        <Stack key={g.titleKey} spacing={0.4}>
+          {collapsed ? (
+            groupIdx > 0 ? <Divider sx={{ mx: 1.5, mb: 0.6 }} /> : null
+          ) : (
             <Typography
               variant="caption"
               sx={{
@@ -143,54 +162,76 @@ export function PortalNav({ isSuperAdmin = false }: { isSuperAdmin?: boolean }) 
                 color: 'text.secondary',
                 letterSpacing: '0.06em',
                 textTransform: 'uppercase',
+                whiteSpace: 'nowrap',
               }}
             >
               {t(g.titleKey, g.fallback)}
             </Typography>
-            <List dense disablePadding>
-              {visibleItems.map(({ labelKey, fallback, href, icon }) => {
-                const active = pathname === href || pathname.startsWith(`${href}/`);
-                return (
-                  <ListItemButton
-                    key={href}
-                    onClick={() => router.push(href)}
-                    selected={active}
+          )}
+          <List dense disablePadding>
+            {g.items.map(({ labelKey, fallback, href, icon }) => {
+              const active = pathname === href || pathname.startsWith(`${href}/`);
+              const label = t(labelKey, fallback);
+              const button = (
+                <ListItemButton
+                  key={href}
+                  onClick={() => {
+                    router.push(href);
+                    onNavigate?.();
+                  }}
+                  selected={active}
+                  aria-label={collapsed ? label : undefined}
+                  sx={{
+                    position: 'relative',
+                    borderRadius: 2,
+                    mb: 0.3,
+                    transition: 'background-color .15s ease, color .15s ease',
+                    ...(collapsed
+                      ? { width: 44, height: 40, mx: 'auto', px: 0, justifyContent: 'center' }
+                      : { py: 0.75, pl: 1.5 }),
+                    '&::before': active
+                      ? {
+                          content: '""',
+                          position: 'absolute',
+                          left: collapsed ? 2 : 4,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: 3,
+                          height: 18,
+                          borderRadius: 3,
+                          bgcolor: 'primary.main',
+                        }
+                      : undefined,
+                  }}
+                >
+                  <ListItemIcon
                     sx={{
-                      position: 'relative',
-                      borderRadius: 2,
-                      mb: 0.3,
-                      py: 0.75,
-                      pl: 1.5,
-                      transition: 'background-color .15s ease, color .15s ease',
-                      '&::before': active
-                        ? {
-                            content: '""',
-                            position: 'absolute',
-                            left: 4,
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            width: 3,
-                            height: 18,
-                            borderRadius: 3,
-                            bgcolor: 'primary.main',
-                          }
-                        : undefined,
+                      minWidth: collapsed ? 0 : 34,
+                      justifyContent: 'center',
+                      color: active ? 'primary.main' : 'text.secondary',
                     }}
                   >
-                    <ListItemIcon sx={{ minWidth: 34, color: active ? 'primary.main' : 'text.secondary' }}>
-                      {icon}
-                    </ListItemIcon>
+                    {icon}
+                  </ListItemIcon>
+                  {!collapsed && (
                     <ListItemText
-                      primary={t(labelKey, fallback)}
-                      primaryTypographyProps={{ fontSize: 14, fontWeight: active ? 700 : 500 }}
+                      primary={label}
+                      primaryTypographyProps={{ fontSize: 14, fontWeight: active ? 700 : 500, noWrap: true }}
                     />
-                  </ListItemButton>
-                );
-              })}
-            </List>
-          </Stack>
-        );
-      })}
+                  )}
+                </ListItemButton>
+              );
+              return collapsed ? (
+                <Tooltip key={href} title={label} placement="right" arrow enterDelay={300}>
+                  {button}
+                </Tooltip>
+              ) : (
+                button
+              );
+            })}
+          </List>
+        </Stack>
+      ))}
       <Box sx={{ height: 8 }} />
     </Stack>
   );

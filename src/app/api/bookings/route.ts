@@ -11,7 +11,9 @@ import { safeCreateNotification } from '@/lib/notifications/createNotification';
 import { resolvePaymentForBooking } from '@/lib/payments/resolve';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
 import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
-import { resourceBusyMessage, resourceTypeLabel } from '@/lib/booking/resource-types';
+import { isPersonResourceType, resourceBusyMessage, resourceTypeLabel } from '@/lib/booking/resource-types';
+import { safeNotifyBookingChange } from '@/lib/line/notify-booking-change';
+import { shouldNotifyCancellation } from '@/lib/booking/status-meta';
 
 /** Minimal shape needed to call a Postgres function — works for both the session and admin clients. */
 type RpcClient = { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown }> };
@@ -57,7 +59,7 @@ export async function GET(req: Request) {
 
     let query = supabase
       .from('bookings')
-      .select('*, branches(branch_name), services(service_name), customers(full_name,phone)', { count: 'exact' })
+      .select('*, branches(branch_name), services(service_name), customers(full_name,nickname,phone)', { count: 'exact' })
       .eq('shop_id', profile.shop_id)
       .eq('is_deleted', false)
       .order('booking_date', { ascending: true })
@@ -129,6 +131,9 @@ export async function POST(req: Request) {
       customerId = existingByLine?.[0]?.id ?? null;
     }
 
+    // Only a nickname staff actually typed touches the profile; blank keeps the stored one.
+    const nicknamePatch = payload.customer_nickname ? { nickname: payload.customer_nickname } : {};
+
     if (!customerId) {
       const { data: customer, error: customerError } = await supabase
         .from('customers')
@@ -139,6 +144,7 @@ export async function POST(req: Request) {
             line_user_id: lineUserPk,
             full_name: payload.customer_name,
             phone: payload.customer_phone,
+            ...nicknamePatch,
             created_by: user.id,
             updated_by: user.id,
           },
@@ -151,7 +157,7 @@ export async function POST(req: Request) {
     } else {
       await supabase
         .from('customers')
-        .update({ full_name: payload.customer_name, phone: payload.customer_phone, updated_by: user.id })
+        .update({ full_name: payload.customer_name, phone: payload.customer_phone, ...nicknamePatch, updated_by: user.id })
         .eq('id', customerId)
         .eq('shop_id', profile.shop_id);
     }
@@ -394,71 +400,83 @@ export async function PATCH(req: Request) {
     if (!before) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     assertBranchAllowed(branchScope, before.branch_id);
 
-    // --- Assign / change / remove the resource (trainer, stylist, table) ---
-    if (body.resource_id !== undefined) {
-      const nextResourceId = (body.resource_id as string | null) || null;
+    // --- Move: date / time and/or resource (trainer, stylist, table) in one step ---
+    // One request so a slot + provider change validates once, writes once and
+    // pushes the customer a single LINE notice.
+    const wantsSlot = body.booking_date !== undefined || body.start_time !== undefined;
+    const wantsResource = body.resource_id !== undefined;
+    if (wantsSlot || wantsResource) {
+      const newDate = (body.booking_date as string | undefined) ?? String(before.booking_date);
+      const rawTime = (body.start_time as string | undefined) ?? String(before.start_time);
+      const newTime = rawTime.length === 5 ? `${rawTime}:00` : rawTime;
+      const prevResourceId = (before.resource_id as string | null) ?? null;
+      const nextResourceId = wantsResource ? ((body.resource_id as string | null) || null) : prevResourceId;
 
-      let nextResource: { id: string; resource_name: string; resource_type: string | null; capacity: number } | null = null;
+      const slotChanged = newDate !== String(before.booking_date) || newTime.slice(0, 5) !== String(before.start_time).slice(0, 5);
+      const resourceChanged = nextResourceId !== prevResourceId;
+      if (!slotChanged && !resourceChanged) return NextResponse.json({ data: { ok: true, line_notified: false } });
+
+      const [{ data: svc }, { data: prevResource }, { data: selected }] = await Promise.all([
+        supabase.from('services').select('duration_minutes').eq('id', before.service_id).eq('shop_id', profile.shop_id).maybeSingle(),
+        prevResourceId
+          ? supabase.from('booking_resources').select('resource_type').eq('id', prevResourceId).eq('shop_id', profile.shop_id).maybeSingle()
+          : Promise.resolve({ data: null as { resource_type: string | null } | null }),
+        nextResourceId && resourceChanged
+          ? supabase.from('booking_resources').select('id,resource_name,resource_type,capacity').eq('id', nextResourceId).eq('shop_id', profile.shop_id).eq('is_deleted', false).eq('active', true).maybeSingle()
+          : Promise.resolve({ data: null as { id: string; resource_name: string | null; resource_type: string | null; capacity: number | null } | null }),
+      ]);
+      if (nextResourceId && resourceChanged && !selected) {
+        return NextResponse.json({ error: 'ไม่พบผู้ให้บริการ/ทรัพยากรที่เลือก' }, { status: 400 });
+      }
+
+      const startAt = new Date(`${newDate}T${newTime}+07:00`);
+      const endAt = new Date(startAt.getTime() + Math.max(Number(svc?.duration_minutes ?? 30), 5) * 60_000);
+      const endTime = `${String(endAt.getHours()).padStart(2, '0')}:${String(endAt.getMinutes()).padStart(2, '0')}:00`;
+
+      // Whatever holds the booking after the move must be free in the target
+      // window. Exclude this booking so its own old slot never blocks it.
       if (nextResourceId) {
-        const { data: selected } = await supabase
-          .from('booking_resources')
-          .select('id,resource_name,resource_type,capacity')
-          .eq('id', nextResourceId)
-          .eq('shop_id', profile.shop_id)
-          .eq('is_deleted', false)
-          .eq('active', true)
-          .maybeSingle();
-        if (!selected) return NextResponse.json({ error: 'ไม่พบผู้ให้บริการ/ทรัพยากรที่เลือก' }, { status: 400 });
-
-        const { data: svc } = await supabase
-          .from('services')
-          .select('duration_minutes')
-          .eq('id', before.service_id)
-          .eq('shop_id', profile.shop_id)
-          .maybeSingle();
-
-        const startLabel = String(before.start_time).length === 5 ? `${before.start_time}:00` : String(before.start_time);
-        const startAt = new Date(`${before.booking_date}T${startLabel}+07:00`);
-        const endAt = new Date(startAt.getTime() + Math.max(Number(svc?.duration_minutes ?? 30), 5) * 60_000);
-
         const free = await isResourceFree(supabase, {
           shopId: profile.shop_id,
-          resourceId: selected.id as string,
+          resourceId: nextResourceId,
           startAt,
           endAt,
           excludeBookingId: id,
         });
-        if (!free) return NextResponse.json({ error: resourceBusyMessage(selected.resource_type) }, { status: 409 });
-
-        nextResource = {
-          id: selected.id as string,
-          resource_name: String(selected.resource_name ?? '-'),
-          resource_type: (selected.resource_type as string | null) ?? null,
-          capacity: Number(selected.capacity ?? 1),
-        };
+        if (!free) {
+          const busyType = selected?.resource_type ?? prevResource?.resource_type ?? null;
+          return NextResponse.json({ error: resourceBusyMessage(busyType) }, { status: 409 });
+        }
       }
 
-      const { error } = await supabase
-        .from('bookings')
-        .update({
-          resource_id: nextResource?.id ?? null,
-          resource_name: nextResource?.resource_name ?? null,
-          resource_capacity: nextResource?.capacity ?? null,
-          updated_by: user.id,
-        })
-        .eq('id', id)
-        .eq('shop_id', profile.shop_id);
+      const update: Record<string, unknown> = { updated_by: user.id };
+      if (slotChanged) {
+        update.booking_date = newDate;
+        update.start_time = `${newTime.slice(0, 5)}:00`;
+        update.end_time = endTime;
+      }
+      if (resourceChanged) {
+        update.resource_id = selected?.id ?? null;
+        update.resource_name = selected?.resource_name ?? null;
+        update.resource_capacity = selected ? Number(selected.capacity ?? 1) : null;
+      }
+      const { error } = await supabase.from('bookings').update(update).eq('id', id).eq('shop_id', profile.shop_id);
       if (error) throw error;
 
-      const assignedLabel = resourceTypeLabel(nextResource?.resource_type);
+      const queueLabel = before.queue_number ?? id;
+      const nextResourceType = selected?.resource_type ?? prevResource?.resource_type ?? null;
+      const assignedLabel = resourceTypeLabel(nextResourceType);
+      const logLines: string[] = [];
+      if (slotChanged) logLines.push(`Rescheduled ${queueLabel} to ${newDate} ${newTime.slice(0, 5)}`);
+      if (resourceChanged) {
+        logLines.push(selected ? `Assigned ${assignedLabel} ${selected.resource_name} to ${queueLabel}` : `Removed assigned resource from ${queueLabel}`);
+      }
       await supabase.from('booking_logs').insert({
         company_id: profile.company_id,
         shop_id: profile.shop_id,
         booking_id: id,
         action: 'update',
-        description: nextResource
-          ? `Assigned ${assignedLabel} ${nextResource.resource_name} to ${before.queue_number ?? id}`
-          : `Removed assigned resource from ${before.queue_number ?? id}`,
+        description: logLines.join('; '),
         created_by: user.id,
       });
 
@@ -467,93 +485,46 @@ export async function PATCH(req: Request) {
         shopId: profile.shop_id,
         branchId: before.branch_id,
         userId: user.id,
-        type: 'booking_updated',
+        type: slotChanged ? 'booking_rescheduled' : 'booking_updated',
         category: 'bookings',
         priority: 'medium',
-        title: `${before.queue_number ?? 'Queue'} — ${nextResource ? `${assignedLabel}: ${nextResource.resource_name}` : 'ถอดผู้ให้บริการ'}`,
-        message: nextResource
-          ? `Assigned to ${nextResource.resource_name}`
-          : 'Assignment cleared',
+        title: slotChanged
+          ? `${queueLabel} rescheduled`
+          : `${queueLabel} — ${selected ? `${assignedLabel}: ${selected.resource_name}` : 'ถอดผู้ให้บริการ'}`,
+        message: logLines.join('; '),
         relatedType: 'booking',
         relatedId: id,
         actionUrl: '/portal/bookings',
-        icon: 'AssignmentInd',
+        icon: slotChanged ? 'EventRepeat' : 'AssignmentInd',
         color: '#1565c0',
         metadata: {
+          prev_date: before.booking_date,
+          prev_time: before.start_time,
+          new_date: newDate,
+          new_time: newTime.slice(0, 5),
           prev_resource: before.resource_name ?? null,
-          next_resource: nextResource?.resource_name ?? null,
+          next_resource: resourceChanged ? selected?.resource_name ?? null : before.resource_name ?? null,
         },
         createdBy: user.id,
       });
       await safeSyncBookingToGoogleCalendar(profile.shop_id, id);
-      return NextResponse.json({ data: true });
-    }
 
-    // --- Reschedule: date / time change ---
-    if (body.booking_date !== undefined || body.start_time !== undefined) {
-      const newDate = (body.booking_date as string | undefined) ?? before.booking_date;
-      const rawTime = (body.start_time as string | undefined) ?? before.start_time;
-      const newTime = rawTime.length === 5 ? `${rawTime}:00` : rawTime;
-
-      const { data: svc } = await supabase
-        .from('services')
-        .select('duration_minutes')
-        .eq('id', before.service_id)
-        .eq('shop_id', profile.shop_id)
-        .maybeSingle();
-
-      const startAt = new Date(`${newDate}T${newTime}+07:00`);
-      const endAt = new Date(startAt.getTime() + Math.max(Number(svc?.duration_minutes ?? 30), 5) * 60_000);
-      const endTime = `${String(endAt.getHours()).padStart(2, '0')}:${String(endAt.getMinutes()).padStart(2, '0')}:00`;
-
-      // Moving a booking must not park it on top of another one holding the same
-      // trainer / table. Exclude this booking so its own old slot never blocks it.
-      if (before.resource_id) {
-        const free = await isResourceFree(supabase, {
+      // Customer notice: a moved slot always matters; a provider swap only when
+      // the provider is a person (a different table is the shop's business).
+      const personInvolved = isPersonResourceType(selected?.resource_type) || isPersonResourceType(prevResource?.resource_type);
+      const kind = slotChanged ? 'moved' : resourceChanged && personInvolved ? 'reassigned' : null;
+      let lineNotified = false;
+      if (kind) {
+        const notice = await safeNotifyBookingChange({
           shopId: profile.shop_id,
-          resourceId: before.resource_id as string,
-          startAt,
-          endAt,
-          excludeBookingId: id,
+          bookingId: id,
+          kind,
+          prev: { booking_date: String(before.booking_date), start_time: String(before.start_time), resource_name: before.resource_name ?? null },
+          resourceType: nextResourceType,
         });
-        if (!free) {
-          const { data: heldResource } = await supabase
-            .from('booking_resources')
-            .select('resource_type')
-            .eq('id', before.resource_id)
-            .eq('shop_id', profile.shop_id)
-            .maybeSingle();
-          return NextResponse.json({ error: resourceBusyMessage(heldResource?.resource_type) }, { status: 409 });
-        }
+        lineNotified = notice.sent;
       }
-
-      const { error } = await supabase
-        .from('bookings')
-        .update({ booking_date: newDate, start_time: rawTime.slice(0, 5) + ':00', end_time: endTime, updated_by: user.id })
-        .eq('id', id)
-        .eq('shop_id', profile.shop_id);
-      if (error) throw error;
-
-      await safeCreateNotification(supabase, {
-        companyId: profile.company_id,
-        shopId: profile.shop_id,
-        branchId: before.branch_id,
-        userId: user.id,
-        type: 'booking_rescheduled',
-        category: 'bookings',
-        priority: 'medium',
-        title: `${before.queue_number ?? 'Queue'} rescheduled`,
-        message: `Rescheduled to ${newDate} ${rawTime.slice(0, 5)}`,
-        relatedType: 'booking',
-        relatedId: id,
-        actionUrl: '/portal/bookings',
-        icon: 'EventRepeat',
-        color: '#1565c0',
-        metadata: { prev_date: before.booking_date, prev_time: before.start_time, new_date: newDate, new_time: rawTime.slice(0, 5) },
-        createdBy: user.id,
-      });
-      await safeSyncBookingToGoogleCalendar(profile.shop_id, id);
-      return NextResponse.json({ data: true });
+      return NextResponse.json({ data: { ok: true, line_notified: lineNotified } });
     }
 
     // --- Status update ---
@@ -587,7 +558,20 @@ export async function PATCH(req: Request) {
       createdBy: user.id,
     });
     await safeSyncBookingToGoogleCalendar(profile.shop_id, id);
-    return NextResponse.json({ data: true });
+
+    // Only the first cancellation reaches the customer; re-saving an already
+    // cancelled booking must not push a duplicate notice.
+    let lineNotified = false;
+    if (isCancelled && shouldNotifyCancellation(before)) {
+      const notice = await safeNotifyBookingChange({
+        shopId: profile.shop_id,
+        bookingId: id,
+        kind: 'cancelled',
+        prev: { booking_date: String(before.booking_date), start_time: String(before.start_time) },
+      });
+      lineNotified = notice.sent;
+    }
+    return NextResponse.json({ data: { ok: true, line_notified: lineNotified } });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });
   }
@@ -602,7 +586,7 @@ export async function DELETE(req: Request) {
 
     const { data: before } = await supabase
       .from('bookings')
-      .select('id,queue_number,branch_id')
+      .select('id,queue_number,status,is_deleted,branch_id,booking_date,start_time')
       .eq('id', id)
       .eq('shop_id', profile.shop_id)
       .maybeSingle();
@@ -616,6 +600,20 @@ export async function DELETE(req: Request) {
       .eq('shop_id', profile.shop_id);
 
     if (error) throw error;
+
+    // Notify only after the soft-delete is committed, so a failed write never
+    // tells the customer their queue is gone while the row is still live. The
+    // lookup inside does not filter is_deleted, so the row is still found.
+    // A booking that was already cancelled or deleted was told once already.
+    if (shouldNotifyCancellation(before)) {
+      await safeNotifyBookingChange({
+        shopId: profile.shop_id,
+        bookingId: before.id,
+        kind: 'cancelled',
+        prev: { booking_date: String(before.booking_date), start_time: String(before.start_time) },
+      });
+    }
+
     if (before) {
       await safeCreateNotification(supabase, {
         companyId: profile.company_id,

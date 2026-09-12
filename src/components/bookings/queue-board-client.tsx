@@ -5,6 +5,7 @@ import HourglassBottomRoundedIcon from '@mui/icons-material/HourglassBottomRound
 import PlayCircleRoundedIcon from '@mui/icons-material/PlayCircleRounded';
 import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded';
 import { useToast } from '@/components/ui/toast';
+import { customerLabel } from '@/lib/booking/customer-label';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
 
 type Booking = {
@@ -14,7 +15,7 @@ type Booking = {
   start_time: string;
   status: 'pending' | 'confirmed' | 'waiting' | 'serving' | 'completed' | 'cancelled' | 'no_show';
   resource_name?: string | null;
-  customers: { full_name?: string } | null;
+  customers: { full_name?: string | null; nickname?: string | null } | null;
   services: { service_name?: string } | null;
 };
 
@@ -57,7 +58,7 @@ export function QueueBoardClient() {
               {rows.filter((r) => r.status === col).map((r) => (
                 <article key={r.id} className="rounded-lg border border-slate-200 p-2 text-sm">
                   <p className="font-semibold">{r.queue_number}</p>
-                  <p>{String(r.start_time).slice(0, 5)} - {r.customers?.full_name ?? '-'}</p>
+                  <p>{String(r.start_time).slice(0, 5)} - {customerLabel(r.customers)}</p>
                   <p className="text-xs text-slate-600">{r.services?.service_name ?? '-'}</p>
                   {r.resource_name ? <p className="text-xs text-slate-500">👤 {r.resource_name}</p> : null}
                   <div className="mt-2 flex justify-end">

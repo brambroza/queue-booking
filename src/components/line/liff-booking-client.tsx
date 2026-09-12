@@ -1,11 +1,49 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  Avatar,
+  Box,
+  Button,
+  Card,
+  Chip,
+  CircularProgress,
+  Divider,
+  InputAdornment,
+  MenuItem,
+  Stack,
+  TextField,
+  Typography,
+} from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
+import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import EventBusyRoundedIcon from '@mui/icons-material/EventBusyRounded';
+import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
+import PhoneRoundedIcon from '@mui/icons-material/PhoneRounded';
+import TagFacesRoundedIcon from '@mui/icons-material/TagFacesRounded';
 import { useToast } from '@/components/ui/toast';
+import { StatusChip } from '@/components/shared/status-chip';
 import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import { isPersonResourceType, resourceTypeIcon, resourceTypeLabel } from '@/lib/booking/resource-types';
+import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 import { buildBookingEchoText } from '@/lib/line/booking-echo';
 import { LiffPaymentPanel, openBankDeeplink } from '@/components/line/liff-payment-panel';
+import {
+  KeyValueList,
+  LiffEmpty,
+  LiffLabel,
+  LiffSection,
+  LiffShell,
+  LiffSkeleton,
+  LiffStepper,
+  OptionCard,
+  SlotButton,
+  brandGradient,
+  brandSoft,
+} from '@/components/line/liff-ui';
 import type { PaymentMethod } from '@/types/db';
 
 type Branch = { id: string; branch_name: string };
@@ -50,7 +88,16 @@ type MyBooking = {
   payment_method?: string | null;
   payment_amount?: number | null;
   bank_provider?: string | null;
+  change_notified_at?: string | null;
+  change_acknowledged_at?: string | null;
 };
+
+/** True while the shop changed this booking and the customer has not tapped "รับทราบ" yet. */
+function isChangeAckPending(b: MyBooking): boolean {
+  if (!b.change_notified_at) return false;
+  if (!b.change_acknowledged_at) return true;
+  return new Date(b.change_acknowledged_at).getTime() < new Date(b.change_notified_at).getTime();
+}
 
 type ShopPaymentMeta = {
   methods: PaymentMethod[];
@@ -82,13 +129,6 @@ const ON_SCREEN_PAYMENT_METHODS = new Set(['bank_transfer', 'bank_deeplink']);
 const pendingPaymentKey = (shopKey: string) => `queue.pendingPayment.${shopKey}`;
 const PENDING_PAYMENT_TTL_MS = 48 * 3600 * 1000;
 
-type UiTheme = {
-  key: 'default' | 'nail' | 'clinic' | 'buffet' | 'meeting';
-  accent: string;
-  accentSoft: string;
-  accentText: string;
-  successTitle: string;
-};
 type ServiceKind = 'barber' | 'nail' | 'clinic' | 'buffet' | 'meeting' | 'default';
 type ServiceCardMeta = { icon: string; subtitle: string };
 
@@ -173,31 +213,31 @@ async function ensureLiffLoaded(): Promise<LiffApi | null> {
   return (window as Window & { liff?: LiffApi }).liff ?? null;
 }
 
-function bookingStatusStyle(status: string) {
-  if (status === 'completed') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-  if (status === 'serving') return 'bg-cyan-50 text-cyan-700 border-cyan-200';
-  if (status === 'waiting') return 'bg-amber-50 text-amber-700 border-amber-200';
-  if (status === 'confirmed') return 'bg-blue-50 text-blue-700 border-blue-200';
-  if (status === 'pending') return 'bg-orange-50 text-orange-700 border-orange-200';
-  if (status === 'cancelled') return 'bg-rose-50 text-rose-700 border-rose-200';
-  return 'bg-slate-50 text-slate-600 border-slate-200';
+/**
+ * "A1 - ช่างเอก" when the shop set a code; just the name when the code is empty
+ * or merely repeats the type label (some shops type "เทรนเนอร์" into the code field).
+ */
+function resourceDisplayName(r: Resource): string {
+  const code = (r.resource_code ?? '').trim();
+  if (!code || code === resourceTypeLabel(r.resource_type) || code === r.resource_name.trim()) return r.resource_name;
+  return `${code} - ${r.resource_name}`;
 }
 
-function detectUiTheme(serviceName?: string): UiTheme {
-  const name = (serviceName || '').toLowerCase();
-  if (name.includes('เล็บ') || name.includes('nail')) {
-    return { key: 'nail', accent: '#E05C86', accentSoft: '#FCEAF0', accentText: '#9E2B55', successTitle: 'จองคิวสำเร็จ' };
+/** Leading tile for a payment option: bank initials for deeplinks, an emoji otherwise. */
+function paymentOptionIcon(option: PaymentOption): React.ReactNode {
+  if (option.method === 'bank_deeplink') {
+    const short = (option.bank ?? '').replace(/[^a-z]/gi, '').slice(0, 3).toUpperCase() || 'BK';
+    return <Box component="span" sx={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.02em' }}>{short}</Box>;
   }
-  if (name.includes('คลินิก') || name.includes('แพทย์') || name.includes('clinic')) {
-    return { key: 'clinic', accent: '#4FA56A', accentSoft: '#EAF7EF', accentText: '#2B6A3F', successTitle: 'จองคิวสำเร็จ' };
-  }
-  if (name.includes('บุฟเฟ่ต์') || name.includes('buffet')) {
-    return { key: 'buffet', accent: '#4FA56A', accentSoft: '#EAF7EF', accentText: '#2B6A3F', successTitle: 'จองคิวสำเร็จ' };
-  }
-  if (name.includes('ห้องประชุม') || name.includes('meeting')) {
-    return { key: 'meeting', accent: '#4FA56A', accentSoft: '#EAF7EF', accentText: '#2B6A3F', successTitle: 'จองคิวสำเร็จ' };
-  }
-  return { key: 'default', accent: '#4FA56A', accentSoft: '#EAF7EF', accentText: '#2B6A3F', successTitle: 'จองคิวสำเร็จ' };
+  if (option.method === 'bank_transfer') return '🧾';
+  return '📱';
+}
+
+/** Second line of a payment option, describing how it gets confirmed. */
+function paymentOptionSubtitle(option: PaymentOption) {
+  if (option.method === 'bank_deeplink') return 'เปิดแอปธนาคาร ยืนยันอัตโนมัติ';
+  if (option.method === 'bank_transfer') return 'สแกน QR แล้วอัปโหลดสลิป';
+  return 'ชำระผ่าน QR ยืนยันอัตโนมัติ';
 }
 
 function detectServiceKind(serviceName?: string): ServiceKind {
@@ -236,6 +276,7 @@ function resourcePickerLabel(resourceType?: string | null, serviceName?: string)
 
 export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey: string; initialTab?: 'booking' | 'account' }) {
   const { push } = useToast();
+  const theme = useTheme();
 
   const [shop, setShop] = useState<ShopMeta | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -251,6 +292,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const [selectedTime, setSelectedTime] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerNickname, setCustomerNickname] = useState('');
   const [lineUserId, setLineUserId] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [pictureUrl, setPictureUrl] = useState('');
@@ -309,6 +351,8 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         picture_url: pictureUrl || undefined,
         full_name: customerName || undefined,
         phone: customerPhone || undefined,
+        // Sent only on save: '' means the customer cleared it on purpose.
+        nickname: opts?.mode === 'update' ? customerNickname : undefined,
         mode: opts?.mode ?? 'view',
       }),
     });
@@ -324,6 +368,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     }
     if (json.data?.customer?.phone) {
       setCustomerPhone((prev) => (!isUpdate && prev.trim() ? prev : json.data.customer.phone));
+    }
+    if (typeof json.data?.customer?.nickname === 'string' || isUpdate) {
+      setCustomerNickname((prev) => (!isUpdate && prev.trim() ? prev : json.data?.customer?.nickname ?? ''));
     }
     setUpcoming(json.data?.upcoming ?? []);
     setHistory(json.data?.history ?? []);
@@ -440,6 +487,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         const member = memberJson.data?.customer;
         if (member?.full_name) setCustomerName((prev) => (prev.trim() ? prev : member.full_name));
         if (member?.phone) setCustomerPhone((prev) => (prev.trim() ? prev : member.phone));
+        if (member?.nickname) setCustomerNickname((prev) => (prev.trim() ? prev : member.nickname));
         if (memberJson.data?.was_registered) push('สมัครสมาชิกกับร้านสำเร็จแล้ว กรุณายืนยันข้อมูลก่อนจองคิว', 'success');
         setMemberReady(true);
         setMemberStatus('ready');
@@ -622,6 +670,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         resource_id: selectedResourceId || undefined,
         customer_name: customerName,
         customer_phone: customerPhone,
+        nickname: customerNickname.trim() || undefined,
         line_user_id: lineUserId || undefined,
         payment_method: chosenMethod || undefined,
         bank_provider: chosenMethod === 'bank_deeplink' && chosenBank ? chosenBank : undefined,
@@ -702,7 +751,6 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     () => filteredResources.find((r) => r.id === selectedResourceId),
     [filteredResources, selectedResourceId],
   );
-  const uiTheme = useMemo(() => detectUiTheme(selectedService?.service_name), [selectedService?.service_name]);
   const resourceType = selectedResource?.resource_type || filteredResources[0]?.resource_type;
   const pickerLabel = useMemo(
     () => resourcePickerLabel(resourceType, selectedService?.service_name),
@@ -739,6 +787,19 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     void loadMe();
   }
 
+  async function acknowledgeChange(bookingId: string) {
+    if (!lineUserId) return;
+    const res = await fetch(`/api/public/shop/${shopKey}/acknowledge-booking`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ line_user_id: lineUserId, booking_id: bookingId }),
+    });
+    const json = await res.json();
+    if (!res.ok) return push(json.error ?? 'บันทึกไม่สำเร็จ', 'error');
+    push('รับทราบแล้ว ขอบคุณค่ะ');
+    void loadMe();
+  }
+
   async function closeLiffOrBack() {
     try {
       const liff = await ensureLiffLoaded();
@@ -749,399 +810,525 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     if (typeof window !== 'undefined') window.history.back();
   }
 
+  /** Leave the success screen for the account tab. */
+  function goToMyQueues() {
+    setQueueNo('');
+    setBookingResult(null);
+    setTab('account');
+  }
+
+  const shellProps = { shopName: shop?.name, branchName: selectedBranch?.branch_name };
+  const maxSlotCapacity = slots.reduce((max, s) => Math.max(max, s.remaining_capacity), 0);
+
   if (queueNo) {
+    const summaryRows = [
+      { label: 'บริการ', value: selectedService?.service_name ?? '-' },
+      { label: 'วันที่', value: formatDateDMY(date) },
+      { label: 'เวลา', value: `${selectedTime} น.` },
+      { label: 'สาขา', value: selectedBranch?.branch_name ?? '-' },
+      ...(filteredResources.length > 0
+        ? [{
+            label: resourceTypeLabel(resourceType),
+            value: selectedResource
+              ? resourceDisplayName(selectedResource)
+              : 'ทางร้านจัดให้ตามคิว',
+          }]
+        : []),
+    ];
     return (
-      <main className="min-h-screen p-4" style={{ background: '#f4f6f8' }}>
-        <section className="mx-auto max-w-md overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm">
-          <div className="px-4 py-3 text-center text-white" style={{ background: uiTheme.accent }}>
-            <h1 className="text-lg font-bold">{uiTheme.successTitle}</h1>
-          </div>
-          <div className="space-y-2 p-5 text-sm">
-            <p className="text-2xl font-extrabold tracking-tight text-slate-900">เลขคิว {queueNo}</p>
-            <p>บริการ: <b>{selectedService?.service_name ?? '-'}</b></p>
-            <p>วันที่: <b>{formatDateDMY(date)}</b></p>
-            <p>เวลา: <b>{selectedTime}</b></p>
-            <p>สาขา: <b>{selectedBranch?.branch_name ?? '-'}</b></p>
-            <p className="pt-2 text-xs text-slate-500">กรุณามาก่อนเวลาประมาณ 10 นาที</p>
+      <LiffShell {...shellProps} title="จองคิวสำเร็จ">
+        <Card>
+          <Stack alignItems="center" sx={{ px: 2, pt: 2.75, pb: 2.25, textAlign: 'center' }}>
+            <Box
+              sx={{
+                width: 56,
+                height: 56,
+                mb: 1.25,
+                borderRadius: '16px',
+                display: 'grid',
+                placeItems: 'center',
+                bgcolor: brandSoft,
+                color: 'primary.main',
+              }}
+            >
+              <CheckRoundedIcon sx={{ fontSize: 30 }} />
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: '0.02em' }}>
+              เลขคิวของคุณ
+            </Typography>
+            <Typography
+              variant="h3"
+              sx={{ fontWeight: 800, color: 'primary.main', letterSpacing: '-0.02em', lineHeight: 1.05, fontVariantNumeric: 'tabular-nums', my: 0.5 }}
+            >
+              {queueNo}
+            </Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>จองคิวสำเร็จ</Typography>
+          </Stack>
+          <Divider />
+          <Stack spacing={1.25} sx={{ p: 1.75 }}>
+            <KeyValueList rows={summaryRows} />
+            <Typography variant="caption" color="text.secondary">กรุณามาก่อนเวลาประมาณ 10 นาที</Typography>
+          </Stack>
+        </Card>
 
-            {bookingResult?.payment_method && ON_SCREEN_PAYMENT_METHODS.has(bookingResult.payment_method) && bookingResult.booking_id && lineUserId && (
-              <div className="pt-3">
-                <LiffPaymentPanel
-                  shopKey={shopKey}
-                  bookingId={bookingResult.booking_id}
-                  lineUserId={lineUserId}
-                  idToken={liffIdToken}
-                  accent={uiTheme.accent}
-                  onPaid={clearPendingPayment}
-                />
-              </div>
-            )}
+        {bookingResult?.payment_method && ON_SCREEN_PAYMENT_METHODS.has(bookingResult.payment_method) && bookingResult.booking_id && lineUserId && (
+          <LiffPaymentPanel
+            shopKey={shopKey}
+            bookingId={bookingResult.booking_id}
+            lineUserId={lineUserId}
+            idToken={liffIdToken}
+            onPaid={clearPendingPayment}
+          />
+        )}
 
-            <div className="space-y-2 pt-2">
-              <button className="btn-outline w-full" onClick={() => setTab('account')}>ดูคิวของฉัน</button>
-              <button className="btn-outline w-full" onClick={() => { setQueueNo(''); setBookingResult(null); }}>จองคิวอีกครั้ง</button>
-              <button className="btn-primary w-full" style={{ background: uiTheme.accent }} onClick={() => setTab('account')}>เปิด LIFF อีกครั้ง</button>
-            </div>
-          </div>
-        </section>
-      </main>
+        <Stack spacing={1}>
+          <Button variant="contained" size="large" fullWidth onClick={goToMyQueues}>ดูคิวของฉัน</Button>
+          <Button variant="outlined" size="large" fullWidth onClick={() => { setQueueNo(''); setBookingResult(null); }}>จองคิวอีกครั้ง</Button>
+          <Button variant="text" color="inherit" size="large" fullWidth sx={{ color: 'text.secondary' }} onClick={() => void closeLiffOrBack()}>ปิดหน้าต่าง</Button>
+        </Stack>
+      </LiffShell>
     );
   }
 
   // Reload landed here with an unfinished transfer — reopen the payment panel.
   if (resumeBooking && lineUserId) {
     return (
-      <main className="min-h-screen p-4" style={{ background: '#f4f6f8' }}>
-        <section className="mx-auto max-w-md space-y-3">
-          <div className="rounded-[22px] border border-amber-200 bg-amber-50 p-4">
-            <p className="text-sm font-bold text-amber-800">ยังชำระเงินไม่เสร็จ</p>
-            <p className="mt-0.5 text-xs text-amber-800">เลขคิว {resumeBooking.queue_number}</p>
-          </div>
-          <LiffPaymentPanel
-            shopKey={shopKey}
-            bookingId={resumeBooking.booking_id}
-            lineUserId={lineUserId}
-            idToken={liffIdToken}
-            accent={uiTheme.accent}
-            onPaid={clearPendingPayment}
-          />
-          <button className="btn-outline w-full" onClick={clearPendingPayment}>ข้ามไปก่อน</button>
-        </section>
-      </main>
+      <LiffShell {...shellProps} title="ชำระเงินต่อ">
+        <Alert severity="warning">
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>ยังชำระเงินไม่เสร็จ</Typography>
+          <Typography variant="caption">เลขคิว {resumeBooking.queue_number}</Typography>
+        </Alert>
+        <LiffPaymentPanel
+          shopKey={shopKey}
+          bookingId={resumeBooking.booking_id}
+          lineUserId={lineUserId}
+          idToken={liffIdToken}
+          onPaid={clearPendingPayment}
+        />
+        <Button variant="text" color="inherit" size="large" fullWidth sx={{ color: 'text.secondary' }} onClick={clearPendingPayment}>ข้ามไปก่อน</Button>
+      </LiffShell>
     );
   }
 
-  return (
-    <main className="min-h-screen p-4" style={{ background: '#f4f6f8' }}>
-      <section className="mx-auto max-w-md overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm">
-        <div className="px-4 py-3 text-white" style={{ background: uiTheme.accent }}>
-          <p className="text-xs opacity-90">{shop?.name ?? 'ร้านค้า'}</p>
-          <h1 className="text-base font-semibold">{tab === 'booking' ? 'เลือกบริการและเวลาจองคิว' : 'ข้อมูลสมาชิก'}</h1>
-        </div>
-        <div className="space-y-4 p-4">
-          {/*    <div className="space-y-1">
-          <p className="text-xs text-slate-500">รองรับร้านตัดผม • ร้านทำเล็บ • คลินิก • ร้านบุฟเฟ่ต์ • ห้องประชุม</p>
-        </div> */}
-          {shopMetaError ? (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-              โหลดข้อมูลร้านไม่สำเร็จ: {shopMetaError}
-            </div>
+  const memberBlock =
+    memberStatus === 'checking' ? (
+      <Alert severity="info" icon={<CircularProgress size={16} color="inherit" />}>
+        กำลังตรวจสอบสมาชิกของร้าน...
+      </Alert>
+    ) : memberStatus === 'error' ? (
+      <Alert severity="error">
+        <Stack spacing={1} alignItems="flex-start">
+          <span>{memberError || 'ตรวจสอบสมาชิกไม่สำเร็จ'}</span>
+          {resolvedLiffId ? (
+            <Typography variant="caption" sx={{ fontFamily: 'ui-monospace, monospace' }}>LIFF ID: {resolvedLiffId}</Typography>
           ) : null}
+          <Stack direction="row" spacing={1}>
+            {liffOpenUrl ? <Button size="small" variant="outlined" color="inherit" href={liffOpenUrl}>เปิดผ่าน LINE</Button> : null}
+            <Button size="small" variant="contained" color="error" onClick={retryMemberCheck}>ลองใหม่</Button>
+          </Stack>
+        </Stack>
+      </Alert>
+    ) : null;
 
-          {initialTab === 'booking' ? (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-              เมนูนี้สำหรับจองคิว
-            </div>
-          ) : (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-              ข้อมูลสมาชิก
-            </div>
-          )}
+  const nameField = (
+    <TextField
+      label="ชื่อผู้จอง"
+      value={customerName}
+      onChange={(e) => setCustomerName(e.target.value)}
+      autoComplete="name"
+      fullWidth
+      slotProps={{
+        input: { startAdornment: <InputAdornment position="start"><PersonRoundedIcon fontSize="small" /></InputAdornment> },
+      }}
+    />
+  );
+  const phoneField = (
+    <TextField
+      label="เบอร์โทร"
+      value={customerPhone}
+      onChange={(e) => setCustomerPhone(e.target.value)}
+      autoComplete="tel"
+      fullWidth
+      slotProps={{
+        htmlInput: { inputMode: 'tel' },
+        input: { startAdornment: <InputAdornment position="start"><PhoneRoundedIcon fontSize="small" /></InputAdornment> },
+      }}
+    />
+  );
 
-          {tab === 'booking' ? (
+  const nicknameField = (
+    <TextField
+      label="ชื่อเล่น (ไม่บังคับ)"
+      value={customerNickname}
+      onChange={(e) => setCustomerNickname(e.target.value)}
+      autoComplete="nickname"
+      helperText="ใช้เรียกคิวและแสดงบนจอคิว"
+      fullWidth
+      slotProps={{
+        htmlInput: { maxLength: NICKNAME_MAX },
+        input: { startAdornment: <InputAdornment position="start"><TagFacesRoundedIcon fontSize="small" /></InputAdornment> },
+      }}
+    />
+  );
+
+  const renderBookingCard = (b: MyBooking, opts: { active: boolean }) => {
+    const rows = [
+      { label: 'เวลา', value: `${formatDateDMY(b.booking_date)} • ${String(b.start_time).slice(0, 5)}` },
+      { label: 'สาขา', value: b.branches?.branch_name ?? '-' },
+      { label: 'บริการ', value: b.services?.service_name ?? '-' },
+      ...(b.resource_name ? [{ label: bookingResourceLabel(b.resource_id), value: b.resource_name }] : []),
+    ];
+    if (!opts.active) {
+      return (
+        <Box key={b.id} sx={{ border: 1, borderColor: 'divider', borderRadius: '16px', p: 1.5 }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ mb: 0.5 }}>
+            <Typography variant="subtitle2" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>{b.queue_number}</Typography>
+            <StatusChip status={String(b.status)} />
+          </Stack>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+            {formatDateDMY(b.booking_date)} • {String(b.start_time).slice(0, 5)} ·{' '}
+            {[b.branches?.branch_name ?? '-', b.services?.service_name ?? '-', b.resource_name ?? ''].filter(Boolean).join(' • ')}
+          </Typography>
+        </Box>
+      );
+    }
+    const canResumeSlip = b.payment_method === 'bank_transfer' && (b.payment_status === 'pending_payment' || b.payment_status === 'rejected');
+    const canResumeDeeplink = b.payment_method === 'bank_deeplink' && (b.payment_status === 'pending_payment' || b.payment_status === 'failed');
+    const canCancel = b.status === 'pending' || b.status === 'confirmed' || b.status === 'waiting';
+    return (
+      <Box key={b.id} sx={{ border: 1, borderColor: 'divider', borderRadius: '16px', p: 1.5, bgcolor: 'background.paper' }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ mb: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>{b.queue_number}</Typography>
+          <StatusChip status={String(b.status)} />
+        </Stack>
+        <KeyValueList rows={rows} dense />
+        {isChangeAckPending(b) ? (
+          <Alert
+            severity="warning"
+            sx={{ mt: 1.25 }}
+            action={<Button color="inherit" size="small" onClick={() => void acknowledgeChange(b.id)}>รับทราบ</Button>}
+          >
+            ร้านเปลี่ยนแปลงคิวของคุณ กรุณาตรวจสอบวัน เวลา และผู้ให้บริการใหม่
+          </Alert>
+        ) : null}
+        {b.payment_method === 'bank_transfer' && b.payment_status === 'awaiting_verification' ? (
+          <Alert severity="warning" sx={{ mt: 1.25 }}>รอร้านตรวจสอบสลิป — ร้านจะแจ้งผลผ่าน LINE</Alert>
+        ) : null}
+        {canResumeSlip || canResumeDeeplink || canCancel ? (
+          <Stack spacing={1} sx={{ mt: 1.25 }}>
+            {canResumeSlip ? (
+              <Button
+                variant="contained"
+                fullWidth
+                onClick={() => setResumeBooking({ booking_id: b.id, queue_number: b.queue_number, payment_method: 'bank_transfer' })}
+              >
+                {b.payment_status === 'rejected' ? 'อัปโหลดสลิปใหม่' : 'ชำระเงิน / อัปโหลดสลิป'}
+              </Button>
+            ) : null}
+            {canResumeDeeplink ? (
+              <Button
+                variant="contained"
+                fullWidth
+                onClick={() => setResumeBooking({ booking_id: b.id, queue_number: b.queue_number, payment_method: 'bank_deeplink' })}
+              >
+                {b.payment_status === 'failed' ? 'ชำระเงินใหม่ผ่านแอปธนาคาร' : 'ชำระเงินผ่านแอปธนาคาร'}
+              </Button>
+            ) : null}
+            {canCancel ? (
+              <Button variant="outlined" color="inherit" fullWidth onClick={() => void cancelBooking(b.id)}>ยกเลิกคิว</Button>
+            ) : null}
+          </Stack>
+        ) : null}
+      </Box>
+    );
+  };
+
+  const slotAlert =
+    slotMeta.reason === 'holiday' ? (
+      <Alert severity="info" icon={<EventBusyRoundedIcon fontSize="inherit" />}>วันหยุด</Alert>
+    ) : slotMeta.reason === 'closed' ? (
+      <Alert severity="info" icon={<EventBusyRoundedIcon fontSize="inherit" />}>ปิดทำการ</Alert>
+    ) : slotMeta.reason === 'full' ? (
+      <Alert severity="warning">คิวเต็ม</Alert>
+    ) : null;
+
+  return (
+    <LiffShell {...shellProps} title={tab === 'booking' ? 'จองคิว' : 'คิวของฉัน'}>
+      {shopMetaError ? <Alert severity="error">โหลดข้อมูลร้านไม่สำเร็จ: {shopMetaError}</Alert> : null}
+
+      {tab === 'booking' ? (
+        <>
+          <LiffStepper step={step} />
+          {step === 1 ? (
             <>
-              <div className="grid grid-cols-2 gap-2">
-                <button className={step === 1 ? 'btn-primary' : 'btn-outline'} style={step === 1 ? { background: uiTheme.accent } : undefined} disabled>1) เลือกบริการ</button>
-                <button className={step === 2 ? 'btn-primary' : 'btn-outline'} style={step === 2 ? { background: uiTheme.accent } : undefined} disabled>2) เลือกวันเวลา</button>
-              </div>
-              {step === 1 ? (
-                <div className="space-y-3">
-                  {memberStatus === 'checking' ? <p className="text-xs text-slate-500">กำลังตรวจสอบสมาชิกของร้าน...</p> : null}
-                  {memberStatus === 'error' ? (
-                    <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
-                      <p>{memberError || 'ตรวจสอบสมาชิกไม่สำเร็จ'}</p>
-                      {resolvedLiffId ? (
-                        <p className="mt-2 font-mono text-[11px] text-rose-800">
-                          LIFF ID: {resolvedLiffId}
-                        </p>
-                      ) : null}
-                      {liffOpenUrl ? (
-                        <a className="btn-outline mt-2 inline-flex" href={liffOpenUrl}>
-                          เปิดผ่าน LINE
-                        </a>
-                      ) : null}
-                      <button className="btn-outline mt-2" onClick={retryMemberCheck}>ลองใหม่</button>
-                    </div>
-                  ) : null}
-                  <input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="ชื่อผู้จอง" />
-                  <input className="input" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="เบอร์โทร" />
-                  <p className="text-xs text-slate-500">กรุณาเลือกบริการที่ต้องการ</p>
-                  <div className="space-y-2">
-                    {services.map((s) => {
-                      const meta = serviceMeta(s);
-                      return (
-                        <button
-                          key={`preset-${s.id}`}
-                          className={`w-full rounded-2xl border px-3 py-2.5 text-left text-sm transition ${serviceId === s.id ? 'border-transparent text-white shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
-                            }`}
-                          style={serviceId === s.id ? { background: uiTheme.accent } : undefined}
-                          onClick={() => setServiceId(s.id)}
-                        >
-                          <div className="flex items-start gap-2">
-                            <span className="mt-0.5 text-xl">{meta.icon}</span>
-                            <div>
-                              <div className="font-semibold">{s.service_name}</div>
-                              <div className={`text-xs ${serviceId === s.id ? 'text-white/90' : 'text-slate-500'}`}>
-                                {[showDuration ? `${s.duration_minutes} นาที` : '', meta.subtitle].filter(Boolean).join(' • ')}
-                              </div>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
+              {memberBlock}
 
+              <LiffSection title="ข้อมูลผู้จอง">
+                {nameField}
+                {phoneField}
+                {nicknameField}
+              </LiffSection>
 
-                  {filteredResources.length > 0 ? (
-                    <p className="text-xs text-slate-500">{pickerLabel} (เลือกหรือไม่เลือกก็ได้)</p>
-                  ) : null}
-                  <div className="space-y-2">
-                    {filteredResources.map((r) => {
-                      const isPerson = isPersonResourceType(r.resource_type);
-                      return (
-                        <button
-                          key={`resource-${r.id}`}
-                          className={`w-full rounded-2xl border px-3 py-2.5 text-left text-sm transition ${selectedResourceId === r.id ? 'border-transparent text-white shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
-                            }`}
-                          style={selectedResourceId === r.id ? { background: uiTheme.accent } : undefined}
-                          onClick={() => setSelectedResourceId(r.id)}
-                        >
-                          <div className="flex items-start gap-2">
-                            <span className="mt-0.5 text-xl">{resourceTypeIcon(r.resource_type)}</span>
-                            <div>
-                              <div className="font-semibold">
-                                {r.resource_code ? `${r.resource_code} - ` : ''}{r.resource_name}
-                              </div>
-                              <div className={`text-xs ${selectedResourceId === r.id ? 'text-white/90' : 'text-slate-500'}`}>
-                                {[
-                                  resourceTypeLabel(r.resource_type),
-                                  !isPerson && r.capacity ? `${r.capacity} ที่นั่ง` : '',
-                                  formatPrice(r.unit_price),
-                                ].filter(Boolean).join(' • ')}
-                              </div>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                    {filteredResources.length > 0 ? (
-                      <button
-                        className={`w-full rounded-2xl border px-3 py-2.5 text-left text-sm transition ${selectedResourceId === '' ? 'border-transparent text-white shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
-                          }`}
-                        style={selectedResourceId === '' ? { background: uiTheme.accent } : undefined}
-                        onClick={() => setSelectedResourceId('')}
-                      >
-                        <div className="flex items-start gap-2">
-                          <span className="mt-0.5 text-xl">🙋</span>
-                          <div>
-                            <div className="font-semibold">{skipResourceLabel}</div>
-                            <div className={`text-xs ${selectedResourceId === '' ? 'text-white/90' : 'text-slate-500'}`}>
-                              ทางร้านจัดให้ตามคิว
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-                    ) : null}
-                  </div>
+              <Stack spacing={1}>
+                <LiffLabel>เลือกบริการที่ต้องการ</LiffLabel>
+                {!shop && !shopMetaError ? <LiffSkeleton rows={3} /> : null}
+                {shop && services.length === 0 ? <LiffEmpty icon={<EventBusyRoundedIcon />} text="ร้านยังไม่ได้เปิดบริการให้จอง" /> : null}
+                {services.map((s) => {
+                  const meta = serviceMeta(s);
+                  return (
+                    <OptionCard
+                      key={`preset-${s.id}`}
+                      icon={meta.icon}
+                      title={s.service_name}
+                      subtitle={[showDuration ? `${s.duration_minutes} นาที` : '', meta.subtitle].filter(Boolean).join(' • ')}
+                      trailing={formatPrice(s.price) || undefined}
+                      selected={serviceId === s.id}
+                      onClick={() => setServiceId(s.id)}
+                    />
+                  );
+                })}
+              </Stack>
 
-                  
-                  <button
-                    className="btn-primary w-full"
-                    style={{ background: '#111111' }}
-                    disabled={Boolean(nextBlockedReason)}
-                    onClick={() => setStep(2)}
+              {filteredResources.length > 0 ? (
+                <Stack spacing={1}>
+                  <LiffLabel hint="(เลือกหรือไม่เลือกก็ได้)">{pickerLabel}</LiffLabel>
+                  {filteredResources.map((r) => {
+                    const isPerson = isPersonResourceType(r.resource_type);
+                    return (
+                      <OptionCard
+                        key={`resource-${r.id}`}
+                        icon={resourceTypeIcon(r.resource_type)}
+                        title={resourceDisplayName(r)}
+                        subtitle={[resourceTypeLabel(r.resource_type), !isPerson && r.capacity ? `${r.capacity} ที่นั่ง` : '']
+                          .filter(Boolean)
+                          .join(' • ')}
+                        trailing={formatPrice(r.unit_price) || undefined}
+                        selected={selectedResourceId === r.id}
+                        onClick={() => setSelectedResourceId(r.id)}
+                      />
+                    );
+                  })}
+                  <OptionCard
+                    icon="🙋"
+                    title={skipResourceLabel}
+                    subtitle="ทางร้านจัดให้ตามคิว"
+                    selected={selectedResourceId === ''}
+                    onClick={() => setSelectedResourceId('')}
+                  />
+                </Stack>
+              ) : null}
+
+              <Stack spacing={1}>
+                <Button
+                  variant="contained"
+                  size="large"
+                  fullWidth
+                  endIcon={<ArrowForwardRoundedIcon />}
+                  disabled={Boolean(nextBlockedReason)}
+                  onClick={() => setStep(2)}
+                >
+                  ถัดไป: เลือกคิว
+                </Button>
+                {nextBlockedReason ? (
+                  <Typography variant="caption" sx={{ color: 'warning.dark', textAlign: 'center' }}>{nextBlockedReason}</Typography>
+                ) : null}
+                <Button variant="text" color="inherit" size="large" fullWidth sx={{ color: 'text.secondary' }} onClick={() => void closeLiffOrBack()}>
+                  ยกเลิก
+                </Button>
+              </Stack>
+            </>
+          ) : (
+            <>
+              <LiffSection muted>
+                <Stack direction="row" alignItems="center" spacing={1.25}>
+                  <Box
+                    sx={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: '10px',
+                      flexShrink: 0,
+                      display: 'grid',
+                      placeItems: 'center',
+                      fontSize: 19,
+                      bgcolor: 'background.paper',
+                      border: 1,
+                      borderColor: 'divider',
+                    }}
                   >
-                    ถัดไป: เลือกคิว
-                  </button>
-                  {nextBlockedReason ? <p className="text-xs text-amber-700">{nextBlockedReason}</p> : null}
-                  <button className="btn-outline w-full !bg-slate-100 !text-slate-700 !border-slate-200" onClick={() => void closeLiffOrBack()}>
-                    ยกเลิก
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                    <p className="font-semibold text-slate-800">{selectedService?.service_name ?? '-'}</p>
-                    <p>
+                    {selectedService ? serviceMeta(selectedService).icon : '📌'}
+                  </Box>
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{selectedService?.service_name ?? '-'}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                       {[
                         `สาขา ${selectedBranch?.branch_name ?? '-'}`,
                         showDuration ? `ระยะเวลา ${selectedService?.duration_minutes ?? '-'} นาที` : '',
+                        selectedResource
+                          ? `${resourceTypeLabel(selectedResource.resource_type)} ${resourceDisplayName(selectedResource)}`
+                          : filteredResources.length > 0
+                            ? skipResourceLabel
+                            : '',
                       ].filter(Boolean).join(' • ')}
-                    </p>
-                    {selectedResource ? (
-                      <p className="mt-1">
-                        {resourceTypeLabel(selectedResource.resource_type)} {selectedResource.resource_code ? `${selectedResource.resource_code} - ` : ''}
-                        {selectedResource.resource_name}
-                        {formatPrice(selectedResource.unit_price) ? ` • ${formatPrice(selectedResource.unit_price)}` : ''}
-                      </p>
-                    ) : null}
-                  </div>
-                  <select className="input" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-                    {branches.map((b) => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
-                  </select>
-                  <select className="input" value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
-                    {services.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.service_name}{showDuration ? ` (${s.duration_minutes} นาที)` : ''}
-                      </option>
-                    ))}
-                  </select>
-
-                  <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-                  <button className="btn-primary w-full" style={{ background: uiTheme.accent }} onClick={() => void loadSlots()} disabled={!canLoadSlots || loading}>{loading ? 'กำลังโหลด...' : 'ดูเวลาว่าง'}</button>
-
-                  {slotMeta.reason !== 'ok' ? (
-                    <div
-                      className={`rounded-xl border px-3 py-2 text-xs ${slotMeta.reason === 'holiday'
-                          ? 'border-violet-200 bg-violet-50 text-violet-700'
-                          : slotMeta.reason === 'closed'
-                            ? 'border-slate-300 bg-slate-50 text-slate-700'
-                            : 'border-amber-200 bg-amber-50 text-amber-700'
-                        }`}
-                    >
-                      {slotMeta.reason === 'holiday' ? 'วันหยุด' : slotMeta.reason === 'closed' ? 'ปิดทำการ' : 'คิวเต็ม'}
-                    </div>
+                    </Typography>
+                  </Box>
+                  {effectivePrice > 0 ? (
+                    <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                      {effectivePrice.toLocaleString('th-TH')} บาท
+                    </Typography>
                   ) : null}
-                  {slotHint ? <p className="text-xs text-amber-700">{slotHint}</p> : null}
+                </Stack>
+              </LiffSection>
 
-                  <div className="grid grid-cols-3 gap-2">
+              <LiffSection>
+                <TextField select label="สาขา" value={branchId} onChange={(e) => setBranchId(e.target.value)} fullWidth>
+                  {branches.map((b) => <MenuItem key={b.id} value={b.id}>{b.branch_name}</MenuItem>)}
+                </TextField>
+                <TextField select label="บริการ" value={serviceId} onChange={(e) => setServiceId(e.target.value)} fullWidth>
+                  {services.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>
+                      {s.service_name}{showDuration ? ` (${s.duration_minutes} นาที)` : ''}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  label="วันที่"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  fullWidth
+                  slotProps={{
+                    inputLabel: { shrink: true },
+                    input: { startAdornment: <InputAdornment position="start"><CalendarMonthRoundedIcon fontSize="small" /></InputAdornment> },
+                  }}
+                />
+                <Button variant="outlined" size="large" fullWidth onClick={() => void loadSlots()} disabled={!canLoadSlots || loading}>
+                  {loading ? 'กำลังโหลด...' : 'ดูเวลาว่าง'}
+                </Button>
+              </LiffSection>
+
+              <Stack spacing={1}>
+                <LiffLabel>เวลาว่าง · {formatDateDMY(date)}</LiffLabel>
+                {slotAlert}
+                {slotHint ? <Typography variant="caption" sx={{ color: 'warning.dark' }}>{slotHint}</Typography> : null}
+                {loading ? <LiffSkeleton rows={2} /> : null}
+                {!loading && slots.length > 0 ? (
+                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
                     {slots.map((s) => {
                       const t = s.slot_time.slice(0, 5);
-                      const active = selectedTime === t;
-                      return <button key={s.slot_time} className={active ? 'btn-primary !rounded-xl !py-2.5' : 'btn-outline !rounded-xl !py-2.5'} style={active ? { background: uiTheme.accent } : undefined} onClick={() => setSelectedTime(t)}>{t}</button>;
+                      // "เหลือ N" only marks slots that are scarcer than the rest of the
+                      // day — a shop with capacity 1 everywhere would otherwise label every slot.
+                      const scarce = s.remaining_capacity < maxSlotCapacity;
+                      return (
+                        <SlotButton
+                          key={s.slot_time}
+                          label={t}
+                          selected={selectedTime === t}
+                          disabled={s.remaining_capacity <= 0}
+                          remaining={scarce ? s.remaining_capacity : undefined}
+                          onClick={() => setSelectedTime(t)}
+                        />
+                      );
                     })}
-                  </div>
+                  </Box>
+                ) : null}
+                {!loading && slots.length === 0 && !slotHint && slotMeta.reason === 'ok' ? (
+                  <LiffEmpty icon={<CalendarMonthRoundedIcon />} text="กดดูเวลาว่างเพื่อเลือกคิว" />
+                ) : null}
+              </Stack>
 
-                  {showMethodPicker && (
-                    <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                      <p className="text-xs font-semibold text-slate-700">เลือกวิธีชำระเงิน ({effectivePrice.toLocaleString('th-TH')} บาท)</p>
-                      {paymentOptions.map((option) => (
-                        <button
-                          key={option.key}
-                          className={chosenOptionKey === option.key ? 'btn-primary w-full !rounded-xl !py-2.5' : 'btn-outline w-full !rounded-xl !py-2.5'}
-                          style={chosenOptionKey === option.key ? { background: uiTheme.accent } : undefined}
-                          onClick={() => chooseOption(option)}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <button className="btn-outline" onClick={() => setStep(1)}>ย้อนกลับ</button>
-                    <button className="btn-primary" style={{ background: uiTheme.accent }} onClick={() => void bookNow()} disabled={!canBook || loading || (showMethodPicker && !chosenMethod)}>{loading ? 'กำลังบันทึก...' : 'ยืนยันจองคิว'}</button>
-                  </div>
-                </div>
+              {showMethodPicker && (
+                <LiffSection
+                  title="วิธีชำระเงิน"
+                  action={
+                    <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                      {effectivePrice.toLocaleString('th-TH')} บาท
+                    </Typography>
+                  }
+                >
+                  {paymentOptions.map((option) => (
+                    <OptionCard
+                      key={option.key}
+                      icon={paymentOptionIcon(option)}
+                      title={option.label}
+                      subtitle={paymentOptionSubtitle(option)}
+                      selected={chosenOptionKey === option.key}
+                      onClick={() => chooseOption(option)}
+                    />
+                  ))}
+                </LiffSection>
               )}
+
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+                <Button variant="outlined" size="large" onClick={() => setStep(1)}>ย้อนกลับ</Button>
+                <Button
+                  variant="contained"
+                  size="large"
+                  onClick={() => void bookNow()}
+                  disabled={!canBook || loading || (showMethodPicker && !chosenMethod)}
+                  startIcon={loading ? <CircularProgress size={16} color="inherit" /> : undefined}
+                >
+                  {loading ? 'กำลังบันทึก...' : 'ยืนยันจองคิว'}
+                </Button>
+              </Box>
             </>
-          ) : (
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                <div className="flex items-center gap-3">
-                  {pictureUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={pictureUrl} alt={displayName || customerName} className="h-12 w-12 rounded-full object-cover" />
-                  ) : (
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-200 font-semibold text-slate-600">
-                      {(displayName || customerName || 'U').slice(0, 1).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-800">{displayName || customerName || 'LINE User'}</p>
-                {/*     <p className="truncate text-xs text-slate-500">{lineUserId || '-'}</p> */}
-                  </div>
-                </div>
-                <div className="mt-3 grid gap-2">
-                  <input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="ชื่อผู้จอง" />
-                  <input className="input" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="เบอร์โทร" />
-                  <button className="btn-primary" disabled={accountLoading} onClick={() => void loadMe({ mode: 'update' })}>
-                    {accountLoading ? 'กำลังบันทึก...' : 'บันทึกข้อมูลส่วนตัว'}
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
-                <h3 className="text-sm font-semibold text-slate-800">คิวที่จองอยู่</h3>
-                {upcoming.length === 0 ? <p className="text-xs text-slate-500">ไม่มีคิวที่กำลังใช้งาน</p> : upcoming.map((b) => (
-                  <div key={b.id} className="rounded-2xl border border-slate-200 bg-white p-3.5 text-sm shadow-sm">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-semibold tracking-tight text-slate-900">{b.queue_number}</p>
-                      <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${bookingStatusStyle(String(b.status))}`}>
-                        {String(b.status)}
-                      </span>
-                    </div>
-                    <div className="mt-2 space-y-1.5">
-                      <p className="text-slate-700">
-                        <span className="text-slate-500">เวลา</span>{' '}
-                        {formatDateDMY(b.booking_date)} • {String(b.start_time).slice(0, 5)}
-                      </p>
-                      <p className="text-slate-700">
-                        <span className="text-slate-500">สาขา</span>{' '}
-                        {b.branches?.branch_name ?? '-'}
-                      </p>
-                      <p className="text-slate-700">
-                        <span className="text-slate-500">บริการ</span>{' '}
-                        {b.services?.service_name ?? '-'}
-                      </p>
-                      {b.resource_name ? (
-                        <p className="text-slate-700">
-                          <span className="text-slate-500">{bookingResourceLabel(b.resource_id)}</span>{' '}
-                          {b.resource_name}
-                        </p>
-                      ) : null}
-                    </div>
-                    {b.payment_method === 'bank_transfer' && b.payment_status === 'awaiting_verification' ? (
-                      <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">รอร้านตรวจสอบสลิป</p>
-                    ) : null}
-                    {b.payment_method === 'bank_transfer' && (b.payment_status === 'pending_payment' || b.payment_status === 'rejected') ? (
-                      <button
-                        className="btn-primary mt-3 w-full"
-                        style={{ background: uiTheme.accent }}
-                        onClick={() => setResumeBooking({ booking_id: b.id, queue_number: b.queue_number, payment_method: 'bank_transfer' })}
-                      >
-                        {b.payment_status === 'rejected' ? 'อัปโหลดสลิปใหม่' : 'ชำระเงิน / อัปโหลดสลิป'}
-                      </button>
-                    ) : null}
-                    {b.payment_method === 'bank_deeplink' && (b.payment_status === 'pending_payment' || b.payment_status === 'failed') ? (
-                      <button
-                        className="btn-primary mt-3 w-full"
-                        style={{ background: uiTheme.accent }}
-                        onClick={() => setResumeBooking({ booking_id: b.id, queue_number: b.queue_number, payment_method: 'bank_deeplink' })}
-                      >
-                        {b.payment_status === 'failed' ? 'ชำระเงินใหม่ผ่านแอปธนาคาร' : 'ชำระเงินผ่านแอปธนาคาร'}
-                      </button>
-                    ) : null}
-                    {(b.status === 'pending' || b.status === 'confirmed' || b.status === 'waiting') ? (
-                      <button className="btn-outline mt-3 w-full" onClick={() => void cancelBooking(b.id)}>ยกเลิกคิว</button>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
-                <h3 className="text-sm font-semibold text-slate-800">ประวัติการจอง</h3>
-                {history.length === 0 ? <p className="text-xs text-slate-500">ยังไม่มีประวัติ</p> : history.map((b) => (
-                  <div key={b.id} className="rounded-2xl border border-slate-200 bg-white p-3.5 text-sm">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-medium text-slate-900">{b.queue_number}</p>
-                      <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${bookingStatusStyle(String(b.status))}`}>
-                        {String(b.status)}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-slate-700">{formatDateDMY(b.booking_date)} • {String(b.start_time).slice(0, 5)}</p>
-                    <p className="text-slate-600">
-                      {[b.branches?.branch_name ?? '-', b.services?.service_name ?? '-', b.resource_name ?? '']
-                        .filter(Boolean)
-                        .join(' • ')}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
           )}
-        </div>
-      </section>
-    </main>
+        </>
+      ) : (
+        <>
+          <LiffSection>
+            <Stack direction="row" alignItems="center" spacing={1.5}>
+              <Avatar
+                src={pictureUrl || undefined}
+                alt={displayName || customerName}
+                sx={{
+                  width: 48,
+                  height: 48,
+                  fontWeight: 800,
+                  fontSize: 18,
+                  color: 'primary.contrastText',
+                  background: pictureUrl ? undefined : brandGradient(theme.palette.primary.light, theme.palette.primary.dark),
+                }}
+              >
+                {(displayName || customerName || 'U').slice(0, 1).toUpperCase()}
+              </Avatar>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 1.3 }} noWrap>{displayName || customerName || 'LINE User'}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {customerNickname.trim() ? `ชื่อเล่น ${customerNickname.trim()} · ` : ''}สมาชิก LINE
+                </Typography>
+              </Box>
+            </Stack>
+            {memberBlock}
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
+              {nameField}
+              {phoneField}
+            </Box>
+            {nicknameField}
+            <Button variant="outlined" fullWidth disabled={accountLoading} onClick={() => void loadMe({ mode: 'update' })}>
+              {accountLoading ? 'กำลังบันทึก...' : 'บันทึกข้อมูลส่วนตัว'}
+            </Button>
+          </LiffSection>
+
+          <LiffSection
+            title="คิวที่จองอยู่"
+            action={upcoming.length > 0 ? <Chip size="small" variant="outlined" label={`${upcoming.length} คิว`} /> : undefined}
+          >
+            {accountLoading && upcoming.length === 0 ? <LiffSkeleton rows={1} /> : null}
+            {!accountLoading && upcoming.length === 0 ? (
+              <>
+                <LiffEmpty icon={<CalendarMonthRoundedIcon />} text="ไม่มีคิวที่กำลังใช้งาน" />
+                <Button variant="contained" fullWidth onClick={() => setTab('booking')}>จองคิวใหม่</Button>
+              </>
+            ) : null}
+            {upcoming.map((b) => renderBookingCard(b, { active: true }))}
+          </LiffSection>
+
+          <LiffSection title="ประวัติการจอง">
+            {history.length === 0 ? <LiffEmpty icon={<EventBusyRoundedIcon />} text="ยังไม่มีประวัติ" /> : null}
+            {history.map((b) => renderBookingCard(b, { active: false }))}
+          </LiffSection>
+        </>
+      )}
+    </LiffShell>
   );
 }

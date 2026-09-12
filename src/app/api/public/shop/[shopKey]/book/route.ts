@@ -10,6 +10,7 @@ import { resolvePaymentForBooking, type PaymentBankInfo, type PaymentDeeplinkInf
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
 import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
 import { resourceBusyMessage, resourceTypeLabel } from '@/lib/booking/resource-types';
+import { NICKNAME_MAX, normalizeNicknameInput } from '@/lib/booking/customer-label';
 import { BANK_PROVIDERS, PAYMENT_METHODS } from '@/types/db';
 
 const bookSchema = z
@@ -22,6 +23,8 @@ const bookSchema = z
     // only there to reject blank names.
     customer_name: z.string().trim().min(1),
     customer_phone: z.string().min(8),
+    /** Optional ชื่อเล่น saved on the customer profile; omitted = keep the stored one. */
+    nickname: z.string().max(NICKNAME_MAX).optional(),
     line_user_id: z.string().optional(),
     party_size: z.coerce.number().int().min(1).max(200).optional(),
     resource_id: z.string().uuid().optional(),
@@ -44,6 +47,7 @@ function invalidFieldMessage(path: PropertyKey | undefined) {
   const labels: Record<string, string> = {
     customer_name: 'ชื่อผู้จอง',
     customer_phone: 'เบอร์โทร',
+    nickname: 'ชื่อเล่น',
     booking_date: 'วันที่จอง',
     start_time: 'เวลาที่จอง',
     branch_id: 'สาขา',
@@ -148,12 +152,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     customerId = byLineUser?.[0]?.id ?? null;
   }
 
+  // `undefined` keeps whatever nickname the profile already has; only a value
+  // (or an explicit '' → null) sent by the customer changes it.
+  const nickname = normalizeNicknameInput(payload.nickname);
+  const nicknamePatch = nickname !== undefined ? { nickname } : {};
+
   if (customerId) {
     await admin
       .from('customers')
       .update({
         full_name: payload.customer_name,
         phone: payload.customer_phone,
+        ...nicknamePatch,
         updated_at: new Date().toISOString(),
       })
       .eq('id', customerId)
@@ -167,6 +177,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
         line_user_id: lineUserPk,
         full_name: payload.customer_name,
         phone: payload.customer_phone,
+        ...nicknamePatch,
       }, { onConflict: 'shop_id,phone' })
       .select('id')
       .single();

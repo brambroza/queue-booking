@@ -1,6 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Alert, Box, Button, Card, CircularProgress, Stack, Typography } from '@mui/material';
+import { alpha, darken } from '@mui/material/styles';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import { LiffSection, LiffShell, brandSoft } from '@/components/line/liff-ui';
+import { lineGreen } from '@/theme/tokens';
 
 interface ReturnState {
   queue_number: string;
@@ -80,64 +85,68 @@ export function DeeplinkReturnClient({ shopKey, bookingId, token }: { shopKey: s
   const amount = Number(state?.payment_amount ?? 0);
 
   return (
-    <main className="min-h-screen p-4" style={{ background: '#f4f6f8' }}>
-      <section className="mx-auto mt-6 max-w-md overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm">
-        <div className="px-4 py-3 text-white" style={{ background: '#4FA56A' }}>
-          <p className="text-xs opacity-90">{state?.shop.name ?? 'ร้านค้า'}</p>
-          <h1 className="text-base font-semibold">สถานะการชำระเงิน</h1>
-        </div>
+    <LiffShell shopName={state?.shop.name} title="สถานะการชำระเงิน">
+      {loading && (
+        <Alert severity="info" icon={<CircularProgress size={16} color="inherit" />}>กำลังตรวจสอบกับธนาคาร...</Alert>
+      )}
 
-        <div className="space-y-4 p-5 text-sm">
-          {loading && <p className="text-slate-500">กำลังตรวจสอบกับธนาคาร...</p>}
+      {!loading && error && <Alert severity="error">{error}</Alert>}
 
-          {!loading && error && (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700">{error}</div>
-          )}
+      {!loading && state && status === 'paid' && (
+        <Card>
+          <Stack alignItems="center" spacing={0.5} sx={{ px: 2, py: 2.75, textAlign: 'center' }}>
+            <Box
+              sx={{ width: 56, height: 56, mb: 0.75, borderRadius: '16px', display: 'grid', placeItems: 'center', bgcolor: brandSoft, color: 'primary.main' }}
+            >
+              <CheckRoundedIcon sx={{ fontSize: 30 }} />
+            </Box>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>ชำระเงินสำเร็จ</Typography>
+            <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>คิว {state.queue_number} · {formatTHB(amount)} บาท</Typography>
+            <Typography variant="caption" color="text.secondary">ใบเสร็จถูกส่งไปที่ LINE ของคุณแล้ว</Typography>
+          </Stack>
+        </Card>
+      )}
 
-          {!loading && state && status === 'paid' && (
-            <div className="rounded-2xl border border-green-200 bg-green-50 p-5 text-center">
-              <p className="text-3xl">✓</p>
-              <p className="mt-1 text-base font-bold text-green-700">ชำระเงินสำเร็จ</p>
-              <p className="mt-1 text-green-700">คิว {state.queue_number} · {formatTHB(amount)} บาท</p>
-              <p className="mt-2 text-xs text-green-700">ใบเสร็จถูกส่งไปที่ LINE ของคุณแล้ว</p>
-            </div>
+      {!loading && state && status === 'pending_payment' && (
+        <LiffSection title="รอธนาคารยืนยัน">
+          <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>คิว {state.queue_number} · ยอด {formatTHB(amount)} บาท</Typography>
+          <Typography variant="caption" color="text.secondary">
+            {pollCount < MAX_POLLS
+              ? 'ระบบตรวจสอบอัตโนมัติทุก 3 วินาที หากชำระแล้วสถานะจะเปลี่ยนเอง'
+              : 'หยุดตรวจสอบอัตโนมัติแล้ว กดปุ่มด้านล่างเพื่อเช็คใหม่'}
+          </Typography>
+          <Button variant="outlined" fullWidth onClick={() => { setPollCount(0); void load(); }}>ตรวจสอบอีกครั้ง</Button>
+          {state.deeplink_url && (
+            <Button variant="contained" fullWidth href={state.deeplink_url}>
+              เปิดแอป {state.provider_name ?? 'ธนาคาร'} อีกครั้ง
+            </Button>
           )}
+        </LiffSection>
+      )}
 
-          {!loading && state && status === 'pending_payment' && (
-            <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 p-5">
-              <p className="text-base font-bold text-amber-800">รอธนาคารยืนยัน</p>
-              <p className="text-amber-800">คิว {state.queue_number} · ยอด {formatTHB(amount)} บาท</p>
-              {pollCount < MAX_POLLS ? (
-                <p className="text-xs text-amber-700">ระบบตรวจสอบอัตโนมัติทุก 3 วินาที หากชำระแล้วสถานะจะเปลี่ยนเอง</p>
-              ) : (
-                <p className="text-xs text-amber-700">หยุดตรวจสอบอัตโนมัติแล้ว กดปุ่มด้านล่างเพื่อเช็คใหม่</p>
-              )}
-              <button className="btn-outline w-full" onClick={() => { setPollCount(0); void load(); }}>ตรวจสอบอีกครั้ง</button>
-              {state.deeplink_url && (
-                <a className="btn-primary block w-full text-center" style={{ background: '#1d4ed8' }} href={state.deeplink_url}>
-                  เปิดแอป {state.provider_name ?? 'ธนาคาร'} อีกครั้ง
-                </a>
-              )}
-            </div>
-          )}
+      {!loading && state && status !== 'paid' && status !== 'pending_payment' && (
+        <Alert severity="error">
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>การชำระเงินไม่สำเร็จ</Typography>
+          <Typography variant="caption">คิว {state.queue_number} — กลับไปที่ LINE เพื่อออกลิงก์ชำระเงินใหม่</Typography>
+        </Alert>
+      )}
 
-          {!loading && state && status !== 'paid' && status !== 'pending_payment' && (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5">
-              <p className="text-base font-bold text-rose-700">การชำระเงินไม่สำเร็จ</p>
-              <p className="mt-1 text-rose-700">คิว {state.queue_number} — กลับไปที่ LINE เพื่อออกลิงก์ชำระเงินใหม่</p>
-            </div>
-          )}
-
-          {lineUrl && (
-            <a className="btn-primary block w-full text-center" style={{ background: '#06C755' }} href={lineUrl}>
-              กลับไป LINE
-            </a>
-          )}
-          {!lineUrl && !loading && (
-            <p className="text-center text-xs text-slate-500">ปิดหน้านี้แล้วกลับไปที่ LINE เพื่อดูคิวของคุณ</p>
-          )}
-        </div>
-      </section>
-    </main>
+      {lineUrl && (
+        <Button
+          variant="contained"
+          size="large"
+          fullWidth
+          href={lineUrl}
+          sx={{ bgcolor: lineGreen, boxShadow: `0 8px 24px ${alpha(lineGreen, 0.28)}`, '&:hover': { bgcolor: darken(lineGreen, 0.12) } }}
+        >
+          กลับไป LINE
+        </Button>
+      )}
+      {!lineUrl && !loading && (
+        <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
+          ปิดหน้านี้แล้วกลับไปที่ LINE เพื่อดูคิวของคุณ
+        </Typography>
+      )}
+    </LiffShell>
   );
 }

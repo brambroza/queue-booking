@@ -15,7 +15,9 @@ export const SIGNAGE_ALL_STATUSES = [
 
 /** Columns both display routes must select so `buildSignageData` sees the same shape. */
 export const SIGNAGE_BOOKING_SELECT =
-  'id,queue_number,status,start_time,called_at,resource_name,branch_id,customers(full_name),line_users(display_name),services(service_name)';
+  'id,queue_number,status,start_time,called_at,resource_name,branch_id,customers(full_name,nickname),line_users(display_name),services(service_name)';
+
+type SignageCustomer = { full_name?: string | null; nickname?: string | null };
 
 /** Booking row as returned by `SIGNAGE_BOOKING_SELECT`. */
 export type SignageBookingRow = {
@@ -26,7 +28,7 @@ export type SignageBookingRow = {
   called_at: string | null;
   resource_name: string | null;
   branch_id: string | null;
-  customers: { full_name?: string | null } | { full_name?: string | null }[] | null;
+  customers: SignageCustomer | SignageCustomer[] | null;
   line_users: { display_name?: string | null } | { display_name?: string | null }[] | null;
   services: { service_name?: string | null } | { service_name?: string | null }[] | null;
 };
@@ -53,15 +55,31 @@ function toHHMM(value: string | null | undefined): string | null {
   return String(value).slice(0, 5);
 }
 
+/**
+ * Name the signage shows for a booking. A nickname is something the customer
+ * chose to be called by, so it is shown in full regardless of the masking
+ * mode; only `hidden` suppresses it. Without a nickname the real name goes
+ * through `applyNameMode` as before.
+ */
+export function signageDisplayName(
+  customer: SignageCustomer | null,
+  lineDisplayName: string | null | undefined,
+  mode: CustomerNameMode,
+): string | null {
+  if (mode === 'hidden') return null;
+  const nickname = customer?.nickname?.trim();
+  if (nickname) return nickname;
+  return applyNameMode(customer?.full_name ?? lineDisplayName ?? null, mode);
+}
+
 function toPerson(row: SignageBookingRow, config: SignageConfig): SignagePerson {
-  const rawName = first(row.customers)?.full_name ?? first(row.line_users)?.display_name ?? null;
   return {
     id: row.id,
     queue_number: row.queue_number,
     status: row.status,
     start_time: toHHMM(row.start_time),
     called_at: row.called_at ?? null,
-    customer_name: applyNameMode(rawName, config.customer_name_mode),
+    customer_name: signageDisplayName(first(row.customers), first(row.line_users)?.display_name, config.customer_name_mode),
     service_name: config.show_service_name ? first(row.services)?.service_name ?? null : null,
     resource_name: config.show_resource_name ? row.resource_name ?? null : null,
   };

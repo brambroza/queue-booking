@@ -1,7 +1,11 @@
 'use client';
 
 import { ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Box, Button, CircularProgress, Divider, Stack, TextField, Typography } from '@mui/material';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import PhotoCameraRoundedIcon from '@mui/icons-material/PhotoCameraRounded';
 import { compressImage } from '@/lib/utils/image-compress';
+import { KeyValueList, LiffLabel, LiffSection, LiffSkeleton } from '@/components/line/liff-ui';
 
 interface SlipInfo {
   id: string;
@@ -109,7 +113,6 @@ export function LiffPaymentPanel({
   bookingId,
   lineUserId,
   idToken,
-  accent = '#4FA56A',
   onPaid,
 }: {
   shopKey: string;
@@ -117,6 +120,7 @@ export function LiffPaymentPanel({
   lineUserId: string;
   /** LIFF ID token — proves the claimed LINE id when the shop verifies tokens. */
   idToken?: string;
+  /** @deprecated Colours now come from the MUI theme; the prop is ignored. */
   accent?: string;
   onPaid?: () => void;
 }) {
@@ -230,21 +234,42 @@ export function LiffPaymentPanel({
   }
 
   if (loading) {
-    return <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-500">กำลังโหลดข้อมูลการชำระเงิน...</div>;
+    return (
+      <LiffSection title="ชำระเงิน">
+        <LiffSkeleton rows={1} button />
+      </LiffSection>
+    );
   }
   if (!state || (state.payment_method !== 'bank_transfer' && state.payment_method !== 'bank_deeplink')) return null;
 
   const amount = Number(state.payment_amount ?? 0);
   const status = state.payment_status;
+  const recheck = () => { setPollCount(0); void load(); };
+
+  const amountBlock = (
+    <Stack alignItems="center" sx={{ textAlign: 'center', pt: 0.5 }}>
+      <Typography variant="caption" color="text.secondary">ยอดที่ต้องชำระ</Typography>
+      <Typography
+        variant="h4"
+        sx={{ fontWeight: 800, color: 'primary.main', letterSpacing: '-0.02em', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}
+      >
+        {formatTHB(amount)} บาท
+      </Typography>
+      {countdown.label ? (
+        <Typography variant="caption" sx={{ color: countdown.expired ? 'error.main' : 'text.secondary', mt: 0.25, fontVariantNumeric: 'tabular-nums' }}>
+          {countdown.label}
+        </Typography>
+      ) : null}
+    </Stack>
+  );
 
   // ── Paid ──
   if (status === 'paid') {
     return (
-      <div className="rounded-2xl border border-green-200 bg-green-50 p-5 text-center">
-        <p className="text-3xl">✓</p>
-        <p className="mt-1 text-base font-bold text-green-700">ชำระเงินเรียบร้อยแล้ว</p>
-        <p className="mt-1 text-sm text-green-700">{formatTHB(amount)} บาท</p>
-      </div>
+      <Alert severity="success" icon={<CheckRoundedIcon fontSize="inherit" />}>
+        <Typography variant="body2" sx={{ fontWeight: 700 }}>ชำระเงินเรียบร้อยแล้ว</Typography>
+        <Typography variant="caption">{formatTHB(amount)} บาท</Typography>
+      </Alert>
     );
   }
 
@@ -253,188 +278,204 @@ export function LiffPaymentPanel({
     const bankName = state.bank_provider_name ?? 'ธนาคาร';
     const banks = state.payee?.deeplink_banks ?? [];
     const canOpen = Boolean(state.bank_deeplink_url) && status === 'pending_payment' && !countdown.expired;
+    const reissueBanks = banks.length ? banks : state.bank_provider ? [{ provider: state.bank_provider, display_name: bankName }] : [];
+    const otherBanks = banks.filter((b) => b.provider !== state.bank_provider);
+    const polling = status === 'pending_payment' && pollCount < DEEPLINK_MAX_POLLS;
     return (
-      <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
+      <LiffSection title="ชำระเงิน">
         {status === 'failed' && (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
-            <p className="text-sm font-semibold text-rose-700">การชำระเงินไม่สำเร็จ</p>
-            <p className="mt-1 text-xs text-rose-600">กดออกลิงก์ใหม่เพื่อลองอีกครั้ง</p>
-          </div>
+          <Alert severity="error">
+            <Typography variant="body2" sx={{ fontWeight: 700 }}>การชำระเงินไม่สำเร็จ</Typography>
+            <Typography variant="caption">กดออกลิงก์ใหม่เพื่อลองอีกครั้ง</Typography>
+          </Alert>
         )}
 
-        <div className="text-center">
-          <p className="text-xs text-slate-500">ยอดที่ต้องชำระ</p>
-          <p className="text-3xl font-extrabold" style={{ color: accent }}>{formatTHB(amount)} บาท</p>
-          {countdown.label && <p className={`mt-1 text-xs ${countdown.expired ? 'text-rose-600' : 'text-slate-500'}`}>{countdown.label}</p>}
-        </div>
+        {amountBlock}
 
         {canOpen ? (
-          <button
-            className="btn-primary w-full"
-            style={{ background: accent }}
+          <Button
+            variant="contained"
+            size="large"
+            fullWidth
             onClick={() => state.bank_deeplink_url && openBankDeeplink(state.bank_deeplink_url)}
           >
             เปิดแอป {bankName}
-          </button>
+          </Button>
         ) : (
-          <div className="space-y-2">
-            <p className="text-xs text-slate-600">ลิงก์ชำระเงินหมดอายุหรือใช้ไม่ได้แล้ว เลือกธนาคารเพื่อออกลิงก์ใหม่</p>
-            {(banks.length ? banks : state.bank_provider ? [{ provider: state.bank_provider, display_name: bankName }] : []).map((b) => (
-              <button
+          <Stack spacing={1}>
+            <Typography variant="caption" color="text.secondary">ลิงก์ชำระเงินหมดอายุหรือใช้ไม่ได้แล้ว เลือกธนาคารเพื่อออกลิงก์ใหม่</Typography>
+            {reissueBanks.map((b) => (
+              <Button
                 key={b.provider}
-                className="btn-primary w-full"
-                style={{ background: accent }}
+                variant="contained"
+                size="large"
+                fullWidth
                 disabled={reissuing}
+                startIcon={reissuing ? <CircularProgress size={16} color="inherit" /> : undefined}
                 onClick={() => void reissueDeeplink(b.provider)}
               >
                 {reissuing ? 'กำลังออกลิงก์...' : `ออกลิงก์ใหม่ · ${b.display_name}`}
-              </button>
+              </Button>
             ))}
-          </div>
+          </Stack>
         )}
 
-        <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
-          <p>ยอดเงินและผู้รับถูกตั้งไว้แล้วในแอป {bankName} ยืนยันด้วย PIN ได้เลย</p>
-          <p className="mt-1">ชำระเสร็จแล้วกลับมาที่หน้านี้ ระบบตรวจสอบกับธนาคารอัตโนมัติ</p>
-        </div>
+        <Box sx={{ bgcolor: 'grey.100', borderRadius: '12px', px: 1.5, py: 1.25 }}>
+          <Typography variant="caption" sx={{ display: 'block', fontWeight: 600 }}>
+            ยอดเงินและผู้รับถูกตั้งไว้แล้วในแอป {bankName} ยืนยันด้วย PIN ได้เลย
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+            ชำระเสร็จแล้วกลับมาที่หน้านี้ ระบบตรวจสอบกับธนาคารอัตโนมัติ
+          </Typography>
+        </Box>
 
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-xs text-slate-500">
-            {status === 'pending_payment' && pollCount < DEEPLINK_MAX_POLLS ? 'กำลังรอธนาคารยืนยัน...' : 'หยุดตรวจสอบอัตโนมัติแล้ว'}
-          </p>
-          <button className="btn-outline !py-1.5 !text-xs" onClick={() => { setPollCount(0); void load(); }}>ตรวจสอบสถานะ</button>
-        </div>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+            {polling ? (
+              <Box
+                component="span"
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  bgcolor: 'primary.main',
+                  '@keyframes liffPulse': { '0%, 100%': { opacity: 1 }, '50%': { opacity: 0.3 } },
+                  animation: 'liffPulse 1.4s ease-in-out infinite',
+                  '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+                }}
+              />
+            ) : null}
+            {polling ? 'กำลังรอธนาคารยืนยัน...' : 'หยุดตรวจสอบอัตโนมัติแล้ว'}
+          </Typography>
+          <Button size="small" variant="outlined" color="inherit" onClick={recheck}>ตรวจสอบสถานะ</Button>
+        </Stack>
 
-        {canOpen && banks.length > 1 && (
-          <div className="border-t border-slate-100 pt-3">
-            <p className="text-xs text-slate-500">เปลี่ยนธนาคาร</p>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              {banks.filter((b) => b.provider !== state.bank_provider).map((b) => (
-                <button key={b.provider} className="btn-outline !py-2 !text-xs" disabled={reissuing} onClick={() => void reissueDeeplink(b.provider)}>
+        {canOpen && otherBanks.length > 0 && (
+          <>
+            <Divider />
+            <LiffLabel>เปลี่ยนธนาคาร</LiffLabel>
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+              {otherBanks.map((b) => (
+                <Button key={b.provider} size="small" variant="outlined" color="inherit" disabled={reissuing} onClick={() => void reissueDeeplink(b.provider)}>
                   {b.display_name}
-                </button>
+                </Button>
               ))}
-            </div>
-          </div>
+            </Box>
+          </>
         )}
 
-        {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
-      </div>
+        {error && <Alert severity="error">{error}</Alert>}
+      </LiffSection>
     );
   }
 
   // ── Waiting for the shop to review ──
   if (status === 'awaiting_verification') {
     return (
-      <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 p-5">
-        <p className="text-base font-bold text-amber-800">รอร้านตรวจสอบสลิป</p>
-        <p className="text-sm text-amber-800">ยอด {formatTHB(amount)} บาท — ร้านจะแจ้งผลผ่าน LINE</p>
+      <LiffSection title="ชำระเงิน">
+        <Alert severity="warning">
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>รอร้านตรวจสอบสลิป</Typography>
+          <Typography variant="caption">ยอด {formatTHB(amount)} บาท — ร้านจะแจ้งผลผ่าน LINE</Typography>
+        </Alert>
         {state.slip?.image_url && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={state.slip.image_url} alt="สลิปที่อัปโหลด" className="mx-auto max-h-52 rounded-lg border border-amber-200 bg-white" />
+          <Box
+            component="img"
+            src={state.slip.image_url}
+            alt="สลิปที่อัปโหลด"
+            sx={{ display: 'block', mx: 'auto', maxHeight: 208, maxWidth: '100%', borderRadius: '12px', border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}
+          />
         )}
-        <button
-          className="btn-outline w-full"
-          onClick={() => { setPollCount(0); void load(); }}
-        >
-          ตรวจสอบสถานะอีกครั้ง
-        </button>
+        <Button variant="outlined" fullWidth onClick={recheck}>ตรวจสอบสถานะอีกครั้ง</Button>
         {pollCount >= SLIP_MAX_POLLS && (
-          <p className="text-xs text-amber-700">หยุดตรวจสอบอัตโนมัติแล้ว กดปุ่มด้านบนเพื่อเช็คใหม่</p>
+          <Typography variant="caption" sx={{ color: 'warning.dark' }}>หยุดตรวจสอบอัตโนมัติแล้ว กดปุ่มด้านบนเพื่อเช็คใหม่</Typography>
         )}
-      </div>
+      </LiffSection>
     );
   }
 
   // ── pending_payment / rejected: show the QR and the upload form ──
+  const payeeRows = state.payee
+    ? [
+        ...(state.payee.promptpay_display_name ? [{ label: 'ผู้รับ', value: state.payee.promptpay_display_name }] : []),
+        ...(state.payee.promptpay_masked ? [{ label: 'PromptPay', value: state.payee.promptpay_masked }] : []),
+        ...(state.payee.bank_name && state.payee.bank_account_no
+          ? [{ label: 'บัญชี', value: `${state.payee.bank_name} ${state.payee.bank_account_no}` }]
+          : []),
+        ...(state.payee.bank_account_name ? [{ label: 'ชื่อบัญชี', value: state.payee.bank_account_name }] : []),
+      ]
+    : [];
   return (
-    <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
+    <LiffSection title="ชำระเงิน">
       {status === 'rejected' && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
-          <p className="text-sm font-semibold text-rose-700">สลิปไม่ผ่านการตรวจสอบ</p>
-          {state.payment_reject_reason && (
-            <p className="mt-1 text-xs text-rose-700">เหตุผล: {state.payment_reject_reason}</p>
-          )}
-          <p className="mt-1 text-xs text-rose-600">กรุณาอัปโหลดสลิปใหม่อีกครั้ง</p>
-        </div>
+        <Alert severity="error">
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>สลิปไม่ผ่านการตรวจสอบ</Typography>
+          {state.payment_reject_reason && <Typography variant="caption" sx={{ display: 'block' }}>เหตุผล: {state.payment_reject_reason}</Typography>}
+          <Typography variant="caption">กรุณาอัปโหลดสลิปใหม่อีกครั้ง</Typography>
+        </Alert>
       )}
 
-      <div className="text-center">
-        <p className="text-xs text-slate-500">ยอดที่ต้องชำระ</p>
-        <p className="text-3xl font-extrabold" style={{ color: accent }}>{formatTHB(amount)} บาท</p>
-        {countdown.label && <p className="mt-1 text-xs text-slate-500">{countdown.label}</p>}
-      </div>
+      {amountBlock}
 
       {state.qr_image_url && (
-        <div className="flex flex-col items-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+        <Stack alignItems="center" spacing={1}>
+          <Box
+            component="img"
             src={state.qr_image_url}
             alt="PromptPay QR"
-            className="h-56 w-56 rounded-xl border border-slate-200 bg-white"
+            sx={{ width: 224, height: 224, maxWidth: '100%', borderRadius: '16px', border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}
           />
-          <p className="mt-2 text-xs text-slate-500">สแกนด้วยแอปธนาคารเพื่อโอนเงิน</p>
-        </div>
+          <Typography variant="caption" color="text.secondary">สแกนด้วยแอปธนาคารเพื่อโอนเงิน</Typography>
+        </Stack>
       )}
 
-      {state.payee && (
-        <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
-          {state.payee.promptpay_display_name && <p>ผู้รับ: <b>{state.payee.promptpay_display_name}</b></p>}
-          {state.payee.promptpay_masked && <p>PromptPay: {state.payee.promptpay_masked}</p>}
-          {state.payee.bank_name && state.payee.bank_account_no && (
-            <p>{state.payee.bank_name} {state.payee.bank_account_no}</p>
-          )}
-          {state.payee.bank_account_name && <p>ชื่อบัญชี: {state.payee.bank_account_name}</p>}
-        </div>
+      {payeeRows.length > 0 && (
+        <Box sx={{ bgcolor: 'grey.100', borderRadius: '12px', px: 1.5, py: 1.25 }}>
+          <KeyValueList rows={payeeRows} dense />
+        </Box>
       )}
 
-      <div className="space-y-2 border-t border-slate-100 pt-4">
-        <p className="text-sm font-semibold text-slate-800">อัปโหลดสลิปการโอน</p>
-
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="text-xs text-slate-500">ยอดที่โอน (ไม่บังคับ)</label>
-            <input
-              className="input"
-              type="number"
-              inputMode="decimal"
-              placeholder={String(amount)}
-              value={amountClaimed}
-              onChange={(e) => setAmountClaimed(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-slate-500">เวลาที่โอน (ไม่บังคับ)</label>
-            <input
-              className="input"
-              type="datetime-local"
-              value={transferredAt}
-              onChange={(e) => setTransferredAt(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          capture="environment"
-          className="hidden"
-          onChange={onFileChange}
-          disabled={uploading}
+      <Divider />
+      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>อัปโหลดสลิปการโอน</Typography>
+      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+        <TextField
+          label="ยอดที่โอน (ไม่บังคับ)"
+          type="number"
+          placeholder={String(amount)}
+          value={amountClaimed}
+          onChange={(e) => setAmountClaimed(e.target.value)}
+          slotProps={{ htmlInput: { inputMode: 'decimal' }, inputLabel: { shrink: true } }}
         />
-        <button
-          className="btn-primary w-full"
-          style={{ background: accent }}
-          disabled={uploading}
-          onClick={() => fileRef.current?.click()}
-        >
-          {uploading ? 'กำลังอัปโหลด...' : 'เลือกรูปสลิป'}
-        </button>
-        <p className="text-xs text-slate-400">รองรับ JPG, PNG, WebP — ไม่เกิน 5MB (ระบบจะย่อรูปให้อัตโนมัติ)</p>
-      </div>
+        <TextField
+          label="เวลาที่โอน (ไม่บังคับ)"
+          type="datetime-local"
+          value={transferredAt}
+          onChange={(e) => setTransferredAt(e.target.value)}
+          slotProps={{ inputLabel: { shrink: true } }}
+        />
+      </Box>
 
-      {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
-    </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        capture="environment"
+        hidden
+        onChange={onFileChange}
+        disabled={uploading}
+      />
+      <Button
+        variant="contained"
+        size="large"
+        fullWidth
+        disabled={uploading}
+        startIcon={uploading ? <CircularProgress size={16} color="inherit" /> : <PhotoCameraRoundedIcon />}
+        onClick={() => fileRef.current?.click()}
+      >
+        {uploading ? 'กำลังอัปโหลด...' : 'เลือกรูปสลิป'}
+      </Button>
+      <Typography variant="caption" color="text.disabled">รองรับ JPG, PNG, WebP — ไม่เกิน 5MB (ระบบจะย่อรูปให้อัตโนมัติ)</Typography>
+
+      {error && <Alert severity="error">{error}</Alert>}
+    </LiffSection>
   );
 }

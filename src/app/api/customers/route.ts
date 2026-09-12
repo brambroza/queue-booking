@@ -4,15 +4,20 @@ import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { applyBranchScope, type BranchScope } from '@/lib/auth/branch-scope';
 import { writeAuditLog } from '@/lib/audit/activity-log';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { NICKNAME_MAX, nicknamePatch, normalizeNicknameInput } from '@/lib/booking/customer-label';
 
 const customerSchema = z.object({
   // A LINE display name can legitimately be a single character, so length is
   // only there to reject blank names.
   full_name: z.string().trim().min(1),
+  /** ชื่อเล่น used to call the queue; blank clears it. */
+  nickname: z.string().max(NICKNAME_MAX).optional().nullable(),
   phone: z.string().min(8),
   note: z.string().optional().nullable(),
   line_user_id: z.string().uuid().optional().nullable(),
 });
+
+const CUSTOMER_SELECT = 'id,full_name,nickname,phone,note,line_user_id,created_at';
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
@@ -55,7 +60,7 @@ export async function GET(req: Request) {
 
     let query = supabase
       .from('customers')
-      .select('id,full_name,phone,note,line_user_id,created_at', { count: 'exact' })
+      .select(CUSTOMER_SELECT, { count: 'exact' })
       .eq('shop_id', profile.shop_id)
       .eq('is_deleted', false)
       .order('created_at', { ascending: false });
@@ -63,7 +68,7 @@ export async function GET(req: Request) {
     if (allowedCustomerIds) query = query.in('id', allowedCustomerIds);
 
     if (q) {
-      query = query.or(`full_name.ilike.%${q}%,phone.ilike.%${q}%,note.ilike.%${q}%`);
+      query = query.or(`full_name.ilike.%${q}%,nickname.ilike.%${q}%,phone.ilike.%${q}%,note.ilike.%${q}%`);
     }
 
     const from = (page - 1) * pageSize;
@@ -100,6 +105,7 @@ export async function POST(req: Request) {
       shop_id: profile.shop_id,
       line_user_id: payload.line_user_id ?? null,
       full_name: payload.full_name,
+      nickname: normalizeNicknameInput(payload.nickname) ?? null,
       phone: payload.phone,
       note: payload.note ?? null,
       created_by: user.id,
@@ -129,11 +135,15 @@ export async function PATCH(req: Request) {
     }
 
     const payload = parsed.data;
+    // Omitted nickname keeps the stored one (same semantics as the booking and
+    // LIFF routes); an explicit '' or null clears it.
+    const nickname = nicknamePatch(payload.nickname);
     const { error } = await supabase
       .from('customers')
       .update({
         line_user_id: payload.line_user_id ?? null,
         full_name: payload.full_name,
+        ...nickname,
         phone: payload.phone,
         note: payload.note ?? null,
         updated_by: user.id,
@@ -149,7 +159,7 @@ export async function PATCH(req: Request) {
       action: 'data_updated',
       targetTable: 'customers',
       targetId: id,
-      payload: { full_name: payload.full_name },
+      payload: { full_name: payload.full_name, ...nickname },
     });
     return NextResponse.json({ data: true });
   } catch (e) {

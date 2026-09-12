@@ -7,6 +7,8 @@ import { bookingConfirmMessage, fallbackMessage, liffEntryMessage, slotMessage }
 import { isBookingEcho } from '@/lib/line/booking-echo';
 import type { LineWebhookBody, LineWebhookEvent } from '@/lib/line/types';
 import { env } from '@/lib/utils/env';
+import { acknowledgeBookingChange } from '@/lib/booking/acknowledge-change';
+import { formatThaiDateLabel } from '@/lib/utils/date-format';
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -173,6 +175,44 @@ async function handleNonTextMessageEvent(
   });
 }
 
+/**
+ * Postback buttons come from Flex messages the shop itself pushed (e.g. "รับทราบ"
+ * on a change notice), so they are handled even when auto-reply is switched off.
+ */
+async function handlePostbackEvent(
+  admin: ReturnType<typeof createAdminClient>,
+  shop: { id: string; company_id: string },
+  event: LineWebhookEvent,
+  token: string,
+) {
+  const userId = event.source?.userId;
+  const replyToken = event.replyToken;
+  const data = new URLSearchParams(event.postback?.data ?? '');
+  if (!userId || !replyToken) return;
+
+  if (data.get('action') === 'ack_change') {
+    const bookingId = data.get('booking_id') ?? '';
+    if (!/^[0-9a-f-]{36}$/i.test(bookingId)) return;
+    const result = await acknowledgeBookingChange(admin, {
+      shopId: shop.id,
+      companyId: shop.company_id,
+      externalLineUserId: userId,
+      bookingId,
+    });
+    if (!result.ok) {
+      await replyMessage(token, replyToken, [{ type: 'text', text: 'ไม่พบคิวนี้แล้วค่ะ หากมีข้อสงสัยกรุณาติดต่อเจ้าหน้าที่' }]);
+      return;
+    }
+    const when = `${formatThaiDateLabel(result.booking.booking_date)} เวลา ${result.booking.start_time.slice(0, 5)}`;
+    await replyMessage(token, replyToken, [{
+      type: 'text',
+      text: result.already
+        ? `รับทราบไว้แล้วค่ะ แล้วพบกัน ${when} นะคะ`
+        : `รับทราบแล้ว ขอบคุณค่ะ 🙏 แล้วพบกัน ${when} นะคะ`,
+    }]);
+  }
+}
+
 export async function POST(req: Request, { params }: { params: Promise<{ shopKey: string }> }) {
   const { shopKey } = await params;
   const rawBody = await req.text();
@@ -194,12 +234,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
 
   const body = JSON.parse(rawBody) as LineWebhookBody;
 
+  const events = body.events ?? [];
+  const postbacks = events.filter((e) => e.type === 'postback');
+  await Promise.all(postbacks.map((event) => handlePostbackEvent(admin, { id: shop.id, company_id: shop.company_id }, event, channelToken)));
+
   if (!shop.auto_reply_enabled) {
-    return NextResponse.json({ ok: true, skipped: 'auto_reply_disabled' });
+    return NextResponse.json({ ok: true, skipped: 'auto_reply_disabled', postbacks: postbacks.length });
   }
 
   await Promise.all(
-    (body.events ?? []).map(async (event) => {
+    events.map(async (event) => {
       if (event.type === 'message' && event.message?.type === 'text') {
         await handleTextEvent(admin, { id: shop.id, company_id: shop.company_id, shop_key: shop.shop_key, name: shop.name }, event, channelToken);
       } else if (event.type === 'message') {

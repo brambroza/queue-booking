@@ -1,5 +1,7 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { Alert, Button, Stack, Typography } from '@mui/material';
+import { LiffThemeScope } from '@/components/line/liff-theme-scope';
+import { LiffSection, LiffShell } from '@/components/line/liff-ui';
 
 export default async function LiffBookingClientEntry({
   searchParams,
@@ -18,14 +20,21 @@ export default async function LiffBookingClientEntry({
   }
 
   return (
-    <main className="min-h-screen p-6">
-      <section className="card mx-auto max-w-lg p-6 space-y-3">
-        <h1 className="text-xl font-semibold">LIFF Booking</h1>
-        <p className="text-sm text-slate-600">ลิงก์นี้ต้องมี `shop_key` หรือ `shop_id` เพื่อระบุร้านค้า</p>
-        <p className="text-xs text-slate-500">ตัวอย่าง: `/liff/booking-client?shop_key=SHOP-XXXXXX`</p>
-        <p className="text-xs text-slate-500">หรือ: `/liff/booking-client?shop_id=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`</p>
-        <Link className="btn-outline" href="/">กลับหน้าหลัก</Link>
-      </section>
-    </main>
+    <LiffThemeScope>
+      <LiffShell title="LIFF Booking">
+        <Alert severity="error">ลิงก์นี้ต้องมี shop_key หรือ shop_id เพื่อระบุร้านค้า</Alert>
+        <LiffSection title="รูปแบบลิงก์ที่ถูกต้อง">
+          <Stack spacing={0.5}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'ui-monospace, monospace' }}>
+              /liff/booking-client?shop_key=SHOP-XXXXXX
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'ui-monospace, monospace' }}>
+              /liff/booking-client?shop_id=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+            </Typography>
+          </Stack>
+        </LiffSection>
+        <Button variant="outlined" fullWidth href="/">กลับหน้าหลัก</Button>
+      </LiffShell>
+    </LiffThemeScope>
   );
 }

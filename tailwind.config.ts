@@ -5,6 +5,10 @@ const config: Config = {
   content: ['./src/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      // ให้ class `font-sans` ชี้ไป Kanit (next/font ใน layout.tsx) แทน stack default ของ Tailwind
+      fontFamily: {
+        sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif']
+      },
       colors: {
         // อ้างอิง CSS variables ใน globals.css เพื่อให้ flip ตาม light/dark ได้อัตโนมัติ
         bg: 'var(--bg)',

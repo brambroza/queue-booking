@@ -129,6 +129,7 @@ src/
 | `/api/public/shop/[shopKey]/slots` | Available slots |
 | `/api/public/shop/[shopKey]/book` | Create booking (LIFF) |
 | `/api/public/shop/[shopKey]/cancel-booking` | Cancel booking |
+| `/api/public/shop/[shopKey]/acknowledge-booking` | Customer acknowledges a shop-initiated change (mirror of the LINE `ack_change` postback) |
 | `/api/public/shop/[shopKey]/payment/status` | Payment state for LIFF panel (heals missed bank webhooks) |
 | `/api/public/shop/[shopKey]/payment/slip` | Slip upload |
 | `/api/public/shop/[shopKey]/payment/deeplink` | Re-issue bank deeplink for a booking |
@@ -236,6 +237,14 @@ import { xxx } from '../../lib/...';  // ผิด
 import { safeCreateNotification } from '@/lib/notifications/createNotification';
 await safeCreateNotification({ shopId, type: 'booking_created', ... });
 ```
+
+`safeCreateNotification` = notification center ของ **staff** เท่านั้น ไม่ถึงลูกค้า
+
+แจ้ง **ลูกค้า** ทาง LINE เมื่อร้านย้าย / เปลี่ยนคน / ยกเลิกคิว ใช้ `safeNotifyBookingChange` (`src/lib/line/notify-booking-change.ts`) — ไม่ throw, คิวที่ไม่มี LINE ได้ `{ sent: false }`
+- `moved` / `reassigned` → Flex มีปุ่ม postback `action=ack_change` → webhook เรียก `acknowledgeBookingChange` (`src/lib/booking/acknowledge-change.ts`) และ stamp `bookings.change_acknowledged_at`
+- `reassigned` ส่งเฉพาะ resource ที่เป็นคน (`isPersonResourceType`) — เปลี่ยนโต๊ะ/ห้องไม่แจ้ง
+- `cancelled` ไม่ต้อง ack
+- Postback events ถูก handle **ก่อน** เช็ค `auto_reply_enabled` ใน webhook
 
 ---
 

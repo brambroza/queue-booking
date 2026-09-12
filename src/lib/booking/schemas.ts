@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BANK_PROVIDERS, PAYMENT_METHODS } from '@/types/db';
+import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 
 export const branchSchema = z.object({
   branch_name: z.string().min(2),
@@ -43,6 +44,8 @@ export const bookingSchema = z.object({
   branch_id: z.string().uuid(),
   service_id: z.string().uuid(),
   customer_name: z.string().trim().min(1),
+  /** ชื่อเล่น saved on the customer profile; blank = leave as is. */
+  customer_nickname: z.preprocess(emptyToUndefined, z.string().trim().max(NICKNAME_MAX).optional()),
   customer_phone: z.string().min(8),
   line_user_pk: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
   line_user_external_id: z.preprocess(emptyToUndefined, z.string().optional()),

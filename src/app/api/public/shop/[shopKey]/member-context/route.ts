@@ -42,7 +42,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
 
   const { data: existingCustomers, error: customerFindError } = await admin
     .from('customers')
-    .select('id,full_name,phone,line_user_id')
+    .select('id,full_name,nickname,phone,line_user_id')
     .eq('shop_id', shop.id)
     .eq('line_user_id', lineUser.id)
     .eq('is_deleted', false)
@@ -73,7 +73,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       full_name: payload.display_name ?? 'LINE Customer',
       phone: null,
     })
-    .select('id,full_name,phone,line_user_id')
+    .select('id,full_name,nickname,phone,line_user_id')
     .single();
 
   if (createCustomerError || !newCustomer) {

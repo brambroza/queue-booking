@@ -3,7 +3,8 @@ import { DEFAULT_SIGNAGE_CONFIG } from '@/lib/signage/settings';
 
 /**
  * Sample data for the landing showcase and the designer's template thumbnails.
- * Static so it renders identically on server and client.
+ * Static so it renders identically on server and client. Mixes full nicknames
+ * (shown as-is) with masked real names, the way a live board looks.
  */
 
 function person(
@@ -34,11 +35,11 @@ export const MOCK_SIGNAGE_RESTAURANT: SignageData = {
   ...BASE,
   shop: { ...BASE.shop, name: 'ครัวคุณแม่ สาขาลาดพร้าว' },
   now_calling: [
-    person('c1', 'A12', 'called', '11:30', 'ศ***', 'โต๊ะ 4 ที่นั่ง', 'โต๊ะ 7', '2026-09-10T04:40:00.000Z'),
+    person('c1', 'A12', 'called', '11:30', 'พี่แจ็ค', 'โต๊ะ 4 ที่นั่ง', 'โต๊ะ 7', '2026-09-10T04:40:00.000Z'),
     person('c2', 'A11', 'serving', '11:20', 'ณ***', 'โต๊ะ 2 ที่นั่ง', 'โต๊ะ 3', '2026-09-10T04:32:00.000Z'),
   ],
   next_queue: [
-    person('n1', 'A13', 'waiting', '11:40', 'พ***', 'โต๊ะ 4 ที่นั่ง', null),
+    person('n1', 'A13', 'waiting', '11:40', 'นัท', 'โต๊ะ 4 ที่นั่ง', null),
     person('n2', 'A14', 'waiting', '11:45', 'ว***', 'โต๊ะ 6 ที่นั่ง', null),
     person('n3', 'A15', 'waiting', '11:50', 'ก***', 'โต๊ะ 2 ที่นั่ง', null),
     person('n4', 'A16', 'waiting', '12:00', 'ธ***', 'โต๊ะ 4 ที่นั่ง', null),
@@ -57,7 +58,7 @@ export const MOCK_SIGNAGE_CLINIC: SignageData = {
   ...BASE,
   shop: { ...BASE.shop, name: 'สุขใจคลินิก' },
   now_calling: [
-    person('c1', 'B08', 'called', '10:30', 'ศ***', 'ตรวจสุขภาพ', 'ห้องตรวจ 1', '2026-09-10T03:40:00.000Z'),
+    person('c1', 'B08', 'called', '10:30', 'คุณส้ม', 'ตรวจสุขภาพ', 'ห้องตรวจ 1', '2026-09-10T03:40:00.000Z'),
     person('c2', 'B07', 'in_service', '10:15', 'ณ***', 'ทันตกรรม', 'ห้องตรวจ 2', '2026-09-10T03:20:00.000Z'),
     person('c3', 'B06', 'serving', '10:00', 'ว***', 'ฉีดวัคซีน', 'ห้องตรวจ 3', '2026-09-10T03:05:00.000Z'),
   ],

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
+import { NICKNAME_MAX, normalizeNicknameInput } from '@/lib/booking/customer-label';
 
 const bodySchema = z.object({
   line_user_id: z.string().min(1),
@@ -9,8 +10,12 @@ const bodySchema = z.object({
   picture_url: z.string().optional(),
   full_name: z.string().optional(),
   phone: z.string().optional(),
+  /** Omitted = keep the stored nickname; '' = clear it. */
+  nickname: z.string().max(NICKNAME_MAX).optional(),
   mode: z.enum(['view', 'update']).default('view'),
 });
+
+const CUSTOMER_SELECT = 'id,full_name,nickname,phone,line_user_id';
 
 export async function POST(req: Request, { params }: { params: Promise<{ shopKey: string }> }) {
   const { shopKey } = await params;
@@ -41,7 +46,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   let customerId: string | null = null;
   const { data: existingCustomers } = await admin
     .from('customers')
-    .select('id,full_name,phone,line_user_id')
+    .select(CUSTOMER_SELECT)
     .eq('shop_id', shop.id)
     .eq('line_user_id', lineUser.id)
     .eq('is_deleted', false)
@@ -52,15 +57,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
 
   if (customer) {
     customerId = customer.id;
-    if (payload.mode === 'update' && (payload.full_name || payload.phone)) {
+    const nickname = normalizeNicknameInput(payload.nickname);
+    if (payload.mode === 'update' && (payload.full_name || payload.phone || nickname !== undefined)) {
       const { data: updated, error: updateError } = await admin
         .from('customers')
         .update({
           full_name: payload.full_name?.trim() || customer.full_name,
           phone: payload.phone?.trim() || customer.phone,
+          // Unlike name/phone, an empty nickname is a deliberate "remove it".
+          ...(nickname !== undefined ? { nickname } : {}),
         })
         .eq('id', customer.id)
-        .select('id,full_name,phone,line_user_id')
+        .select(CUSTOMER_SELECT)
         .single();
       // Swallowing this let a phone that collides with unique(shop_id, phone)
       // look saved while the old value stayed in the row.
@@ -82,8 +90,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
         line_user_id: lineUser.id,
         full_name: payload.full_name?.trim() || payload.display_name || 'LINE Customer',
         phone: payload.phone?.trim() || null,
+        nickname: normalizeNicknameInput(payload.nickname) ?? null,
       })
-      .select('id,full_name,phone,line_user_id')
+      .select(CUSTOMER_SELECT)
       .single();
     if (customerCreateError || !created) {
       return NextResponse.json({ error: customerCreateError?.message ?? 'Customer create failed' }, { status: 400 });
@@ -97,7 +106,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     // Payment fields let the account tab surface an "upload slip" action, which
     // is the durable way back into payment after localStorage is cleared or the
     // customer switches device.
-    .select('id,queue_number,booking_date,start_time,status,note,created_at,resource_id,resource_name,payment_status,payment_method,payment_amount,payment_expires_at,bank_provider,branches(branch_name),services(service_name)')
+    .select('id,queue_number,booking_date,start_time,status,note,created_at,resource_id,resource_name,payment_status,payment_method,payment_amount,payment_expires_at,bank_provider,change_notified_at,change_acknowledged_at,branches(branch_name),services(service_name)')
     .eq('shop_id', shop.id)
     .eq('line_user_id', lineUser.id)
     .eq('is_deleted', false)

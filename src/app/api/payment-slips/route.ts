@@ -28,7 +28,7 @@ export async function GET(req: Request) {
     let query = supabase
       .from('payment_slips')
       .select(
-        'id,booking_id,storage_path,status,amount_claimed,transferred_at,reject_reason,reviewed_at,created_at,mime_type,file_size,bookings(queue_number,booking_date,start_time,payment_amount,payment_status,customers(full_name,phone))',
+        'id,booking_id,storage_path,status,amount_claimed,transferred_at,reject_reason,reviewed_at,created_at,mime_type,file_size,bookings(queue_number,booking_date,start_time,payment_amount,payment_status,customers(full_name,nickname,phone))',
         { count: 'exact' },
       )
       .eq('shop_id', profile.shop_id)

@@ -1,4 +1,6 @@
 import { ImageResponse } from 'next/og';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 
 export const size = {
   width: 1200,
@@ -7,7 +9,41 @@ export const size = {
 
 export const contentType = 'image/png';
 
-export default function OgImage() {
+/**
+ * Kanit for the social card. Satori ships a Latin-only fallback, so without
+ * these files the Thai headline renders as empty boxes on LINE/Facebook/X.
+ * The TTFs live in public/fonts (SIL OFL, licence file alongside them).
+ */
+async function loadKanit(): Promise<Array<{ name: string; data: ArrayBuffer; weight: 400 | 700; style: 'normal' }>> {
+  const dir = path.join(process.cwd(), 'public', 'fonts');
+  const [regular, bold] = await Promise.all([
+    readFile(path.join(dir, 'Kanit-Regular.ttf')),
+    readFile(path.join(dir, 'Kanit-Bold.ttf')),
+  ]);
+  const toArrayBuffer = (buf: Buffer): ArrayBuffer =>
+    buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+  return [
+    { name: 'Kanit', data: toArrayBuffer(regular), weight: 400, style: 'normal' },
+    { name: 'Kanit', data: toArrayBuffer(bold), weight: 700, style: 'normal' },
+  ];
+}
+
+/**
+ * Hostname printed in the card footer — the same origin `metadataBase` in the
+ * root layout resolves to, so the card never advertises a stale deploy URL.
+ */
+function siteHost(): string {
+  const fallback = 'queuebooking.com';
+  try {
+    return new URL(process.env.NEXT_PUBLIC_APP_URL || `https://${fallback}`).host || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export default async function OgImage() {
+  const fonts = await loadKanit();
+  const host = siteHost();
   return new ImageResponse(
     (
       <div
@@ -19,7 +55,7 @@ export default function OgImage() {
           justifyContent: 'space-between',
           background: 'linear-gradient(135deg, #eaf6ee 0%, #ffffff 55%, #f6f7f9 100%)',
           padding: '56px',
-          fontFamily: 'sans-serif',
+          fontFamily: 'Kanit',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -54,12 +90,12 @@ export default function OgImage() {
           </div>
         </div>
 
-        <div style={{ fontSize: 20, color: '#64748b' }}>queue-booking-line.vercel.app</div>
+        <div style={{ fontSize: 20, color: '#64748b' }}>{host}</div>
       </div>
     ),
     {
       ...size,
+      fonts,
     },
   );
 }
-

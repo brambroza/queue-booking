@@ -3,11 +3,13 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
+import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 
 type LineUser = { id: string; line_user_id: string; display_name: string | null };
 type CustomerRow = {
   id: string;
   full_name: string;
+  nickname: string | null;
   phone: string;
   note: string | null;
   line_user_id: string | null;
@@ -17,6 +19,7 @@ type CustomerRow = {
 type FormState = {
   id: string | null;
   full_name: string;
+  nickname: string;
   phone: string;
   note: string;
   line_user_id: string;
@@ -25,6 +28,7 @@ type FormState = {
 const initialForm: FormState = {
   id: null,
   full_name: '',
+  nickname: '',
   phone: '',
   note: '',
   line_user_id: '',
@@ -72,6 +76,7 @@ export function CustomersCrud() {
     setForm({
       id: row.id,
       full_name: row.full_name,
+      nickname: row.nickname ?? '',
       phone: row.phone,
       note: row.note ?? '',
       line_user_id: row.line_user_id ?? '',
@@ -93,6 +98,7 @@ export function CustomersCrud() {
       body: JSON.stringify({
         id: form.id,
         full_name: form.full_name,
+        nickname: form.nickname.trim() || null,
         phone: form.phone,
         note: form.note || null,
         line_user_id: form.line_user_id || null,
@@ -126,7 +132,7 @@ export function CustomersCrud() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-slate-700">รายการลูกค้า</h3>
         <div className="flex items-center gap-2">
-          <input className="input w-56" placeholder="ค้นหาชื่อ/เบอร์" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="input w-56" placeholder="ค้นหาชื่อ/ชื่อเล่น/เบอร์" value={q} onChange={(e) => setQ(e.target.value)} />
           <button className="btn-outline" onClick={() => void load()}>Search</button>
           <button className="btn-primary" onClick={openAdd}>Add New</button>
         </div>
@@ -137,6 +143,7 @@ export function CustomersCrud() {
           <thead className="bg-slate-50">
             <tr>
               <th className="px-3 py-2 text-left">Name</th>
+              <th className="px-3 py-2 text-left">ชื่อเล่น</th>
               <th className="px-3 py-2 text-left">Phone</th>
               <th className="px-3 py-2 text-left">LINE User</th>
               <th className="px-3 py-2 text-left">Note</th>
@@ -145,10 +152,11 @@ export function CustomersCrud() {
           </thead>
           <tbody>
             {rows.length === 0 ? (
-              <tr><td className="px-3 py-4 text-slate-500" colSpan={5}>ยังไม่มีลูกค้า</td></tr>
+              <tr><td className="px-3 py-4 text-slate-500" colSpan={6}>ยังไม่มีลูกค้า</td></tr>
             ) : pagedRows.map((r) => (
               <tr key={r.id} className="border-t border-slate-100">
                 <td className="px-3 py-2">{r.full_name}</td>
+                <td className="px-3 py-2">{r.nickname || <span className="text-slate-400">-</span>}</td>
                 <td className="px-3 py-2">{r.phone}</td>
                 <td className="px-3 py-2">{r.line_user?.display_name || r.line_user?.line_user_id || '-'}</td>
                 <td className="px-3 py-2">{r.note || '-'}</td>
@@ -191,6 +199,11 @@ export function CustomersCrud() {
                   <input className="input" value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} required />
                 </label>
               </div>
+
+              <label className="text-sm block">
+                <span className="mb-1 block text-slate-600">ชื่อเล่น (ไม่บังคับ — ใช้เรียกคิว แสดงบนจอคิว)</span>
+                <input className="input" value={form.nickname} maxLength={NICKNAME_MAX} onChange={(e) => setForm((p) => ({ ...p, nickname: e.target.value }))} />
+              </label>
 
               <label className="text-sm block">
                 <span className="mb-1 block text-slate-600">ผูก LINE User (ไม่บังคับ)</span>
