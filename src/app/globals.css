@@ -105,3 +105,38 @@ body {
   @apply rounded-2xl border;
   background: var(--surface);
 }
+
+/* ── Report print sheet (see src/components/reports/use-print-report.ts) ── */
+#report-print-root {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  body.report-printing {
+    background: #fff !important;
+  }
+
+  body.report-printing > *:not(#report-print-root) {
+    display: none !important;
+  }
+
+  body.report-printing #report-print-root {
+    display: block !important;
+    max-width: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  #report-print-root tr {
+    break-inside: avoid;
+  }
+
+  #report-print-root thead {
+    display: table-header-group;
+  }
+}

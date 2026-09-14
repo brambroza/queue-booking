@@ -2,18 +2,10 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { buildDetailTable, sendSalesEmail } from '@/lib/notifications/sales-email';
 import { safeCreateNotification } from '@/lib/notifications/createNotification';
+import { isCronAuthorized } from '@/lib/cron/auth';
 
 /** Days before expiry at which a shop (and sales) get a reminder. */
 const REMINDER_DAYS = [14, 7, 1];
-
-function isAuthorized(req: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  // Vercel Cron sends its own bearer token; a shared secret keeps the endpoint
-  // from being a public trigger when deployed anywhere else.
-  if (!secret) return false;
-  const header = req.headers.get('authorization') ?? '';
-  return header === `Bearer ${secret}`;
-}
 
 function dayBoundsFromNow(days: number): { start: string; end: string } {
   const start = new Date();
@@ -33,7 +25,7 @@ function dayBoundsFromNow(days: number): { start: string; end: string } {
  * a lapsed shop to free-tier limits rather than blocking it.
  */
 export async function GET(req: Request) {
-  if (!isAuthorized(req)) {
+  if (!isCronAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

@@ -51,6 +51,8 @@ export function DashboardPageClient() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // True when the API asked for a shop to be selected first (super_admin without an acting shop).
+  const [shopRequired, setShopRequired] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const overviewRef = useRef<HTMLDivElement | null>(null);
@@ -95,10 +97,16 @@ export function DashboardPageClient() {
     abortRef.current = controller;
     setLoading(true);
     setError(null);
+    setShopRequired(false);
     (async () => {
       try {
         const res = await fetch(`/api/dashboard?${queryString}`, { cache: 'no-store', signal: controller.signal });
-        const json = (await res.json()) as { data?: DashboardData; error?: string };
+        const json = (await res.json()) as { data?: DashboardData; error?: string; code?: string };
+        if (json.code === 'SHOP_REQUIRED') {
+          setShopRequired(true);
+          setData(null);
+          return;
+        }
         if (!res.ok || !json.data) throw new Error(json.error ?? t('load_failed', 'โหลดแดชบอร์ดไม่สำเร็จ'));
         setData(json.data);
       } catch (e) {
@@ -127,6 +135,10 @@ export function DashboardPageClient() {
       <OnboardingChecklist />
       <DashboardFilterBar value={filter} onChange={handleFilterChange} onRefresh={() => setReloadKey((k) => k + 1)} resolvedFrom={data?.range.from} resolvedTo={data?.range.to} loading={loading} />
 
+      {shopRequired ? (
+        <Alert severity="info">{t('pick_shop', 'เลือกร้านจากแถบด้านบนก่อน')}</Alert>
+      ) : null}
+
       {error ? (
         <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => setReloadKey((k) => k + 1)}>{t('retry', 'ลองใหม่')}</Button>}>
           {error}
@@ -148,7 +160,7 @@ export function DashboardPageClient() {
         </Alert>
       ) : null}
 
-      {!data && loading ? (
+      {!data && loading && !shopRequired ? (
         <DashboardSkeleton />
       ) : data ? (
         <Stack spacing={2} sx={{ opacity: loading ? 0.6 : 1, transition: 'opacity .15s' }}>

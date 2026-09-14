@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
+import { CUSTOMER_CANCELLABLE_STATUSES } from '@/lib/booking/status-flow';
 
 const schema = z.object({
   line_user_id: z.string().min(1),
@@ -38,7 +39,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     .maybeSingle();
   if (!booking) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
 
-  const cancelable = new Set(['pending', 'confirmed', 'waiting']);
+  const cancelable = new Set<string>(CUSTOMER_CANCELLABLE_STATUSES);
   if (!cancelable.has(String(booking.status))) {
     return NextResponse.json({ error: 'This booking cannot be cancelled' }, { status: 400 });
   }

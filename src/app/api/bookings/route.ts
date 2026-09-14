@@ -12,8 +12,11 @@ import { resolvePaymentForBooking } from '@/lib/payments/resolve';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
 import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
 import { isPersonResourceType, resourceBusyMessage, resourceTypeLabel } from '@/lib/booking/resource-types';
+import { resourceServesService, resourceServiceMismatchMessage } from '@/lib/booking/resource-service-link';
 import { safeNotifyBookingChange } from '@/lib/line/notify-booking-change';
+import { safeNotifyBookingStatus } from '@/lib/line/notify-booking-status';
 import { shouldNotifyCancellation } from '@/lib/booking/status-meta';
+import { isApprovalTransition, isCallTransition } from '@/lib/booking/status-flow';
 
 /** Minimal shape needed to call a Postgres function — works for both the session and admin clients. */
 type RpcClient = { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown }> };
@@ -184,13 +187,20 @@ export async function POST(req: Request) {
     if (payload.resource_id) {
       const { data: selectedResource } = await supabase
         .from('booking_resources')
-        .select('id,resource_name,resource_type,capacity,unit_price')
+        .select('id,resource_name,resource_type,capacity,unit_price,service_ids')
         .eq('id', payload.resource_id)
         .eq('shop_id', profile.shop_id)
         .eq('is_deleted', false)
         .eq('active', true)
         .maybeSingle();
       if (selectedResource) {
+        // A resource linked to specific services can only be booked for those.
+        if (!resourceServesService(selectedResource, payload.service_id)) {
+          return NextResponse.json(
+            { error: resourceServiceMismatchMessage(resourceTypeLabel(selectedResource.resource_type)) },
+            { status: 400 },
+          );
+        }
         const free = await isResourceFree(supabase, {
           shopId: profile.shop_id,
           resourceId: selectedResource.id as string,
@@ -393,7 +403,7 @@ export async function PATCH(req: Request) {
 
     const { data: before } = await supabase
       .from('bookings')
-      .select('id,queue_number,status,branch_id,service_id,booking_date,start_time,end_time,resource_id,resource_name')
+      .select('id,queue_number,status,branch_id,service_id,booking_date,start_time,end_time,resource_id,resource_name,call_count')
       .eq('id', id)
       .eq('shop_id', profile.shop_id)
       .maybeSingle();
@@ -422,11 +432,17 @@ export async function PATCH(req: Request) {
           ? supabase.from('booking_resources').select('resource_type').eq('id', prevResourceId).eq('shop_id', profile.shop_id).maybeSingle()
           : Promise.resolve({ data: null as { resource_type: string | null } | null }),
         nextResourceId && resourceChanged
-          ? supabase.from('booking_resources').select('id,resource_name,resource_type,capacity').eq('id', nextResourceId).eq('shop_id', profile.shop_id).eq('is_deleted', false).eq('active', true).maybeSingle()
-          : Promise.resolve({ data: null as { id: string; resource_name: string | null; resource_type: string | null; capacity: number | null } | null }),
+          ? supabase.from('booking_resources').select('id,resource_name,resource_type,capacity,service_ids').eq('id', nextResourceId).eq('shop_id', profile.shop_id).eq('is_deleted', false).eq('active', true).maybeSingle()
+          : Promise.resolve({ data: null as { id: string; resource_name: string | null; resource_type: string | null; capacity: number | null; service_ids: string[] | null } | null }),
       ]);
       if (nextResourceId && resourceChanged && !selected) {
         return NextResponse.json({ error: 'ไม่พบผู้ให้บริการ/ทรัพยากรที่เลือก' }, { status: 400 });
+      }
+      if (selected && !resourceServesService(selected, before.service_id as string | null)) {
+        return NextResponse.json(
+          { error: resourceServiceMismatchMessage(resourceTypeLabel(selected.resource_type)) },
+          { status: 400 },
+        );
       }
 
       const startAt = new Date(`${newDate}T${newTime}+07:00`);
@@ -531,36 +547,52 @@ export async function PATCH(req: Request) {
     const status = body.status as string | undefined;
     if (!status) return NextResponse.json({ error: 'Missing status or date/time for reschedule' }, { status: 400 });
 
+    // "เรียกคิว": stamp who called and how many times, so the signage sorts by
+    // called_at and a repeat call can say "ครั้งที่ 2" in the customer's LINE.
+    const isCall = isCallTransition(before.status as string, status);
+    const callCount = isCall ? Number(before.call_count ?? 0) + 1 : Number(before.call_count ?? 0);
+    const update: Record<string, unknown> = { status, updated_by: user.id };
+    if (isCall) {
+      update.called_at = new Date().toISOString();
+      update.called_by = user.id;
+      update.call_count = callCount;
+    }
+
     const { error } = await supabase
       .from('bookings')
-      .update({ status, updated_by: user.id })
+      .update(update)
       .eq('id', id)
       .eq('shop_id', profile.shop_id);
     if (error) throw error;
 
     const isCancelled = status === 'cancelled';
+    const isApproval = isApprovalTransition(before.status as string, status);
     await safeCreateNotification(supabase, {
       companyId: profile.company_id,
       shopId: profile.shop_id,
       branchId: before.branch_id,
       userId: user.id,
-      type: isCancelled ? 'booking_cancelled' : status === 'completed' ? 'booking_confirmed' : 'booking_confirmed',
+      type: isCancelled ? 'booking_cancelled' : isApproval ? 'booking_confirmed' : status === 'called' ? 'booking_updated' : 'booking_confirmed',
       category: 'bookings',
       priority: isCancelled ? 'high' : 'medium',
       title: `${before.queue_number ?? 'Queue'} → ${status}`,
-      message: `Status changed from ${before.status} to ${status}`,
+      message: isCall
+        ? `Called ${before.queue_number ?? id} (call #${callCount})`
+        : `Status changed from ${before.status} to ${status}`,
       relatedType: 'booking',
       relatedId: id,
       actionUrl: '/portal/bookings',
-      icon: isCancelled ? 'Cancel' : 'EventAvailable',
+      icon: isCancelled ? 'Cancel' : isCall ? 'Campaign' : 'EventAvailable',
       color: isCancelled ? '#c62828' : '#1565c0',
-      metadata: { prev_status: before.status, next_status: status },
+      metadata: { prev_status: before.status, next_status: status, call_count: isCall ? callCount : undefined },
       createdBy: user.id,
     });
     await safeSyncBookingToGoogleCalendar(profile.shop_id, id);
 
-    // Only the first cancellation reaches the customer; re-saving an already
-    // cancelled booking must not push a duplicate notice.
+    // Customer-facing LINE notices per transition. Each helper never throws.
+    // - cancelled: only the first cancellation; re-saving must not push twice.
+    // - called: "ถึงคิวของคุณแล้ว" (repeat calls re-push with the count).
+    // - pending_approval → confirmed: "ร้านยืนยันคิวของคุณแล้ว".
     let lineNotified = false;
     if (isCancelled && shouldNotifyCancellation(before)) {
       const notice = await safeNotifyBookingChange({
@@ -570,8 +602,14 @@ export async function PATCH(req: Request) {
         prev: { booking_date: String(before.booking_date), start_time: String(before.start_time) },
       });
       lineNotified = notice.sent;
+    } else if (isCall) {
+      const notice = await safeNotifyBookingStatus({ shopId: profile.shop_id, bookingId: id, kind: 'called', callCount });
+      lineNotified = notice.sent;
+    } else if (isApproval) {
+      const notice = await safeNotifyBookingStatus({ shopId: profile.shop_id, bookingId: id, kind: 'approved' });
+      lineNotified = notice.sent;
     }
-    return NextResponse.json({ data: { ok: true, line_notified: lineNotified } });
+    return NextResponse.json({ data: { ok: true, line_notified: lineNotified, call_count: isCall ? callCount : undefined } });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });
   }

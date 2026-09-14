@@ -1,3 +1,5 @@
+import { reminderLeadLabel } from '@/lib/line/booking-reminder';
+
 export function quickReply(items: Array<{ label: string; text: string }>) {
   return {
     items: items.slice(0, 13).map((x) => ({
@@ -60,7 +62,14 @@ export function bookingConfirmFlex(payload: {
   /** Thai label matching the resource type, e.g. "เทรนเนอร์". */
   assignedLabel?: string | null;
   liffUrl?: string;
+  /** True when the service needs shop approval: header + note say "รอร้านยืนยัน" instead of "สำเร็จ". */
+  pendingApproval?: boolean;
 }) {
+  const title = payload.pendingApproval ? 'รับคำขอจองแล้ว' : 'จองคิวสำเร็จ';
+  const headerColor = payload.pendingApproval ? '#d97706' : '#12a862';
+  const note = payload.pendingApproval
+    ? 'คิวนี้รอร้านตรวจสอบและยืนยัน ร้านจะแจ้งผลผ่าน LINE อีกครั้ง'
+    : 'กรุณามาก่อนเวลาประมาณ 10 นาที';
   const footerButtons: Array<Record<string, unknown>> = [
     {
       type: 'button',
@@ -87,18 +96,18 @@ export function bookingConfirmFlex(payload: {
 
   return {
     type: 'flex',
-    altText: `จองคิวสำเร็จ เลขคิว ${payload.queueNumber}`,
+    altText: `${title} เลขคิว ${payload.queueNumber}`,
     contents: {
       type: 'bubble',
       size: 'kilo',
       header: {
         type: 'box',
         layout: 'vertical',
-        backgroundColor: '#12a862',
+        backgroundColor: headerColor,
         paddingAll: '16px',
         contents: [
           { type: 'text', text: payload.shopName, color: '#ffffffcc', size: 'xs' },
-          { type: 'text', text: 'จองคิวสำเร็จ', color: '#ffffff', weight: 'bold', size: 'xl', margin: 'sm' },
+          { type: 'text', text: title, color: '#ffffff', weight: 'bold', size: 'xl', margin: 'sm' },
         ],
       },
       body: {
@@ -136,7 +145,7 @@ export function bookingConfirmFlex(payload: {
             cornerRadius: '10px',
             paddingAll: '10px',
             contents: [
-              { type: 'text', text: 'กรุณามาก่อนเวลาประมาณ 10 นาที', size: 'xs', color: '#4b5563', wrap: true },
+              { type: 'text', text: note, size: 'xs', color: '#4b5563', wrap: true },
             ],
           },
         ],
@@ -147,6 +156,126 @@ export function bookingConfirmFlex(payload: {
         spacing: 'sm',
         contents: footerButtons,
       },
+    },
+  };
+}
+
+/**
+ * Flex pushed when staff approve a booking that was waiting for approval
+ * (`pending_approval` → `confirmed`). Same shape as the confirmation so the
+ * customer sees one familiar card.
+ */
+export function bookingApprovedFlex(payload: {
+  shopName: string;
+  queueNumber: string;
+  branch: string;
+  service: string;
+  date: string;
+  time: string;
+  assignedTo?: string | null;
+  assignedLabel?: string | null;
+  liffUrl?: string;
+}) {
+  const flex = bookingConfirmFlex(payload);
+  const header = flex.contents.header.contents[1] as { text: string };
+  header.text = 'ร้านยืนยันคิวของคุณแล้ว';
+  flex.altText = `ร้านยืนยันคิว ${payload.queueNumber} — ${payload.date} ${payload.time}`;
+  return flex;
+}
+
+/**
+ * Flex pushed when staff press "เรียกคิว": it is the customer's turn now.
+ * `callCount` > 1 marks a repeat call so the customer knows the shop is waiting.
+ */
+export function bookingCalledFlex(payload: {
+  shopName: string;
+  queueNumber: string;
+  branch: string;
+  service: string;
+  /** Person / room / table to go to, when assigned. */
+  assignedTo?: string | null;
+  assignedLabel?: string | null;
+  callCount: number;
+  liffUrl?: string;
+}) {
+  const repeat = payload.callCount > 1;
+  const title = repeat ? `เรียกคิวของคุณอีกครั้ง (ครั้งที่ ${payload.callCount})` : 'ถึงคิวของคุณแล้ว';
+  const bodyRows: Array<Record<string, unknown>> = [
+    { type: 'text', text: `เลขคิว ${payload.queueNumber}`, weight: 'bold', size: 'xxl', color: '#111827' },
+    { type: 'text', text: `${payload.service} · ${payload.branch}`, size: 'sm', color: '#374151', wrap: true },
+  ];
+  if (payload.assignedTo) {
+    bodyRows.push({
+      type: 'text',
+      text: `เชิญที่ ${payload.assignedLabel || 'ผู้ให้บริการ'}: ${payload.assignedTo}`,
+      size: 'md',
+      weight: 'bold',
+      color: '#111827',
+      wrap: true,
+      margin: 'md',
+    });
+  }
+
+  const footerButtons: Array<Record<string, unknown>> = [];
+  if (payload.liffUrl) {
+    footerButtons.push({
+      type: 'button',
+      style: 'secondary',
+      height: 'sm',
+      action: { type: 'uri', label: 'ดูคิวของฉัน', uri: payload.liffUrl },
+    });
+  }
+  footerButtons.push({
+    type: 'button',
+    style: 'secondary',
+    height: 'sm',
+    action: { type: 'message', label: 'ติดต่อเจ้าหน้าที่', text: 'ติดต่อเจ้าหน้าที่' },
+  });
+
+  return {
+    type: 'flex',
+    altText: `${title} เลขคิว ${payload.queueNumber}`,
+    contents: {
+      type: 'bubble',
+      size: 'kilo',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: repeat ? '#d97706' : '#2563eb',
+        paddingAll: '16px',
+        contents: [
+          { type: 'text', text: payload.shopName, color: '#ffffffcc', size: 'xs' },
+          { type: 'text', text: title, color: '#ffffff', weight: 'bold', size: 'xl', margin: 'sm', wrap: true },
+        ],
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'sm',
+        contents: [
+          ...bodyRows,
+          {
+            type: 'box',
+            layout: 'vertical',
+            margin: 'lg',
+            backgroundColor: repeat ? '#fef3c7' : '#dbeafe',
+            cornerRadius: '10px',
+            paddingAll: '10px',
+            contents: [
+              {
+                type: 'text',
+                text: repeat
+                  ? 'เจ้าหน้าที่กำลังรอคุณอยู่ กรุณามาที่จุดบริการทันที หากไม่มาภายในเวลาที่กำหนดร้านอาจข้ามคิวนี้'
+                  : 'กรุณามาที่จุดบริการได้เลยค่ะ',
+                size: 'xs',
+                color: repeat ? '#92400e' : '#1e3a8a',
+                wrap: true,
+              },
+            ],
+          },
+        ],
+      },
+      footer: { type: 'box', layout: 'vertical', spacing: 'sm', contents: footerButtons },
     },
   };
 }
@@ -268,6 +397,89 @@ export function bookingChangedFlex(payload: {
             paddingAll: '10px',
             contents: [
               { type: 'text', text: 'กรุณากด "รับทราบ" เพื่อยืนยันว่าคุณเห็นการเปลี่ยนแปลงนี้ หากไม่สะดวกสามารถยกเลิกคิวได้', size: 'xs', color: '#92400e', wrap: true },
+            ],
+          },
+        ],
+      },
+      footer: { type: 'box', layout: 'vertical', spacing: 'sm', contents: footerButtons },
+    },
+  };
+}
+
+/**
+ * Flex pushed by the booking-reminders cron shortly before the booking starts.
+ * Informational only — nothing to acknowledge; the LIFF link covers "can't make it".
+ */
+export function bookingReminderFlex(payload: {
+  shopName: string;
+  queueNumber: string;
+  branch: string;
+  service: string;
+  date: string;
+  time: string;
+  assignedTo?: string | null;
+  /** Shop's configured lead time, used for the "อีก X" line. */
+  minutesBefore: number;
+  liffUrl?: string;
+}) {
+  const lead = reminderLeadLabel(payload.minutesBefore);
+  const bodyRows: Array<Record<string, unknown>> = [
+    { type: 'text', text: `เลขคิว ${payload.queueNumber}`, weight: 'bold', size: 'lg', color: '#111827' },
+    { type: 'text', text: `${payload.service} · ${payload.branch}`, size: 'sm', color: '#374151', wrap: true },
+    { type: 'text', text: `${payload.date} ${payload.time}`, size: 'md', weight: 'bold', color: '#111827' },
+  ];
+  if (payload.assignedTo) {
+    bodyRows.push({ type: 'text', text: `ผู้ให้บริการ: ${payload.assignedTo}`, size: 'sm', color: '#374151', wrap: true });
+  }
+
+  const footerButtons: Array<Record<string, unknown>> = [];
+  if (payload.liffUrl) {
+    footerButtons.push({
+      type: 'button',
+      style: 'primary',
+      color: '#12a862',
+      height: 'sm',
+      action: { type: 'uri', label: 'ดูคิวของฉัน', uri: payload.liffUrl },
+    });
+  }
+  footerButtons.push({
+    type: 'button',
+    style: 'secondary',
+    height: 'sm',
+    action: { type: 'message', label: 'ติดต่อเจ้าหน้าที่', text: 'ติดต่อเจ้าหน้าที่' },
+  });
+
+  return {
+    type: 'flex',
+    altText: `เตือนคิว ${payload.queueNumber} อีก ${lead} — ${payload.date} ${payload.time}`,
+    contents: {
+      type: 'bubble',
+      size: 'kilo',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: '#12a862',
+        paddingAll: '16px',
+        contents: [
+          { type: 'text', text: payload.shopName, color: '#ffffffcc', size: 'xs' },
+          { type: 'text', text: `ถึงคิวของคุณในอีก ${lead}`, color: '#ffffff', weight: 'bold', size: 'xl', margin: 'sm', wrap: true },
+        ],
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'sm',
+        contents: [
+          ...bodyRows,
+          {
+            type: 'box',
+            layout: 'vertical',
+            margin: 'lg',
+            backgroundColor: '#dcfce7',
+            cornerRadius: '10px',
+            paddingAll: '10px',
+            contents: [
+              { type: 'text', text: 'กรุณามาถึงก่อนเวลาเล็กน้อย หากไม่สะดวกสามารถยกเลิกคิวได้จากปุ่มด้านล่าง', size: 'xs', color: '#166534', wrap: true },
             ],
           },
         ],

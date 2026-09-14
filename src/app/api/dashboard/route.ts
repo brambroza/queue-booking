@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { applyBranchScope, applyNullableBranchScope } from '@/lib/auth/branch-scope';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { getNowHourInBangkok, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import { CapacityModel, type HolidayRow, type WorkingHoursRow } from '@/lib/dashboard/capacity';
 import { addDays, eachDay, resolveRange, startOfWeekMonday, weekdayOf } from '@/lib/dashboard/date-range';
@@ -88,7 +87,7 @@ function summarize(rows: LightBooking[], from: string, to: string, model: Capaci
 
 export async function GET(req: Request) {
   try {
-    const { supabase, profile, user, roles, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
+    const { supabase, profile, user, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
     const url = new URL(req.url);
     const parsed = QuerySchema.safeParse(Object.fromEntries(url.searchParams.entries()));
     if (!parsed.success) return NextResponse.json({ error: 'Invalid query' }, { status: 400 });
@@ -108,12 +107,9 @@ export async function GET(req: Request) {
         .maybeSingle();
       targetShopId = roleContext?.shop_id ?? null;
     }
-    if (!targetShopId && roles.includes('super_admin')) {
-      const admin = createAdminClient();
-      const { data: firstShop } = await admin.from('shops').select('id').eq('is_deleted', false).order('created_at', { ascending: true }).limit(1).maybeSingle();
-      targetShopId = firstShop?.id ?? null;
-    }
-    if (!targetShopId) return NextResponse.json({ error: 'Missing shop context for dashboard' }, { status: 400 });
+    // A super_admin picks the shop in the topbar (acting-shop cookie); no silent fallback
+    // to an arbitrary shop, otherwise the numbers would not match what the shell shows.
+    if (!targetShopId) return NextResponse.json({ error: 'Select a shop first', code: 'SHOP_REQUIRED' }, { status: 400 });
 
     const today = getTodayISOInBangkok();
     const nowHour = getNowHourInBangkok();

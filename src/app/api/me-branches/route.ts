@@ -12,6 +12,9 @@ export async function GET() {
       roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'],
     });
 
+    // A super_admin who has not picked a shop yet has no branches to offer.
+    if (!profile.shop_id) return NextResponse.json({ data: { scope: 'shop', branches: [] } });
+
     const { data, error } = await applyBranchScope(
       supabase
         .from('branches')

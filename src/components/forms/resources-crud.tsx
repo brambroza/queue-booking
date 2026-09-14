@@ -10,6 +10,7 @@ import { ActionIconGroup } from '@/components/ui/action-icon-group';
 import { RESOURCE_TYPES, resourceTypeLabel, type ResourceType } from '@/lib/booking/resource-types';
 
 type Branch = { id: string; branch_name: string };
+type Service = { id: string; service_name: string; active?: boolean };
 type Resource = {
   id: string;
   branch_id: string | null;
@@ -22,14 +23,47 @@ type Resource = {
   zone: string | null;
   description: string | null;
   active: boolean;
+  /** Services this resource serves; empty / null = every service. */
+  service_ids?: string[] | null;
   branches?: { branch_name?: string } | null;
 };
+
+/**
+ * Optional "ให้บริการเฉพาะ" picker. Nothing ticked = the resource serves every
+ * service, which is how every existing resource behaves.
+ */
+function ServiceLinkPicker({ services, selected, onToggle }: { services: Service[]; selected: string[]; onToggle: (id: string) => void }) {
+  if (services.length === 0) return null;
+  return (
+    <div className="space-y-1 sm:col-span-2">
+      <label className="text-xs font-medium text-slate-600">ให้บริการเฉพาะ (ไม่บังคับ)</label>
+      <p className="text-xs text-slate-500">ไม่เลือก = ใช้ได้กับทุกบริการ • เลือกแล้วจะแสดงให้ลูกค้าเลือกเฉพาะตอนจองบริการนั้น</p>
+      <div className="flex flex-wrap gap-2 pt-1">
+        {services.map((s) => {
+          const checked = selected.includes(s.id);
+          return (
+            <label
+              key={s.id}
+              className={`cursor-pointer rounded-full border px-3 py-1 text-sm ${checked ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600'}`}
+            >
+              <input className="mr-1 align-middle" type="checkbox" checked={checked} onChange={() => onToggle(s.id)} />
+              {s.service_name}
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export function ResourcesCrud() {
   const { push } = useToast();
   const { openPaywall } = useUpgrade();
   const [rows, setRows] = useState<Resource[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [linkedServiceIds, setLinkedServiceIds] = useState<string[]>([]);
+  const [bulkServiceIds, setBulkServiceIds] = useState<string[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [editing, setEditing] = useState<Resource | null>(null);
@@ -48,12 +82,27 @@ export function ResourcesCrud() {
 
   function openCreateDrawer() {
     setEditing(null);
+    setLinkedServiceIds([]);
     setDrawerOpen(true);
   }
 
   function openEditDrawer(row: Resource) {
     setEditing(row);
+    setLinkedServiceIds(row.service_ids ?? []);
     setDrawerOpen(true);
+  }
+
+  function toggleIn(list: string[], id: string) {
+    return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
+  }
+
+  const serviceNameById = useMemo(() => new Map(services.map((s) => [s.id, s.service_name])), [services]);
+
+  /** Column text: linked service names, or "ทุกบริการ" when unlinked. */
+  function linkedServicesLabel(r: Resource) {
+    const ids = r.service_ids ?? [];
+    if (ids.length === 0) return 'ทุกบริการ';
+    return ids.map((id) => serviceNameById.get(id) ?? '?').join(', ');
   }
 
   async function load() {
@@ -64,15 +113,18 @@ export function ResourcesCrud() {
     if (filterActive) params.set('active', filterActive);
     if (q.trim()) params.set('q', q.trim());
 
-    const [rRes, bRes] = await Promise.all([
+    const [rRes, bRes, sRes] = await Promise.all([
       fetch(`/api/resources?${params.toString()}`, { cache: 'no-store' }),
       fetch('/api/branches?page_size=100', { cache: 'no-store' }),
+      fetch('/api/services?page_size=100', { cache: 'no-store' }),
     ]);
-    const [rJson, bJson] = await Promise.all([rRes.json(), bRes.json()]);
+    const [rJson, bJson, sJson] = await Promise.all([rRes.json(), bRes.json(), sRes.json()]);
     if (!rRes.ok) return push(rJson.error ?? 'โหลด resources ไม่สำเร็จ', 'error');
     if (!bRes.ok) return push(bJson.error ?? 'โหลด branches ไม่สำเร็จ', 'error');
     setRows(rJson.data ?? []);
     setBranches(bJson.data ?? []);
+    // Service list only feeds the optional link picker; the page still works without it.
+    setServices(sRes.ok ? (sJson.data ?? []) : []);
     setPage(1);
   }
 
@@ -96,6 +148,7 @@ export function ResourcesCrud() {
       zone: String(fd.get('zone') || '') || null,
       description: String(fd.get('description') || '') || null,
       active: fd.get('active') === 'on',
+      service_ids: linkedServiceIds,
     };
 
     const isEdit = Boolean(editing);
@@ -135,6 +188,7 @@ export function ResourcesCrud() {
       floor: String(fd.get('floor') || '') || null,
       zone: String(fd.get('zone') || '') || null,
       active: fd.get('active') === 'on',
+      service_ids: bulkServiceIds,
     };
     const res = await fetch('/api/resources/bulk', {
       method: 'POST',
@@ -145,6 +199,7 @@ export function ResourcesCrud() {
     if (!res.ok) return push(json.error ?? 'สร้าง resource แบบกลุ่มไม่สำเร็จ', 'error');
     push(`สร้างทรัพยากรแล้ว ${json.data?.created ?? 0} รายการ`);
     setBulkOpen(false);
+    setBulkServiceIds([]);
     form.reset();
     await load();
   }
@@ -200,6 +255,7 @@ export function ResourcesCrud() {
                 <th className="px-2 py-2 text-left">Capacity</th>
                 <th className="px-2 py-2 text-left">Price</th>
                 <th className="px-2 py-2 text-left">Zone</th>
+                <th className="px-2 py-2 text-left">บริการ</th>
                 <th className="px-2 py-2 text-left">Status</th>
                 <th className="px-2 py-2 text-left">Action</th>
               </tr>
@@ -214,6 +270,9 @@ export function ResourcesCrud() {
                   <td className="px-2 py-2">{r.capacity}</td>
                   <td className="px-2 py-2">{Number(r.unit_price ?? 0).toLocaleString('th-TH')}</td>
                   <td className="px-2 py-2">{r.zone ?? '-'}</td>
+                  <td className="px-2 py-2 max-w-[220px] truncate" title={linkedServicesLabel(r)}>
+                    {(r.service_ids?.length ?? 0) === 0 ? <span className="text-slate-400">ทุกบริการ</span> : linkedServicesLabel(r)}
+                  </td>
                   <td className="px-2 py-2">{r.active ? 'active' : 'inactive'}</td>
                   <td className="px-2 py-2">
                     <ActionIconGroup
@@ -305,6 +364,11 @@ export function ResourcesCrud() {
                 <label className="text-xs font-medium text-slate-600">รายละเอียดเพิ่มเติม</label>
                 <input className="input" name="description" placeholder="รายละเอียดทรัพยากร (ถ้ามี)" defaultValue={editing?.description ?? ''} />
               </div>
+              <ServiceLinkPicker
+                services={services}
+                selected={linkedServiceIds}
+                onToggle={(id) => setLinkedServiceIds((prev) => toggleIn(prev, id))}
+              />
               <label className="sm:col-span-2 text-sm text-slate-600">
                 <input className="mr-2" type="checkbox" name="active" defaultChecked={editing?.active ?? true} />
                 Active
@@ -348,6 +412,11 @@ export function ResourcesCrud() {
               <input className="input" name="unit_price" type="number" min={0} step="0.01" placeholder="ราคาต่อหน่วย" defaultValue={0} />
               <input className="input" name="floor" placeholder="floor" />
               <input className="input" name="zone" placeholder="zone เช่น Indoor" />
+              <ServiceLinkPicker
+                services={services}
+                selected={bulkServiceIds}
+                onToggle={(id) => setBulkServiceIds((prev) => toggleIn(prev, id))}
+              />
               <label className="sm:col-span-2 text-sm text-slate-600">
                 <input className="mr-2" type="checkbox" name="active" defaultChecked />
                 Active

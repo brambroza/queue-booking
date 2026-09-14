@@ -19,7 +19,10 @@ import {
 import { useTheme } from '@mui/material/styles';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
+import CampaignRoundedIcon from '@mui/icons-material/CampaignRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import HowToRegRoundedIcon from '@mui/icons-material/HowToRegRounded';
+import HourglassTopRoundedIcon from '@mui/icons-material/HourglassTopRounded';
 import EventBusyRoundedIcon from '@mui/icons-material/EventBusyRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import PhoneRoundedIcon from '@mui/icons-material/PhoneRounded';
@@ -28,8 +31,10 @@ import { useToast } from '@/components/ui/toast';
 import { StatusChip } from '@/components/shared/status-chip';
 import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import { isPersonResourceType, resourceTypeIcon, resourceTypeLabel } from '@/lib/booking/resource-types';
+import { filterResourcesForService } from '@/lib/booking/resource-service-link';
 import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 import { buildBookingEchoText } from '@/lib/line/booking-echo';
+import { CUSTOMER_CANCELLABLE_STATUSES, checkInEligibility } from '@/lib/booking/status-flow';
 import { LiffPaymentPanel, openBankDeeplink } from '@/components/line/liff-payment-panel';
 import {
   KeyValueList,
@@ -56,6 +61,8 @@ type Resource = {
   resource_type?: string | null;
   capacity?: number | null;
   unit_price?: number | null;
+  /** Services this resource serves; empty / null = every service. */
+  service_ids?: string[] | null;
 };
 type Slot = { slot_time: string; remaining_capacity: number };
 type SlotMeta = {
@@ -90,6 +97,8 @@ type MyBooking = {
   bank_provider?: string | null;
   change_notified_at?: string | null;
   change_acknowledged_at?: string | null;
+  checked_in_at?: string | null;
+  called_at?: string | null;
 };
 
 /** True while the shop changed this booking and the customer has not tapped "รับทราบ" yet. */
@@ -120,6 +129,8 @@ type BookingResult = {
   booking_id: string;
   queue_number: string;
   payment_method: string | null;
+  /** `pending_approval` when the service needs the shop to confirm first. */
+  status?: string | null;
 };
 
 /** Methods where the customer still has something to do after booking. */
@@ -315,6 +326,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const [upcoming, setUpcoming] = useState<MyBooking[]>([]);
   const [history, setHistory] = useState<MyBooking[]>([]);
   const [accountLoading, setAccountLoading] = useState(false);
+  /** Bangkok date from the server; the check-in button only shows on the booking day. */
+  const [todayIso, setTodayIso] = useState('');
+  const [checkingIn, setCheckingIn] = useState('');
   const [liffOpenUrl, setLiffOpenUrl] = useState('');
   const [resolvedLiffId, setResolvedLiffId] = useState('');
   const [shopMetaError, setShopMetaError] = useState('');
@@ -374,6 +388,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     }
     setUpcoming(json.data?.upcoming ?? []);
     setHistory(json.data?.history ?? []);
+    if (typeof json.data?.today === 'string') setTodayIso(json.data.today);
   }
 
   useEffect(() => {
@@ -686,6 +701,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       booking_id: json.data?.booking_id ?? '',
       queue_number: json.data?.queue_number ?? '',
       payment_method: paymentMethod,
+      status: json.data?.status ?? null,
     };
     setBookingResult(result);
     setResumeBooking(null);
@@ -726,7 +742,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       // customer. The shop still sees it in the portal notification bell.
     }
 
-    push('จองคิวสำเร็จ');
+    push(result.status === 'pending_approval' ? 'ส่งคำขอจองแล้ว รอร้านยืนยัน' : 'จองคิวสำเร็จ');
     void loadMe();
     // Never auto-close while a payment panel is on screen — it would close the
     // only place the customer can upload their slip or reopen the bank app.
@@ -743,9 +759,11 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
 
   const selectedBranch = useMemo(() => branches.find((b) => b.id === branchId), [branches, branchId]);
   const selectedService = useMemo(() => services.find((s) => s.id === serviceId), [services, serviceId]);
+  // Branch first, then service: a yoga teacher linked to "คลาสโยคะ" must not
+  // appear when the customer picked "พิลาทิส". Unlinked resources always show.
   const filteredResources = useMemo(
-    () => resources.filter((r) => !r.branch_id || r.branch_id === branchId),
-    [resources, branchId],
+    () => filterResourcesForService(resources.filter((r) => !r.branch_id || r.branch_id === branchId), serviceId),
+    [resources, branchId, serviceId],
   );
   const selectedResource = useMemo(
     () => filteredResources.find((r) => r.id === selectedResourceId),
@@ -800,6 +818,25 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     void loadMe();
   }
 
+  /** "ฉันมาถึงแล้ว" — tells the shop the customer is on site so staff can call them. */
+  async function checkIn(bookingId: string) {
+    if (!lineUserId || checkingIn) return;
+    setCheckingIn(bookingId);
+    try {
+      const res = await fetch(`/api/public/shop/${shopKey}/check-in`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ line_user_id: lineUserId, booking_id: bookingId }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) return push(json.error ?? 'เช็คอินไม่สำเร็จ', 'error');
+      push(json.data?.already ? 'เช็คอินไว้แล้วค่ะ' : 'เช็คอินแล้ว ร้านจะเรียกคิวคุณเร็ว ๆ นี้');
+      void loadMe();
+    } finally {
+      setCheckingIn('');
+    }
+  }
+
   async function closeLiffOrBack() {
     try {
       const liff = await ensureLiffLoaded();
@@ -821,6 +858,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const maxSlotCapacity = slots.reduce((max, s) => Math.max(max, s.remaining_capacity), 0);
 
   if (queueNo) {
+    const awaitingApproval = bookingResult?.status === 'pending_approval';
     const summaryRows = [
       { label: 'บริการ', value: selectedService?.service_name ?? '-' },
       { label: 'วันที่', value: formatDateDMY(date) },
@@ -836,7 +874,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         : []),
     ];
     return (
-      <LiffShell {...shellProps} title="จองคิวสำเร็จ">
+      <LiffShell {...shellProps} title={awaitingApproval ? 'รอร้านยืนยัน' : 'จองคิวสำเร็จ'}>
         <Card>
           <Stack alignItems="center" sx={{ px: 2, pt: 2.75, pb: 2.25, textAlign: 'center' }}>
             <Box
@@ -847,27 +885,31 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                 borderRadius: '16px',
                 display: 'grid',
                 placeItems: 'center',
-                bgcolor: brandSoft,
-                color: 'primary.main',
+                bgcolor: awaitingApproval ? 'warning.light' : brandSoft,
+                color: awaitingApproval ? 'warning.dark' : 'primary.main',
               }}
             >
-              <CheckRoundedIcon sx={{ fontSize: 30 }} />
+              {awaitingApproval ? <HourglassTopRoundedIcon sx={{ fontSize: 30 }} /> : <CheckRoundedIcon sx={{ fontSize: 30 }} />}
             </Box>
             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: '0.02em' }}>
               เลขคิวของคุณ
             </Typography>
             <Typography
               variant="h3"
-              sx={{ fontWeight: 800, color: 'primary.main', letterSpacing: '-0.02em', lineHeight: 1.05, fontVariantNumeric: 'tabular-nums', my: 0.5 }}
+              sx={{ fontWeight: 800, color: awaitingApproval ? 'warning.dark' : 'primary.main', letterSpacing: '-0.02em', lineHeight: 1.05, fontVariantNumeric: 'tabular-nums', my: 0.5 }}
             >
               {queueNo}
             </Typography>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>จองคิวสำเร็จ</Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{awaitingApproval ? 'ส่งคำขอจองแล้ว' : 'จองคิวสำเร็จ'}</Typography>
           </Stack>
           <Divider />
           <Stack spacing={1.25} sx={{ p: 1.75 }}>
             <KeyValueList rows={summaryRows} />
-            <Typography variant="caption" color="text.secondary">กรุณามาก่อนเวลาประมาณ 10 นาที</Typography>
+            {awaitingApproval ? (
+              <Alert severity="warning">คิวนี้รอร้านตรวจสอบและยืนยัน ร้านจะแจ้งผลผ่าน LINE อีกครั้ง</Alert>
+            ) : (
+              <Typography variant="caption" color="text.secondary">กรุณามาก่อนเวลาประมาณ 10 นาที</Typography>
+            )}
           </Stack>
         </Card>
 
@@ -994,14 +1036,39 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     }
     const canResumeSlip = b.payment_method === 'bank_transfer' && (b.payment_status === 'pending_payment' || b.payment_status === 'rejected');
     const canResumeDeeplink = b.payment_method === 'bank_deeplink' && (b.payment_status === 'pending_payment' || b.payment_status === 'failed');
-    const canCancel = b.status === 'pending' || b.status === 'confirmed' || b.status === 'waiting';
+    const canCancel = (CUSTOMER_CANCELLABLE_STATUSES as readonly string[]).includes(b.status);
+    // Same rule as the API: only on the booking day and while still waiting.
+    const canCheckIn = Boolean(todayIso) && checkInEligibility({ status: b.status, booking_date: b.booking_date }, todayIso).ok;
+    const isCalled = b.status === 'called';
     return (
-      <Box key={b.id} sx={{ border: 1, borderColor: 'divider', borderRadius: '16px', p: 1.5, bgcolor: 'background.paper' }}>
+      <Box
+        key={b.id}
+        sx={{
+          border: isCalled ? 2 : 1,
+          borderColor: isCalled ? 'info.main' : 'divider',
+          borderRadius: '16px',
+          p: 1.5,
+          bgcolor: 'background.paper',
+        }}
+      >
         <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ mb: 1 }}>
           <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>{b.queue_number}</Typography>
           <StatusChip status={String(b.status)} />
         </Stack>
         <KeyValueList rows={rows} dense />
+        {isCalled ? (
+          <Alert severity="info" icon={<CampaignRoundedIcon fontSize="inherit" />} sx={{ mt: 1.25 }}>
+            ถึงคิวของคุณแล้ว กรุณามาที่จุดบริการ{b.resource_name ? ` (${b.resource_name})` : ''}
+          </Alert>
+        ) : null}
+        {b.status === 'pending_approval' ? (
+          <Alert severity="warning" sx={{ mt: 1.25 }}>รอร้านตรวจสอบและยืนยันคิว — ร้านจะแจ้งผลผ่าน LINE</Alert>
+        ) : null}
+        {b.status === 'checked_in' ? (
+          <Alert severity="success" icon={<HowToRegRoundedIcon fontSize="inherit" />} sx={{ mt: 1.25 }}>
+            เช็คอินแล้ว รอร้านเรียกคิว — จะมีข้อความ LINE แจ้งเมื่อถึงคิวคุณ
+          </Alert>
+        ) : null}
         {isChangeAckPending(b) ? (
           <Alert
             severity="warning"
@@ -1014,8 +1081,19 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         {b.payment_method === 'bank_transfer' && b.payment_status === 'awaiting_verification' ? (
           <Alert severity="warning" sx={{ mt: 1.25 }}>รอร้านตรวจสอบสลิป — ร้านจะแจ้งผลผ่าน LINE</Alert>
         ) : null}
-        {canResumeSlip || canResumeDeeplink || canCancel ? (
+        {canResumeSlip || canResumeDeeplink || canCancel || canCheckIn ? (
           <Stack spacing={1} sx={{ mt: 1.25 }}>
+            {canCheckIn ? (
+              <Button
+                variant="contained"
+                fullWidth
+                startIcon={<HowToRegRoundedIcon />}
+                disabled={checkingIn === b.id}
+                onClick={() => void checkIn(b.id)}
+              >
+                {checkingIn === b.id ? 'กำลังเช็คอิน…' : 'ฉันมาถึงแล้ว'}
+              </Button>
+            ) : null}
             {canResumeSlip ? (
               <Button
                 variant="contained"

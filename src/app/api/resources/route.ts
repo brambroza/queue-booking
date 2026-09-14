@@ -11,6 +11,30 @@ function toInt(v: string | null, fallback: number) {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
 }
 
+/**
+ * Normalise the optional service link: dedupe, and reject ids that are not
+ * live services of this shop so a stale or foreign id never sticks to a resource.
+ * Returns `null` when nothing is linked (= serves every service).
+ */
+async function resolveServiceIds(
+  supabase: Awaited<ReturnType<typeof requireAuthContext>>['supabase'],
+  shopId: string,
+  serviceIds: string[] | null | undefined,
+): Promise<{ ok: true; value: string[] | null } | { ok: false; error: string }> {
+  const ids = Array.from(new Set(serviceIds ?? []));
+  if (ids.length === 0) return { ok: true, value: null };
+  const { data, error } = await supabase
+    .from('services')
+    .select('id')
+    .eq('shop_id', shopId)
+    .eq('is_deleted', false)
+    .in('id', ids);
+  if (error) throw error;
+  const known = new Set((data ?? []).map((s) => s.id as string));
+  if (ids.some((id) => !known.has(id))) return { ok: false, error: 'service_ids มีบริการที่ไม่อยู่ในร้านนี้' };
+  return { ok: true, value: ids };
+}
+
 function getErrorPayload(e: unknown) {
   if (e && typeof e === 'object') {
     const obj = e as { message?: string; code?: string; details?: string; hint?: string };
@@ -103,6 +127,8 @@ export async function POST(req: Request) {
       if (branchError) throw branchError;
       if (!branch) return NextResponse.json({ error: 'branch_id ไม่ถูกต้องหรือไม่อยู่ในร้านนี้' }, { status: 400 });
     }
+    const serviceLink = await resolveServiceIds(supabase, profile.shop_id, parsed.data.service_ids);
+    if (!serviceLink.ok) return NextResponse.json({ error: serviceLink.error }, { status: 400 });
 
     const { error } = await supabase.from('booking_resources').insert({
       company_id: profile.company_id,
@@ -117,6 +143,7 @@ export async function POST(req: Request) {
       zone: parsed.data.zone || null,
       description: parsed.data.description || null,
       active: parsed.data.active,
+      service_ids: serviceLink.value,
       created_by: user.id,
       updated_by: user.id,
     });
@@ -184,6 +211,8 @@ export async function PATCH(req: Request) {
       if (branchError) throw branchError;
       if (!branch) return NextResponse.json({ error: 'branch_id ไม่ถูกต้องหรือไม่อยู่ในร้านนี้' }, { status: 400 });
     }
+    const serviceLink = await resolveServiceIds(supabase, profile.shop_id, parsed.data.service_ids);
+    if (!serviceLink.ok) return NextResponse.json({ error: serviceLink.error }, { status: 400 });
 
     const { error } = await supabase
       .from('booking_resources')
@@ -198,6 +227,7 @@ export async function PATCH(req: Request) {
         zone: parsed.data.zone || null,
         description: parsed.data.description || null,
         active: parsed.data.active,
+        service_ids: serviceLink.value,
         updated_by: user.id,
       })
       .eq('id', id)

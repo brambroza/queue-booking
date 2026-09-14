@@ -106,7 +106,7 @@ src/
 | `/api/holidays` | Holiday blocks |
 | `/api/calendar` | Booking timeline (grouped by date) |
 | `/api/dashboard` | 14-day trend + status distribution |
-| `/api/reports` | JSON summary / CSV export |
+| `/api/reports` | Range report (`preset=today|tomorrow|next7|week|month|last7|last30|custom`, max 92 days): KPI, by_day/by_hour/by_status, services/branches/staff, booking list (cap 1,000) · `mode=csv&group=day|staff|bookings` |
 | `/api/notifications` | Notification center |
 | `/api/chat-inbox` | LINE chat inbox + push reply |
 | `/api/line-settings` | LINE OA configuration |
@@ -130,6 +130,7 @@ src/
 | `/api/public/shop/[shopKey]/book` | Create booking (LIFF) |
 | `/api/public/shop/[shopKey]/cancel-booking` | Cancel booking |
 | `/api/public/shop/[shopKey]/acknowledge-booking` | Customer acknowledges a shop-initiated change (mirror of the LINE `ack_change` postback) |
+| `/api/public/shop/[shopKey]/check-in` | Customer "ฉันมาถึงแล้ว" → `checked_in` (booking day only, owner-checked) |
 | `/api/public/shop/[shopKey]/payment/status` | Payment state for LIFF panel (heals missed bank webhooks) |
 | `/api/public/shop/[shopKey]/payment/slip` | Slip upload |
 | `/api/public/shop/[shopKey]/payment/deeplink` | Re-issue bank deeplink for a booking |
@@ -143,6 +144,7 @@ src/
 | Route | Resource |
 |---|---|
 | `/api/admin/shop-subscriptions` | Manage shop plans |
+| `/api/admin/active-shop` | Acting shop for super_admin (GET list + current, POST select, DELETE clear) — stored in httpOnly cookie `portal_admin_shop_id`, applied by `requireAuthContext` |
 | `/api/shop-subscription/current` | Current plan status |
 
 ---
@@ -246,14 +248,48 @@ await safeCreateNotification({ shopId, type: 'booking_created', ... });
 - `cancelled` ไม่ต้อง ack
 - Postback events ถูก handle **ก่อน** เช็ค `auto_reply_enabled` ใน webhook
 
+แจ้งเตือน **ลูกค้าล่วงหน้าก่อนถึงคิว** (ค่าเริ่มต้นปิด) — ตั้งค่าที่ `/portal/line-settings` (`shops.reminder_enabled`, `shops.reminder_minutes` preset 15/30/60/120/180/1440)
+- Scheduler: **Supabase pg_cron + pg_net** ทุก 5 นาที (migration `202609120005`) เรียก `GET /api/cron/booking-reminders` ด้วย `Bearer CRON_SECRET` — Vercel Hobby ยิง cron ได้แค่รายวัน จึงไม่ใช้ `vercel.json`
+- ต้องมี Vault secrets `cron_app_url` + `cron_secret` ใน Supabase ก่อน job ถึงจะยิง (function `trigger_booking_reminders` return เงียบถ้าไม่มี)
+- Sender: `safeNotifyBookingReminder` (`src/lib/line/notify-booking-reminder.ts`) → Flex `bookingReminderFlex`; stamp `bookings.reminder_sent_at` ส่งครั้งเดียวต่อคิว (stamp ด้วยเมื่อไม่มี LINE user / token; `push_failed` ไม่ stamp ให้รอบหน้าลองใหม่)
+- คิวที่สร้างภายในช่วงเวลาเตือน (จองล่วงหน้าน้อยกว่า `reminder_minutes`) ถูก stamp โดยไม่ส่ง — Flex ยืนยันเพิ่งไปแล้ว
+- Window helper: `computeReminderWindow` / `isInReminderWindow` (`src/lib/line/booking-reminder.ts`) เทียบ `booking_date`+`start_time` ใน Asia/Bangkok
+
 ---
+
+## Reports (`/portal/reports`)
+
+- UI ที่ `src/components/reports/` — `ReportDocument` คือตัวรายงานแบบเอกสาร (หัวรายงาน → ตัวเลขสำคัญ+เทียบช่วงก่อน → กราฟ → ตารางสรุป → รายการคิว; section บทสรุปเป็นข้อความถูกตัดออกแล้ว 2026-09-13 — `src/lib/reports/summary.ts` ยังอยู่แต่ไม่ถูกใช้) ใช้ตัวเดียวทั้งหน้าจอ (paper card) และ PDF — PDF มี section ครบและเรียงเหมือนหน้าจอ (`print` แค่ล็อก grid 2 คอลัมน์ + โชว์รายการคิวทั้งหมด); presets ใน `src/lib/reports/range-presets.ts`; `today`/`tomorrow`/`next7` = ใบรายการคิว (รายการคิวขึ้นก่อน มีช่องหมายเหตุ), `last7`/`last30`/`custom` = วิเคราะห์ย้อนหลัง
+- **PDF = browser print** (`usePrintReport` + `ReportPrintSheet` portal เข้า `document.body`, CSS `body.report-printing` ใน `globals.css`) — ไม่มี PDF lib; ฟอนต์ Kanit/ภาษาไทยจึง render ตรงกับหน้าจอ ทั้ง dark mode ก็พิมพ์เป็น light เสมอ
+- CSV ผ่าน `/api/reports?mode=csv&group=day|staff|bookings` (มี BOM ให้ Excel อ่านไทย)
+
+## Resource ↔ Service Link (optional)
+
+`booking_resources.service_ids uuid[]` — บริการที่ resource นี้ให้บริการได้ (เช่น ครูโยคะ ↔ คลาสโยคะ). `NULL`/ว่าง = ใช้ได้ทุกบริการ (พฤติกรรมเดิม)
+- Helper: `src/lib/booking/resource-service-link.ts` (`resourceServesService`, `filterResourcesForService`)
+- ตั้งค่าที่ `/portal/resources` (single + bulk) — API ตรวจว่า id เป็น service ของร้านนี้
+- LIFF / portal create drawer / move dialog กรองตัวเลือก resource ตาม service ที่เลือก; `/api/public/shop/[shopKey]/book`, `/api/bookings` POST+PATCH ปฏิเสธ 400 ถ้า resource ไม่ให้บริการนั้น
+- Migration `202609120003_resource_service_link.sql`
 
 ## Booking Status Flow
 
 ```
-pending → confirmed → waiting → serving → completed
-                    ↘ cancelled / no_show
+LIFF book ─┬─ service.requires_approval / booking_mode=request_approval ─▶ pending_approval ─(staff อนุมัติ → LINE "ร้านยืนยันคิว")─▶ confirmed
+           └─ otherwise ───────────────────────────────────────────────────────────────────────────────────────────────────────────▶ confirmed
+
+confirmed ─(ลูกค้ากด "ฉันมาถึงแล้ว" ใน LIFF, เฉพาะวันจอง)─▶ checked_in
+confirmed | checked_in ─(staff รอเรียก)─▶ waiting
+confirmed | checked_in | waiting ─(staff เรียกคิว → LINE "ถึงคิวของคุณแล้ว")─▶ called ─(เรียกซ้ำ = called อีกครั้ง, call_count+1)
+called | waiting ─(เริ่มบริการ)─▶ serving ─▶ completed
+                                          ↘ cancelled / no_show
 ```
+
+- Rules ทั้งหมดอยู่ที่ `src/lib/booking/status-flow.ts` (`resolveInitialBookingStatus`, `checkInEligibility`, `isCallTransition`, `isApprovalTransition`, `CUSTOMER_*_STATUSES`) — LIFF, public API และ portal ใช้ตัวเดียวกัน
+- **เรียกคิว** = `PATCH /api/bookings { status: 'called' }` → stamp `called_at`, `called_by`, `call_count` แล้ว push `bookingCalledFlex` ผ่าน `safeNotifyBookingStatus` (`src/lib/line/notify-booking-status.ts`, ไม่ throw, stamp `last_line_notify_at`) — signage เรียงคิว "กำลังเรียก" ตาม `called_at`
+- **อนุมัติ** = `pending_approval → confirmed` → push `bookingApprovedFlex`; ปฏิเสธใช้ปุ่มยกเลิกเดิม (ลูกค้าได้ Flex ยกเลิก)
+- **เช็คอิน** = `POST /api/public/shop/[shopKey]/check-in` → `checkInBookingByCustomer` (`src/lib/booking/check-in.ts`) stamp `bookings.checked_in_at` + แจ้ง staff ผ่าน notification center; อนุญาตเฉพาะ `pending|confirmed` และ `booking_date` = วันนี้ (Asia/Bangkok, `/me` ส่ง `today` มาให้ LIFF ใช้กฎเดียวกัน)
+- ปุ่ม staff ต่อสถานะอยู่ที่ `NEXT_STATUSES` ใน `src/components/bookings/booking-types.ts`; kanban `/portal/queue-board` รวม `checked_in` ไว้คอลัมน์ "รอเรียก"
+- Migration `202609130001_booking_checkin.sql` (เพิ่ม `checked_in_at`) — enum `called`/`checked_in`/`pending_approval` มีตั้งแต่ `202605110001`
 
 ## Payment Methods
 

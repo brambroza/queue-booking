@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { NICKNAME_MAX, normalizeNicknameInput } from '@/lib/booking/customer-label';
+import { CUSTOMER_ACTIVE_STATUSES } from '@/lib/booking/status-flow';
+import { toBangkokStamp } from '@/lib/line/booking-reminder';
 
 const bodySchema = z.object({
   line_user_id: z.string().min(1),
@@ -106,7 +108,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     // Payment fields let the account tab surface an "upload slip" action, which
     // is the durable way back into payment after localStorage is cleared or the
     // customer switches device.
-    .select('id,queue_number,booking_date,start_time,status,note,created_at,resource_id,resource_name,payment_status,payment_method,payment_amount,payment_expires_at,bank_provider,change_notified_at,change_acknowledged_at,branches(branch_name),services(service_name)')
+    .select('id,queue_number,booking_date,start_time,status,note,created_at,resource_id,resource_name,payment_status,payment_method,payment_amount,payment_expires_at,bank_provider,change_notified_at,change_acknowledged_at,checked_in_at,called_at,branches(branch_name),services(service_name)')
     .eq('shop_id', shop.id)
     .eq('line_user_id', lineUser.id)
     .eq('is_deleted', false)
@@ -114,8 +116,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     .order('start_time', { ascending: false })
     .limit(50);
 
-  const nowDate = new Date().toISOString().slice(0, 10);
-  const activeStatuses = new Set(['pending', 'confirmed', 'waiting', 'serving']);
+  // Booking dates are Bangkok-local; a UTC "today" would hide tonight's queue
+  // after 07:00 UTC and let the check-in button show up a day early.
+  const nowDate = toBangkokStamp(new Date()).date;
+  const activeStatuses = new Set<string>(CUSTOMER_ACTIVE_STATUSES);
   const upcoming = (bookings ?? []).filter((b) => activeStatuses.has(String(b.status)) && String(b.booking_date) >= nowDate);
   const history = (bookings ?? []).filter((b) => !upcoming.find((u) => u.id === b.id));
 
@@ -125,6 +129,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       line_user: lineUser,
       customer,
       customer_id: customerId,
+      /** Bangkok date, so the LIFF check-in button and the API agree on "today". */
+      today: nowDate,
       upcoming,
       history,
     },

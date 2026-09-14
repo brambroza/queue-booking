@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import type { AppRole } from '@/types/db';
 import { AuthError } from './errors';
 import { resolveBranchScope, type BranchScope } from './branch-scope';
+import { applyActingShop, readAdminShopCookie, resolveActingShop } from './admin-shop-cookie';
 
 export { AuthError };
 export type { BranchScope };
@@ -184,6 +185,18 @@ export async function requireAuthContext(opts?: { roles?: AppRole[] }) {
 
     if (!ensureRole(roles, opts.roles)) {
       throw new AuthError(`Forbidden (roles=${roles.join(',') || 'none'})`, 403);
+    }
+  }
+
+  // A global super_admin acts in whichever shop they picked in the portal topbar.
+  // The choice lives in a request-scoped cookie and is never written to users_profile,
+  // so the account stays global. `roles` is not re-resolved: super_admin already passes
+  // every gate that lists it, and resolveBranchScope grants it the whole shop.
+  if (roles.includes('super_admin')) {
+    const cookieShopId = await readAdminShopCookie();
+    if (cookieShopId) {
+      const acting = await resolveActingShop(createAdminClient(), cookieShopId);
+      profile = applyActingShop(profile, roles, acting);
     }
   }
 

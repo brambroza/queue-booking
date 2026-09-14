@@ -56,6 +56,23 @@ export async function POST(req: Request) {
       if (!branch) return NextResponse.json({ error: 'branch_id ไม่ถูกต้องหรือไม่อยู่ในร้านนี้' }, { status: 400 });
     }
 
+    // Optional service link, shared by every generated row. Ids must be live
+    // services of this shop; empty = serves every service.
+    const serviceIds = Array.from(new Set(payload.service_ids ?? []));
+    if (serviceIds.length > 0) {
+      const { data: knownServices, error: serviceError } = await supabase
+        .from('services')
+        .select('id')
+        .eq('shop_id', profile.shop_id)
+        .eq('is_deleted', false)
+        .in('id', serviceIds);
+      if (serviceError) throw serviceError;
+      const known = new Set((knownServices ?? []).map((s) => s.id as string));
+      if (serviceIds.some((id) => !known.has(id))) {
+        return NextResponse.json({ error: 'service_ids มีบริการที่ไม่อยู่ในร้านนี้' }, { status: 400 });
+      }
+    }
+
     const namePrefix = payload.name_prefix?.trim() || (payload.resource_type === 'meeting_room' ? 'Room' : 'โต๊ะ');
     const codes: string[] = [];
 
@@ -85,6 +102,7 @@ export async function POST(req: Request) {
       floor: payload.floor ?? null,
       zone: payload.zone ?? null,
       active: payload.active,
+      service_ids: serviceIds.length > 0 ? serviceIds : null,
       created_by: user.id,
       updated_by: user.id,
     }));

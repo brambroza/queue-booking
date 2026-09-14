@@ -21,6 +21,7 @@ import { useTranslation } from '@/lib/i18n/useTranslation';
 import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import type { Branch, LineUser, Resource, Service } from './booking-types';
+import { filterResourcesForService } from '@/lib/booking/resource-service-link';
 
 export type CreateDraft = {
   branch_id: string;
@@ -97,7 +98,11 @@ export function BookingCreateDrawer({
     setTimeout(resetAll, 200);
   }
 
-  const resourceOptions = resources.filter((r) => !r.branch_id || r.branch_id === draft.branch_id);
+  // Resources linked to specific services only show up for those services.
+  const resourceOptions = filterResourcesForService(
+    resources.filter((r) => !r.branch_id || r.branch_id === draft.branch_id),
+    draft.service_id,
+  );
 
   return (
     <Drawer anchor="right" open={open} onClose={handleClose} PaperProps={{ sx: { width: { xs: '100%', sm: 520 } } }}>

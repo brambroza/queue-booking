@@ -205,6 +205,14 @@ export function BookingsCrud() {
       if (!r.ok) { push(r.error ?? t('status_failed', 'เปลี่ยนสถานะไม่สำเร็จ'), 'error'); return; }
       if (status === 'cancelled') {
         push(r.lineNotified ? t('cancel_ok_line', 'ยกเลิกคิวแล้ว และแจ้งลูกค้าทาง LINE') : b.line_user_id ? t('cancel_ok_line_failed', 'ยกเลิกคิวแล้ว แต่ส่ง LINE ไม่สำเร็จ') : t('cancel_ok', 'ยกเลิกคิวแล้ว'));
+      } else if (status === 'called') {
+        // Staff need to know whether the customer's phone actually buzzed; a
+        // walk-in without LINE means they have to shout the number themselves.
+        if (r.lineNotified) push(t('call_ok_line', 'เรียกคิวแล้ว และแจ้งลูกค้าทาง LINE'));
+        else if (b.line_user_id) push(t('call_ok_line_failed', 'เรียกคิวแล้ว แต่ส่ง LINE ไม่สำเร็จ — กรุณาเรียกลูกค้าเอง'), 'error');
+        else push(t('call_ok_no_line', 'เรียกคิวแล้ว (คิวไม่ได้ผูก LINE กรุณาเรียกลูกค้าเอง)'));
+      } else if (b.status === 'pending_approval' && status === 'confirmed') {
+        push(r.lineNotified ? t('approve_ok_line', 'อนุมัติคิวแล้ว และแจ้งลูกค้าทาง LINE') : b.line_user_id ? t('approve_ok_line_failed', 'อนุมัติคิวแล้ว แต่ส่ง LINE ไม่สำเร็จ') : t('approve_ok', 'อนุมัติคิวแล้ว'));
       } else {
         push(t('status_ok', 'อัปเดตสถานะแล้ว'));
       }

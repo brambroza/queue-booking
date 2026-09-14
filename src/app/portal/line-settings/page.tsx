@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { PageShell } from '@/components/ui/page-shell';
 import { useToast } from '@/components/ui/toast';
 import { track } from '@/lib/analytics/track';
+import { REMINDER_MINUTES_DEFAULT, REMINDER_PRESETS, reminderLeadLabel } from '@/lib/line/booking-reminder';
 
 type ConnectionCheck = { key: string; ok: boolean; message: string };
 
@@ -19,6 +20,8 @@ export default function LineSettingsPage() {
     liff_id_login_shop: '',
     auto_reply_enabled: true,
     booking_echo_enabled: true,
+    reminder_enabled: false,
+    reminder_minutes: REMINDER_MINUTES_DEFAULT as number,
     shop_key: '',
   });
   const [checks, setChecks] = useState<ConnectionCheck[] | null>(null);
@@ -36,17 +39,27 @@ export default function LineSettingsPage() {
         liff_id_login_shop: json.data.liff_id_login_shop ?? '',
         auto_reply_enabled: Boolean(json.data.auto_reply_enabled),
         booking_echo_enabled: json.data.booking_echo_enabled !== false,
+        reminder_enabled: json.data.reminder_enabled === true,
+        reminder_minutes: Number(json.data.reminder_minutes) || REMINDER_MINUTES_DEFAULT,
         shop_key: json.data.shop_key ?? '',
       });
     })();
   }, [push]);
 
+  /** A stored value outside the preset list (set by SQL) is kept as an extra option so saving never silently changes it. */
+  const reminderOptions: number[] = (REMINDER_PRESETS as readonly number[]).includes(form.reminder_minutes)
+    ? [...REMINDER_PRESETS]
+    : [...REMINDER_PRESETS, form.reminder_minutes];
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    const { reminder_minutes, ...rest } = form;
+    // Send the lead time only when it is a preset; the API rejects anything else.
+    const payload = (REMINDER_PRESETS as readonly number[]).includes(reminder_minutes) ? { ...rest, reminder_minutes } : rest;
     const res = await fetch('/api/line-settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify(payload),
     });
     const json = await res.json();
     if (!res.ok) return push(json.error ?? 'บันทึกไม่สำเร็จ', 'error');
@@ -135,6 +148,43 @@ export default function LineSettingsPage() {
             </span>
           </span>
         </label>
+        <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={form.reminder_enabled}
+              onChange={(e) => setForm((s) => ({ ...s, reminder_enabled: e.target.checked }))}
+            />
+            <span>
+              แจ้งเตือนลูกค้าล่วงหน้าก่อนถึงคิว
+              <span className="mt-0.5 block text-xs text-slate-500">
+                ส่งข้อความ LINE ไปหาลูกค้าก่อนเวลานัดตามที่ตั้งไว้ ส่งครั้งเดียวต่อคิว
+                เฉพาะคิวที่จองผ่าน LINE และยังไม่ถูกยกเลิก คิวที่จองล่วงหน้าน้อยกว่าเวลาเตือนจะไม่ส่งซ้ำ
+              </span>
+            </span>
+          </label>
+          {form.reminder_enabled && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 pl-6">
+              <label htmlFor="reminder_minutes" className="text-xs font-medium text-slate-600">
+                เตือนก่อนถึงคิว
+              </label>
+              <select
+                id="reminder_minutes"
+                className="input max-w-[12rem]"
+                value={form.reminder_minutes}
+                onChange={(e) => setForm((s) => ({ ...s, reminder_minutes: Number(e.target.value) }))}
+              >
+                {reminderOptions.map((m) => (
+                  <option key={m} value={m}>
+                    {reminderLeadLabel(m)}
+                    {(REMINDER_PRESETS as readonly number[]).includes(m) ? '' : ' (กำหนดเอง)'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
         <div className="flex flex-wrap gap-2 pt-1">
           <button className="btn-primary">บันทึก</button>
           <button type="button" className="btn-outline" onClick={() => void testConnection()} disabled={testing}>

@@ -21,6 +21,7 @@ import { StatusChip } from '@/components/shared/status-chip';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import { addDays, customerName, hhmm, shiftTime, type BookingRow, type Resource } from './booking-types';
+import { resourceServesService } from '@/lib/booking/resource-service-link';
 
 export type MoveDraft = { date: string; time: string; resourceId: string };
 
@@ -59,7 +60,9 @@ export function BookingMoveDialog({
       resources
         // Keep the current one even if deactivated so the select never renders blank.
         .filter((r) => r.active !== false || r.id === booking?.resource_id)
-        .filter((r) => !r.branch_id || r.branch_id === booking?.branch_id),
+        .filter((r) => !r.branch_id || r.branch_id === booking?.branch_id)
+        // Keep the current one even if it no longer serves this service.
+        .filter((r) => r.id === booking?.resource_id || resourceServesService(r, booking?.service_id)),
     [resources, booking],
   );
 

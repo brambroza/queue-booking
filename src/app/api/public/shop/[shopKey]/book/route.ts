@@ -10,8 +10,10 @@ import { resolvePaymentForBooking, type PaymentBankInfo, type PaymentDeeplinkInf
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
 import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
 import { resourceBusyMessage, resourceTypeLabel } from '@/lib/booking/resource-types';
+import { resourceServesService, resourceServiceMismatchMessage } from '@/lib/booking/resource-service-link';
 import { NICKNAME_MAX, normalizeNicknameInput } from '@/lib/booking/customer-label';
 import { BANK_PROVIDERS, PAYMENT_METHODS } from '@/types/db';
+import { resolveInitialBookingStatus } from '@/lib/booking/status-flow';
 
 const bookSchema = z
   .object({
@@ -110,7 +112,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
 
   const [{ data: branch }, { data: service }] = await Promise.all([
     admin.from('branches').select('id,branch_name').eq('id', payload.branch_id).eq('shop_id', shop.id).eq('is_deleted', false).maybeSingle(),
-    admin.from('services').select('id,service_name,duration_minutes,price').eq('id', payload.service_id).eq('shop_id', shop.id).eq('is_deleted', false).maybeSingle(),
+    admin.from('services').select('id,service_name,duration_minutes,price,requires_approval,booking_mode').eq('id', payload.service_id).eq('shop_id', shop.id).eq('is_deleted', false).maybeSingle(),
   ]);
   if (!branch || !service) {
     return NextResponse.json({ error: 'Invalid branch or service for this shop' }, { status: 400 });
@@ -202,13 +204,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   if (payload.resource_id) {
     const { data: selectedResource } = await admin
       .from('booking_resources')
-      .select('id,resource_name,resource_type,capacity,unit_price')
+      .select('id,resource_name,resource_type,capacity,unit_price,service_ids')
       .eq('id', payload.resource_id)
       .eq('shop_id', shop.id)
       .eq('active', true)
       .eq('is_deleted', false)
       .maybeSingle();
     if (selectedResource?.id) {
+      // A resource linked to specific services can only be booked for those.
+      if (!resourceServesService(selectedResource, payload.service_id)) {
+        return NextResponse.json(
+          { error: resourceServiceMismatchMessage(resourceTypeLabel(selectedResource.resource_type)) },
+          { status: 400 },
+        );
+      }
       // The customer named a specific resource, so slot capacity is not enough —
       // two people can pick the same trainer at the same time between renders.
       const { data: isFree } = await admin.rpc('is_resource_available', {
@@ -255,6 +264,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     }
   }
 
+  // A service that needs approval holds its slot as `pending_approval` until
+  // staff confirm it from the portal (which pushes the customer an approval Flex).
+  const initialStatus = resolveInitialBookingStatus(service);
+  const pendingApproval = initialStatus === 'pending_approval';
+
   const { data: booking, error } = await admin.from('bookings').insert({
     company_id: shop.company_id,
     shop_id: shop.id,
@@ -266,7 +280,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     start_time: payload.start_time,
     end_time: endTime,
     queue_number: queueNumber,
-    status: 'confirmed',
+    status: initialStatus,
     party_size: partySize,
     resource_id: assignedResource?.resource_id ?? null,
     resource_name: assignedResource?.resource_name ?? null,
@@ -302,15 +316,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       userId: null,
       type: 'booking_created',
       category: 'bookings',
-      priority: 'medium',
-      title: `New booking ${queueNumber}`,
-      message: `Customer booked ${payload.booking_date} ${payload.start_time.slice(0, 5)}`,
+      priority: pendingApproval ? 'high' : 'medium',
+      title: pendingApproval ? `${queueNumber} — คำขอจองใหม่ รออนุมัติ` : `New booking ${queueNumber}`,
+      message: pendingApproval
+        ? `ลูกค้าขอจอง ${payload.booking_date} ${payload.start_time.slice(0, 5)} (${service.service_name}) กรุณากด "อนุมัติ" ในหน้าคิว`
+        : `Customer booked ${payload.booking_date} ${payload.start_time.slice(0, 5)}`,
       relatedType: 'booking',
       relatedId: booking.id,
       actionUrl: '/portal/bookings',
-      icon: 'EventAvailable',
-      color: '#2e7d32',
-      metadata: { source: 'liff', queue_number: queueNumber },
+      icon: pendingApproval ? 'PendingActions' : 'EventAvailable',
+      color: pendingApproval ? '#d97706' : '#2e7d32',
+      metadata: { source: 'liff', queue_number: queueNumber, status: initialStatus },
       createdBy: null,
     });
   } catch (e) {
@@ -360,6 +376,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
             assignedTo: assignedResource?.resource_name ?? null,
             assignedLabel: assignedResource ? resourceTypeLabel(assignedResource.resource_type) : null,
             liffUrl,
+            pendingApproval,
           }),
         /*   bookingConfirmMessage({
             queueNumber,
@@ -449,6 +466,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     data: {
       booking_id: booking.id,
       queue_number: booking.queue_number,
+      status: initialStatus,
       booking_date: payload.booking_date,
       booking_time: payload.start_time.slice(0, 5),
       branch_name: branch.branch_name,

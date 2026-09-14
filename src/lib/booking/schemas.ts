@@ -71,9 +71,13 @@ export const bookingResourceSchema = z.object({
   zone: z.string().trim().max(80).optional().nullable(),
   description: z.string().trim().max(500).optional().nullable(),
   active: z.coerce.boolean().default(true),
+  /** Services this resource serves; empty / omitted = every service. */
+  service_ids: z.array(z.string().uuid()).max(200).optional().nullable(),
 });
 
 export const bookingResourceBulkSchema = z.object({
+  /** Services every generated resource serves; empty / omitted = every service. */
+  service_ids: z.array(z.string().uuid()).max(200).optional().nullable(),
   resource_type: z.enum(['table', 'buffet_zone', 'meeting_room', 'counter', 'service_area', 'trainer']),
   branch_id: z.string().uuid().optional().nullable(),
   floor: z.string().trim().max(50).optional().nullable(),

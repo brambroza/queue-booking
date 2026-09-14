@@ -26,6 +26,7 @@ import { NotificationsMenu } from '@/components/layout/notifications-menu';
 import { TopbarUserMenu } from '@/components/layout/topbar-user-menu';
 import { BranchScopeProvider } from '@/components/layout/branch-scope-provider';
 import { BranchSwitch } from '@/components/layout/branch-switch';
+import { ShopSwitch } from '@/components/layout/shop-switch';
 import {
   SIDEBAR_MINI_WIDTH,
   SIDEBAR_WIDTH,
@@ -58,6 +59,8 @@ type PortalFrameProps = {
   appVersion: string;
   isSuperAdmin?: boolean;
   demoModeEnabled?: boolean;
+  /** Shop the shell resolved for this request; drives the super_admin shop selector. */
+  activeShopId?: string | null;
 };
 
 /**
@@ -195,6 +198,7 @@ function PortalFrameInner({
   appVersion,
   isSuperAdmin,
   demoModeEnabled,
+  activeShopId = null,
 }: PortalFrameProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -227,9 +231,15 @@ function PortalFrameInner({
           <IconButton sx={{ display: { md: 'none' }, mr: 1 }} onClick={() => setOpen(true)}>
             <MenuRoundedIcon />
           </IconButton>
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="caption" color="text.secondary">{t('menu.shop_selector')}</Typography>
-            <Typography variant="body2" fontWeight={700}>{shopName ? `${shopName}  ` : '-'}</Typography>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            {isSuperAdmin ? (
+              <ShopSwitch activeShopId={activeShopId} />
+            ) : (
+              <>
+                <Typography variant="caption" color="text.secondary">{t('menu.shop_selector')}</Typography>
+                <Typography variant="body2" fontWeight={700}>{shopName ? `${shopName}  ` : '-'}</Typography>
+              </>
+            )}
             <Breadcrumbs aria-label="breadcrumb" sx={{ mt: 0.2 }}>
               <MLink underline="hover" color="inherit" href="/portal/dashboard">{t('menu.portal')}</MLink>
               {crumbs.map((c, idx) => (

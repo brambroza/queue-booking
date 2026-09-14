@@ -23,6 +23,10 @@ export type BookingRow = {
   line_user_id?: string | null;
   change_notified_at?: string | null;
   change_acknowledged_at?: string | null;
+  /** Set when the customer tapped "ฉันมาถึงแล้ว" in LIFF. */
+  checked_in_at?: string | null;
+  called_at?: string | null;
+  call_count?: number | null;
   branches?: { branch_name: string } | null;
   services?: { service_name: string } | null;
   customers?: { full_name: string; nickname?: string | null; phone: string } | null;
@@ -39,10 +43,12 @@ export type Resource = {
   resource_type: string;
   branch_id?: string | null;
   active?: boolean | null;
+  /** Services this resource serves; empty / null = every service. */
+  service_ids?: string[] | null;
 };
 
 /** Statuses offered in the list filter, in booking-flow order. */
-export const FILTER_STATUSES = ['pending', 'confirmed', 'waiting', 'serving', 'completed', 'cancelled', 'no_show'] as const;
+export const FILTER_STATUSES = ['pending', 'pending_approval', 'confirmed', 'checked_in', 'waiting', 'called', 'serving', 'completed', 'cancelled', 'no_show'] as const;
 
 /**
  * Payment status presentation. Typed as `Record<PaymentStatus, …>` on purpose:
@@ -72,28 +78,50 @@ export function paymentMethodLabel(method: PaymentMethod | null | undefined): st
   }
 }
 
-export type NextStatusKind = 'confirm' | 'wait' | 'serve' | 'done' | 'no_show';
+export type NextStatusKind = 'approve' | 'confirm' | 'wait' | 'call' | 'recall' | 'serve' | 'done' | 'no_show';
 
 export type NextStatusOption = { status: string; label: string; kind: NextStatusKind; primary: boolean };
 
-/** Transitions a staff member can trigger from each status, first entry is the primary one. */
+/**
+ * Transitions a staff member can trigger from each status, first entry is the primary one.
+ *
+ * `call` / `recall` write `called` — the API stamps `called_at` + `call_count`
+ * and pushes "ถึงคิวของคุณแล้ว" to the customer's LINE. `approve` confirms a
+ * `pending_approval` request and pushes the approval Flex.
+ */
 export const NEXT_STATUSES: Record<string, NextStatusOption[]> = {
   pending: [
     { status: 'confirmed', label: 'ยืนยัน', kind: 'confirm', primary: true },
     { status: 'no_show', label: 'ไม่มา', kind: 'no_show', primary: false },
   ],
+  pending_approval: [{ status: 'confirmed', label: 'อนุมัติ', kind: 'approve', primary: true }],
   confirmed: [
-    { status: 'waiting', label: 'รอเรียก', kind: 'wait', primary: true },
+    { status: 'called', label: 'เรียกคิว', kind: 'call', primary: true },
+    { status: 'waiting', label: 'รอเรียก', kind: 'wait', primary: false },
     { status: 'no_show', label: 'ไม่มา', kind: 'no_show', primary: false },
   ],
-  waiting: [{ status: 'serving', label: 'เริ่มบริการ', kind: 'serve', primary: true }],
+  checked_in: [
+    { status: 'called', label: 'เรียกคิว', kind: 'call', primary: true },
+    { status: 'waiting', label: 'รอเรียก', kind: 'wait', primary: false },
+    { status: 'no_show', label: 'ไม่มา', kind: 'no_show', primary: false },
+  ],
+  waiting: [
+    { status: 'called', label: 'เรียกคิว', kind: 'call', primary: true },
+    { status: 'serving', label: 'เริ่มบริการ', kind: 'serve', primary: false },
+    { status: 'no_show', label: 'ไม่มา', kind: 'no_show', primary: false },
+  ],
+  called: [
+    { status: 'serving', label: 'เริ่มบริการ', kind: 'serve', primary: true },
+    { status: 'called', label: 'เรียกซ้ำ', kind: 'recall', primary: false },
+    { status: 'no_show', label: 'ไม่มา', kind: 'no_show', primary: false },
+  ],
   serving: [{ status: 'completed', label: 'เสร็จสิ้น', kind: 'done', primary: true }],
 };
 
-export const CANCELLABLE = new Set(['pending', 'confirmed', 'waiting', 'serving']);
+export const CANCELLABLE = new Set(['pending', 'pending_approval', 'confirmed', 'checked_in', 'waiting', 'called', 'serving']);
 
 /** Statuses that can still be moved to another slot or resource. */
-export const MOVABLE = new Set(['pending', 'confirmed', 'waiting']);
+export const MOVABLE = new Set(['pending', 'pending_approval', 'confirmed', 'checked_in', 'waiting']);
 
 export type ChangeAckState = 'none' | 'pending' | 'acked';
 

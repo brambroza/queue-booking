@@ -26,7 +26,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ shopKey: s
     admin.from('services').select('id,service_name,duration_minutes,price').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
     admin
       .from('booking_resources')
-      .select('id,branch_id,resource_name,resource_code,resource_type,capacity,unit_price')
+      .select('id,branch_id,resource_name,resource_code,resource_type,capacity,unit_price,service_ids')
       .eq('shop_id', shop.id)
       .eq('active', true)
       .eq('is_deleted', false)

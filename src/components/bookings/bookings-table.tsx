@@ -10,6 +10,10 @@ import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded';
 import PersonOffRoundedIcon from '@mui/icons-material/PersonOffRounded';
 import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import CampaignRoundedIcon from '@mui/icons-material/CampaignRounded';
+import NotificationsActiveRoundedIcon from '@mui/icons-material/NotificationsActiveRounded';
+import ThumbUpAltRoundedIcon from '@mui/icons-material/ThumbUpAltRounded';
+import HowToRegRoundedIcon from '@mui/icons-material/HowToRegRounded';
 import { StatusChip } from '@/components/shared/status-chip';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -32,20 +36,66 @@ import {
 } from './booking-types';
 
 const NEXT_ICON: Record<NextStatusKind, React.ReactNode> = {
+  approve: <ThumbUpAltRoundedIcon fontSize="small" />,
   confirm: <CheckRoundedIcon fontSize="small" />,
   wait: <HourglassBottomRoundedIcon fontSize="small" />,
+  call: <CampaignRoundedIcon fontSize="small" />,
+  recall: <NotificationsActiveRoundedIcon fontSize="small" />,
   serve: <PlayArrowRoundedIcon fontSize="small" />,
   done: <DoneAllRoundedIcon fontSize="small" />,
   no_show: <PersonOffRoundedIcon fontSize="small" />,
 };
 
 const NEXT_COLOR: Record<NextStatusKind, 'primary' | 'warning' | 'info' | 'success' | 'default'> = {
+  approve: 'primary',
   confirm: 'primary',
   wait: 'warning',
+  call: 'info',
+  recall: 'warning',
   serve: 'info',
   done: 'success',
   no_show: 'default',
 };
+
+/** `HH:MM` in Bangkok time from an ISO timestamp, for the check-in / called chips. */
+function hhmmFromIso(iso: string): string {
+  return new Date(iso).toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' });
+}
+
+/**
+ * Tiny chip under the status: when the customer checked in (LIFF), or how many
+ * times the shop has called this queue. Renders nothing when neither applies.
+ */
+export function ArrivalChip({ booking }: { booking: Pick<BookingRow, 'status' | 'checked_in_at' | 'called_at' | 'call_count'> }) {
+  const { t } = useTranslation('bookings');
+  const chipSx = { height: 20, '& .MuiChip-label': { px: 0.75, fontSize: 11 } };
+  if (booking.status === 'called' && booking.called_at) {
+    const n = Number(booking.call_count ?? 1);
+    return (
+      <Chip
+        size="small"
+        variant="outlined"
+        color={n > 1 ? 'warning' : 'info'}
+        icon={<CampaignRoundedIcon />}
+        label={`${t('called_at', 'เรียกเมื่อ')} ${hhmmFromIso(booking.called_at)}${n > 1 ? ` · ${t('call_count', 'ครั้งที่')} ${n}` : ''}`}
+        sx={chipSx}
+      />
+    );
+  }
+  if (booking.checked_in_at && (booking.status === 'checked_in' || booking.status === 'waiting')) {
+    return (
+      <Chip
+        size="small"
+        variant="outlined"
+        color="secondary"
+        icon={<HowToRegRoundedIcon />}
+        label={`${t('arrived_at', 'มาถึงเมื่อ')} ${hhmmFromIso(booking.checked_in_at)}`}
+        sx={chipSx}
+      />
+    );
+  }
+  return null;
+}
 
 /** Outlined chip for the payment state, colour shared with the status palette. */
 export function PaymentChip({ status }: { status: PaymentStatus | string | null | undefined }) {
@@ -174,6 +224,7 @@ export function BookingsTable({
                         <Stack spacing={0.5} alignItems="flex-start">
                           <StatusChip status={b.status} />
                           <AckChip state={changeAckState(b)} />
+                          <ArrivalChip booking={b} />
                         </Stack>
                       </TableCell>
                       <TableCell><PaymentChip status={b.payment_status} /></TableCell>
