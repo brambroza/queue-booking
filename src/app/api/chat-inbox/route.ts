@@ -44,8 +44,29 @@ export async function GET(req: Request) {
     if (q) usersQuery = usersQuery.or(`display_name.ilike.%${q}%,line_user_id.ilike.%${q}%`);
 
     const from = (page - 1) * pageSize;
-    const { data: users, error: usersError, count } = await usersQuery.range(from, from + pageSize - 1);
+    const { data: usersRaw, error: usersError, count } = await usersQuery.range(from, from + pageSize - 1);
     if (usersError) throw usersError;
+
+    // Attach the customer nickname (customers.nickname) so pickers can show
+    // "นัท (LINE display name)". A LINE user may map to several customer rows;
+    // the most recently updated one wins.
+    const userIds = (usersRaw ?? []).map((u) => u.id);
+    const nicknameByLineUser = new Map<string, string>();
+    if (userIds.length) {
+      const { data: customers } = await admin
+        .from('customers')
+        .select('line_user_id,nickname,updated_at')
+        .eq('shop_id', profile.shop_id)
+        .eq('is_deleted', false)
+        .in('line_user_id', userIds)
+        .not('nickname', 'is', null)
+        .order('updated_at', { ascending: false });
+      for (const c of customers ?? []) {
+        const nick = (c.nickname ?? '').trim();
+        if (c.line_user_id && nick && !nicknameByLineUser.has(c.line_user_id)) nicknameByLineUser.set(c.line_user_id, nick);
+      }
+    }
+    const users = (usersRaw ?? []).map((u) => ({ ...u, nickname: nicknameByLineUser.get(u.id) ?? null }));
 
     const msgPage = toInt(searchParams.get('msg_page'), 1);
     const msgPageSize = Math.min(toInt(searchParams.get('msg_page_size'), 100), 200);
@@ -65,7 +86,7 @@ export async function GET(req: Request) {
       messages = (msg ?? []).reverse();
     }
 
-    return NextResponse.json({ data: { users: users ?? [], messages }, pagination: { page, page_size: pageSize, total: count ?? 0 } });
+    return NextResponse.json({ data: { users, messages }, pagination: { page, page_size: pageSize, total: count ?? 0 } });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });
   }

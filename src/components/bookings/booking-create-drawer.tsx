@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import {
   Alert,
+  Avatar,
   Box,
   Button,
   Divider,
@@ -104,6 +105,26 @@ export function BookingCreateDrawer({
     draft.service_id,
   );
 
+  /** LINE profile avatar + "nickname (display name)" for the picker. */
+  function renderLineUser(u: LineUser) {
+    const displayName = u.display_name?.trim() || 'LINE User';
+    const nickname = u.nickname?.trim() || '';
+    return (
+      <Stack direction="row" alignItems="center" spacing={1.25} sx={{ minWidth: 0 }}>
+        <Avatar src={u.picture_url ?? undefined} alt={displayName} sx={{ width: 28, height: 28, fontSize: 13 }}>
+          {(nickname || displayName).charAt(0)}
+        </Avatar>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="body2" noWrap>
+            {nickname ? <><b>{nickname}</b> ({displayName})</> : displayName}
+          </Typography>
+        </Box>
+      </Stack>
+    );
+  }
+
+  const selectedLineUser = lineUsers.find((x) => x.id === lineUserId) ?? null;
+
   return (
     <Drawer anchor="right" open={open} onClose={handleClose} PaperProps={{ sx: { width: { xs: '100%', sm: 520 } } }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 3, py: 2 }}>
@@ -132,12 +153,27 @@ export function BookingCreateDrawer({
               onChange={(e) => {
                 setLineUserId(e.target.value);
                 const u = lineUsers.find((x) => x.id === e.target.value);
-                if (u?.display_name && !draft.customer_name.trim()) setDraft((p) => ({ ...p, customer_name: u.display_name ?? '' }));
+                if (!u) return;
+                // Prefill untouched fields from the LINE profile; never overwrite what staff typed.
+                setDraft((p) => ({
+                  ...p,
+                  customer_name: p.customer_name.trim() ? p.customer_name : (u.display_name ?? ''),
+                  customer_nickname: p.customer_nickname.trim() ? p.customer_nickname : (u.nickname ?? ''),
+                }));
               }}
+              slotProps={{
+                select: {
+                  displayEmpty: false,
+                  renderValue: () => (selectedLineUser ? renderLineUser(selectedLineUser) : null),
+                  MenuProps: { PaperProps: { sx: { maxHeight: 360 } } },
+                },
+              }}
+              // Keep the small-input height stable when the avatar row is rendered as the value.
+              sx={{ '& .MuiSelect-select': { display: 'flex', alignItems: 'center', py: 0.75 } }}
             >
               <MenuItem value="">{t('none', 'ไม่เลือก')}</MenuItem>
               {lineUsers.map((u) => (
-                <MenuItem key={u.id} value={u.id}>{u.display_name ?? 'LINE User'} ({u.line_user_id.slice(0, 8)}…)</MenuItem>
+                <MenuItem key={u.id} value={u.id}>{renderLineUser(u)}</MenuItem>
               ))}
             </TextField>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>

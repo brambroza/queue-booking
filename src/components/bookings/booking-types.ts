@@ -34,7 +34,14 @@ export type BookingRow = {
 
 export type Branch = { id: string; branch_name: string };
 export type Service = { id: string; service_name: string; price?: number | null };
-export type LineUser = { id: string; line_user_id: string; display_name: string | null; picture_url?: string | null };
+export type LineUser = {
+  id: string;
+  line_user_id: string;
+  display_name: string | null;
+  picture_url?: string | null;
+  /** Customer nickname (customers.nickname) linked to this LINE user, if any. */
+  nickname?: string | null;
+};
 export type Resource = {
   id: string;
   resource_name: string;
