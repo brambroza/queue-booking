@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { writeAuditLog } from '@/lib/audit/activity-log';
 import { ensurePaymentSlipBucket, PAYMENT_SLIP_BUCKET } from '@/lib/storage/buckets';
 import { signageDefaultsForBusiness } from '@/lib/signage/settings';
+import { normalizeBusinessType } from '@/lib/line/rich-menu/business-types';
 import type { PaymentMethod, PaymentStatus } from '@/types/db';
 
 export type DemoBusinessType = 'barber' | 'clinic' | 'restaurant' | 'buffet' | 'meeting_room' | 'general_service';
@@ -541,6 +542,19 @@ export async function createDemoSandbox(input: DemoContext) {
       updated_by: input.userId ?? null,
     })
     .eq('id', input.shopId);
+
+  // Keep the rich menu business type in step with the demo type when the shop
+  // has not chosen one yet. Isolated so a not-yet-migrated column cannot break
+  // sandbox creation (migration 202609140001).
+  const normalizedBusinessType = normalizeBusinessType(input.businessType);
+  if (normalizedBusinessType) {
+    const { error: businessTypeError } = await admin
+      .from('shops')
+      .update({ business_type: normalizedBusinessType })
+      .eq('id', input.shopId)
+      .is('business_type', null);
+    if (businessTypeError) console.error('[demo_sandbox_business_type_failed]', businessTypeError.message);
+  }
 
   await writeAuditLog({
     companyId: input.companyId,

@@ -103,7 +103,6 @@ export function SimpleCrud({
   }
 
   async function onDelete(id: string) {
-    if (!window.confirm('ยืนยันการลบรายการนี้?')) return;
     const res = await fetch(`${endpoint}?id=${id}`, { method: 'DELETE' });
     if (!res.ok) {
       push('ลบไม่สำเร็จ', 'error');
@@ -164,9 +163,13 @@ export function SimpleCrud({
                             fallbackLabel: 'Delete',
                             color: 'error',
                             onClick: () => void onDelete(String(row.id)),
-                            confirmBeforeClick: true,
-                            confirmTitle: 'Delete',
-                            confirmMessage: 'ยืนยันการลบรายการนี้?',
+                            confirm: {
+                              tone: 'error',
+                              title: `ลบ${title}นี้?`,
+                              description: 'รายการจะถูกซ่อนจากระบบทันที ข้อมูลที่เกี่ยวข้องยังอยู่ในรายงาน',
+                              context: { primary: String(row[columns[0]?.key] ?? row.id) },
+                              confirmLabel: `ลบ${title}`,
+                            },
                           },
                         ]}
                       />

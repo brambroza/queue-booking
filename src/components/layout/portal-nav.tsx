@@ -35,6 +35,7 @@ import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRou
 import ScienceRoundedIcon from '@mui/icons-material/ScienceRounded';
 import ChecklistRoundedIcon from '@mui/icons-material/ChecklistRounded';
 import AppsRoundedIcon from '@mui/icons-material/AppsRounded';
+import AutoAwesomeMosaicRoundedIcon from '@mui/icons-material/AutoAwesomeMosaicRounded';
 import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
 import SlideshowRoundedIcon from '@mui/icons-material/SlideshowRounded';
 import MarkEmailUnreadRoundedIcon from '@mui/icons-material/MarkEmailUnreadRounded';
@@ -84,6 +85,7 @@ const groups: NavGroup[] = [
     items: [
       { labelKey: 'menu.line_settings', fallback: 'ตั้งค่า LINE', href: '/portal/line-settings', icon: <SettingsEthernetRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.line_onboarding', fallback: 'ตั้งค่าเริ่มต้น LINE', href: '/portal/onboarding/line-setup', icon: <ChecklistRoundedIcon fontSize="small" /> },
+      { labelKey: 'menu.rich_menu_builder', fallback: 'สร้าง Rich Menu', href: '/portal/rich-menu', icon: <AutoAwesomeMosaicRoundedIcon fontSize="small" />, shopWideOnly: true },
       { labelKey: 'menu.rich_menu_guide', fallback: 'คู่มือ Rich Menu', href: '/portal/rich-menu-guide', icon: <AppsRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.chat_inbox', fallback: 'กล่องข้อความ', href: '/portal/chat-inbox', icon: <ChatRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.notifications', fallback: 'การแจ้งเตือน', href: '/portal/notifications', icon: <NotificationsRoundedIcon fontSize="small" /> },

@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
@@ -52,11 +53,11 @@ const EMPTY_DRAFT: Draft = {
 
 export function WorkingHoursCrud() {
   const { push } = useToast();
+  const confirm = useConfirm();
   const [rows, setRows] = useState<WorkingHour[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   // Creating one weekday at a time meant seven drawer submits to open a shop
   // all week, which is where most owners stopped. Creation is multi-day.
@@ -163,13 +164,23 @@ export function WorkingHoursCrud() {
     void load();
   }
 
-  async function onDelete() {
-    if (!deleteId) return;
-    const res = await fetch(`/api/working-hours?id=${deleteId}`, { method: 'DELETE' });
+  async function onDelete(row: WorkingHour) {
+    const ok = await confirm({
+      tone: 'error',
+      title: 'ลบเวลาทำการนี้?',
+      description: 'ลูกค้าจะจองคิวในช่วงเวลานี้ไม่ได้อีก คิวที่จองไว้แล้วยังอยู่',
+      context: {
+        primary: `${WEEKDAYS[row.weekday] ?? row.weekday} · ${row.open_time.slice(0, 5)}–${row.close_time.slice(0, 5)}`,
+        secondary: row.branches?.branch_name ?? undefined,
+        avatar: (WEEKDAYS[row.weekday] ?? '').slice(0, 2),
+      },
+      confirmLabel: 'ลบเวลาทำการ',
+    });
+    if (!ok) return;
+    const res = await fetch(`/api/working-hours?id=${row.id}`, { method: 'DELETE' });
     const json = await res.json();
     if (!res.ok) return push(json.error ?? 'ลบไม่สำเร็จ', 'error');
     push('ลบเวลาทำการแล้ว');
-    setDeleteId(null);
     void load();
   }
 
@@ -217,7 +228,7 @@ export function WorkingHoursCrud() {
                     <ActionIconGroup
                       actions={[
                         { key: 'edit', icon: <EditOutlinedIcon fontSize="small" />, labelKey: 'common.edit', fallbackLabel: 'Edit', onClick: () => openEdit(r) },
-                        { key: 'delete', icon: <DeleteOutlineIcon fontSize="small" />, labelKey: 'common.delete', fallbackLabel: 'Delete', color: 'error', onClick: () => setDeleteId(r.id) },
+                        { key: 'delete', icon: <DeleteOutlineIcon fontSize="small" />, labelKey: 'common.delete', fallbackLabel: 'Delete', color: 'error', onClick: () => void onDelete(r) },
                       ]}
                     />
                   </td>
@@ -338,19 +349,6 @@ export function WorkingHoursCrud() {
         </>
       ) : null}
 
-      {deleteId ? (
-        <>
-          <button className="fixed inset-0 z-[60] bg-slate-900/30" onClick={() => setDeleteId(null)} aria-label="Close confirm" />
-          <div className="fixed left-1/2 top-1/2 z-[61] w-[92%] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-4 shadow-xl">
-            <p className="text-sm font-semibold text-slate-800">ลบเวลาทำการนี้?</p>
-            <p className="mt-1 text-xs text-slate-500">ข้อมูลจะถูกซ่อนจากระบบทันที</p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button className="btn-outline" onClick={() => setDeleteId(null)}>ยกเลิก</button>
-              <button className="btn-primary bg-rose-600 hover:bg-rose-700" onClick={() => void onDelete()}>ลบ</button>
-            </div>
-          </div>
-        </>
-      ) : null}
     </div>
   );
 }

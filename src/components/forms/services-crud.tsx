@@ -7,10 +7,6 @@ import {
   Card,
   CardContent,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Drawer,
   FormControl,
   FormControlLabel,
@@ -34,6 +30,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade-provider';
 import { BookingModeChip } from '@/components/shared/booking-mode-chip';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
@@ -74,12 +71,12 @@ const BOOKING_MODE_LABELS: Record<(typeof BOOKING_MODES)[number], string> = {
 
 export function ServicesCrud() {
   const { push } = useToast();
+  const confirm = useConfirm();
   const { openPaywall } = useUpgrade();
   const [rows, setRows] = useState<Service[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
@@ -308,13 +305,24 @@ export function ServicesCrud() {
     await load();
   }
 
-  async function onDelete() {
-    if (!deleteId) return;
-    const res = await fetch(`/api/services?id=${deleteId}`, { method: 'DELETE' });
+  async function onDelete(row: Service) {
+    const duration = row.duration_minutes != null ? `${row.duration_minutes} นาที` : null;
+    const price = typeof row.price === 'number' ? `${row.price.toLocaleString('th-TH')} บาท` : null;
+    const ok = await confirm({
+      tone: 'error',
+      title: 'ลบบริการนี้?',
+      description: 'ลูกค้าจะเลือกบริการนี้ตอนจองไม่ได้อีก คิวที่จองไว้แล้วยังอยู่',
+      context: {
+        primary: String(row.service_name ?? ''),
+        secondary: [duration, price].filter(Boolean).join(' · ') || undefined,
+      },
+      confirmLabel: 'ลบบริการ',
+    });
+    if (!ok) return;
+    const res = await fetch(`/api/services?id=${String(row.id)}`, { method: 'DELETE' });
     const json = await res.json();
     if (!res.ok) return push(json.error ?? 'ลบไม่สำเร็จ', 'error');
     push('ลบบริการแล้ว');
-    setDeleteId(null);
     await load();
   }
 
@@ -395,7 +403,7 @@ export function ServicesCrud() {
                           labelKey: 'common.delete',
                           fallbackLabel: 'Delete',
                           color: 'error',
-                          onClick: () => setDeleteId(String(r.id)),
+                          onClick: () => void onDelete(r),
                         },
                       ]}
                     />
@@ -517,15 +525,6 @@ export function ServicesCrud() {
           </Stack>
         </Box>
       </Drawer>
-
-      <Dialog open={Boolean(deleteId)} onClose={() => setDeleteId(null)}>
-        <DialogTitle>Delete Service</DialogTitle>
-        <DialogContent>Are you sure you want to delete this service?</DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteId(null)}>Cancel</Button>
-          <Button color="error" variant="contained" onClick={() => void onDelete()}>Delete</Button>
-        </DialogActions>
-      </Dialog>
     </Stack>
   );
 }

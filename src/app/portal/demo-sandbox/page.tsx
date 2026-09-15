@@ -31,6 +31,7 @@ import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { DemoLineExperiencePanel } from '@/components/demo/demo-line-experience-panel';
 import { drawDemoSlipPng } from '@/lib/demo/slip-image';
 
@@ -47,6 +48,7 @@ const options: Array<{ value: BusinessType; th: string; en: string }> = [
 
 export default function DemoSandboxPage() {
   const { push } = useToast();
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [businessType, setBusinessType] = useState<BusinessType>('barber');
@@ -99,7 +101,13 @@ export default function DemoSandboxPage() {
 
   async function runAction(action: 'create' | 'reset' | 'disable') {
     if (action === 'reset') {
-      const ok = window.confirm('ยืนยันรีเซ็ตข้อมูลตัวอย่าง? ข้อมูล demo เดิมจะถูกแทนที่');
+      const ok = await confirm({
+        tone: 'warning',
+        title: 'รีเซ็ตข้อมูลตัวอย่าง?',
+        description: 'ข้อมูล demo ทั้งหมดจะถูกแทนที่ด้วยชุดใหม่ ข้อมูลจริงของร้านไม่ถูกแตะ',
+        context: selected ? { primary: selected.th, secondary: selected.en, avatar: 'DEMO', avatarSquare: true } : undefined,
+        confirmLabel: 'รีเซ็ตข้อมูล',
+      });
       if (!ok) return;
     }
     setSaving(true);

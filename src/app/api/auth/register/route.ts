@@ -7,6 +7,7 @@ import { seedNewShop } from '@/lib/shop/seed-new-shop';
 import { FREE_PLAN_CODE } from '@/lib/subscription/enforcement';
 import { createUpgradeRequest } from '@/lib/subscription/upgrade-request';
 import { env } from '@/lib/utils/env';
+import { normalizeBusinessType } from '@/lib/line/rich-menu/business-types';
 
 export async function POST(req: Request) {
   try {
@@ -60,6 +61,8 @@ export async function POST(req: Request) {
       phone,
       email,
       shop_key: shopKey,
+      // Drives the default rich menu template (migration 202609140001).
+      business_type: normalizeBusinessType(business_category),
       created_by: userId,
       updated_by: userId,
     })

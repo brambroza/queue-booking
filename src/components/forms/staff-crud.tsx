@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade-provider';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 
@@ -36,6 +37,7 @@ const initialForm: FormState = {
 
 export function StaffCrud() {
   const { push } = useToast();
+  const confirm = useConfirm();
   const { openPaywall } = useUpgrade();
   const [rows, setRows] = useState<StaffRow[]>([]);
   const [users, setUsers] = useState<RefUser[]>([]);
@@ -132,9 +134,19 @@ export function StaffCrud() {
     void load();
   }
 
-  async function onDelete(id: string) {
-    if (!window.confirm('ยืนยันลบพนักงานนี้?')) return;
-    const res = await fetch(`/api/staff?id=${id}`, { method: 'DELETE' });
+  async function onDelete(row: StaffRow) {
+    const ok = await confirm({
+      tone: 'error',
+      title: 'ลบพนักงานนี้?',
+      description: 'พนักงานจะเข้าระบบร้านไม่ได้ทันที คิวที่มอบหมายไว้ยังอยู่แต่ไม่มีผู้รับผิดชอบ',
+      context: {
+        primary: row.display_name,
+        secondary: row.branches.map((b) => b.branch_name).join(' · ') || undefined,
+      },
+      confirmLabel: 'ลบพนักงาน',
+    });
+    if (!ok) return;
+    const res = await fetch(`/api/staff?id=${row.id}`, { method: 'DELETE' });
     const json = await res.json();
     if (!res.ok) return push(json.error ?? 'ลบไม่สำเร็จ', 'error');
     push('ลบพนักงานแล้ว');
@@ -185,7 +197,7 @@ export function StaffCrud() {
                   <td className="px-3 py-2">{r.active ? 'Active' : 'Inactive'}</td>
                   <td className="px-3 py-2 flex gap-2">
                     <button className="btn-outline" onClick={() => openEdit(r)}>Edit</button>
-                    <button className="btn-outline" onClick={() => void onDelete(r.id)}>Delete</button>
+                    <button className="btn-outline" onClick={() => void onDelete(r)}>Delete</button>
                   </td>
                 </tr>
               );

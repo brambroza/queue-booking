@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
+import AutoAwesomeMosaicRoundedIcon from '@mui/icons-material/AutoAwesomeMosaicRounded';
 import { useToast } from '@/components/ui/toast';
 import { RichMenuIconStudio } from '@/components/onboarding/rich-menu-icon-studio';
 
@@ -185,11 +186,28 @@ export default function LineSetupOnboardingPage() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardContent>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ md: 'center' }}>
+            <Box>
+              <Typography variant="subtitle1" fontWeight={700}>Step 4: สร้างภาพ Rich Menu อัตโนมัติตามธุรกิจ</Typography>
+              <Typography variant="body2" color="text.secondary">
+                เลือกประเภทธุรกิจ ระบบจัดเลย์เอาต์ ไอคอน ข้อความ และสีให้ พร้อมดาวน์โหลดหรือเผยแพร่เข้า LINE OA ได้ทันที
+              </Typography>
+            </Box>
+            <Button component={Link} href="/portal/rich-menu" variant="contained" startIcon={<AutoAwesomeMosaicRoundedIcon />} sx={{ whiteSpace: 'nowrap' }}>
+              เปิดตัวสร้าง Rich Menu
+            </Button>
+          </Stack>
+        </CardContent>
+      </Card>
+
       <RichMenuIconStudio />
 
       <Divider />
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
         <Button component={Link} href="/portal/line-settings" variant="contained">ไปหน้า LINE Settings</Button>
+        <Button component={Link} href="/portal/rich-menu" variant="outlined">สร้าง Rich Menu</Button>
         <Button component={Link} href="/portal/rich-menu-guide" variant="outlined">ไปหน้า Rich Menu Guide</Button>
       </Stack>
     </Stack>

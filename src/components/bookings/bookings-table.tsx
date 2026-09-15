@@ -270,9 +270,19 @@ export function BookingsTable({
                               fallbackLabel: t('cancel_booking', 'ยกเลิกการจอง'),
                               color: 'error',
                               disabled: busy,
-                              confirmBeforeClick: true,
-                              confirmTitle: t('cancel_confirm_title', 'ยืนยันการยกเลิก?'),
-                              confirmMessage: `${t('queue_unit', 'คิว')} ${b.queue_number}`,
+                              confirm: {
+                                tone: 'warning',
+                                title: t('cancel_confirm_title', 'ยกเลิกคิวนี้?'),
+                                description: t('cancel_confirm_desc', 'ลูกค้าจะได้รับข้อความแจ้งยกเลิกทาง LINE ทันที และคิวนี้จะไม่นับในรายงาน'),
+                                context: {
+                                  avatar: b.queue_number,
+                                  avatarSquare: true,
+                                  primary: [customerName(b), b.services?.service_name].filter(Boolean).join(' · '),
+                                  secondary: [formatDateDMY(b.booking_date), hhmm(b.start_time), b.resource_name].filter(Boolean).join(' · '),
+                                },
+                                confirmLabel: t('cancel_yes_short', 'ยกเลิกคิว'),
+                                cancelLabel: t('cancel_no', 'ไม่ยกเลิก'),
+                              },
                               onClick: () => onStatus(b, 'cancelled'),
                             },
                           ]}

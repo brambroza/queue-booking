@@ -29,8 +29,11 @@ export default function RichMenuGuidePage() {
         </Typography>
       </Box>
 
-      <Alert severity="info">
-        แนะนำให้สร้างอย่างน้อย 4 ปุ่ม: จองคิว, เช็คคิว, ข้อมูลบริการ, ติดต่อร้าน
+      <Alert
+        severity="info"
+        action={<Button component={Link} href="/portal/rich-menu" color="inherit" size="small">สร้างอัตโนมัติ</Button>}
+      >
+        แนะนำให้สร้างอย่างน้อย 4 ปุ่ม: จองคิว, เช็คคิว, ข้อมูลบริการ, ติดต่อร้าน — หรือให้ระบบสร้างภาพและเผยแพร่ให้ตามประเภทธุรกิจ
       </Alert>
 
       <Grid container spacing={2}>

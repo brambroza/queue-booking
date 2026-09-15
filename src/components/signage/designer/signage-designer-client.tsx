@@ -22,6 +22,7 @@ import {
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
 import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { DEFAULT_SIGNAGE_CONFIG } from '@/lib/signage/settings';
 import type { SignageConfig, SignageData, SignageScopeSource } from '@/lib/signage/types';
@@ -61,6 +62,7 @@ function isSameConfig(a: SignageConfig, b: SignageConfig): boolean {
 export function SignageDesignerClient() {
   const { t } = useTranslation('signage');
   const { push } = useToast();
+  const confirm = useConfirm();
 
   const [branchId, setBranchId] = useState<string>(ALL_BRANCHES);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -138,7 +140,18 @@ export function SignageDesignerClient() {
 
   // Branch switch (after initial load).
   const switchBranch = useCallback(async (next: string) => {
-    if (dirty && !window.confirm(t('discard_confirm', 'มีการเปลี่ยนแปลงที่ยังไม่บันทึก ต้องการเปลี่ยนสาขาหรือไม่?'))) return;
+    if (dirty) {
+      const nameOf = (id: string) => (id === ALL_BRANCHES ? t('all_branches', 'ทุกสาขา') : branches.find((b) => b.id === id)?.branch_name ?? id);
+      const ok = await confirm({
+        tone: 'warning',
+        title: t('discard_confirm_title', 'เปลี่ยนสาขาโดยไม่บันทึก?'),
+        description: t('discard_confirm', 'การแก้ไขหน้าจอที่ยังไม่บันทึกจะหายไป'),
+        context: { primary: `${nameOf(branchId)} → ${nameOf(next)}`, avatar: '⇄', avatarSquare: true },
+        confirmLabel: t('discard_and_switch', 'เปลี่ยนสาขา'),
+        cancelLabel: t('back_to_save', 'กลับไปบันทึกก่อน'),
+      });
+      if (!ok) return;
+    }
     setBranchId(next);
     try {
       const [s, l] = await Promise.all([loadSettings(next), loadLive(next)]);
@@ -149,7 +162,7 @@ export function SignageDesignerClient() {
     } catch (e) {
       push(e instanceof Error ? e.message : 'load failed', 'error');
     }
-  }, [dirty, loadLive, loadSettings, push, t]);
+  }, [branchId, branches, confirm, dirty, loadLive, loadSettings, push, t]);
 
   // Live preview polling at the draft's refresh interval.
   useEffect(() => {

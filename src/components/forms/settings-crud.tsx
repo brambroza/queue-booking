@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import { PlanCard } from '@/components/subscription/plan-card';
 import { formatDateTimeDMY } from '@/lib/utils/date-format';
@@ -38,6 +39,7 @@ const initialForm: FormState = {
 
 export function SettingsCrud() {
   const { push } = useToast();
+  const confirm = useConfirm();
   const [shop, setShop] = useState<ShopProfile | null>(null);
   const [shopSaving, setShopSaving] = useState(false);
   const [shopLogoFile, setShopLogoFile] = useState<File | null>(null);
@@ -159,9 +161,16 @@ export function SettingsCrud() {
     void load();
   }
 
-  async function onDelete(id: string) {
-    if (!window.confirm('ยืนยันลบ setting นี้?')) return;
-    const res = await fetch(`/api/settings?id=${id}`, { method: 'DELETE' });
+  async function onDelete(row: SettingRow) {
+    const ok = await confirm({
+      tone: 'error',
+      title: 'ลบการตั้งค่านี้?',
+      description: 'ระบบจะกลับไปใช้ค่าเริ่มต้นของการตั้งค่านี้ทันที',
+      context: { primary: row.key, avatarSquare: true, avatar: '{ }' },
+      confirmLabel: 'ลบการตั้งค่า',
+    });
+    if (!ok) return;
+    const res = await fetch(`/api/settings?id=${row.id}`, { method: 'DELETE' });
     const json = await res.json();
     if (!res.ok) return push(json.error ?? 'ลบไม่สำเร็จ', 'error');
     push('ลบ setting แล้ว');
@@ -266,7 +275,7 @@ export function SettingsCrud() {
                 <td className="px-3 py-2 text-xs text-slate-600">{formatDateTimeDMY(r.updated_at)}</td>
                 <td className="px-3 py-2 flex gap-2">
                   <button className="btn-outline" onClick={() => openEdit(r)}>Edit</button>
-                  <button className="btn-outline" onClick={() => void onDelete(r.id)}>Delete</button>
+                  <button className="btn-outline" onClick={() => void onDelete(r)}>Delete</button>
                 </td>
               </tr>
             ))}

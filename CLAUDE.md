@@ -121,6 +121,9 @@ src/
 | `/api/service-templates` | Service templates |
 | `/api/demo-sandbox` | Demo mode management |
 | `/api/i18n/*` | i18n translations management |
+| `/api/rich-menu` | Rich menu builder state (GET) + save `business_type` / `rich_menu_config` (PATCH) |
+| `/api/rich-menu/image` | Upload rendered rich menu PNG/JPEG (2500×1686 / 2500×843, ≤1 MB) → `shop-assets` bucket |
+| `/api/rich-menu/publish` | POST = create rich menu on LINE + upload image + set default; DELETE = unpublish |
 
 ### Public (ไม่ต้องมี auth)
 | Route | Resource |
@@ -196,6 +199,24 @@ export default async function Page() {
 'use client';
 // ใช้เฉพาะที่จำเป็น — useState, useEffect, event handler
 ```
+
+### Confirm Dialog (portal)
+ห้ามใช้ `window.confirm` / modal เขียนเองใน portal — ใช้ `useConfirm()` จาก `src/components/ui/confirm-dialog.tsx` (mount `ConfirmProvider` ไว้ใน `app/layout.tsx` แล้ว)
+```ts
+const confirm = useConfirm();
+const ok = await confirm({
+  tone: 'error',                 // error | warning | primary | info (default warning)
+  title: 'ลบลูกค้านี้?',          // คำถามสั้น มีกรรม
+  description: 'ประวัติการจองยังอยู่ แต่ลูกค้าจะหายจากรายชื่อ', // บอกผลที่ตามมา
+  context: { primary: row.full_name, secondary: row.phone }, // ทำกับอะไร
+  confirmLabel: 'ลบลูกค้า',      // กริยา+กรรม ห้าม "ตกลง/ยืนยัน/OK"
+  cancelLabel: 'ไม่ยกเลิก',      // ใส่เมื่อการกระทำเองคือ "ยกเลิก"
+  acknowledge: '...',            // optional checkbox ต้องติ๊กก่อน (งานย้อนกลับไม่ได้)
+  onConfirm: () => api(),        // optional: dialog ถือ loading เอง, throw = toast + เปิดค้าง
+});
+```
+`ActionIconButton` / `ActionIconGroup` รับ prop `confirm: ConfirmRequest` (prop เดิม `confirmBeforeClick/confirmTitle/confirmMessage` ยังใช้ได้ แต่ deprecated)
+ฝั่ง LIFF (`src/components/line/`) เป็น Tailwind ไม่มี MUI provider — ยังใช้ `window.confirm` อยู่ ตั้งใจไว้ ทำแยก
 
 ### Import Alias
 ```ts
@@ -290,6 +311,16 @@ called | waiting ─(เริ่มบริการ)─▶ serving ─▶ com
 - **เช็คอิน** = `POST /api/public/shop/[shopKey]/check-in` → `checkInBookingByCustomer` (`src/lib/booking/check-in.ts`) stamp `bookings.checked_in_at` + แจ้ง staff ผ่าน notification center; อนุญาตเฉพาะ `pending|confirmed` และ `booking_date` = วันนี้ (Asia/Bangkok, `/me` ส่ง `today` มาให้ LIFF ใช้กฎเดียวกัน)
 - ปุ่ม staff ต่อสถานะอยู่ที่ `NEXT_STATUSES` ใน `src/components/bookings/booking-types.ts`; kanban `/portal/queue-board` รวม `checked_in` ไว้คอลัมน์ "รอเรียก"
 - Migration `202609130001_booking_checkin.sql` (เพิ่ม `checked_in_at`) — enum `called`/`checked_in`/`pending_approval` มีตั้งแต่ `202605110001`
+
+## Rich Menu Builder (`/portal/rich-menu`)
+
+เลือกประเภทธุรกิจ → master template (layout + ไอคอน + ข้อความไทย + สี) → preview → ดาวน์โหลด / บันทึกรูป / เผยแพร่ไป LINE
+- Lib ทั้งหมดที่ `src/lib/line/rich-menu/` (pure, มี vitest): `business-types.ts` (`BUSINESS_TYPES` 12 ค่า, `normalizeBusinessType` map จาก registration `business_category` + `demo_business_type`), `layouts.ts` (cells integer ใน 2500-space: `hero3|grid3x2|grid2x2|grid3x1|grid2x1`), `templates.ts` (`templateForBusiness`, `refitButtonsForLayout`), `schema.ts` (`RichMenuConfigSchema` v1: label ≤20, chatBarText ≤14, buttons = จำนวน cell), `render.ts` (`renderRichMenu` วาดใน 2500-space แล้ว `scale` — preview กับ export ใช้โค้ดเดียว), `line-request.ts` (`buildRichMenuRequest` → LINE `areas` จาก cell เดียวกับภาพ, throw `RichMenuConfigError` ถ้าไม่มี LIFF ID), `line-api.ts` (create / upload content ผ่าน **api-data.line.me** / set default / delete), `canvas.ts` (browser only: `ensureFontsLoaded`, `canvasToBlobUnderCap` PNG→JPEG ถ้าเกิน 1 MB), `image-size.ts` (ตรวจขนาด PNG/JPEG ฝั่ง server)
+- UI: `src/components/rich-menu/` (`RichMenuBuilder` container + pickers + `PhonePreview` + `ExportBar`); studio ไอคอนรายชิ้นเดิม (`src/components/onboarding/rich-menu-icon-studio.tsx`) ใช้ icons/colors/canvas จาก lib เดียวกัน ไม่มี sheet export แล้ว
+- Publish flow: ต้อง save config → บันทึกรูปลงระบบ (`shops.rich_menu_image_url`) → publish; server อ่านรูปกลับจาก storage, ตรวจขนาดตรง layout, สร้าง menu บน LINE, ถ้า upload/set default พังจะลบ menu ที่เพิ่งสร้าง; menu เก่าของระบบถูกลบ best-effort; เก็บ `shops.line_rich_menu_id` + `rich_menu_published_at`
+- Rich menu ที่สร้างผ่าน API **ไม่แสดงใน LINE OA Manager** — UI โชว์ id + วันที่ + ปุ่มยกเลิกการเผยแพร่
+- `shops.business_type` ถูก set ตอน register (`normalizeBusinessType(business_category)`) และ sync จาก demo sandbox ถ้ายัง null
+- Migration `202609140001_rich_menu_generator.sql` (business_type, rich_menu_config, rich_menu_image_url, line_rich_menu_id, rich_menu_published_at + backfill จาก demo_business_type)
 
 ## Payment Methods
 

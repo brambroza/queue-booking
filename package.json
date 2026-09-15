@@ -10,7 +10,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "create:super-admin": "node scripts/create-super-admin.mjs"
+    "create:super-admin": "node scripts/create-super-admin.mjs",
+    "cleanup:unconfirmed": "node scripts/cleanup-unconfirmed-users.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

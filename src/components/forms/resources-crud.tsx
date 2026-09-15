@@ -291,9 +291,13 @@ export function ResourcesCrud() {
                           fallbackLabel: 'Delete',
                           color: 'error',
                           onClick: () => void removeRow(r.id),
-                          confirmBeforeClick: true,
-                          confirmTitle: 'Delete',
-                          confirmMessage: 'ยืนยันการลบทรัพยากรนี้?',
+                          confirm: {
+                            tone: 'error',
+                            title: 'ลบทรัพยากรนี้?',
+                            description: 'คิวที่ผูกกับทรัพยากรนี้ยังอยู่ แต่จะเลือกใช้ทรัพยากรนี้ไม่ได้อีก',
+                            context: { primary: r.resource_name, secondary: resourceTypeLabel(r.resource_type) },
+                            confirmLabel: 'ลบทรัพยากร',
+                          },
                         },
                       ]}
                     />

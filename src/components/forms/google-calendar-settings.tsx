@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { formatDateTimeDMY } from '@/lib/utils/date-format';
 
 type CalendarStatus = {
@@ -35,6 +36,7 @@ const OAUTH_MESSAGES: Record<string, { message: string; type: 'success' | 'error
 
 export function GoogleCalendarSettings() {
   const { push } = useToast();
+  const confirm = useConfirm();
   const [status, setStatus] = useState<CalendarStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -85,7 +87,14 @@ export function GoogleCalendarSettings() {
   }
 
   async function disconnect() {
-    if (!window.confirm('ยกเลิกการเชื่อมต่อ Google Calendar? Event ที่ซิงก์ไปแล้วจะยังอยู่ในปฏิทิน')) return;
+    const ok = await confirm({
+      tone: 'info',
+      title: 'ยกเลิกการเชื่อมต่อ Google Calendar?',
+      description: 'คิวใหม่จะไม่ซิงก์ไปปฏิทินอีก Event ที่ซิงก์ไปแล้วยังอยู่ในปฏิทินตามเดิม',
+      context: status?.calendar_id ? { primary: status.calendar_id, avatar: 'G' } : undefined,
+      confirmLabel: 'ตัดการเชื่อมต่อ',
+    });
+    if (!ok) return;
     setDisconnecting(true);
     const response = await fetch('/api/google-calendar', { method: 'DELETE' });
     const json = await response.json();

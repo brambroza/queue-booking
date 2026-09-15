@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { ToastProvider } from '@/components/ui/toast';
+import { ConfirmProvider } from '@/components/ui/confirm-dialog';
 import { Kanit } from 'next/font/google';
 import { I18nProvider } from '@/components/i18n/i18n-provider';
 import { MuiAppProvider } from '@/components/theme/mui-provider';
@@ -120,7 +121,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <PostHogProvider>
           <I18nProvider>
             <MuiAppProvider>
-              <ToastProvider>{children}</ToastProvider>
+              <ToastProvider>
+                <ConfirmProvider>{children}</ConfirmProvider>
+              </ToastProvider>
               <CookieConsent />
             </MuiAppProvider>
           </I18nProvider>

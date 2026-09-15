@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import { formatDateTimeDMY } from '@/lib/utils/date-format';
 
@@ -41,6 +42,7 @@ const initialForm: FormState = {
 
 export function TranslationsCrud() {
   const { push } = useToast();
+  const confirm = useConfirm();
   const [rows, setRows] = useState<TranslationRow[]>([]);
   const [languages, setLanguages] = useState<Language[]>([]);
   const [namespaces, setNamespaces] = useState<Namespace[]>([]);
@@ -157,9 +159,21 @@ export function TranslationsCrud() {
     void load();
   }
 
-  async function onDelete(id: string) {
-    if (!window.confirm('ยืนยันปิดใช้งานคำแปลนี้?')) return;
-    const res = await fetch(`/api/i18n/manage?id=${id}`, { method: 'DELETE' });
+  async function onDelete(row: TranslationRow) {
+    const ok = await confirm({
+      tone: 'warning',
+      title: 'ปิดใช้งานคำแปลนี้?',
+      description: 'หน้าจอจะกลับไปแสดงข้อความสำรอง (fallback) แทนคำแปลนี้ เปิดใช้ใหม่ได้ภายหลัง',
+      context: {
+        primary: row.translation_key,
+        secondary: [row.translation_namespaces?.code, row.language_code.toUpperCase()].filter(Boolean).join(' · '),
+        avatar: row.language_code.toUpperCase().slice(0, 2),
+        avatarSquare: true,
+      },
+      confirmLabel: 'ปิดใช้งาน',
+    });
+    if (!ok) return;
+    const res = await fetch(`/api/i18n/manage?id=${row.id}`, { method: 'DELETE' });
     const json = await res.json();
     if (!res.ok) return push(json.error ?? 'ลบไม่สำเร็จ', 'error');
     push('ปิดใช้งานคำแปลแล้ว');
@@ -222,7 +236,7 @@ export function TranslationsCrud() {
                 <td className="px-3 py-2">
                   <div className="flex gap-2">
                     <button className="btn-outline" onClick={() => openEdit(r)}>Edit</button>
-                    <button className="btn-outline" onClick={() => void onDelete(r.id)}>Deactivate</button>
+                    <button className="btn-outline" onClick={() => void onDelete(r)}>Deactivate</button>
                   </div>
                 </td>
               </tr>
