@@ -1,10 +1,10 @@
 import { PAYMENT_METHODS, type PaymentMethod, type PaymentStatus } from '@/types/db';
 
 /**
- * Methods the sandbox can act out. Bank deeplink needs a real bank app on the
- * other end, so the demo leaves it out rather than fake a PIN screen.
+ * Methods the sandbox can act out. The bank-app methods need a real bank app
+ * on the other end, so the demo leaves them out rather than fake a PIN screen.
  */
-export const DEMO_PAYMENT_METHODS: readonly PaymentMethod[] = PAYMENT_METHODS.filter((m) => m !== 'bank_deeplink');
+export const DEMO_PAYMENT_METHODS: readonly PaymentMethod[] = PAYMENT_METHODS.filter((m) => m !== 'bank_deeplink' && m !== 'omise_mobile_banking');
 
 /**
  * Shared, dependency-free helpers for the payment *demonstration*.
@@ -37,6 +37,10 @@ export const DEMO_METHOD_LABELS: Record<PaymentMethod, { title: string; hint: st
   bank_deeplink: {
     title: 'จ่ายผ่านแอปธนาคาร',
     hint: 'เด้งเข้าแอปธนาคาร ยอดล็อกไว้ ใส่ PIN แล้วระบบยืนยันอัตโนมัติ',
+  },
+  omise_mobile_banking: {
+    title: 'จ่ายผ่านแอปธนาคาร (Omise)',
+    hint: 'เลือกธนาคาร เด้งเข้าแอป ยอดล็อกไว้ ใส่ PIN แล้ว Omise ยืนยันอัตโนมัติ',
   },
 };
 

@@ -80,6 +80,8 @@ export function paymentMethodLabel(method: PaymentMethod | null | undefined): st
       return 'จ่ายผ่านแอปธนาคาร';
     case 'omise_promptpay':
       return 'QR อัตโนมัติ (Omise)';
+    case 'omise_mobile_banking':
+      return 'แอปธนาคาร (Omise)';
     default:
       return '-';
   }

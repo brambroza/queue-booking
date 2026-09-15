@@ -6,6 +6,8 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import PhotoCameraRoundedIcon from '@mui/icons-material/PhotoCameraRounded';
 import { compressImage } from '@/lib/utils/image-compress';
 import { KeyValueList, LiffLabel, LiffSection, LiffSkeleton } from '@/components/line/liff-ui';
+import { BankGrid, type BankGridBank } from '@/components/line/bank-grid';
+import { isBankAppMethod } from '@/lib/payments/mobile-banking/banks';
 
 interface SlipInfo {
   id: string;
@@ -38,6 +40,7 @@ interface PaymentState {
     bank_account_no: string | null;
     bank_account_name: string | null;
     deeplink_banks?: DeeplinkBank[];
+    mobile_banking_banks?: Array<{ code: string; name: string }>;
   } | null;
   bank_provider: string | null;
   bank_provider_name: string | null;
@@ -105,8 +108,9 @@ export function openBankDeeplink(url: string) {
 
 /**
  * Payment panel shown after a booking is made with a method that needs the
- * customer to act: bank transfer (QR + slip upload) or bank deeplink (open the
- * bank app, then wait for confirmation).
+ * customer to act: bank transfer (QR + slip upload) or a bank-app method
+ * (direct bank deeplink / Omise Mobile Banking: open the app, then wait for
+ * confirmation).
  */
 export function LiffPaymentPanel({
   shopKey,
@@ -154,21 +158,22 @@ export function LiffPaymentPanel({
 
   useEffect(() => { void load(); }, [load]);
 
-  const isDeeplink = state?.payment_method === 'bank_deeplink';
+  const isBankApp = isBankAppMethod(state?.payment_method);
+  const isOmiseMobile = state?.payment_method === 'omise_mobile_banking';
 
   // Poll only while a decision is pending, and give up rather than polling forever.
-  // Deeplink confirmations arrive within seconds of the bank PIN, so poll faster.
+  // Bank-app confirmations arrive within seconds of the bank PIN, so poll faster.
   useEffect(() => {
     const status = state?.payment_status;
-    const waiting = isDeeplink ? status === 'pending_payment' : status === 'awaiting_verification';
-    const maxPolls = isDeeplink ? DEEPLINK_MAX_POLLS : SLIP_MAX_POLLS;
+    const waiting = isBankApp ? status === 'pending_payment' : status === 'awaiting_verification';
+    const maxPolls = isBankApp ? DEEPLINK_MAX_POLLS : SLIP_MAX_POLLS;
     if (!waiting || pollCount >= maxPolls) return;
     const id = setTimeout(() => {
       setPollCount((n) => n + 1);
       void load();
-    }, isDeeplink ? DEEPLINK_POLL_INTERVAL_MS : SLIP_POLL_INTERVAL_MS);
+    }, isBankApp ? DEEPLINK_POLL_INTERVAL_MS : SLIP_POLL_INTERVAL_MS);
     return () => clearTimeout(id);
-  }, [state?.payment_status, isDeeplink, pollCount, load]);
+  }, [state?.payment_status, isBankApp, pollCount, load]);
 
   useEffect(() => {
     if (state?.payment_status === 'paid') onPaid?.();
@@ -210,15 +215,19 @@ export function LiffPaymentPanel({
     }
   }
 
-  /** Ask the server for a fresh bank deeplink and open it. */
+  /** Ask the server for a fresh bank-app link (bank deeplink or Omise charge) and open it. */
   async function reissueDeeplink(provider: string) {
     setReissuing(true);
     setError('');
     try {
-      const res = await fetch(`/api/public/shop/${shopKey}/payment/deeplink`, {
+      const endpoint = isOmiseMobile ? 'mobile-banking' : 'deeplink';
+      const body = isOmiseMobile
+        ? { line_user_id: lineUserId, booking_id: bookingId, id_token: idToken || undefined, bank: provider }
+        : { line_user_id: lineUserId, booking_id: bookingId, id_token: idToken || undefined, bank_provider: provider };
+      const res = await fetch(`/api/public/shop/${shopKey}/payment/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ line_user_id: lineUserId, booking_id: bookingId, id_token: idToken || undefined, bank_provider: provider }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? 'ออกลิงก์ชำระเงินไม่สำเร็จ');
@@ -240,7 +249,7 @@ export function LiffPaymentPanel({
       </LiffSection>
     );
   }
-  if (!state || (state.payment_method !== 'bank_transfer' && state.payment_method !== 'bank_deeplink')) return null;
+  if (!state || (state.payment_method !== 'bank_transfer' && !isBankApp)) return null;
 
   const amount = Number(state.payment_amount ?? 0);
   const status = state.payment_status;
@@ -273,20 +282,23 @@ export function LiffPaymentPanel({
     );
   }
 
-  // ── Bank deeplink: open the app, wait for the bank ──
-  if (isDeeplink) {
+  // ── Bank app (direct deeplink or Omise Mobile Banking): open the app, wait for confirmation ──
+  if (isBankApp) {
     const bankName = state.bank_provider_name ?? 'ธนาคาร';
-    const banks = state.payee?.deeplink_banks ?? [];
+    // Both bank-app methods share the same button shape: {code, name}.
+    const banks: BankGridBank[] = isOmiseMobile
+      ? (state.payee?.mobile_banking_banks ?? [])
+      : (state.payee?.deeplink_banks ?? []).map((b) => ({ code: b.provider, name: b.display_name }));
     const canOpen = Boolean(state.bank_deeplink_url) && status === 'pending_payment' && !countdown.expired;
-    const reissueBanks = banks.length ? banks : state.bank_provider ? [{ provider: state.bank_provider, display_name: bankName }] : [];
-    const otherBanks = banks.filter((b) => b.provider !== state.bank_provider);
+    const reissueBanks = banks.length ? banks : state.bank_provider ? [{ code: state.bank_provider, name: bankName }] : [];
+    const otherBanks = banks.filter((b) => b.code !== state.bank_provider);
     const polling = status === 'pending_payment' && pollCount < DEEPLINK_MAX_POLLS;
     return (
       <LiffSection title="ชำระเงิน">
         {status === 'failed' && (
           <Alert severity="error">
             <Typography variant="body2" sx={{ fontWeight: 700 }}>การชำระเงินไม่สำเร็จ</Typography>
-            <Typography variant="caption">กดออกลิงก์ใหม่เพื่อลองอีกครั้ง</Typography>
+            <Typography variant="caption">เลือกธนาคารด้านล่างเพื่อลองอีกครั้ง</Typography>
           </Alert>
         )}
 
@@ -303,20 +315,15 @@ export function LiffPaymentPanel({
           </Button>
         ) : (
           <Stack spacing={1}>
-            <Typography variant="caption" color="text.secondary">ลิงก์ชำระเงินหมดอายุหรือใช้ไม่ได้แล้ว เลือกธนาคารเพื่อออกลิงก์ใหม่</Typography>
-            {reissueBanks.map((b) => (
-              <Button
-                key={b.provider}
-                variant="contained"
-                size="large"
-                fullWidth
-                disabled={reissuing}
-                startIcon={reissuing ? <CircularProgress size={16} color="inherit" /> : undefined}
-                onClick={() => void reissueDeeplink(b.provider)}
-              >
-                {reissuing ? 'กำลังออกลิงก์...' : `ออกลิงก์ใหม่ · ${b.display_name}`}
-              </Button>
-            ))}
+            <Typography variant="caption" color="text.secondary">
+              {status === 'failed' ? 'เลือกธนาคารเพื่อชำระใหม่' : 'ลิงก์ชำระเงินหมดอายุหรือใช้ไม่ได้แล้ว เลือกธนาคารเพื่อออกลิงก์ใหม่'}
+            </Typography>
+            <BankGrid banks={reissueBanks} disabled={reissuing} onChange={(code) => void reissueDeeplink(code)} />
+            {reissuing ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+                <CircularProgress size={12} color="inherit" /> กำลังออกลิงก์...
+              </Typography>
+            ) : null}
           </Stack>
         )}
 
@@ -325,7 +332,7 @@ export function LiffPaymentPanel({
             ยอดเงินและผู้รับถูกตั้งไว้แล้วในแอป {bankName} ยืนยันด้วย PIN ได้เลย
           </Typography>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-            ชำระเสร็จแล้วกลับมาที่หน้านี้ ระบบตรวจสอบกับธนาคารอัตโนมัติ
+            {isOmiseMobile ? 'ผู้รับเงินในแอปจะแสดงเป็นชื่อร้านผ่าน Omise · ' : ''}ชำระเสร็จแล้วกลับมาที่หน้านี้ ระบบตรวจสอบอัตโนมัติ
           </Typography>
         </Box>
 
@@ -354,13 +361,7 @@ export function LiffPaymentPanel({
           <>
             <Divider />
             <LiffLabel>เปลี่ยนธนาคาร</LiffLabel>
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
-              {otherBanks.map((b) => (
-                <Button key={b.provider} size="small" variant="outlined" color="inherit" disabled={reissuing} onClick={() => void reissueDeeplink(b.provider)}>
-                  {b.display_name}
-                </Button>
-              ))}
-            </Box>
+            <BankGrid banks={otherBanks} size="small" disabled={reissuing} onChange={(code) => void reissueDeeplink(code)} />
           </>
         )}
 

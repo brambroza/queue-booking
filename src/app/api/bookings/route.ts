@@ -9,6 +9,7 @@ import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 import { subscriptionErrorResponse } from '@/lib/subscription/response';
 import { safeCreateNotification } from '@/lib/notifications/createNotification';
 import { resolvePaymentForBooking } from '@/lib/payments/resolve';
+import { detectOmisePlatform } from '@/lib/payments/mobile-banking/banks';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
 import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
 import { isPersonResourceType, resourceBusyMessage, resourceTypeLabel } from '@/lib/booking/resource-types';
@@ -376,6 +377,8 @@ export async function POST(req: Request) {
           timeLabel,
           requestedMethod: payload.payment_method ?? null,
           requestedBankProvider: payload.bank_provider ?? null,
+          // Staff usually book from a desktop; the hint is optional for Omise anyway.
+          platformType: detectOmisePlatform(req.headers.get('user-agent')),
         });
         if (payment && token) {
           await pushMessage(token, payload.line_user_external_id, [payment.flex]);

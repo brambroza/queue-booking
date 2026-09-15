@@ -7,6 +7,7 @@ import { DeeplinkProviderCard, type DeeplinkProviderView } from '@/components/po
 
 interface PaymentSettings {
   qr_payment_enabled: boolean;
+  mobile_banking_enabled: boolean;
   omise_public_key: string;
   omise_secret_key: string;
   omise_secret_key_set: boolean;
@@ -22,6 +23,7 @@ interface PaymentSettings {
 
 const EMPTY: PaymentSettings = {
   qr_payment_enabled: false,
+  mobile_banking_enabled: false,
   omise_public_key: '',
   omise_secret_key: '',
   omise_secret_key_set: false,
@@ -45,6 +47,8 @@ export default function PaymentSettingsPage() {
   const [previewNonce, setPreviewNonce] = useState(0);
   const [deeplinkProviders, setDeeplinkProviders] = useState<DeeplinkProviderView[]>([]);
   const [linkSecretConfigured, setLinkSecretConfigured] = useState(true);
+  // Server-side flag: mobile banking's return page needs PAYMENT_LINK_SECRET.
+  const [mobileBankingAvailable, setMobileBankingAvailable] = useState(true);
 
   const loadDeeplink = useCallback(async () => {
     const res = await fetch('/api/shop-payment-settings/deeplink');
@@ -62,8 +66,10 @@ export default function PaymentSettingsPage() {
       const res = await fetch('/api/shop-payment-settings');
       const json = await res.json();
       if (!res.ok) { push(json.error ?? 'โหลดไม่สำเร็จ', 'error'); return; }
+      setMobileBankingAvailable(Boolean(json.data.mobile_banking_available));
       setForm({
         qr_payment_enabled: Boolean(json.data.qr_payment_enabled),
+        mobile_banking_enabled: Boolean(json.data.mobile_banking_enabled),
         omise_public_key: json.data.omise_public_key ?? '',
         omise_secret_key: '',
         omise_secret_key_set: Boolean(json.data.omise_secret_key_set),
@@ -85,6 +91,7 @@ export default function PaymentSettingsPage() {
     setSaving(true);
     const body: Record<string, unknown> = {
       qr_payment_enabled: form.qr_payment_enabled,
+      mobile_banking_enabled: form.mobile_banking_enabled,
       omise_public_key: form.omise_public_key,
       transfer_payment_enabled: form.transfer_payment_enabled,
       promptpay_id: form.promptpay_id,
@@ -115,8 +122,10 @@ export default function PaymentSettingsPage() {
     (form.omise_secret_key_hint?.includes('skey_test_') ?? form.omise_public_key.startsWith('pkey_test_'));
 
   const deeplinkEnabled = deeplinkProviders.some((p) => p.enabled && p.available && p.credentials_set && p.biller_id.trim());
-  const enabledCount = Number(form.qr_payment_enabled) + Number(form.transfer_payment_enabled) + Number(deeplinkEnabled);
+  const mobileBankingEnabled = form.mobile_banking_enabled && mobileBankingAvailable;
+  const enabledCount = Number(form.qr_payment_enabled) + Number(mobileBankingEnabled) + Number(form.transfer_payment_enabled) + Number(deeplinkEnabled);
   const transferMisconfigured = form.transfer_payment_enabled && !form.promptpay_id.trim();
+  const omiseMisconfigured = (form.qr_payment_enabled || form.mobile_banking_enabled) && !form.omise_secret_key_set && !form.omise_secret_key;
 
   if (loading) return <PageShell title="Payment Settings"><p className="text-sm text-slate-500">กำลังโหลด...</p></PageShell>;
 
@@ -133,6 +142,18 @@ export default function PaymentSettingsPage() {
       {transferMisconfigured && (
         <div className="max-w-2xl rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           ⚠️ เปิดรับโอนเงินไว้ แต่ยังไม่ได้กรอก PromptPay ID — ลูกค้าจะไม่เห็น QR
+        </div>
+      )}
+
+      {omiseMisconfigured && (
+        <div className="max-w-2xl rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          ⚠️ เปิดรับชำระผ่าน Omise ไว้ แต่ยังไม่ได้กรอก Secret Key — ลูกค้าจะไม่เห็นช่องทางนี้
+        </div>
+      )}
+
+      {form.mobile_banking_enabled && !mobileBankingAvailable && (
+        <div className="max-w-2xl rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          ⚠️ จ่ายผ่านแอปธนาคารยังไม่แสดงให้ลูกค้า — ระบบยังไม่ได้ตั้งค่า <code>PAYMENT_LINK_SECRET</code> (ติดต่อผู้ดูแลระบบ)
         </div>
       )}
 
@@ -257,6 +278,24 @@ export default function PaymentSettingsPage() {
               <p className="mt-0.5 text-xs text-slate-500">
                 ต้องสมัคร Omise และมีค่าธรรมเนียมต่อรายการ แต่ระบบยืนยันการชำระให้อัตโนมัติ<br />
                 ไม่ต้องตรวจสลิปเอง — ลูกค้าจ่ายแล้วได้ใบเสร็จผ่าน LINE ทันที
+              </p>
+            </label>
+          </div>
+
+          <div className="flex items-start gap-3 rounded-xl bg-slate-50 p-4 border border-slate-200">
+            <input
+              id="mobile-banking-toggle"
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-blue-600"
+              checked={form.mobile_banking_enabled}
+              onChange={(e) => setForm((s) => ({ ...s, mobile_banking_enabled: e.target.checked }))}
+            />
+            <label htmlFor="mobile-banking-toggle" className="cursor-pointer">
+              <span className="text-sm font-semibold text-slate-800">จ่ายผ่านแอปธนาคาร (Omise Mobile Banking)</span>
+              <p className="mt-0.5 text-xs text-slate-500">
+                ลูกค้ากดปุ่มธนาคารใน LINE → เด้งเข้าแอปธนาคารพร้อมยอดที่ล็อกไว้ → ใส่ PIN → Omise ยืนยันอัตโนมัติ<br />
+                ใช้ Omise Keys ชุดเดียวกับ QR · รองรับ K PLUS, SCB EASY, KMA, Bualuang mBanking, Krungthai NEXT (ยอด 20 – 150,000 บาท)<br />
+                <strong>แต่ละธนาคารต้องขอเปิดใช้กับ Omise ก่อน</strong> — ธนาคารที่ยังไม่เปิด ลูกค้าจะกดแล้วขึ้นให้เลือกธนาคารอื่น
               </p>
             </label>
           </div>

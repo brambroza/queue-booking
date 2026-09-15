@@ -5,6 +5,7 @@ import { normalizePromptPayTarget } from '@/lib/payments/promptpay';
 
 const patchSchema = z.object({
   qr_payment_enabled: z.boolean().optional(),
+  mobile_banking_enabled: z.boolean().optional(),
   omise_public_key: z.string().optional(),
   omise_secret_key: z.string().optional(),
   transfer_payment_enabled: z.boolean().optional(),
@@ -23,7 +24,7 @@ export async function GET(_req: Request) {
     const { data, error } = await supabase
       .from('shops')
       .select(
-        'qr_payment_enabled, omise_public_key, omise_secret_key, transfer_payment_enabled, promptpay_id, promptpay_display_name, bank_name, bank_account_no, bank_account_name, transfer_payment_window_minutes',
+        'qr_payment_enabled, mobile_banking_enabled, omise_public_key, omise_secret_key, transfer_payment_enabled, promptpay_id, promptpay_display_name, bank_name, bank_account_no, bank_account_name, transfer_payment_window_minutes',
       )
       .eq('id', profile.shop_id)
       .maybeSingle();
@@ -38,6 +39,9 @@ export async function GET(_req: Request) {
     return NextResponse.json({
       data: {
         qr_payment_enabled: data?.qr_payment_enabled ?? false,
+        mobile_banking_enabled: data?.mobile_banking_enabled ?? false,
+        // Mobile banking's return page is secured by this secret; without it the method stays hidden.
+        mobile_banking_available: Boolean(process.env.PAYMENT_LINK_SECRET),
         omise_public_key: data?.omise_public_key ?? null,
         omise_secret_key_set: !!data?.omise_secret_key,
         omise_secret_key_hint: masked,
@@ -68,6 +72,7 @@ export async function PATCH(req: Request) {
     const d = parsed.data;
 
     if (d.qr_payment_enabled !== undefined) updates.qr_payment_enabled = d.qr_payment_enabled;
+    if (d.mobile_banking_enabled !== undefined) updates.mobile_banking_enabled = d.mobile_banking_enabled;
     if (d.omise_public_key !== undefined) updates.omise_public_key = d.omise_public_key || null;
     // Only update secret key if a full key is provided (not the masked hint)
     if (d.omise_secret_key && !d.omise_secret_key.includes('...')) {
@@ -111,6 +116,23 @@ export async function PATCH(req: Request) {
       if (!promptpayAfter) {
         return NextResponse.json(
           { error: 'ต้องกรอก PromptPay ID ก่อนเปิดรับชำระด้วยการโอน' },
+          { status: 400 },
+        );
+      }
+    }
+
+    // Both Omise methods need a secret key; enabling either without one would
+    // leave customers with a booking that has no way to pay.
+    if (d.qr_payment_enabled === true || d.mobile_banking_enabled === true) {
+      const keyAfter =
+        updates.omise_secret_key !== undefined
+          ? (updates.omise_secret_key as string)
+          : (
+              await supabase.from('shops').select('omise_secret_key').eq('id', profile.shop_id).maybeSingle()
+            ).data?.omise_secret_key ?? process.env.OMISE_SECRET_KEY ?? null;
+      if (!keyAfter) {
+        return NextResponse.json(
+          { error: 'ต้องกรอก Omise Secret Key ก่อนเปิดรับชำระผ่าน Omise' },
           { status: 400 },
         );
       }

@@ -1,10 +1,12 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { deeplinkPaymentFlex, qrPaymentFlex, transferPaymentFlex } from '@/lib/line/messages-payment';
-import type { BankProvider, PaymentMethod } from '@/types/db';
+import type { BankCode, PaymentMethod } from '@/types/db';
 import { getShopPaymentConfig } from './settings';
 import { createBookingQrPayment } from './qr';
 import { createBookingTransferPayment } from './transfer';
 import { createBookingDeeplinkPayment } from './deeplink';
+import { createBookingMobileBankingPayment } from './mobile-banking';
+import { isMobileBankingAmountOk, type OmisePlatformType } from './mobile-banking/banks';
 
 export interface PaymentBankInfo {
   payeeName: string | null;
@@ -15,8 +17,10 @@ export interface PaymentBankInfo {
 }
 
 export interface PaymentDeeplinkInfo {
-  provider: BankProvider;
+  /** Bank app that opens — `scb`/`kbank` for direct bank APIs, any BankCode for Omise Mobile Banking. */
+  provider: BankCode;
   provider_name: string;
+  /** Bank deeplink or Omise `authorize_uri`. */
   deeplink_url: string;
   return_url: string;
 }
@@ -24,7 +28,7 @@ export interface PaymentDeeplinkInfo {
 export interface PaymentSetupResult {
   method: PaymentMethod;
   amountTHB: number;
-  /** Empty string on the deeplink path — there is nothing to scan. */
+  /** Empty string on the bank-app paths — there is nothing to scan. */
   qrImageUrl: string;
   expiresAt: string | null;
   isTest: boolean;
@@ -32,7 +36,7 @@ export interface PaymentSetupResult {
   flex: object;
   /** Payee details — only present on the bank-transfer path. */
   bank: PaymentBankInfo | null;
-  /** Bank-app link — only present on the deeplink path. */
+  /** Bank-app link — present on the bank_deeplink and omise_mobile_banking paths. */
   deeplink: PaymentDeeplinkInfo | null;
 }
 
@@ -66,14 +70,21 @@ export async function resolvePaymentForBooking(opts: {
   dateLabel: string;
   timeLabel: string;
   requestedMethod?: PaymentMethod | null;
-  /** Which bank the customer tapped; only meaningful with `bank_deeplink`. */
-  requestedBankProvider?: BankProvider | null;
+  /** Which bank the customer tapped; only meaningful with a bank-app method. */
+  requestedBankProvider?: BankCode | null;
+  /** Omise platform hint (from the user agent) for mobile banking. */
+  platformType?: OmisePlatformType | null;
 }): Promise<PaymentSetupResult | null> {
   if (!(opts.amountTHB > 0)) return null;
 
   const admin = createAdminClient();
   const config = await getShopPaymentConfig(admin, opts.shopId);
-  if (config.enabledMethods.length === 0) return null;
+  // Omise refuses mobile banking outside its limits — drop it so the booking
+  // falls through to the next usable method instead of ending up unpayable.
+  const enabledMethods = config.enabledMethods.filter(
+    (m) => m !== 'omise_mobile_banking' || isMobileBankingAmountOk(opts.amountTHB),
+  );
+  if (enabledMethods.length === 0) return null;
 
   // Never clobber a booking the customer has already paid or submitted a slip for.
   const { data: current } = await admin
@@ -84,9 +95,9 @@ export async function resolvePaymentForBooking(opts: {
   if (current && LOCKED_STATUSES.has(String(current.payment_status))) return null;
 
   const method: PaymentMethod =
-    opts.requestedMethod && config.enabledMethods.includes(opts.requestedMethod)
+    opts.requestedMethod && enabledMethods.includes(opts.requestedMethod)
       ? opts.requestedMethod
-      : config.enabledMethods[0];
+      : enabledMethods[0];
 
   const common = {
     shopName: opts.shopName,
@@ -134,6 +145,52 @@ export async function resolvePaymentForBooking(opts: {
         amountTHB: result.amountTHB,
         bankName: result.providerName,
         deeplinkUrl: result.deeplinkUrl,
+        fallbackUrl: result.returnUrl,
+        expiresAt: result.expiresAt,
+        accountUrl: liffUrl(opts.shopKey),
+      }),
+    };
+  }
+
+  if (method === 'omise_mobile_banking') {
+    // Omise needs an https return_uri, which needs the shop key.
+    if (!opts.shopKey) return null;
+    const bank =
+      config.mobileBankingBanks.find((b) => b === opts.requestedBankProvider) ?? config.mobileBankingBanks[0];
+    if (!bank) return null;
+
+    const result = await createBookingMobileBankingPayment({
+      bookingId: opts.bookingId,
+      shopId: opts.shopId,
+      companyId: opts.companyId,
+      shopKey: opts.shopKey,
+      shopName: opts.shopName,
+      queueNumber: opts.queueNumber,
+      amountTHB: opts.amountTHB,
+      bank,
+      platformType: opts.platformType ?? null,
+      config,
+    });
+    if (!result) return null;
+
+    return {
+      method,
+      amountTHB: result.amountTHB,
+      qrImageUrl: '',
+      expiresAt: result.expiresAt,
+      isTest: result.isTest,
+      bank: null,
+      deeplink: {
+        provider: result.bank,
+        provider_name: result.bankName,
+        deeplink_url: result.authorizeUri,
+        return_url: result.returnUrl,
+      },
+      flex: deeplinkPaymentFlex({
+        ...common,
+        amountTHB: result.amountTHB,
+        bankName: result.bankName,
+        deeplinkUrl: result.authorizeUri,
         fallbackUrl: result.returnUrl,
         expiresAt: result.expiresAt,
         accountUrl: liffUrl(opts.shopKey),

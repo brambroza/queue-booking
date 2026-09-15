@@ -16,6 +16,7 @@ export interface ResolvedBookingOwner {
     bank_provider: string | null;
     bank_txn_id: string | null;
     bank_deeplink_url: string | null;
+    omise_charge_id: string | null;
   };
 }
 
@@ -67,7 +68,7 @@ export async function resolveBookingForLineUser(
 
   const { data: booking } = await admin
     .from('bookings')
-    .select('id,queue_number,payment_status,payment_method,payment_amount,payment_expires_at,payment_reject_reason,bank_provider,bank_txn_id,bank_deeplink_url')
+    .select('id,queue_number,payment_status,payment_method,payment_amount,payment_expires_at,payment_reject_reason,bank_provider,bank_txn_id,bank_deeplink_url,omise_charge_id')
     .eq('id', bookingId)
     .eq('shop_id', shop.id)
     .eq('line_user_id', lineUser.id)

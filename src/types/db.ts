@@ -36,19 +36,31 @@ export type PaymentStatus =
 /**
  * How a booking is being paid for. Null on bookings with no payment.
  *
- * `bank_deeplink` covers every bank-app deeplink flow (SCB Easy, K PLUS, …);
- * the bank itself lives in `bookings.bank_provider`, because all banks share
- * one flow: open app → bank confirms → auto `paid` → receipt.
+ * Two methods open a bank app; the bank itself lives in `bookings.bank_provider`
+ * and the link to open in `bookings.bank_deeplink_url`:
+ * - `bank_deeplink` — direct bank API (SCB Easy / K PLUS partner APIs), money
+ *   settles into the shop's own bank account.
+ * - `omise_mobile_banking` — Omise Mobile Banking source; the link is Omise's
+ *   `authorize_uri`, the charge id lives in `omise_charge_id` and money settles
+ *   into the shop's Omise account like `omise_promptpay`.
  */
-export type PaymentMethod = 'omise_promptpay' | 'bank_transfer' | 'bank_deeplink';
+export type PaymentMethod = 'omise_promptpay' | 'omise_mobile_banking' | 'bank_transfer' | 'bank_deeplink';
 
 /** Source of truth for zod enums and method-picker ordering. */
-export const PAYMENT_METHODS = ['omise_promptpay', 'bank_transfer', 'bank_deeplink'] as const satisfies readonly PaymentMethod[];
+export const PAYMENT_METHODS = ['omise_promptpay', 'omise_mobile_banking', 'bank_transfer', 'bank_deeplink'] as const satisfies readonly PaymentMethod[];
 
-/** Bank whose app a deeplink payment opens. */
+/**
+ * Every Thai bank app a customer can be sent to, in LIFF button order.
+ * Superset of `BankProvider`: Omise Mobile Banking serves all five, the direct
+ * bank APIs only the two in `BANK_PROVIDERS`.
+ */
+export const BANK_CODES = ['kbank', 'scb', 'bay', 'bbl', 'ktb'] as const;
+export type BankCode = (typeof BANK_CODES)[number];
+
+/** Bank whose app a direct-API (`bank_deeplink`) payment opens. */
 export type BankProvider = 'scb' | 'kbank';
 
-/** Source of truth for zod enums and the per-bank button order in LIFF. */
+/** Source of truth for zod enums and the per-bank button order in LIFF (direct bank APIs only). */
 export const BANK_PROVIDERS = ['scb', 'kbank'] as const satisfies readonly BankProvider[];
 
 /** Review state of an uploaded transfer slip. */

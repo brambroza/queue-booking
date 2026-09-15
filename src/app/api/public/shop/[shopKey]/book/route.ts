@@ -12,7 +12,8 @@ import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
 import { resourceBusyMessage, resourceTypeLabel } from '@/lib/booking/resource-types';
 import { resourceServesService, resourceServiceMismatchMessage } from '@/lib/booking/resource-service-link';
 import { NICKNAME_MAX, normalizeNicknameInput } from '@/lib/booking/customer-label';
-import { BANK_PROVIDERS, PAYMENT_METHODS } from '@/types/db';
+import { BANK_CODES, BANK_PROVIDERS, PAYMENT_METHODS } from '@/types/db';
+import { detectOmisePlatform, isBankAppMethod } from '@/lib/payments/mobile-banking/banks';
 import { resolveInitialBookingStatus } from '@/lib/booking/status-flow';
 import { isSlotPast, SLOT_PAST_CODE, SLOT_PAST_MESSAGE } from '@/lib/booking/slot-time';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
@@ -33,12 +34,16 @@ const bookSchema = z
     party_size: z.coerce.number().int().min(1).max(200).optional(),
     resource_id: z.string().uuid().optional(),
     payment_method: z.enum(PAYMENT_METHODS).optional(),
-    /** Which bank app to open; required with `bank_deeplink`, ignored otherwise. */
-    bank_provider: z.enum(BANK_PROVIDERS).optional(),
+    /** Which bank app to open; required with `bank_deeplink` / `omise_mobile_banking`, ignored otherwise. */
+    bank_provider: z.enum(BANK_CODES).optional(),
   })
   .superRefine((value, ctx) => {
-    if (value.payment_method === 'bank_deeplink' && !value.bank_provider) {
+    if (isBankAppMethod(value.payment_method) && !value.bank_provider) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['bank_provider'], message: 'bank_provider is required' });
+    }
+    // Direct bank APIs exist for two banks only.
+    if (value.payment_method === 'bank_deeplink' && value.bank_provider && !(BANK_PROVIDERS as readonly string[]).includes(value.bank_provider)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['bank_provider'], message: 'bank not supported for bank_deeplink' });
     }
   });
 
@@ -442,6 +447,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       timeLabel: payload.start_time.slice(0, 5),
       requestedMethod: payload.payment_method ?? null,
       requestedBankProvider: payload.bank_provider ?? null,
+      platformType: detectOmisePlatform(req.headers.get('user-agent')),
     });
 
     if (payment) {

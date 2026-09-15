@@ -50,6 +50,8 @@ import {
   brandSoft,
 } from '@/components/line/liff-ui';
 import type { PaymentMethod } from '@/types/db';
+import { BankGrid } from '@/components/line/bank-grid';
+import { isBankAppMethod, isMobileBankingAmountOk } from '@/lib/payments/mobile-banking/banks';
 
 type Branch = { id: string; branch_name: string };
 type Service = { id: string; service_name: string; duration_minutes: number; price?: number | null };
@@ -126,6 +128,8 @@ type ShopPaymentMeta = {
   promptpay_masked: string | null;
   /** Banks offered for in-app payment; one picker button each. */
   deeplink_banks?: Array<{ provider: string; display_name: string }>;
+  /** Bank apps offered through Omise Mobile Banking; shown as a grid under one picker card. */
+  mobile_banking_banks?: Array<{ code: string; name: string }>;
 };
 
 /** One button in the payment method picker. */
@@ -146,7 +150,7 @@ type BookingResult = {
 };
 
 /** Methods where the customer still has something to do after booking. */
-const ON_SCREEN_PAYMENT_METHODS = new Set(['bank_transfer', 'bank_deeplink']);
+const ON_SCREEN_PAYMENT_METHODS = new Set(['bank_transfer', 'bank_deeplink', 'omise_mobile_banking']);
 
 /** localStorage key holding a booking whose payment is still unfinished. */
 const pendingPaymentKey = (shopKey: string) => `queue.pendingPayment.${shopKey}`;
@@ -252,6 +256,7 @@ function paymentOptionIcon(option: PaymentOption): React.ReactNode {
     const short = (option.bank ?? '').replace(/[^a-z]/gi, '').slice(0, 3).toUpperCase() || 'BK';
     return <Box component="span" sx={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.02em' }}>{short}</Box>;
   }
+  if (option.method === 'omise_mobile_banking') return '🏦';
   if (option.method === 'bank_transfer') return '🧾';
   return '📱';
 }
@@ -259,6 +264,7 @@ function paymentOptionIcon(option: PaymentOption): React.ReactNode {
 /** Second line of a payment option, describing how it gets confirmed. */
 function paymentOptionSubtitle(option: PaymentOption) {
   if (option.method === 'bank_deeplink') return 'เปิดแอปธนาคาร ยืนยันอัตโนมัติ';
+  if (option.method === 'omise_mobile_banking') return 'เลือกธนาคาร เปิดแอป ยอดล็อกไว้ ยืนยันอัตโนมัติ';
   if (option.method === 'bank_transfer') return 'สแกน QR แล้วอัปโหลดสลิป';
   return 'ชำระผ่าน QR ยืนยันอัตโนมัติ';
 }
@@ -636,9 +642,14 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     return resourcePrice > 0 ? resourcePrice : servicePrice;
   }, [selectedResourceId, resources, services, serviceId]);
 
+  /** Bank apps behind the Omise Mobile Banking card; the first is the default when the card is chosen. */
+  const mobileBanks = useMemo(() => shopPayment?.mobile_banking_banks ?? [], [shopPayment]);
+
   /**
-   * Picker buttons: `bank_deeplink` expands into one button per bank, and is
-   * dropped entirely on desktop where no bank app can open.
+   * Picker buttons: `bank_deeplink` expands into one button per bank, and both
+   * bank-app methods are dropped entirely on desktop where no bank app can
+   * open. `omise_mobile_banking` is one card with a bank grid underneath, and
+   * disappears when the price is outside Omise's limits.
    */
   const paymentOptions = useMemo<PaymentOption[]>(() => {
     const methods = shopPayment?.methods ?? [];
@@ -649,6 +660,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         for (const bank of shopPayment?.deeplink_banks ?? []) {
           options.push({ key: `deeplink:${bank.provider}`, method: m, bank: bank.provider, label: `จ่ายผ่านแอป ${bank.display_name}` });
         }
+      } else if (m === 'omise_mobile_banking') {
+        if (!isMobileLike || mobileBanks.length === 0 || !isMobileBankingAmountOk(effectivePrice)) continue;
+        options.push({ key: m, method: m, label: 'จ่ายผ่านแอปธนาคาร' });
       } else if (m === 'bank_transfer') {
         options.push({ key: m, method: m, label: 'โอนเงิน + แนบสลิป' });
       } else {
@@ -656,7 +670,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       }
     }
     return options;
-  }, [shopPayment, isMobileLike]);
+  }, [shopPayment, isMobileLike, mobileBanks, effectivePrice]);
   const showMethodPicker = effectivePrice > 0 && paymentOptions.length > 1;
   const chosenOptionKey = chosenMethod === 'bank_deeplink' ? `deeplink:${chosenBank}` : chosenMethod;
 
@@ -665,8 +679,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   // offered (e.g. the bank buttons disappeared after mobile detection).
   useEffect(() => {
     if (paymentOptions.length === 1) {
-      setChosenMethod(paymentOptions[0].method);
-      setChosenBank(paymentOptions[0].bank ?? '');
+      const only = paymentOptions[0];
+      setChosenMethod(only.method);
+      setChosenBank(only.bank ?? (only.method === 'omise_mobile_banking' ? mobileBanks[0]?.code ?? '' : ''));
       return;
     }
     if (paymentOptions.length === 0) {
@@ -679,10 +694,15 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       const stillOffered = paymentOptions.some((o) => o.method === current && (current !== 'bank_deeplink' || o.bank === chosenBank));
       return stillOffered ? current : '';
     });
-  }, [paymentOptions, chosenBank]);
+  }, [paymentOptions, chosenBank, mobileBanks]);
 
   function chooseOption(option: PaymentOption) {
     setChosenMethod(option.method);
+    if (option.method === 'omise_mobile_banking') {
+      // Keep a bank the customer already picked from the grid; otherwise default to the first.
+      setChosenBank((current) => (mobileBanks.some((b) => b.code === current) ? current : mobileBanks[0]?.code ?? ''));
+      return;
+    }
     setChosenBank(option.bank ?? '');
   }
 
@@ -703,7 +723,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         nickname: customerNickname.trim() || undefined,
         line_user_id: lineUserId || undefined,
         payment_method: chosenMethod || undefined,
-        bank_provider: chosenMethod === 'bank_deeplink' && chosenBank ? chosenBank : undefined,
+        bank_provider: isBankAppMethod(chosenMethod) && chosenBank ? chosenBank : undefined,
       }),
     });
     const json = await res.json();
@@ -717,6 +737,16 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     setQueueNo(json.data.queue_number);
 
     const paymentMethod: string | null = json.data?.payment?.method ?? null;
+    // The booking is saved even when Omise refused the charge (e.g. a bank the
+    // shop has not activated yet) — tell the customer so they can pick another.
+    if (chosenMethod && !paymentMethod && effectivePrice > 0) {
+      push(
+        chosenMethod === 'omise_mobile_banking'
+          ? 'จองคิวแล้ว แต่เปิดชำระผ่านธนาคารนี้ไม่สำเร็จ ดูคิวของฉันเพื่อเลือกธนาคารอื่น'
+          : 'จองคิวแล้ว แต่ตั้งค่าการชำระเงินไม่สำเร็จ กรุณาติดต่อร้าน',
+        'error',
+      );
+    }
     const result: BookingResult = {
       booking_id: json.data?.booking_id ?? '',
       queue_number: json.data?.queue_number ?? '',
@@ -736,7 +766,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     // Hand off to the bank app right away, while the tap that confirmed the
     // booking still counts as a user gesture for the browser.
     const deeplinkUrl: string | undefined = json.data?.payment?.deeplink?.deeplink_url;
-    if (paymentMethod === 'bank_deeplink' && deeplinkUrl) {
+    if (isBankAppMethod(paymentMethod) && deeplinkUrl) {
       try { openBankDeeplink(deeplinkUrl); } catch { /* the panel still offers the button */ }
     }
     // Wake up the shop. The Flex confirmation the server pushed is outbound, so
@@ -1057,7 +1087,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       );
     }
     const canResumeSlip = b.payment_method === 'bank_transfer' && (b.payment_status === 'pending_payment' || b.payment_status === 'rejected');
-    const canResumeDeeplink = b.payment_method === 'bank_deeplink' && (b.payment_status === 'pending_payment' || b.payment_status === 'failed');
+    const canResumeDeeplink = isBankAppMethod(b.payment_method) && (b.payment_status === 'pending_payment' || b.payment_status === 'failed');
     const canCancel = (CUSTOMER_CANCELLABLE_STATUSES as readonly string[]).includes(b.status);
     // Same rule as the API: only on the booking day and while still waiting.
     const canCheckIn = Boolean(todayIso) && checkInEligibility({ status: b.status, booking_date: b.booking_date }, todayIso).ok;
@@ -1129,7 +1159,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
               <Button
                 variant="contained"
                 fullWidth
-                onClick={() => setResumeBooking({ booking_id: b.id, queue_number: b.queue_number, payment_method: 'bank_deeplink' })}
+                onClick={() => setResumeBooking({ booking_id: b.id, queue_number: b.queue_number, payment_method: b.payment_method ?? 'bank_deeplink' })}
               >
                 {b.payment_status === 'failed' ? 'ชำระเงินใหม่ผ่านแอปธนาคาร' : 'ชำระเงินผ่านแอปธนาคาร'}
               </Button>
@@ -1353,14 +1383,24 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                   }
                 >
                   {paymentOptions.map((option) => (
-                    <OptionCard
-                      key={option.key}
-                      icon={paymentOptionIcon(option)}
-                      title={option.label}
-                      subtitle={paymentOptionSubtitle(option)}
-                      selected={chosenOptionKey === option.key}
-                      onClick={() => chooseOption(option)}
-                    />
+                    <Stack key={option.key} spacing={1}>
+                      <OptionCard
+                        icon={paymentOptionIcon(option)}
+                        title={option.label}
+                        subtitle={paymentOptionSubtitle(option)}
+                        selected={chosenOptionKey === option.key}
+                        onClick={() => chooseOption(option)}
+                      />
+                      {option.method === 'omise_mobile_banking' && chosenMethod === 'omise_mobile_banking' ? (
+                        <Box sx={{ pl: 0.5 }}>
+                          <LiffLabel>เลือกธนาคาร</LiffLabel>
+                          <BankGrid banks={mobileBanks} value={chosenBank} onChange={setChosenBank} />
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+                            ยอดเงินและผู้รับถูกตั้งไว้ในแอปธนาคาร ผู้รับจะแสดงเป็นชื่อร้านผ่าน Omise
+                          </Typography>
+                        </Box>
+                      ) : null}
+                    </Stack>
                   ))}
                 </LiffSection>
               )}

@@ -1,9 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { BankProvider, PaymentMethod } from '@/types/db';
+import type { BankCode, BankProvider, PaymentMethod } from '@/types/db';
 import { resolveOmiseSecretKey } from './omise';
 import { maskPromptPayId, normalizePromptPayTarget } from './promptpay';
 import { loadShopDeeplinkProviders } from './deeplink/settings';
 import { providerDisplayName } from './deeplink/registry';
+import { MOBILE_BANKS } from './mobile-banking/banks';
 import type { DeeplinkProviderConfig } from './deeplink/types';
 
 /**
@@ -25,11 +26,18 @@ export interface ShopPaymentConfig {
   transferWindowMinutes: number;
   /** Banks the customer may pay through in-app, in picker order. Server-only (holds credentials). */
   deeplinkProviders: DeeplinkProviderConfig[];
+  /** Bank apps offered through Omise Mobile Banking, in picker order. Empty unless the method is enabled. */
+  mobileBankingBanks: BankCode[];
 }
 
 export interface PublicDeeplinkBank {
   provider: BankProvider;
   display_name: string;
+}
+
+export interface PublicMobileBank {
+  code: BankCode;
+  name: string;
 }
 
 /** Customer-safe subset of the config, suitable for /meta and LIFF responses. */
@@ -42,10 +50,12 @@ export interface PublicPaymentInfo {
   bank_account_name: string | null;
   /** One button per entry when `bank_deeplink` is in `methods`. */
   deeplink_banks: PublicDeeplinkBank[];
+  /** One button per entry when `omise_mobile_banking` is in `methods`. */
+  mobile_banking_banks: PublicMobileBank[];
 }
 
 const SHOP_PAYMENT_COLUMNS =
-  'qr_payment_enabled, omise_secret_key, transfer_payment_enabled, promptpay_id, promptpay_display_name, bank_name, bank_account_no, bank_account_name, transfer_payment_window_minutes';
+  'qr_payment_enabled, mobile_banking_enabled, omise_secret_key, transfer_payment_enabled, promptpay_id, promptpay_display_name, bank_name, bank_account_no, bank_account_name, transfer_payment_window_minutes';
 
 /**
  * Load a shop's payment configuration in one round trip per source.
@@ -53,8 +63,9 @@ const SHOP_PAYMENT_COLUMNS =
  * A method is only reported as enabled when it is both toggled on AND usable:
  * bank transfer needs a parseable PromptPay id, Omise needs a secret key, bank
  * deeplink needs at least one configured bank plus PAYMENT_LINK_SECRET (the
- * bank-app return page authenticates with that token alone). Anything else
- * would produce a booking stuck at pending_payment with no way to pay.
+ * bank-app return page authenticates with that token alone), and Omise Mobile
+ * Banking needs the secret key plus that same secret. Anything else would
+ * produce a booking stuck at pending_payment with no way to pay.
  */
 export async function getShopPaymentConfig(
   admin: SupabaseClient,
@@ -70,10 +81,14 @@ export async function getShopPaymentConfig(
   const shop = (data ?? {}) as Record<string, unknown>;
   const omiseSecretKey = resolveOmiseSecretKey((shop.omise_secret_key as string | null) ?? null);
   const promptpayId = (shop.promptpay_id as string | null) ?? null;
+  const linkSecretSet = Boolean(process.env.PAYMENT_LINK_SECRET);
 
   const enabledMethods: PaymentMethod[] = [];
-  if (deeplinkProviders.length > 0 && process.env.PAYMENT_LINK_SECRET) {
+  if (deeplinkProviders.length > 0 && linkSecretSet) {
     enabledMethods.push('bank_deeplink');
+  }
+  if (shop.mobile_banking_enabled && omiseSecretKey && linkSecretSet) {
+    enabledMethods.push('omise_mobile_banking');
   }
   if (shop.transfer_payment_enabled && promptpayId && normalizePromptPayTarget(promptpayId)) {
     enabledMethods.push('bank_transfer');
@@ -92,6 +107,7 @@ export async function getShopPaymentConfig(
     bankAccountName: (shop.bank_account_name as string | null) ?? null,
     transferWindowMinutes: Number(shop.transfer_payment_window_minutes ?? 1440) || 1440,
     deeplinkProviders: enabledMethods.includes('bank_deeplink') ? deeplinkProviders : [],
+    mobileBankingBanks: enabledMethods.includes('omise_mobile_banking') ? MOBILE_BANKS.map((b) => b.code) : [],
   };
 }
 
@@ -109,5 +125,6 @@ export function toPublicPaymentInfo(config: ShopPaymentConfig): PublicPaymentInf
       provider: p.provider,
       display_name: providerDisplayName(p.provider),
     })),
+    mobile_banking_banks: MOBILE_BANKS.filter((b) => config.mobileBankingBanks.includes(b.code)).map((b) => ({ code: b.code, name: b.name })),
   };
 }

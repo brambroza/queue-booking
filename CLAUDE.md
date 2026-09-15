@@ -327,10 +327,13 @@ called | waiting ─(เริ่มบริการ)─▶ serving ─▶ com
 | `payment_method` | Flow | Confirmed by |
 |---|---|---|
 | `omise_promptpay` | Omise QR | Omise webhook + charge re-fetch |
+| `omise_mobile_banking` | Bank buttons in LIFF (`MOBILE_BANKS` in `src/lib/payments/mobile-banking/banks.ts`: kbank/scb/bay/bbl/ktb) → Omise `source[type]=mobile_banking_*` charge with `return_uri` → `authorize_uri` opens bank app, amount locked; bank in `bookings.bank_provider`, link in `bank_deeplink_url`, charge in `omise_charge_id` | `confirmOmiseCharge` (`src/lib/payments/omise-confirm.ts`) — shared by webhook, `/payment/status` polling and `/payment/deeplink-return`; re-fetches charge, checks satang, conditional `paid` update |
 | `bank_transfer` | Shop PromptPay QR + slip upload | Staff approves slip |
 | `bank_deeplink` | Open bank app (SCB Easy / K PLUS) via `src/lib/payments/deeplink/` adapters; bank in `bookings.bank_provider` | Bank inquiry API (`confirmDeeplinkPayment`) — never the webhook body |
 
 Bank deeplink field names are unverified against bank portals — every literal in `deeplink/scb.ts` and `deeplink/kbank.ts` is marked `VERIFY`. KBank ships disabled (`DEEPLINK_KBANK_ENABLED`). Requires `PAYMENT_LINK_SECRET`.
+
+Omise Mobile Banking: toggle `shops.mobile_banking_enabled` (migration `202609160001`), same Omise keys as QR, needs `PAYMENT_LINK_SECRET` (return page) and https `NEXT_PUBLIC_APP_URL`. Always offers all 5 banks — a bank not activated on the shop's Omise account fails at charge creation (booking still saved, LIFF toast + "เปลี่ยนธนาคาร"). Limits 20–150,000 THB (`isMobileBankingAmountOk`; out of range → method skipped, falls through). Re-issue/switch bank = `POST /api/public/shop/[shopKey]/payment/mobile-banking` (new charge; old one lapses on Omise). Hidden on desktop like `bank_deeplink`. `BankCode` (5) ⊃ `BankProvider` (scb/kbank, direct-API only) — never widen `BankProvider`, it keys `Record`s in `deeplink/registry.ts`.
 
 ---
 
