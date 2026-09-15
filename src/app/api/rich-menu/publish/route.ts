@@ -64,7 +64,7 @@ export async function POST(req: Request) {
 
     const request = buildRichMenuRequest(
       config,
-      { liffBookingId: shop.liff_id ?? null, liffMemberId: shop.liff_id_login_shop ?? null },
+      { shopKey: shop.shop_key ?? '', liffBookingId: shop.liff_id ?? null, liffMemberId: shop.liff_id_login_shop ?? null },
       `QueueBooking – ${shop.name}`,
     );
 

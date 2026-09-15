@@ -49,7 +49,7 @@ describe('RichMenuConfigSchema', () => {
 });
 
 describe('buildLineAreas', () => {
-  const ctx = { liffBookingId: '1234567890-abcdefgh', liffMemberId: '1234567890-ijklmnop' };
+  const ctx = { shopKey: 'SHOP-ABC123', liffBookingId: '1234567890-abcdefgh', liffMemberId: '1234567890-ijklmnop' };
 
   it('produces one area per cell with matching bounds', () => {
     const cfg = templateForBusiness('restaurant');
@@ -59,14 +59,29 @@ describe('buildLineAreas', () => {
       const c = LAYOUTS.grid3x2.cells[i];
       expect(a.bounds).toEqual({ x: c.x, y: c.y, width: c.width, height: c.height });
     });
-    expect(areas[0].action).toEqual({ type: 'uri', label: 'จองโต๊ะ', uri: 'https://liff.line.me/1234567890-abcdefgh' });
+    expect(areas[0].action).toEqual({ type: 'uri', label: 'จองโต๊ะ', uri: 'https://liff.line.me/1234567890-abcdefgh?shop_key=SHOP-ABC123&tab=booking' });
+    expect(areas[1].action).toEqual({ type: 'uri', label: 'เช็คคิว', uri: 'https://liff.line.me/1234567890-ijklmnop?shop_key=SHOP-ABC123&tab=account' });
     expect(areas[5].action.type).toBe('message');
   });
 
-  it('throws RichMenuConfigError when a LIFF id is missing', () => {
+  it('throws RichMenuConfigError when the booking LIFF id is missing or malformed', () => {
     const cfg = templateForBusiness('salon');
-    expect(() => buildLineAreas(cfg, { liffBookingId: null, liffMemberId: null })).toThrow(RichMenuConfigError);
-    expect(() => buildLineAreas(cfg, { ...ctx, liffMemberId: null })).toThrow(/สมาชิก/);
+    expect(() => buildLineAreas(cfg, { shopKey: 'SHOP-ABC123', liffBookingId: null, liffMemberId: null })).toThrow(RichMenuConfigError);
+    expect(() => buildLineAreas(cfg, { ...ctx, liffBookingId: 'not-a-liff-id' })).toThrow(/รูปแบบไม่ถูกต้อง/);
+    expect(() => buildLineAreas(cfg, { ...ctx, shopKey: '' })).toThrow(/shop_key/);
+  });
+
+  it('accepts a pasted LIFF URL by normalizing it to the bare id', () => {
+    const cfg = templateForBusiness('consult'); // grid2x1: booking + message
+    const areas = buildLineAreas(cfg, { ...ctx, liffBookingId: 'https://liff.line.me/1234567890-abcdefgh' });
+    expect(areas[0].action).toEqual({ type: 'uri', label: 'นัดปรึกษา', uri: 'https://liff.line.me/1234567890-abcdefgh?shop_key=SHOP-ABC123&tab=booking' });
+    expect(areas[1].action).toEqual({ type: 'message', label: 'ติดต่อ', text: 'ติดต่อสอบถาม' });
+  });
+
+  it('falls back to the booking LIFF (account tab) when no member LIFF is set', () => {
+    const cfg = templateForBusiness('salon');
+    const areas = buildLineAreas(cfg, { ...ctx, liffMemberId: null });
+    expect(areas[1].action).toEqual({ type: 'uri', label: 'สมาชิก', uri: 'https://liff.line.me/1234567890-abcdefgh?shop_key=SHOP-ABC123&tab=account' });
   });
 
   it('buildRichMenuRequest carries size + chat bar text', () => {

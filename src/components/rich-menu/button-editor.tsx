@@ -46,7 +46,8 @@ export function ButtonEditor({ config, caps, onChange }: Props) {
         const hero = Boolean(cells[index]?.hero);
         const missingLiff =
           (button.action.type === 'liff_booking' && !caps.has_liff_booking) ||
-          (button.action.type === 'liff_member' && !caps.has_liff_member);
+          // Member buttons fall back to the booking LIFF (account tab) when no member LIFF is set.
+          (button.action.type === 'liff_member' && !caps.has_liff_member && !caps.has_liff_booking);
         return (
           <Box
             key={index}

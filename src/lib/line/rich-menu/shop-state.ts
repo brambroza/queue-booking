@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isValidLiffId, normalizeLiffId } from '@/lib/line/liff-id';
 import { normalizeBusinessType, type BusinessType } from './business-types';
 import { RichMenuConfigSchema, type RichMenuConfig } from './schema';
 import { templateForBusiness } from './templates';
@@ -7,6 +8,7 @@ import { templateForBusiness } from './templates';
 export type RichMenuShopRow = {
   id: string;
   name: string;
+  shop_key: string | null;
   business_type: string | null;
   rich_menu_config: unknown;
   rich_menu_image_url: string | null;
@@ -18,7 +20,7 @@ export type RichMenuShopRow = {
 };
 
 export const RICH_MENU_SHOP_COLUMNS =
-  'id,name,business_type,rich_menu_config,rich_menu_image_url,line_rich_menu_id,rich_menu_published_at,liff_id,liff_id_login_shop,line_channel_access_token';
+  'id,name,shop_key,business_type,rich_menu_config,rich_menu_image_url,line_rich_menu_id,rich_menu_published_at,liff_id,liff_id_login_shop,line_channel_access_token';
 
 /** Public state the builder page receives — never includes the token itself. */
 export type RichMenuState = {
@@ -50,6 +52,12 @@ export async function loadRichMenuShop(supabase: SupabaseClient, shopId: string)
   return data;
 }
 
+/** True when the stored value normalizes to a well-formed LIFF id (a pasted LIFF URL counts). */
+function hasUsableLiffId(raw: string | null): boolean {
+  const id = normalizeLiffId(raw);
+  return Boolean(id) && isValidLiffId(id);
+}
+
 /** Turn a shop row into the builder state. */
 export function toRichMenuState(shop: RichMenuShopRow): RichMenuState {
   const businessType = normalizeBusinessType(shop.business_type);
@@ -62,7 +70,7 @@ export function toRichMenuState(shop: RichMenuShopRow): RichMenuState {
     line_rich_menu_id: shop.line_rich_menu_id ?? null,
     published_at: shop.rich_menu_published_at ?? null,
     has_token: Boolean(shop.line_channel_access_token),
-    has_liff_booking: Boolean(shop.liff_id),
-    has_liff_member: Boolean(shop.liff_id_login_shop),
+    has_liff_booking: hasUsableLiffId(shop.liff_id),
+    has_liff_member: hasUsableLiffId(shop.liff_id_login_shop),
   };
 }
