@@ -17,7 +17,16 @@ function textOn(background: string): string {
 }
 
 /**
- * Two-column grid of bank-app buttons in each bank's brand colour.
+ * Bank logo path. The SVGs (from omise/banks-logo, MIT) are white glyphs meant
+ * to sit on the bank's brand colour, so they are only ever drawn on that tile.
+ */
+function logoSrc(code: string): string {
+  return `/images/banks/${encodeURIComponent(code)}.svg`;
+}
+
+/**
+ * Two-column grid of bank-app buttons in each bank's brand colour with the
+ * bank's logo.
  *
  * Used by the LIFF booking picker (choose which app to open) and the payment
  * panel (switch bank / re-issue). Colours come from the shared registry so a
@@ -72,19 +81,25 @@ export function BankGrid({
               component="span"
               aria-hidden
               sx={{
-                width: 28,
-                height: 28,
-                borderRadius: '8px',
+                width: size === 'small' ? 32 : 40,
+                height: size === 'small' ? 32 : 40,
+                borderRadius: '10px',
                 display: 'grid',
                 placeItems: 'center',
-                bgcolor: alpha(fg, 0.18),
-                fontSize: 11,
-                fontWeight: 800,
-                letterSpacing: '0.02em',
+                bgcolor: alpha(fg, 0.14),
                 flexShrink: 0,
+                overflow: 'hidden',
               }}
             >
-              {String(bank.code).slice(0, 3).toUpperCase()}
+              {/* eslint-disable-next-line @next/next/no-img-element -- static SVG, no optimisation needed */}
+              <img
+                src={logoSrc(String(bank.code))}
+                alt=""
+                width={size === 'small' ? 32 : 40}
+                height={size === 'small' ? 32 : 40}
+                style={{ display: 'block', width: '100%', height: '100%' }}
+                onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+              />
             </Box>
             <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.2, color: 'inherit' }}>
               {bank.name}
