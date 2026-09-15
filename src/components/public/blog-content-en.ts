@@ -2,6 +2,157 @@ import type { BlogPost } from '@/components/public/blog-content';
 
 export const blogPostsEn: BlogPost[] = [
   {
+    slug: 'badminton-court-booking-via-line',
+    title: 'Badminton Court Booking via LINE: Let Players Book Courts Themselves',
+    description: 'How to set up hourly badminton court booking on LINE OA so players see free courts, book, and pay a deposit without messaging staff.',
+    category: 'Sports & Venues',
+    publishedAt: '2026-09-15',
+    readingMinutes: 6,
+    keywords: ['badminton court booking', 'line court booking', 'sports venue booking system'],
+    sections: [
+      {
+        heading: 'Many Courts, Hundreds of Hourly Slots, One Chat Inbox',
+        body: [
+          'A badminton hall runs 4 to 12 courts from morning to late night, so staff manage hundreds of hourly slots a day.',
+          'When bookings still come through LINE chat and a paper book, every "is a court free?" question means opening the schedule again.',
+          'Weekday evenings and weekends are peak, which is exactly when replies slow down and double bookings happen.',
+        ],
+      },
+      {
+        heading: 'Core Pains: Double-Booked Courts, No-Shows, Slow Replies',
+        body: [
+          'Double bookings: LINE, phone, and walk-in bookings are written down separately and collide on the same court and hour.',
+          'No-shows: verbal bookings without a deposit leave a court empty after other players were turned away.',
+          'Slow replies: the front desk sells shuttlecocks, takes payments, and answers chat at the same time.',
+          'Regular groups need the same court every week and are easy to lose in a paper schedule.',
+        ],
+      },
+      {
+        heading: 'How LINE Court Booking Works',
+        body: [
+          'Each court becomes a resource with opening hours and hourly or half-hourly slots.',
+          'Players open the venue LINE OA, pick a date and hour, and immediately see which courts are free or full.',
+          'A PromptPay deposit can be required at booking time; the court is locked once payment succeeds.',
+          'Confirmation and reminder messages go out automatically, while staff see the whole day on one dashboard.',
+        ],
+      },
+      {
+        heading: 'Recommended Flow',
+        body: [
+          'Open LINE OA > Book court > choose date and hour > choose court > pay deposit > receive confirmation with court number and time.',
+          'Staff create recurring bookings for regular groups from the back office so the court never shows as free to others.',
+          'Check-in and completion update the schedule in real time.',
+        ],
+      },
+      {
+        heading: 'Results',
+        body: [
+          'Far fewer availability questions in chat, no more double-booked courts, and lower no-show rates with deposits.',
+          'Reports show which courts and hours are busiest, which helps set peak pricing.',
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'tennis-court-booking-via-line',
+    title: 'Tennis Court Booking via LINE: Courts, Coaches, and Classes in One System',
+    description: 'A practical guide to running tennis court rental, private coaching, and group classes through LINE OA with deposits and automatic reminders.',
+    category: 'Sports & Venues',
+    publishedAt: '2026-09-15',
+    readingMinutes: 6,
+    keywords: ['tennis court booking', 'tennis coach booking', 'line booking sports club'],
+    sections: [
+      {
+        heading: 'A Tennis Club Sells Coach Time, Not Just Courts',
+        body: [
+          'Court rental, group classes, and private coaching all live in one venue but use different resources.',
+          'Coach bookings must check both court and coach availability at the same time, which paper schedules cannot do reliably.',
+          'Most members play the same slot every week, so one scheduling mistake damages long-term trust.',
+        ],
+      },
+      {
+        heading: 'Core Pains: Rain, Coach Conflicts, No-Shows',
+        body: [
+          'Rain forces bulk reschedules on outdoor courts and notifying everyone one by one is slow.',
+          'A coach gets booked on two courts at once, or the court a coach needs is rented to someone else.',
+          'Evening court bookings without deposits are abandoned after other members were turned away.',
+        ],
+      },
+      {
+        heading: 'How LINE Booking Helps',
+        body: [
+          'Courts and coaches are separate resources; each coach is linked to the services they teach.',
+          'Members choose court rental, coaching, or a class in LINE and only see slots where both court and coach are free.',
+          'Group classes have a capacity per session and show as full automatically.',
+          'When rain hits, staff move bookings from the back office and every member gets a LINE message with an acknowledge button.',
+        ],
+      },
+      {
+        heading: 'Recommended Flow',
+        body: [
+          'Open LINE OA > choose type (court / coach / class) > pick date and time > pick court or coach > pay deposit > receive confirmation.',
+          'Long coaching courses and regular groups are created in bulk from the back office, locking court and coach for the whole course.',
+        ],
+      },
+      {
+        heading: 'Results',
+        body: [
+          'No court or coach conflicts, rain reschedules done in minutes, and reports that show which coaches and courts are under-used.',
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'bb-gun-field-booking-via-line',
+    title: 'BB Gun Field Booking via LINE: Book Game Rounds, Teams, and Rental Gear',
+    description: 'How BB gun and airsoft fields take round-based team bookings on LINE OA with player counts, rental gear, and deposits to avoid empty rounds.',
+    category: 'Sports & Venues',
+    publishedAt: '2026-09-15',
+    readingMinutes: 5,
+    keywords: ['bb gun field booking', 'airsoft field booking', 'line booking game rounds'],
+    sections: [
+      {
+        heading: 'Fields Sell Rounds, Not Hours',
+        body: [
+          'BB gun and airsoft fields run rounds of 2 to 3 hours with a minimum and maximum player count, mostly on weekends.',
+          'Teams of 5 to 20 arrive together and need rental guns, safety gear, and ammo prepared in advance.',
+          'Chat-only bookings lose player counts and gear requests, and staff repeat "this round is full" all day.',
+        ],
+      },
+      {
+        heading: 'Core Pains: Overbooked Rounds, Unprepared Gear, Missing Teams',
+        body: [
+          'Two teams book the same round beyond field capacity and have to negotiate on the day.',
+          'Staff do not know how many rental sets to prepare, so players wait before entering the field.',
+          'Weekend rounds are booked and then abandoned while other teams were turned away.',
+        ],
+      },
+      {
+        heading: 'How LINE Round Booking Helps',
+        body: [
+          'Each round is a capacity-based service; once bookings reach the player limit the round shows as full.',
+          'Team leaders book in LINE, enter player count, and add rental gear as extra services that appear on the dashboard.',
+          'A PromptPay deposit per team confirms the round and cuts no-shows.',
+          'Confirmation messages carry field rules, map, and check-in time, with a reminder before game day.',
+        ],
+      },
+      {
+        heading: 'Recommended Flow',
+        body: [
+          'Open LINE OA > Book a round > pick date and round > enter player count > choose rental gear > pay deposit > receive confirmation.',
+          'Staff see per-round totals the night before: teams, players, guns, and safety sets to prepare.',
+          'Corporate team-building groups get a private round created from the back office that no other team can book.',
+        ],
+      },
+      {
+        heading: 'Results',
+        body: [
+          'Rounds stay within capacity, gear is ready on time, deposits keep teams committed, and reports show which rounds sell best.',
+        ],
+      },
+    ],
+  },
+  {
     slug: 'line-table-booking',
     title: 'LINE Table Booking System for Restaurants: Faster Reservations, Fewer Collisions',
     description: 'Build a LINE-based restaurant table booking flow that reduces phone calls, prevents table collisions, and helps teams respond faster.',

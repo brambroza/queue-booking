@@ -1781,26 +1781,69 @@
 .businessStrip > div {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--landing-line);
+  border-left: 1px solid var(--landing-line);
 }
 
-.businessStrip span {
-  min-height: 82px;
+.businessTile {
+  min-height: 96px;
+  padding: 18px 20px;
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 16px;
   border-right: 1px solid var(--landing-line);
-  font-size: 17px;
-  font-weight: 600;
+  border-bottom: 1px solid var(--landing-line);
+  color: var(--landing-ink);
+  text-decoration: none;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
-.businessStrip span:last-child {
-  border-right: 0;
+.businessTile:hover,
+.businessTile:focus-visible {
+  background: var(--landing-mint);
+  outline: none;
 }
 
-.businessStrip svg {
+.businessTile > svg:first-child {
+  flex: 0 0 auto;
   width: 34px;
   height: 34px;
   color: var(--landing-green);
+}
+
+.businessTile > span {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.businessTile strong {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.businessTile small {
+  font-size: 13px;
+  color: var(--landing-muted);
+  line-height: 1.35;
+}
+
+.businessTile > svg:last-child {
+  flex: 0 0 auto;
+  color: var(--landing-muted);
+  opacity: 0;
+  transform: translate(-4px, 4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.businessTile:hover > svg:last-child,
+.businessTile:focus-visible > svg:last-child {
+  opacity: 1;
+  transform: translate(0, 0);
+  color: var(--landing-green-dark);
 }
 
 .featureRail {
@@ -2968,13 +3011,28 @@
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .businessStrip span {
-    min-height: 72px;
-    border-bottom: 1px solid var(--landing-line);
+  .businessTile {
+    min-height: 76px;
+    padding: 14px 14px;
+    gap: 12px;
+  }
+
+  .businessTile > svg:first-child {
+    width: 26px;
+    height: 26px;
+  }
+
+  .businessTile strong {
     font-size: 14px;
   }
 
-  .businessStrip span:nth-child(2) { border-right: 0; }
+  .businessTile small {
+    font-size: 12px;
+  }
+
+  .businessTile > svg:last-child {
+    display: none;
+  }
 
   .featureRail {
     grid-template-columns: repeat(2, 1fr);

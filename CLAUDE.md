@@ -129,7 +129,7 @@ src/
 | Route | Resource |
 |---|---|
 | `/api/public/shop/[shopKey]/meta` | Shop metadata for LIFF |
-| `/api/public/shop/[shopKey]/slots` | Slot list incl. full slots (`get_slot_availability`: `capacity`, `booked_count`, `remaining_capacity`; `meta.open_slots`) — LIFF greys full slots as "เต็ม N/N"; chatbot + portal `/api/available-slots` still use `get_available_slots` (open only) |
+| `/api/public/shop/[shopKey]/slots` | Slot list incl. full + past slots (`get_slot_availability`: `capacity`, `booked_count`, `remaining_capacity`; server adds `is_past` via `isSlotPast` in `src/lib/booking/slot-time.ts`, Bangkok clock; `meta.open_slots`, `meta.today`) — LIFF greys full as "เต็ม N/N", past as "ผ่านแล้ว"; `/book` refuses past slots 400 `code: slot_past`; chatbot + portal `/api/available-slots` still use `get_available_slots` (open only, no past check) |
 | `/api/public/shop/[shopKey]/book` | Create booking (LIFF) |
 | `/api/public/shop/[shopKey]/cancel-booking` | Cancel booking |
 | `/api/public/shop/[shopKey]/acknowledge-booking` | Customer acknowledges a shop-initiated change (mirror of the LINE `ack_change` postback) |

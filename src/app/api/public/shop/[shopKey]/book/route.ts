@@ -14,6 +14,8 @@ import { resourceServesService, resourceServiceMismatchMessage } from '@/lib/boo
 import { NICKNAME_MAX, normalizeNicknameInput } from '@/lib/booking/customer-label';
 import { BANK_PROVIDERS, PAYMENT_METHODS } from '@/types/db';
 import { resolveInitialBookingStatus } from '@/lib/booking/status-flow';
+import { isSlotPast, SLOT_PAST_CODE, SLOT_PAST_MESSAGE } from '@/lib/booking/slot-time';
+import { toBangkokStamp } from '@/lib/line/booking-reminder';
 
 const bookSchema = z
   .object({
@@ -74,6 +76,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   if (!shop) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
 
   const payload = parsed.data;
+
+  // The LIFF greys these out, but a grid left open past the hour (or a forged
+  // request) still reaches here. Same rule as /slots, same Bangkok clock.
+  if (isSlotPast({ date: payload.booking_date, time: payload.start_time }, toBangkokStamp(new Date()))) {
+    return NextResponse.json({ error: SLOT_PAST_MESSAGE, code: SLOT_PAST_CODE }, { status: 400 });
+  }
+
   const monthStart = `${payload.booking_date.slice(0, 7)}-01`;
   const monthEnd = `${payload.booking_date.slice(0, 7)}-31`;
   const { count: monthlyCount } = await admin

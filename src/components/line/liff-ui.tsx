@@ -310,29 +310,34 @@ export function SlotButton({
   remaining,
   booked,
   capacity,
+  disabledReason,
   onClick,
 }: {
   label: string;
   selected: boolean;
-  /** Full slot: stays in the grid, greyed out, not clickable. */
+  /** Full or past slot: stays in the grid, greyed out, not clickable. */
   disabled?: boolean;
   /** Shown as "เหลือ N" when the slot is nearly full. */
   remaining?: number;
   /** Booked / capacity, shown as "เต็ม 3/3" on a full slot. */
   booked?: number;
   capacity?: number;
+  /** Why it is disabled; `past` renders fainter than `full` and hides the count. */
+  disabledReason?: 'full' | 'past';
   onClick: () => void;
 }) {
   const showRemaining = !disabled && typeof remaining === 'number' && remaining > 0 && remaining <= 2;
+  const past = disabled && disabledReason === 'past';
   const fullLabel =
     typeof booked === 'number' && typeof capacity === 'number' && capacity > 0 ? `เต็ม ${booked}/${capacity}` : 'เต็ม';
+  const disabledLabel = past ? 'ผ่านแล้ว' : fullLabel;
   return (
     <ButtonBase
       onClick={onClick}
       disabled={disabled}
       aria-pressed={selected}
       aria-disabled={disabled || undefined}
-      title={disabled ? 'คิวเต็ม' : undefined}
+      title={disabled ? (past ? 'เลยเวลาแล้ว' : 'คิวเต็ม') : undefined}
       sx={{
         minHeight: 40,
         borderRadius: '12px',
@@ -342,17 +347,17 @@ export function SlotButton({
         fontSize: 14,
         fontVariantNumeric: 'tabular-nums',
         borderColor: selected ? 'primary.main' : disabled ? 'transparent' : 'divider',
-        bgcolor: selected ? 'primary.main' : disabled ? 'grey.100' : 'background.paper',
+        bgcolor: selected ? 'primary.main' : past ? 'grey.50' : disabled ? 'grey.100' : 'background.paper',
         color: selected ? 'primary.contrastText' : disabled ? 'text.disabled' : 'text.primary',
         boxShadow: selected ? shadowLight.brand : 'none',
         '&:hover': { bgcolor: selected ? 'primary.dark' : 'action.hover' },
-        '&.Mui-disabled': { color: 'text.disabled', cursor: 'not-allowed', pointerEvents: 'auto' },
+        '&.Mui-disabled': { color: 'text.disabled', cursor: 'not-allowed', pointerEvents: 'auto', opacity: past ? 0.7 : 1 },
       }}
     >
       {label}
       {disabled ? (
         <Box component="span" sx={{ fontSize: 10, fontWeight: 500, lineHeight: 1, mt: 0.25 }}>
-          {fullLabel}
+          {disabledLabel}
         </Box>
       ) : showRemaining ? (
         <Box component="span" sx={{ fontSize: 10, fontWeight: 500, lineHeight: 1, mt: 0.25, opacity: 0.8 }}>

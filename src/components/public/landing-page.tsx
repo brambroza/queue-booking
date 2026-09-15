@@ -18,6 +18,10 @@ import LocalHospitalRoundedIcon from '@mui/icons-material/LocalHospitalRounded';
 import NotificationsNoneRoundedIcon from '@mui/icons-material/NotificationsNoneRounded';
 import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
 import RestaurantRoundedIcon from '@mui/icons-material/RestaurantRounded';
+import GpsFixedRoundedIcon from '@mui/icons-material/GpsFixedRounded';
+import SportsTennisRoundedIcon from '@mui/icons-material/SportsTennisRounded';
+import StadiumRoundedIcon from '@mui/icons-material/StadiumRounded';
+import ContentCutRoundedIcon from '@mui/icons-material/ContentCutRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import ShieldMoonRoundedIcon from '@mui/icons-material/ShieldMoonRounded';
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
@@ -98,11 +102,20 @@ const outcomes = [
   },
 ];
 
+/**
+ * Industry tiles under "ออกแบบมาให้เข้ากับธุรกิจบริการ".
+ * Each links to its dedicated `/solutions/*` page (or a use-case page when
+ * no solution page exists yet) so the strip doubles as internal-link SEO.
+ */
 const businessTypes = [
-  { label: 'ร้านตัดผม', icon: StorefrontRoundedIcon },
-  { label: 'คลินิก', icon: LocalHospitalRoundedIcon },
-  { label: 'ร้านอาหาร', icon: RestaurantRoundedIcon },
-  { label: 'ศูนย์บริการ', icon: BuildRoundedIcon },
+  { label: 'ร้านตัดผม', desc: 'เลือกช่าง จองรายนาที', href: '/solutions/barbershop-booking-system', icon: ContentCutRoundedIcon },
+  { label: 'คลินิก', desc: 'นัดแพทย์ ขออนุมัติคิว', href: '/solutions/clinic-booking-system', icon: LocalHospitalRoundedIcon },
+  { label: 'ร้านอาหาร', desc: 'จองโต๊ะ คิวหน้าร้าน', href: '/solutions/restaurant-booking-system', icon: RestaurantRoundedIcon },
+  { label: 'ศูนย์บริการ', desc: 'รับเรื่อง เรียกคิวหน้างาน', href: '/use-cases/service-center', icon: BuildRoundedIcon },
+  { label: 'สนามแบด', desc: 'จองคอร์ทรายชั่วโมง มัดจำ', href: '/solutions/badminton-court-booking-system', icon: StadiumRoundedIcon },
+  { label: 'สนามเทนนิส', desc: 'คอร์ท โค้ช คลาสเรียน', href: '/solutions/tennis-court-booking-system', icon: SportsTennisRoundedIcon },
+  { label: 'สนาม BB Gun', desc: 'จองรอบเกม ทีม อุปกรณ์เช่า', href: '/solutions/bb-gun-field-booking-system', icon: GpsFixedRoundedIcon },
+  { label: 'ธุรกิจอื่น ๆ', desc: 'ดูตัวอย่างการใช้งานทั้งหมด', href: '/use-cases', icon: StorefrontRoundedIcon },
 ];
 
 const queueRows = [
@@ -479,10 +492,16 @@ function OutcomeSection() {
             </div>
           </div>
         </div>
-        <div className={styles.businessStrip} data-reveal>
+        <div className={styles.businessStrip} data-reveal id="solutions">
           <p>ออกแบบมาให้เข้ากับธุรกิจบริการ</p>
           <div>
-            {businessTypes.map(({ label, icon: Icon }) => <span key={label}><Icon />{label}</span>)}
+            {businessTypes.map(({ label, desc, href, icon: Icon }) => (
+              <Link key={label} href={href} className={styles.businessTile}>
+                <Icon />
+                <span><strong>{label}</strong><small>{desc}</small></span>
+                <ArrowIcon />
+              </Link>
+            ))}
           </div>
         </div>
         <div className={styles.featureRail} aria-label="ฟีเจอร์หลัก" data-reveal>

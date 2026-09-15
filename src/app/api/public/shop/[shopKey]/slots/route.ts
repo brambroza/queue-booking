@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
+import { toBangkokStamp } from '@/lib/line/booking-reminder';
+import { DATE_PAST_HINT, DAY_OVER_HINT, isSlotPast } from '@/lib/booking/slot-time';
 
 export async function GET(req: Request, { params }: { params: Promise<{ shopKey: string }> }) {
   const { shopKey } = await params;
@@ -63,8 +65,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-  const slots = (data ?? []) as Array<{ slot_time: string; capacity: number; booked_count: number; remaining_capacity: number }>;
-  const openSlots = slots.filter((s) => s.remaining_capacity > 0).length;
+  // Server clock in Bangkok, never the customer's device: a slot that already
+  // started is greyed out here and refused again by /book with the same rule.
+  const now = toBangkokStamp(new Date());
+  const slots = ((data ?? []) as Array<{ slot_time: string; capacity: number; booked_count: number; remaining_capacity: number }>).map(
+    (s) => ({ ...s, is_past: isSlotPast({ date, time: s.slot_time }, now) })
+  );
+  const openSlots = slots.filter((s) => !s.is_past && s.remaining_capacity > 0).length;
+  const allPast = slots.length > 0 && slots.every((s) => s.is_past);
   const isHoliday = Boolean(holidayRows && holidayRows.length > 0);
   const hasWorkingHours = Boolean(whRows && whRows.length > 0);
 
@@ -88,7 +96,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
     hint = 'ไม่มีช่วงเวลาให้จองในวันที่เลือก';
   } else if (openSlots === 0) {
     reason = 'full';
-    hint = 'คิวเต็มทุกช่วงเวลาในวันที่เลือก';
+    hint = date < now.date ? DATE_PAST_HINT : allPast ? DAY_OVER_HINT : 'คิวเต็มทุกช่วงเวลาในวันที่เลือก';
   }
 
   return NextResponse.json({
@@ -97,6 +105,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
       reason,
       hint,
       open_slots: openSlots,
+      /** Bangkok date, so the LIFF date picker's minimum agrees with the server. */
+      today: now.date,
       has_working_hours: hasWorkingHours,
       is_holiday: isHoliday,
     },

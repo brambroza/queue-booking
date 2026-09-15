@@ -70,12 +70,16 @@ type Slot = {
   capacity: number;
   booked_count: number;
   remaining_capacity: number;
+  /** Already started (server clock, Bangkok); greyed out as "ผ่านแล้ว". */
+  is_past?: boolean;
 };
 type SlotMeta = {
   reason: 'ok' | 'holiday' | 'closed' | 'full';
   hint?: string;
-  /** Slots with room left; 0 with a non-empty grid = every slot is full. */
+  /** Slots with room left and not yet started; 0 with a non-empty grid = nothing bookable. */
   open_slots?: number;
+  /** Bangkok date from the server; floors the date picker. */
+  today?: string;
 };
 type ShopMeta = {
   id: string;
@@ -570,6 +574,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       setSlots(nextSlots);
       const nextMeta = (json.meta ?? { reason: 'ok' }) as SlotMeta;
       setSlotMeta(nextMeta);
+      if (typeof nextMeta.today === 'string') setTodayIso(nextMeta.today);
       // A day where every slot is full still renders the grid (all greyed);
       // the "คิวเต็ม" alert from slotMeta carries the message, not a hint.
       if (nextSlots.length === 0 && nextMeta.reason === 'ok') {
@@ -703,7 +708,12 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     });
     const json = await res.json();
     setLoading(false);
-    if (!res.ok) return push(json.error ?? 'จองคิวไม่สำเร็จ', 'error');
+    if (!res.ok) {
+      // The grid was left open past the slot's start — refresh it so the
+      // customer sees which slots are still bookable.
+      if (json.code === 'slot_past') void loadSlots();
+      return push(json.error ?? 'จองคิวไม่สำเร็จ', 'error');
+    }
     setQueueNo(json.data.queue_number);
 
     const paymentMethod: string | null = json.data?.payment?.method ?? null;
@@ -867,7 +877,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const shellProps = { shopName: shop?.name, branchName: selectedBranch?.branch_name };
   // Full slots are excluded so a day with one open slot left still compares
   // against the open ones, not against zero.
-  const maxSlotCapacity = slots.reduce((max, s) => (s.remaining_capacity > 0 ? Math.max(max, s.remaining_capacity) : max), 0);
+  const maxSlotCapacity = slots.reduce((max, s) => (!s.is_past && s.remaining_capacity > 0 ? Math.max(max, s.remaining_capacity) : max), 0);
 
   if (queueNo) {
     const awaitingApproval = bookingResult?.status === 'pending_approval';
@@ -1289,6 +1299,8 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                   slotProps={{
                     inputLabel: { shrink: true },
                     input: { startAdornment: <InputAdornment position="start"><CalendarMonthRoundedIcon fontSize="small" /></InputAdornment> },
+                    // Bangkok "today" from the server; the server refuses past days anyway.
+                    htmlInput: { min: todayIso || undefined },
                   }}
                 />
                 <Button variant="outlined" size="large" fullWidth onClick={() => void loadSlots()} disabled={!canLoadSlots || loading}>
@@ -1307,14 +1319,16 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                       const t = s.slot_time.slice(0, 5);
                       // "เหลือ N" only marks slots that are scarcer than the rest of the
                       // day — a shop with capacity 1 everywhere would otherwise label every slot.
+                      const past = s.is_past === true;
                       const full = s.remaining_capacity <= 0;
-                      const scarce = !full && s.remaining_capacity < maxSlotCapacity;
+                      const scarce = !past && !full && s.remaining_capacity < maxSlotCapacity;
                       return (
                         <SlotButton
                           key={s.slot_time}
                           label={t}
                           selected={selectedTime === t}
-                          disabled={full}
+                          disabled={past || full}
+                          disabledReason={past ? 'past' : full ? 'full' : undefined}
                           booked={s.booked_count}
                           capacity={s.capacity}
                           remaining={scarce ? s.remaining_capacity : undefined}
