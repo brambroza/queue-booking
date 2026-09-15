@@ -64,10 +64,18 @@ type Resource = {
   /** Services this resource serves; empty / null = every service. */
   service_ids?: string[] | null;
 };
-type Slot = { slot_time: string; remaining_capacity: number };
+type Slot = {
+  slot_time: string;
+  /** Seats the slot can take; 0 remaining = full but still listed. */
+  capacity: number;
+  booked_count: number;
+  remaining_capacity: number;
+};
 type SlotMeta = {
   reason: 'ok' | 'holiday' | 'closed' | 'full';
   hint?: string;
+  /** Slots with room left; 0 with a non-empty grid = every slot is full. */
+  open_slots?: number;
 };
 type ShopMeta = {
   id: string;
@@ -562,7 +570,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       setSlots(nextSlots);
       const nextMeta = (json.meta ?? { reason: 'ok' }) as SlotMeta;
       setSlotMeta(nextMeta);
-      if (nextSlots.length === 0) {
+      // A day where every slot is full still renders the grid (all greyed);
+      // the "คิวเต็ม" alert from slotMeta carries the message, not a hint.
+      if (nextSlots.length === 0 && nextMeta.reason === 'ok') {
         setSlotHint(nextMeta.hint || 'ไม่พบเวลาว่างในวันที่เลือก');
       }
     } catch {
@@ -855,7 +865,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   }
 
   const shellProps = { shopName: shop?.name, branchName: selectedBranch?.branch_name };
-  const maxSlotCapacity = slots.reduce((max, s) => Math.max(max, s.remaining_capacity), 0);
+  // Full slots are excluded so a day with one open slot left still compares
+  // against the open ones, not against zero.
+  const maxSlotCapacity = slots.reduce((max, s) => (s.remaining_capacity > 0 ? Math.max(max, s.remaining_capacity) : max), 0);
 
   if (queueNo) {
     const awaitingApproval = bookingResult?.status === 'pending_approval';
@@ -1127,7 +1139,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     ) : slotMeta.reason === 'closed' ? (
       <Alert severity="info" icon={<EventBusyRoundedIcon fontSize="inherit" />}>ปิดทำการ</Alert>
     ) : slotMeta.reason === 'full' ? (
-      <Alert severity="warning">คิวเต็ม</Alert>
+      <Alert severity="warning">{slotMeta.hint || 'คิวเต็ม'}</Alert>
     ) : null;
 
   return (
@@ -1295,13 +1307,16 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                       const t = s.slot_time.slice(0, 5);
                       // "เหลือ N" only marks slots that are scarcer than the rest of the
                       // day — a shop with capacity 1 everywhere would otherwise label every slot.
-                      const scarce = s.remaining_capacity < maxSlotCapacity;
+                      const full = s.remaining_capacity <= 0;
+                      const scarce = !full && s.remaining_capacity < maxSlotCapacity;
                       return (
                         <SlotButton
                           key={s.slot_time}
                           label={t}
                           selected={selectedTime === t}
-                          disabled={s.remaining_capacity <= 0}
+                          disabled={full}
+                          booked={s.booked_count}
+                          capacity={s.capacity}
                           remaining={scarce ? s.remaining_capacity : undefined}
                           onClick={() => setSelectedTime(t)}
                         />

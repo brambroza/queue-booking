@@ -49,7 +49,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
       .limit(1),
   ]);
 
-  const { data, error } = await admin.rpc('get_available_slots', {
+  // Returns full slots too (remaining_capacity = 0) so the LIFF grid can grey
+  // them out with "เต็ม N/N" instead of dropping them from the timeline.
+  const { data, error } = await admin.rpc('get_slot_availability', {
     p_shop_id: shop.id,
     p_branch_id: branchId,
     p_service_id: serviceId,
@@ -61,7 +63,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-  const slots = data ?? [];
+  const slots = (data ?? []) as Array<{ slot_time: string; capacity: number; booked_count: number; remaining_capacity: number }>;
+  const openSlots = slots.filter((s) => s.remaining_capacity > 0).length;
   const isHoliday = Boolean(holidayRows && holidayRows.length > 0);
   const hasWorkingHours = Boolean(whRows && whRows.length > 0);
 
@@ -82,7 +85,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
       : 'ร้านยังไม่ได้ตั้งเวลาทำการ กรุณาตั้งค่าที่เมนู "เวลาทำการ" ในระบบหลังบ้าน';
   } else if (slots.length === 0) {
     reason = 'full';
-    hint = 'คิวเต็มหรือไม่มีช่วงเวลาว่างในวันที่เลือก';
+    hint = 'ไม่มีช่วงเวลาให้จองในวันที่เลือก';
+  } else if (openSlots === 0) {
+    reason = 'full';
+    hint = 'คิวเต็มทุกช่วงเวลาในวันที่เลือก';
   }
 
   return NextResponse.json({
@@ -90,6 +96,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
     meta: {
       reason,
       hint,
+      open_slots: openSlots,
       has_working_hours: hasWorkingHours,
       is_holiday: isHoliday,
     },

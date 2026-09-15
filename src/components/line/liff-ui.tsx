@@ -308,21 +308,31 @@ export function SlotButton({
   selected,
   disabled,
   remaining,
+  booked,
+  capacity,
   onClick,
 }: {
   label: string;
   selected: boolean;
+  /** Full slot: stays in the grid, greyed out, not clickable. */
   disabled?: boolean;
   /** Shown as "เหลือ N" when the slot is nearly full. */
   remaining?: number;
+  /** Booked / capacity, shown as "เต็ม 3/3" on a full slot. */
+  booked?: number;
+  capacity?: number;
   onClick: () => void;
 }) {
   const showRemaining = !disabled && typeof remaining === 'number' && remaining > 0 && remaining <= 2;
+  const fullLabel =
+    typeof booked === 'number' && typeof capacity === 'number' && capacity > 0 ? `เต็ม ${booked}/${capacity}` : 'เต็ม';
   return (
     <ButtonBase
       onClick={onClick}
       disabled={disabled}
       aria-pressed={selected}
+      aria-disabled={disabled || undefined}
+      title={disabled ? 'คิวเต็ม' : undefined}
       sx={{
         minHeight: 40,
         borderRadius: '12px',
@@ -334,14 +344,17 @@ export function SlotButton({
         borderColor: selected ? 'primary.main' : disabled ? 'transparent' : 'divider',
         bgcolor: selected ? 'primary.main' : disabled ? 'grey.100' : 'background.paper',
         color: selected ? 'primary.contrastText' : disabled ? 'text.disabled' : 'text.primary',
-        textDecoration: disabled ? 'line-through' : 'none',
         boxShadow: selected ? shadowLight.brand : 'none',
         '&:hover': { bgcolor: selected ? 'primary.dark' : 'action.hover' },
-        '&.Mui-disabled': { color: 'text.disabled' },
+        '&.Mui-disabled': { color: 'text.disabled', cursor: 'not-allowed', pointerEvents: 'auto' },
       }}
     >
       {label}
-      {showRemaining ? (
+      {disabled ? (
+        <Box component="span" sx={{ fontSize: 10, fontWeight: 500, lineHeight: 1, mt: 0.25 }}>
+          {fullLabel}
+        </Box>
+      ) : showRemaining ? (
         <Box component="span" sx={{ fontSize: 10, fontWeight: 500, lineHeight: 1, mt: 0.25, opacity: 0.8 }}>
           เหลือ {remaining}
         </Box>
