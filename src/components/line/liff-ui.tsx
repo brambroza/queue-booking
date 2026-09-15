@@ -322,7 +322,7 @@ export function SlotButton({
   /** Booked / capacity, shown as "เต็ม 3/3" on a full slot. */
   booked?: number;
   capacity?: number;
-  /** Why it is disabled; `past` renders fainter than `full` and hides the count. */
+  /** Why it is disabled; `past` is a dashed outline with no caption, `full` a solid fill with the count. */
   disabledReason?: 'full' | 'past';
   onClick: () => void;
 }) {
@@ -330,7 +330,6 @@ export function SlotButton({
   const past = disabled && disabledReason === 'past';
   const fullLabel =
     typeof booked === 'number' && typeof capacity === 'number' && capacity > 0 ? `เต็ม ${booked}/${capacity}` : 'เต็ม';
-  const disabledLabel = past ? 'ผ่านแล้ว' : fullLabel;
   return (
     <ButtonBase
       onClick={onClick}
@@ -342,22 +341,24 @@ export function SlotButton({
         minHeight: 40,
         borderRadius: '12px',
         border: 1,
+        // A past slot is an empty dashed outline — the shape says "gone", no caption needed.
+        borderStyle: past ? 'dashed' : 'solid',
         flexDirection: 'column',
-        fontWeight: 600,
+        fontWeight: past ? 400 : 600,
         fontSize: 14,
         fontVariantNumeric: 'tabular-nums',
-        borderColor: selected ? 'primary.main' : disabled ? 'transparent' : 'divider',
-        bgcolor: selected ? 'primary.main' : past ? 'grey.50' : disabled ? 'grey.100' : 'background.paper',
+        borderColor: selected ? 'primary.main' : past ? 'divider' : disabled ? 'transparent' : 'divider',
+        bgcolor: selected ? 'primary.main' : past ? 'transparent' : disabled ? 'grey.100' : 'background.paper',
         color: selected ? 'primary.contrastText' : disabled ? 'text.disabled' : 'text.primary',
         boxShadow: selected ? shadowLight.brand : 'none',
         '&:hover': { bgcolor: selected ? 'primary.dark' : 'action.hover' },
-        '&.Mui-disabled': { color: 'text.disabled', cursor: 'not-allowed', pointerEvents: 'auto', opacity: past ? 0.7 : 1 },
+        '&.Mui-disabled': { color: 'text.disabled', cursor: 'not-allowed', pointerEvents: 'auto' },
       }}
     >
       {label}
-      {disabled ? (
+      {disabled && !past ? (
         <Box component="span" sx={{ fontSize: 10, fontWeight: 500, lineHeight: 1, mt: 0.25 }}>
-          {disabledLabel}
+          {fullLabel}
         </Box>
       ) : showRemaining ? (
         <Box component="span" sx={{ fontSize: 10, fontWeight: 500, lineHeight: 1, mt: 0.25, opacity: 0.8 }}>
