@@ -15,7 +15,7 @@ import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
 import TvRoundedIcon from '@mui/icons-material/TvRounded';
 import styles from './landing-page.module.css';
 
-const lineFriendUrl = 'https://lin.ee/oViqAoh';
+export const lineFriendUrl = 'https://lin.ee/oViqAoh';
 
 type NavChild = { label: string; desc: string; href: string; icon: typeof QrCode2RoundedIcon };
 type NavItem = { label: string; href: string; id?: string; children?: NavChild[] };

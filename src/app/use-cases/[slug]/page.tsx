@@ -3,8 +3,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { Box, Button, Card, CardContent, Container, Grid, Stack, Typography } from '@mui/material';
-import { PublicNavbar } from '@/components/public/public-navbar';
-import { PublicFooter } from '@/components/public/public-footer';
+import { LandingNavbar } from '@/components/public/landing-navbar';
+import { LandingFooter } from '@/components/public/landing-footer';
 import { useCases } from '@/components/public/content';
 
 type Params = { slug: string };
@@ -129,7 +129,7 @@ export default async function UseCaseDetailPage({ params }: { params: Promise<Pa
 
   return (
     <main>
-      <PublicNavbar />
+      <LandingNavbar />
       <Container maxWidth="md" sx={{ py: 8 }}>
         <Stack direction="row" spacing={1.2} alignItems="center" sx={{ mb: 2 }}>
           <Box sx={{ width: 44, height: 44, borderRadius: 1, bgcolor: '#eaf3de', display: 'grid', placeItems: 'center' }}>
@@ -210,7 +210,7 @@ export default async function UseCaseDetailPage({ params }: { params: Promise<Pa
           </Stack>
         ) : null}
       </Container>
-      <PublicFooter />
+      <LandingFooter />
     </main>
   );
 }

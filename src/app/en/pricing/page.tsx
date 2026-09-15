@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Container, Grid, Typography } from '@mui/material';
-import { PublicNavbar } from '@/components/public/public-navbar';
-import { PublicFooter } from '@/components/public/public-footer';
+import { LandingNavbar } from '@/components/public/landing-navbar';
+import { LandingFooter } from '@/components/public/landing-footer';
 import { PricingCard } from '@/components/public/pricing-card';
 import { pricingPlansEn } from '@/components/public/content';
 
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 export default function PricingEnPage() {
   return (
     <main>
-      <PublicNavbar />
+      <LandingNavbar />
       <Container maxWidth="xl" sx={{ py: 8 }}>
         <Typography variant="h3" fontWeight={800}>Pricing Plans</Typography>
         <Typography color="text.secondary" sx={{ mt: 1 }}>Start free with 50 bookings per month and scale as you grow.</Typography>
@@ -41,7 +41,7 @@ export default function PricingEnPage() {
           ))}
         </Grid>
       </Container>
-      <PublicFooter />
+      <LandingFooter />
     </main>
   );
 }

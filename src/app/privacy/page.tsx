@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Box, Container, Divider, Link, Paper, Stack, Typography } from '@mui/material';
-import { PublicFooter } from '@/components/public/public-footer';
-import { PublicNavbar } from '@/components/public/public-navbar';
+import { LandingFooter } from '@/components/public/landing-footer';
+import { LandingNavbar } from '@/components/public/landing-navbar';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy',
@@ -113,7 +113,7 @@ const bodyTextSx = { lineHeight: 1.85 } as const;
 export default function PrivacyPage() {
   return (
     <>
-      <PublicNavbar />
+      <LandingNavbar />
       <Box component="main" sx={{ bgcolor: 'background.default', py: { xs: 5, md: 8 } }}>
         <Container maxWidth="md">
           <Stack spacing={1.25} sx={{ mb: 4 }}>
@@ -299,7 +299,7 @@ export default function PrivacyPage() {
           </Paper>
         </Container>
       </Box>
-      <PublicFooter />
+      <LandingFooter />
     </>
   );
 }

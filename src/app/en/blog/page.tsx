@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Card, CardContent, Chip, Container, Grid, Stack, Typography } from '@mui/material';
-import { PublicNavbar } from '@/components/public/public-navbar';
-import { PublicFooter } from '@/components/public/public-footer';
+import { LandingNavbar } from '@/components/public/landing-navbar';
+import { LandingFooter } from '@/components/public/landing-footer';
 import { blogPostsEn } from '@/components/public/blog-content-en';
 import { formatDateDMY } from '@/lib/utils/date-format';
 
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 export default function BlogEnPage() {
   return (
     <main>
-      <PublicNavbar />
+      <LandingNavbar />
       <Container maxWidth="lg" sx={{ py: 8 }}>
         <Typography variant="h3" fontWeight={800}>Blog & Practical Guides</Typography>
         <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
@@ -54,7 +54,7 @@ export default function BlogEnPage() {
           ))}
         </Grid>
       </Container>
-      <PublicFooter />
+      <LandingFooter />
     </main>
   );
 }

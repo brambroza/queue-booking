@@ -5,6 +5,11 @@ import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade-provider';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
+import { MobileCardList } from '@/components/ui/responsive-table';
+import { MobileRecordCard } from '@/components/ui/mobile-record-card';
+import { Chip } from '@mui/material';
+import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
+import { useTranslation } from '@/lib/i18n/useTranslation';
 
 type RefUser = { id: string; full_name: string | null; email: string | null; phone: string | null };
 type RefBranch = { id: string; branch_name: string };
@@ -36,6 +41,7 @@ const initialForm: FormState = {
 };
 
 export function StaffCrud() {
+  const { t } = useTranslation('staff');
   const { push } = useToast();
   const confirm = useConfirm();
   const { openPaywall } = useUpgrade();
@@ -56,7 +62,7 @@ export function StaffCrud() {
     if (q.trim()) params.set('q', q.trim());
     const res = await fetch(`/api/staff?${params.toString()}`, { cache: 'no-store' });
     const json = await res.json();
-    if (!res.ok) return push(json.error ?? 'โหลด staff ไม่สำเร็จ', 'error');
+    if (!res.ok) return push(json.error ?? t('load_failed', 'โหลดรายชื่อพนักงานไม่สำเร็จ'), 'error');
     setRows(json.data ?? []);
     setUsers(json.refs?.users ?? []);
     setBranches(json.refs?.branches ?? []);
@@ -90,15 +96,15 @@ export function StaffCrud() {
     const invitingNew = !editing && form.mode === 'invite';
 
     if (!form.display_name.trim()) {
-      push('กรุณากรอกชื่อแสดงผล', 'error');
+      push(t('err_display_name', 'กรุณากรอกชื่อแสดงผล'), 'error');
       return;
     }
     if (invitingNew ? !form.email.trim() : !form.user_id) {
-      push(invitingNew ? 'กรุณากรอกอีเมลผู้ใช้ใหม่' : 'กรุณาเลือกผู้ใช้', 'error');
+      push(invitingNew ? t('err_email', 'กรุณากรอกอีเมลผู้ใช้ใหม่') : t('err_user', 'กรุณาเลือกผู้ใช้'), 'error');
       return;
     }
     if (invitingNew && form.role === 'branch_manager' && form.branch_ids.length === 0) {
-      push('ผู้จัดการสาขาต้องผูกอย่างน้อย 1 สาขา', 'error');
+      push(t('err_manager_branch', 'ผู้จัดการสาขาต้องผูกอย่างน้อย 1 สาขา'), 'error');
       return;
     }
 
@@ -124,11 +130,11 @@ export function StaffCrud() {
     }
 
     if (!res.ok) {
-      push(json.error ?? 'บันทึกไม่สำเร็จ', 'error');
+      push(json.error ?? t('save_failed', 'บันทึกไม่สำเร็จ'), 'error');
       return;
     }
 
-    push(editing ? 'อัปเดตพนักงานแล้ว' : 'เพิ่มพนักงานแล้ว');
+    push(editing ? t('updated', 'อัปเดตพนักงานแล้ว') : t('added', 'เพิ่มพนักงานแล้ว'));
     setDrawerOpen(false);
     setForm(initialForm);
     void load();
@@ -137,19 +143,19 @@ export function StaffCrud() {
   async function onDelete(row: StaffRow) {
     const ok = await confirm({
       tone: 'error',
-      title: 'ลบพนักงานนี้?',
-      description: 'พนักงานจะเข้าระบบร้านไม่ได้ทันที คิวที่มอบหมายไว้ยังอยู่แต่ไม่มีผู้รับผิดชอบ',
+      title: t('delete_title', 'ลบพนักงานนี้?'),
+      description: t('delete_desc', 'พนักงานจะเข้าระบบร้านไม่ได้ทันที คิวที่มอบหมายไว้ยังอยู่แต่ไม่มีผู้รับผิดชอบ'),
       context: {
         primary: row.display_name,
         secondary: row.branches.map((b) => b.branch_name).join(' · ') || undefined,
       },
-      confirmLabel: 'ลบพนักงาน',
+      confirmLabel: t('delete_confirm', 'ลบพนักงาน'),
     });
     if (!ok) return;
     const res = await fetch(`/api/staff?id=${row.id}`, { method: 'DELETE' });
     const json = await res.json();
-    if (!res.ok) return push(json.error ?? 'ลบไม่สำเร็จ', 'error');
-    push('ลบพนักงานแล้ว');
+    if (!res.ok) return push(json.error ?? t('delete_failed', 'ลบไม่สำเร็จ'), 'error');
+    push(t('deleted', 'ลบพนักงานแล้ว'));
     void load();
   }
 
@@ -165,28 +171,57 @@ export function StaffCrud() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-slate-700">รายการพนักงาน</h3>
-        <div className="flex items-center gap-2">
-          <input className="input w-56" placeholder="ค้นหาชื่อพนักงาน" value={q} onChange={(e) => setQ(e.target.value)} />
-          <button className="btn-outline" onClick={() => void load()}>Search</button>
-          <button className="btn-primary" onClick={openAdd}>Add New</button>
+        <h3 className="text-sm font-semibold text-slate-700">{t('list_title', 'รายการพนักงาน')}</h3>
+        {/* Phones: search full width, then two equal 44px buttons. sm+: one row (unchanged). */}
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <input className="input w-full sm:w-56" placeholder={t('search_placeholder', 'ค้นหาชื่อพนักงาน')} value={q} onChange={(e) => setQ(e.target.value)} />
+          <button className="btn-outline min-h-[44px] flex-1 sm:min-h-0 sm:flex-none" onClick={() => void load()}>{t('search', 'ค้นหา')}</button>
+          <button className="btn-primary min-h-[44px] flex-1 sm:min-h-0 sm:flex-none" onClick={openAdd}>{t('add', 'เพิ่มพนักงาน')}</button>
         </div>
       </div>
 
-      <div className="card overflow-x-auto">
-        <table className="min-w-full text-sm">
+      <div className="card">
+        {/* Phones: one card per staff member, same look as /portal/services. */}
+        <MobileCardList
+          rows={pagedRows}
+          rowKey={(r) => r.id}
+          columns={[]}
+          renderCard={(r) => {
+            const user = users.find((u) => u.id === r.user_id);
+            return (
+              <MobileRecordCard
+                title={r.display_name}
+                subtitle={user?.email ?? user?.full_name ?? r.user_id}
+                status={{ active: r.active, activeLabel: t('active', 'ใช้งานอยู่'), inactiveLabel: t('inactive', 'ปิดใช้งาน') }}
+                tags={
+                  r.branches.length > 0
+                    ? r.branches.map((b) => <Chip key={b.id} size="small" variant="outlined" icon={<StorefrontRoundedIcon />} label={b.branch_name} />)
+                    : <Chip size="small" variant="outlined" label={t('no_branch', 'ยังไม่ระบุสาขา')} />
+                }
+                onEdit={() => openEdit(r)}
+                onDelete={() => void onDelete(r)}
+                editLabel={t('edit', 'แก้ไข')}
+                deleteLabel={t('delete', 'ลบ')}
+              />
+            );
+          }}
+          emptyState={<p className="px-3 py-4 text-sm text-slate-500">{t('empty', 'ยังไม่มีพนักงาน')}</p>}
+          sx={{ display: { xs: 'flex', sm: 'none' }, p: 1.5, bgcolor: 'action.hover' }}
+        />
+        <div className="hidden overflow-x-auto sm:block">
+        <table className="w-full min-w-[560px] text-sm">
           <thead className="bg-slate-50">
             <tr>
-              <th className="px-3 py-2 text-left">Display Name</th>
-              <th className="px-3 py-2 text-left">User</th>
-              <th className="px-3 py-2 text-left">Branches</th>
-              <th className="px-3 py-2 text-left">Status</th>
-              <th className="px-3 py-2 text-left">Actions</th>
+              <th className="px-3 py-2 text-left">{t('col_name', 'ชื่อ-สกุล')}</th>
+              <th className="px-3 py-2 text-left">{t('col_user', 'รหัสเข้าใช้งาน')}</th>
+              <th className="px-3 py-2 text-left">{t('col_branches', 'สาขา')}</th>
+              <th className="px-3 py-2 text-left">{t('col_status', 'สถานะ')}</th>
+              <th className="px-3 py-2 text-left">{t('col_actions', 'จัดการ')}</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
-              <tr><td className="px-3 py-4 text-slate-500" colSpan={5}>ยังไม่มีพนักงาน</td></tr>
+              <tr><td className="px-3 py-4 text-slate-500" colSpan={5}>{t('empty', 'ยังไม่มีพนักงาน')}</td></tr>
             ) : pagedRows.map((r) => {
               const user = users.find((u) => u.id === r.user_id);
               return (
@@ -194,16 +229,17 @@ export function StaffCrud() {
                   <td className="px-3 py-2">{r.display_name}</td>
                   <td className="px-3 py-2">{user?.email ?? user?.full_name ?? r.user_id}</td>
                   <td className="px-3 py-2">{r.branches.map((b) => b.branch_name).join(', ') || '-'}</td>
-                  <td className="px-3 py-2">{r.active ? 'Active' : 'Inactive'}</td>
+                  <td className="px-3 py-2">{r.active ? t('active', 'ใช้งานอยู่') : t('inactive', 'ปิดใช้งาน')}</td>
                   <td className="px-3 py-2 flex gap-2">
-                    <button className="btn-outline" onClick={() => openEdit(r)}>Edit</button>
-                    <button className="btn-outline" onClick={() => void onDelete(r)}>Delete</button>
+                    <button className="btn-outline" onClick={() => openEdit(r)}>{t('edit', 'แก้ไข')}</button>
+                    <button className="btn-outline" onClick={() => void onDelete(r)}>{t('delete', 'ลบ')}</button>
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+        </div>
         {rows.length > 0 ? (
           <TablePaginationControls
             page={page}
@@ -217,11 +253,11 @@ export function StaffCrud() {
 
       {drawerOpen ? (
         <>
-          <button className="fixed inset-0 z-40 bg-slate-900/30" onClick={() => setDrawerOpen(false)} aria-label="Close drawer" />
-          <aside className="fixed right-0 top-0 z-50 h-screen w-full overflow-y-auto bg-white p-5 shadow-2xl sm:w-[60%]">
+          <button className="fixed inset-0 z-40 bg-slate-900/30" onClick={() => setDrawerOpen(false)} aria-label={t('close', 'ปิด')} />
+          <aside className="fixed right-0 top-0 z-50 h-dvh w-full overflow-y-auto bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl sm:w-[60%]">
             <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3">
-              <h4 className="text-lg font-semibold">{editing ? 'แก้ไขพนักงาน' : 'เพิ่มพนักงาน'}</h4>
-              <button className="btn-outline" onClick={() => setDrawerOpen(false)}>Close</button>
+              <h4 className="text-lg font-semibold">{editing ? t('edit_title', 'แก้ไขพนักงาน') : t('add_title', 'เพิ่มพนักงาน')}</h4>
+              <button className="btn-outline" onClick={() => setDrawerOpen(false)}>{t('close', 'ปิด')}</button>
             </div>
 
             <form onSubmit={onSubmit} className="space-y-4">
@@ -234,7 +270,7 @@ export function StaffCrud() {
                       checked={form.mode === 'invite'}
                       onChange={() => setForm((prev) => ({ ...prev, mode: 'invite', user_id: '' }))}
                     />
-                    เชิญผู้ใช้ใหม่ทางอีเมล
+                    {t('mode_invite', 'เชิญผู้ใช้ใหม่ทางอีเมล')}
                   </label>
                   <label className="flex items-center gap-2">
                     <input
@@ -243,7 +279,7 @@ export function StaffCrud() {
                       checked={form.mode === 'existing'}
                       onChange={() => setForm((prev) => ({ ...prev, mode: 'existing', email: '' }))}
                     />
-                    เลือกจากผู้ใช้ที่มีอยู่
+                    {t('mode_existing', 'เลือกจากผู้ใช้ที่มีอยู่')}
                   </label>
                 </div>
               ) : null}
@@ -252,7 +288,7 @@ export function StaffCrud() {
                 {!editing && form.mode === 'invite' ? (
                   <>
                     <label className="text-sm">
-                      <span className="mb-1 block text-slate-600">Email</span>
+                      <span className="mb-1 block text-slate-600">{t('email', 'อีเมล')}</span>
                       <input
                         className="input"
                         type="email"
@@ -263,20 +299,20 @@ export function StaffCrud() {
                       />
                     </label>
                     <label className="text-sm">
-                      <span className="mb-1 block text-slate-600">สิทธิ์</span>
+                      <span className="mb-1 block text-slate-600">{t('role', 'สิทธิ์')}</span>
                       <select
                         className="input"
                         value={form.role}
                         onChange={(e) => setForm((prev) => ({ ...prev, role: e.target.value as FormState['role'] }))}
                       >
-                        <option value="staff">พนักงาน (staff)</option>
-                        <option value="branch_manager">ผู้จัดการสาขา (branch_manager)</option>
+                        <option value="staff">{t('role_staff', 'พนักงาน')}</option>
+                        <option value="branch_manager">{t('role_branch_manager', 'ผู้จัดการสาขา')}</option>
                       </select>
                     </label>
                   </>
                 ) : (
                   <label className="text-sm">
-                    <span className="mb-1 block text-slate-600">User Account</span>
+                    <span className="mb-1 block text-slate-600">{t('user_account', 'บัญชีผู้ใช้')}</span>
                     <select
                       className="input"
                       value={form.user_id}
@@ -291,7 +327,7 @@ export function StaffCrud() {
                       }}
                       required
                     >
-                      <option value="">เลือก user</option>
+                      <option value="">{t('pick_user', 'เลือกผู้ใช้')}</option>
                       {users.map((u) => (
                         <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>
                       ))}
@@ -300,7 +336,7 @@ export function StaffCrud() {
                 )}
 
                 <label className="text-sm">
-                  <span className="mb-1 block text-slate-600">Display Name</span>
+                  <span className="mb-1 block text-slate-600">{t('display_name', 'ชื่อแสดงผล')}</span>
                   <input
                     className="input"
                     value={form.display_name}
@@ -311,7 +347,7 @@ export function StaffCrud() {
               </div>
 
               <div className="rounded-xl border border-slate-200 p-3">
-                <p className="mb-2 text-sm font-medium">Assign Branches</p>
+                <p className="mb-2 text-sm font-medium">{t('assign_branches', 'สาขาที่รับผิดชอบ')}</p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {branches.map((b) => (
                     <label key={b.id} className="flex items-center gap-2 text-sm">
@@ -319,25 +355,28 @@ export function StaffCrud() {
                       {b.branch_name}
                     </label>
                   ))}
-                  {branches.length === 0 ? <p className="text-xs text-slate-500">ยังไม่มีสาขา</p> : null}
+                  {branches.length === 0 ? <p className="text-xs text-slate-500">{t('no_branches_yet', 'ยังไม่มีสาขา')}</p> : null}
                 </div>
               </div>
 
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={form.active} onChange={(e) => setForm((prev) => ({ ...prev, active: e.target.checked }))} />
-                Active
+                {t('active_checkbox', 'เปิดใช้งาน')}
               </label>
 
+              {/* Phones: two equal 44px buttons; sm+: natural widths. */}
               <div className="flex gap-2 pt-2">
-                <button className="btn-primary" disabled={saving}>{saving ? 'กำลังบันทึก...' : (editing ? 'บันทึกการแก้ไข' : 'เพิ่มพนักงาน')}</button>
-                <button type="button" className="btn-outline" onClick={() => setDrawerOpen(false)}>ยกเลิก</button>
+                <button className="btn-primary min-h-[44px] flex-1 sm:min-h-0 sm:flex-none" disabled={saving}>
+                  {saving ? t('saving', 'กำลังบันทึก...') : (editing ? t('save_edit', 'บันทึกการแก้ไข') : t('add_title', 'เพิ่มพนักงาน'))}
+                </button>
+                <button type="button" className="btn-outline min-h-[44px] flex-1 sm:min-h-0 sm:flex-none" onClick={() => setDrawerOpen(false)}>{t('cancel', 'ยกเลิก')}</button>
               </div>
 
               {selectedUser ? (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                  <p>User: {selectedUser.full_name || '-'}</p>
-                  <p>Email: {selectedUser.email || '-'}</p>
-                  <p>Phone: {selectedUser.phone || '-'}</p>
+                  <p>{t('info_user', 'ผู้ใช้')}: {selectedUser.full_name || '-'}</p>
+                  <p>{t('email', 'อีเมล')}: {selectedUser.email || '-'}</p>
+                  <p>{t('info_phone', 'เบอร์โทร')}: {selectedUser.phone || '-'}</p>
                 </div>
               ) : null}
             </form>

@@ -56,6 +56,8 @@ export type DocColumn<T> = {
  */
 export function DocTable<T>({ columns, rows, rowKey, emptyText, footer }: { columns: DocColumn<T>[]; rows: T[]; rowKey: (row: T) => string; emptyText: string; footer?: React.ReactNode[] }) {
   return (
+    // `.report-scroll` lets wide tables scroll sideways on phones; print CSS resets it to `visible`.
+    <Box className="report-scroll" sx={{ overflowX: 'auto' }}>
     <Table size="small" sx={{ tableLayout: 'auto' }}>
       <TableHead>
         <TableRow>
@@ -87,6 +89,7 @@ export function DocTable<T>({ columns, rows, rowKey, emptyText, footer }: { colu
         ) : null}
       </TableBody>
     </Table>
+    </Box>
   );
 }
 

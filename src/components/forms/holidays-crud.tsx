@@ -3,6 +3,11 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import EventRoundedIcon from '@mui/icons-material/EventRounded';
+import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
+import { Chip } from '@mui/material';
+import { MobileCardList } from '@/components/ui/responsive-table';
+import { MobileRecordCard } from '@/components/ui/mobile-record-card';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -31,6 +36,14 @@ const EMPTY_DRAFT: Draft = {
   holiday_date: '',
   reason: '',
 };
+
+const WEEKDAYS = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+
+/** Thai weekday name for a `YYYY-MM-DD` date, or null when the date is malformed. */
+function weekdayLabel(isoDate: string): string | null {
+  const d = new Date(`${isoDate}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : `วัน${WEEKDAYS[d.getDay()]}`;
+}
 
 export function HolidaysCrud() {
   const { push } = useToast();
@@ -121,12 +134,16 @@ export function HolidaysCrud() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-700">จัดการวันหยุด</h3>
-        <button className="btn-primary" onClick={openCreate}>เพิ่มวันหยุด</button>
+      {/* Phones: title row then a full-width 44px button. sm+: title left, button right (unchanged). */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-700">จัดการวันหยุด</h3>
+          <p className="text-xs text-slate-500 sm:hidden">{rows.length} รายการ</p>
+        </div>
+        <button className="btn-primary min-h-[44px] sm:min-h-0" onClick={openCreate}>เพิ่มวันหยุด</button>
       </div>
 
-      <div className="card p-4 overflow-x-auto">
+      <div className="card p-4">
         {rows.length === 0 ? (
           <EmptyState
             title="ยังไม่มีวันหยุด"
@@ -136,7 +153,33 @@ export function HolidaysCrud() {
             icon="📅"
           />
         ) : (
-          <table className="min-w-full text-sm">
+          <>
+          {/* Phones: one card per holiday, same look as /portal/services. */}
+          <MobileCardList
+            rows={pagedRows}
+            rowKey={(r) => r.id}
+            columns={[]}
+            renderCard={(r) => {
+              const weekday = weekdayLabel(r.holiday_date);
+              return (
+                <MobileRecordCard
+                  title={formatDateDMY(r.holiday_date)}
+                  subtitle={r.reason || undefined}
+                  tags={
+                    <>
+                      {weekday ? <Chip size="small" variant="outlined" color="primary" icon={<EventRoundedIcon />} label={weekday} /> : null}
+                      <Chip size="small" variant="outlined" icon={<StorefrontRoundedIcon />} label={r.branches?.branch_name ?? 'ทุกสาขา'} />
+                    </>
+                  }
+                  onEdit={() => openEdit(r)}
+                  onDelete={() => void onDelete(r)}
+                />
+              );
+            }}
+            sx={{ display: { xs: 'flex', sm: 'none' }, mx: -2, mt: -2, p: 1.5, bgcolor: 'action.hover' }}
+          />
+          <div className="hidden overflow-x-auto sm:block">
+          <table className="w-full min-w-[520px] text-sm">
             <thead>
               <tr>
                 <th className="px-2 py-2 text-left">วันที่</th>
@@ -163,6 +206,8 @@ export function HolidaysCrud() {
               ))}
             </tbody>
           </table>
+          </div>
+          </>
         )}
 
         {rows.length > 0 ? (
@@ -179,7 +224,7 @@ export function HolidaysCrud() {
       {drawerOpen ? (
         <>
           <button className="fixed inset-0 z-40 bg-slate-900/30" onClick={() => setDrawerOpen(false)} aria-label="Close drawer" />
-          <aside className="fixed right-0 top-0 z-50 h-screen w-full overflow-y-auto bg-white p-5 shadow-2xl sm:w-[60%]">
+          <aside className="fixed right-0 top-0 z-50 h-dvh w-full overflow-y-auto bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl sm:w-[60%]">
             <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3">
               <h4 className="text-lg font-semibold">{draft.id ? 'แก้ไขวันหยุด' : 'เพิ่มวันหยุด'}</h4>
               <button className="btn-outline" onClick={() => setDrawerOpen(false)}>ปิด</button>

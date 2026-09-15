@@ -21,8 +21,8 @@ import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
 import NotificationsActiveRoundedIcon from '@mui/icons-material/NotificationsActiveRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import EventAvailableRoundedIcon from '@mui/icons-material/EventAvailableRounded';
-import { PublicNavbar } from '@/components/public/public-navbar';
-import { PublicFooter } from '@/components/public/public-footer';
+import { LandingNavbar } from '@/components/public/landing-navbar';
+import { LandingFooter } from '@/components/public/landing-footer';
 import { FaqSection } from '@/components/public/faq-section';
 
 export const metadata: Metadata = {
@@ -283,7 +283,7 @@ export default function BarbershopBookingSystemPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }} />
 
-      <PublicNavbar />
+      <LandingNavbar />
 
       <Box
         sx={{
@@ -537,7 +537,7 @@ export default function BarbershopBookingSystemPage() {
         </Box>
       </Container>
 
-      <PublicFooter />
+      <LandingFooter />
     </main>
   );
 }

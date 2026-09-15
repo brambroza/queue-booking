@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import { useToast } from '@/components/ui/toast';
 import { formatDateTimeDMY } from '@/lib/utils/date-format';
 
@@ -103,8 +104,9 @@ export function ChatInboxClient() {
   }
 
   return (
+    // Below md: master/detail — roster until a conversation is picked, then the thread with a back button.
     <div className="grid gap-4 md:grid-cols-[320px_1fr]">
-      <aside className="card p-3">
+      <aside className={`card p-3 ${selected ? 'hidden md:block' : ''}`}>
         <p className="px-2 py-1 text-xs font-semibold tracking-wide text-slate-400">CONVERSATIONS</p>
         <div className="space-y-1">
           {users.map((u) => (
@@ -131,10 +133,18 @@ export function ChatInboxClient() {
         </div>
       </aside>
 
-      <section className="card p-4">
+      <section className={`card p-4 ${selected ? '' : 'hidden md:block'}`}>
         {!selected ? <p className="text-sm text-slate-500">เลือกบทสนทนาเพื่อดูข้อความ</p> : (
           <>
             <div className="mb-3 flex items-center gap-3 border-b border-slate-200 pb-3">
+              <button
+                type="button"
+                className="btn-outline shrink-0 !px-2 md:hidden"
+                aria-label="กลับไปรายการสนทนา"
+                onClick={() => setSelected(null)}
+              >
+                <ArrowBackRoundedIcon fontSize="small" />
+              </button>
               {selected.picture_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={selected.picture_url} alt={selected.display_name ?? 'LINE User'} className="h-10 w-10 rounded-full object-cover" />
@@ -149,7 +159,7 @@ export function ChatInboxClient() {
               </div>
             </div>
 
-            <div className="h-[460px] space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="h-[50dvh] space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3 md:h-[460px]">
               {messages.length === 0 ? <p className="text-sm text-slate-500">ยังไม่มีข้อความ</p> : messages.map((m) => (
                 <div key={m.id} className={`max-w-[82%] rounded-xl px-3 py-2 text-sm shadow-sm ${m.direction === 'outbound' ? 'ml-auto bg-[#12a862] text-white' : 'bg-white text-slate-800'}`}>
                   {m.message_type === 'image' && m.payload?.media_url ? (
@@ -237,7 +247,7 @@ export function ChatInboxClient() {
                   😊
                 </button>
                 <input
-                  className="input !h-10 !border-0 !bg-transparent focus:!ring-0"
+                  className="input !h-10 min-w-0 !border-0 !bg-transparent focus:!ring-0"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   placeholder="พิมพ์ข้อความ..."

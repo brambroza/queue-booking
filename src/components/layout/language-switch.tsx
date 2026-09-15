@@ -39,7 +39,7 @@ export function LanguageSwitch() {
         <IconButton
           aria-label="Switch language"
           onClick={(e) => setAnchorEl(e.currentTarget)}
-          sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: '#fff' }}
+          sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper' }}
         >
           <span style={{ fontSize: 18, lineHeight: 1 }}>{flag}</span>
           <TranslateRoundedIcon sx={{ ml: 0.5, fontSize: 16, color: 'text.secondary' }} />

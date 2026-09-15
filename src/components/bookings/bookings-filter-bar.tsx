@@ -68,13 +68,16 @@ export function BookingsFilterBar({
 }) {
   const { t } = useTranslation('bookings');
 
+  // Phones: selects share a row (2-up), search and the date input take a full row.
   const fieldSx = {
-    minWidth: 150,
+    minWidth: { xs: 0, sm: 150 },
+    width: { xs: 'calc(50% - 5px)', sm: 'auto' },
     '& .MuiOutlinedInput-root': { bgcolor: 'background.paper' },
   } as const;
 
   return (
-    <Card sx={{ position: 'sticky', top: 8, zIndex: 5 }}>
+    // Sticky only from sm up — on phones the stacked filters would pin most of the screen.
+    <Card sx={{ position: { xs: 'static', sm: 'sticky' }, top: 8, zIndex: 5 }}>
       <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
         <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap" useFlexGap>
           <ToggleButtonGroup
@@ -86,6 +89,7 @@ export function BookingsFilterBar({
               onChange({ ...value, range: next, date: dateForRange(next, value.date || getTodayISOInBangkok()) });
             }}
             aria-label={t('filter_range', 'ช่วงวันที่')}
+            sx={{ width: { xs: '100%', sm: 'auto' }, '& .MuiToggleButton-root': { flex: { xs: 1, sm: 'none' }, minHeight: { xs: 40, sm: 'auto' } } }}
           >
             <ToggleButton value="today">{t('range_today', 'วันนี้')}</ToggleButton>
             <ToggleButton value="tomorrow">{t('range_tomorrow', 'พรุ่งนี้')}</ToggleButton>
@@ -101,7 +105,7 @@ export function BookingsFilterBar({
               value={value.date}
               onChange={(e) => onChange({ ...value, date: e.target.value })}
               slotProps={{ inputLabel: { shrink: true } }}
-              sx={{ minWidth: 160 }}
+              sx={{ minWidth: { xs: 0, sm: 160 }, width: { xs: '100%', sm: 'auto' } }}
             />
           ) : null}
 
@@ -146,7 +150,7 @@ export function BookingsFilterBar({
             value={value.search}
             onChange={(e) => onChange({ ...value, search: e.target.value })}
             placeholder={t('search_placeholder', 'ค้นหาเลขคิว / หมายเหตุ')}
-            sx={{ ...fieldSx, minWidth: 200 }}
+            sx={{ ...fieldSx, minWidth: { xs: 0, sm: 200 }, width: { xs: '100%', sm: 'auto' } }}
             slotProps={{
               input: {
                 startAdornment: (
@@ -165,7 +169,7 @@ export function BookingsFilterBar({
             }}
           />
 
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ ml: { sm: 'auto' } }}>
+          <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ ml: { sm: 'auto' }, width: { xs: '100%', sm: 'auto' } }}>
             <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
               {total} {t('queue_unit', 'คิว')}
             </Typography>

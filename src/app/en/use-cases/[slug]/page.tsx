@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Box, Button, Card, CardContent, Container, Stack, Typography } from '@mui/material';
-import { PublicNavbar } from '@/components/public/public-navbar';
-import { PublicFooter } from '@/components/public/public-footer';
+import { LandingNavbar } from '@/components/public/landing-navbar';
+import { LandingFooter } from '@/components/public/landing-footer';
 import { useCases } from '@/components/public/content';
 import { useCasesEnBySlug } from '@/components/public/use-cases-content-en';
 
@@ -41,7 +41,7 @@ export default async function UseCaseDetailEnPage({ params }: { params: Promise<
 
   return (
     <main>
-      <PublicNavbar />
+      <LandingNavbar />
       <Container maxWidth="md" sx={{ py: 8 }}>
         <Stack direction="row" spacing={1.2} alignItems="center" sx={{ mb: 2 }}>
           <Box sx={{ width: 44, height: 44, borderRadius: 2, bgcolor: '#eaf3de', display: 'grid', placeItems: 'center' }}>
@@ -70,7 +70,7 @@ export default async function UseCaseDetailEnPage({ params }: { params: Promise<
           </CardContent>
         </Card>
       </Container>
-      <PublicFooter />
+      <LandingFooter />
     </main>
   );
 }

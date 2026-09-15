@@ -259,7 +259,12 @@ export function BookingsCrud() {
         title={t('title', 'จัดการคิว')}
         description={t('subtitle', 'รายการจองทั้งหมด เปลี่ยนสถานะ โยกย้ายคิว และเพิ่มคิวหน้าร้าน')}
         action={
-          <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => { setCreateResult(null); setCreateOpen(true); }}>
+          <Button
+            variant="contained"
+            startIcon={<AddRoundedIcon />}
+            onClick={() => { setCreateResult(null); setCreateOpen(true); }}
+            sx={{ width: { xs: '100%', sm: 'auto' }, minHeight: { xs: 44, sm: 'auto' } }} // phones: full-width thumb target
+          >
             {t('add_queue', 'เพิ่มคิวใหม่')}
           </Button>
         }

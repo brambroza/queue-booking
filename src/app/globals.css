@@ -39,11 +39,27 @@ body {
   min-height: 100%;
 }
 
+html {
+  /* iOS Safari: keep text at authored size when rotating / zooming. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
   transition: background-color 0.2s ease, color 0.2s ease;
+  /* `clip` (not `hidden`) stops stray horizontal overflow on phones without
+     turning body into a scroll container, so the sticky portal AppBar keeps working. */
+  overflow-x: clip;
+}
+
+/* iOS zooms into inputs whose font is below 16px; desktop keeps text-sm. */
+@media (max-width: 599.98px) {
+  .input {
+    font-size: 16px;
+  }
 }
 
 .card {
@@ -138,5 +154,10 @@ body {
 
   #report-print-root thead {
     display: table-header-group;
+  }
+
+  /* Report tables scroll horizontally on phones; on paper they must lay out in full. */
+  #report-print-root .report-scroll {
+    overflow: visible !important;
   }
 }

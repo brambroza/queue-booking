@@ -16,7 +16,7 @@ export function PageHeader({
     <Stack
       direction={{ xs: 'column', sm: 'row' }}
       spacing={1.5}
-      alignItems={{ xs: 'flex-start', sm: 'center' }}
+      alignItems={{ xs: 'stretch', sm: 'center' }} // xs: stretch so a page can make its action button full-width
       justifyContent="space-between"
       sx={{ mb: 2.5 }}
     >

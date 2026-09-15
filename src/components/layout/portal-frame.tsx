@@ -19,6 +19,7 @@ import {
 import type { Theme } from '@mui/material/styles';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import ChevronLeftRoundedIcon from '@mui/icons-material/ChevronLeftRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { PortalNav } from '@/components/layout/portal-nav';
 import { LanguageSwitch } from '@/components/layout/language-switch';
 import { ColorModeToggle } from '@/components/theme/color-mode-toggle';
@@ -78,9 +79,34 @@ export function PortalFrame(props: PortalFrameProps) {
   );
 }
 
+/** Shared look for the small square button in the sidebar header (collapse / close). */
+const sidebarHeaderButtonSx = {
+  width: 32,
+  height: 32,
+  flexShrink: 0,
+  borderRadius: 2,
+  border: '1px solid',
+  borderColor: 'divider',
+  bgcolor: 'background.paper',
+  color: 'text.secondary',
+  boxShadow: (theme: Theme) => (theme.palette.mode === 'dark' ? 'none' : '0 1px 2px rgba(15,23,42,0.06)'),
+  transition: (theme: Theme) =>
+    theme.transitions.create(['background-color', 'color', 'border-color', 'box-shadow'], {
+      duration: theme.transitions.duration.shorter,
+    }),
+  '&:hover': {
+    bgcolor: 'primary.main',
+    borderColor: 'primary.main',
+    color: 'primary.contrastText',
+    boxShadow: (theme: Theme) => `0 6px 16px ${theme.palette.primary.main}40`,
+  },
+} as const;
+
 /**
  * Sidebar content (shop header + navigation + collapse toggle).
  * `collapsed` is only ever true inside the desktop permanent drawer.
+ * `onClose` is only passed by the mobile temporary drawer and renders a close
+ * button in the same slot the desktop collapse toggle occupies.
  */
 function SidebarContent({
   logoUrl,
@@ -90,6 +116,7 @@ function SidebarContent({
   onNavigate,
   onToggle,
   toggleLabel,
+  onClose,
 }: {
   logoUrl: string | null;
   shopName?: string | null;
@@ -98,8 +125,15 @@ function SidebarContent({
   onNavigate?: () => void;
   onToggle?: () => void;
   toggleLabel?: string;
+  onClose?: () => void;
 }) {
   const { t } = useI18n();
+
+  const closeButton = !onToggle && onClose ? (
+    <IconButton size="small" onClick={onClose} aria-label={t('common.close', 'ปิด')} sx={sidebarHeaderButtonSx}>
+      <CloseRoundedIcon fontSize="small" />
+    </IconButton>
+  ) : null;
 
   const toggleButton = onToggle ? (
     <Tooltip title={toggleLabel ?? ''} placement="right" arrow>
@@ -109,25 +143,7 @@ function SidebarContent({
         aria-label={toggleLabel}
         aria-expanded={!collapsed}
         sx={{
-          width: 32,
-          height: 32,
-          flexShrink: 0,
-          borderRadius: 2,
-          border: '1px solid',
-          borderColor: 'divider',
-          bgcolor: 'background.paper',
-          color: 'text.secondary',
-          boxShadow: (theme) => (theme.palette.mode === 'dark' ? 'none' : '0 1px 2px rgba(15,23,42,0.06)'),
-          transition: (theme) =>
-            theme.transitions.create(['background-color', 'color', 'border-color', 'box-shadow'], {
-              duration: theme.transitions.duration.shorter,
-            }),
-          '&:hover': {
-            bgcolor: 'primary.main',
-            borderColor: 'primary.main',
-            color: 'primary.contrastText',
-            boxShadow: (theme) => `0 6px 16px ${theme.palette.primary.main}40`,
-          },
+          ...sidebarHeaderButtonSx,
           '& .MuiSvgIcon-root': {
             transition: (theme) => theme.transitions.create('transform', { duration: theme.transitions.duration.standard }),
             transform: collapsed ? 'rotate(180deg)' : 'rotate(0deg)',
@@ -182,7 +198,7 @@ function SidebarContent({
             <Typography fontWeight={800} lineHeight={1.25} noWrap>{shopName || 'Queue Booking'}</Typography>
           </Box>
         )}
-        {toggleButton}
+        {toggleButton ?? closeButton}
       </Stack>
       <PortalNav isSuperAdmin={isSuperAdmin} collapsed={collapsed} onNavigate={onNavigate} />
     </Box>
@@ -212,79 +228,24 @@ function PortalFrameInner({
   const toggleLabel = collapsed ? t('menu.sidebar_expand', 'ขยายเมนู') : t('menu.sidebar_collapse', 'ย่อเมนู');
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
-      <AppBar
-        position="fixed"
-        color="inherit"
-        elevation={0}
-        sx={{
-          borderBottom: '1px solid',
-          borderColor: 'divider',
-          bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(20,26,36,0.82)' : 'rgba(255,255,255,0.85)'),
-          backdropFilter: 'blur(10px)',
-          ml: { md: `${desktopWidth}px` },
-          width: { md: `calc(100% - ${desktopWidth}px)` },
-          transition: sidebarTransition,
-        }}
-      >
-        <Toolbar sx={{ minHeight: 72 }}>
-          <IconButton sx={{ display: { md: 'none' }, mr: 1 }} onClick={() => setOpen(true)}>
-            <MenuRoundedIcon />
-          </IconButton>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            {isSuperAdmin ? (
-              <ShopSwitch activeShopId={activeShopId} />
-            ) : (
-              <>
-                <Typography variant="caption" color="text.secondary">{t('menu.shop_selector')}</Typography>
-                <Typography variant="body2" fontWeight={700}>{shopName ? `${shopName}  ` : '-'}</Typography>
-              </>
-            )}
-            <Breadcrumbs aria-label="breadcrumb" sx={{ mt: 0.2 }}>
-              <MLink underline="hover" color="inherit" href="/portal/dashboard">{t('menu.portal')}</MLink>
-              {crumbs.map((c, idx) => (
-                <Typography key={`${c}-${idx}`} color={idx === crumbs.length - 1 ? 'text.primary' : 'text.secondary'} variant="caption">
-                  {c}
-                </Typography>
-              ))}
-            </Breadcrumbs>
-          </Box>
-          <Stack data-tour="portal-toolbar" direction="row" spacing={1.2} alignItems="center">
-          {/*   <Button
-              component={Link}
-              href="/portal/demo-sandbox"
-              size="small"
-              variant={demoModeEnabled ? 'contained' : 'outlined'}
-              startIcon={<ScienceRoundedIcon />}
-              sx={{
-                borderRadius: 999,
-                textTransform: 'none',
-                whiteSpace: 'nowrap',
-                bgcolor: demoModeEnabled ? '#12a862' : undefined,
-                borderColor: demoModeEnabled ? '#12a862' : undefined,
-                '&:hover': { bgcolor: demoModeEnabled ? '#0a7043' : undefined, borderColor: '#12a862' },
-                display: { xs: 'none', sm: 'inline-flex' },
-              }}
-            >
-              โหมดทดลอง
-            </Button> */}
-            <BranchSwitch />
-            <PortalTour />
-            <ColorModeToggle />
-            <LanguageSwitch />
-            <NotificationsMenu />
-            <TopbarUserMenu initialName={fullName} email={email} appVersion={appVersion} />
-          </Stack>
-        </Toolbar>
-      </AppBar>
-
+    <Box
+      sx={{
+        display: 'flex',
+        minHeight: '100vh',
+        '@supports (min-height: 100dvh)': { minHeight: '100dvh' },
+        bgcolor: 'background.default',
+      }}
+    >
       <Box component="nav" sx={{ width: { md: desktopWidth }, flexShrink: { md: 0 }, transition: sidebarTransition }}>
         <Drawer
           variant="temporary"
           open={open}
           onClose={() => setOpen(false)}
           ModalProps={{ keepMounted: true }}
-          sx={{ display: { xs: 'block', md: 'none' }, '& .MuiDrawer-paper': { width: SIDEBAR_WIDTH } }}
+          sx={{
+            display: { xs: 'block', md: 'none' },
+            '& .MuiDrawer-paper': { width: SIDEBAR_WIDTH, maxWidth: '85vw', pb: 'env(safe-area-inset-bottom)' },
+          }}
         >
           <SidebarContent
             logoUrl={logoUrl}
@@ -292,6 +253,7 @@ function PortalFrameInner({
             isSuperAdmin={isSuperAdmin}
             collapsed={false}
             onNavigate={() => setOpen(false)}
+            onClose={() => setOpen(false)}
           />
         </Drawer>
         <Drawer
@@ -320,11 +282,86 @@ function PortalFrameInner({
         </Drawer>
       </Box>
 
-      <Box component="main" data-tour="page-content" sx={{ flex: 1, minWidth: 0, pt: { xs: 10, md: 11 }, pb: 4 }}>
-        <Container maxWidth="xl">
-          <DemoModeBanner show={demoModeEnabled} />
-          <UpgradeProvider>{children}</UpgradeProvider>
-        </Container>
+      {/*
+        Content column. The AppBar is `sticky` inside this column so the page
+        offset always equals its real height (it grows on phones when the shop
+        name / breadcrumbs wrap). Do not put `overflow` on this Box or the root
+        Box — that would turn it into a scroll container and break `sticky`.
+      */}
+      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <AppBar
+          position="sticky"
+          color="inherit"
+          elevation={0}
+          sx={{
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(20,26,36,0.82)' : 'rgba(255,255,255,0.85)'),
+            backdropFilter: 'blur(10px)',
+            pt: 'env(safe-area-inset-top)',
+          }}
+        >
+          <Toolbar sx={{ minHeight: 72 }}>
+            <IconButton
+              sx={{ display: { md: 'none' }, mr: 1 }}
+              onClick={() => setOpen(true)}
+              aria-label={t('menu.open_menu', 'เปิดเมนู')}
+            >
+              <MenuRoundedIcon />
+            </IconButton>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              {isSuperAdmin ? (
+                <ShopSwitch activeShopId={activeShopId} />
+              ) : (
+                <>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                    {t('menu.shop_selector')}
+                  </Typography>
+                  <Typography variant="body2" fontWeight={700} noWrap>{shopName ? `${shopName}  ` : '-'}</Typography>
+                </>
+              )}
+              <Breadcrumbs
+                aria-label="breadcrumb"
+                sx={{
+                  mt: 0.2,
+                  '& .MuiBreadcrumbs-ol': { flexWrap: 'nowrap' },
+                  '& .MuiBreadcrumbs-li': { minWidth: 0 },
+                }}
+              >
+                <MLink underline="hover" color="inherit" href="/portal/dashboard" noWrap>{t('menu.portal')}</MLink>
+                {crumbs.map((c, idx) => (
+                  <Typography
+                    key={`${c}-${idx}`}
+                    color={idx === crumbs.length - 1 ? 'text.primary' : 'text.secondary'}
+                    variant="caption"
+                    noWrap
+                  >
+                    {c}
+                  </Typography>
+                ))}
+              </Breadcrumbs>
+            </Box>
+            {/* `useFlexGap` so the `display: contents` wrapper below still gets even spacing between its children. */}
+            <Stack data-tour="portal-toolbar" direction="row" spacing={{ xs: 0.5, md: 1.2 }} alignItems="center" useFlexGap>
+              <BranchSwitch />
+              <PortalTour />
+              {/* Hidden on phones — the same toggles live in the profile drawer (TopbarUserMenu). */}
+              <Box sx={{ display: { xs: 'none', sm: 'contents' } }}>
+                <ColorModeToggle />
+                <LanguageSwitch />
+              </Box>
+              <NotificationsMenu />
+              <TopbarUserMenu initialName={fullName} email={email} appVersion={appVersion} />
+            </Stack>
+          </Toolbar>
+        </AppBar>
+
+        <Box component="main" data-tour="page-content" sx={{ pt: { xs: 1.5, md: '15px' }, pb: 4 }}>
+          <Container maxWidth="xl">
+            <DemoModeBanner show={demoModeEnabled} />
+            <UpgradeProvider>{children}</UpgradeProvider>
+          </Container>
+        </Box>
       </Box>
     </Box>
   );

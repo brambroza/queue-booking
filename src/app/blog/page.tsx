@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Card, CardContent, Chip, Container, Grid, Stack, Typography } from '@mui/material';
-import { PublicNavbar } from '@/components/public/public-navbar';
-import { PublicFooter } from '@/components/public/public-footer';
+import { LandingNavbar } from '@/components/public/landing-navbar';
+import { LandingFooter } from '@/components/public/landing-footer';
 import { blogPosts } from '@/components/public/blog-content';
 import { formatDateDMY } from '@/lib/utils/date-format';
 
@@ -59,7 +59,7 @@ export default function BlogPage() {
   return (
     <main>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
-      <PublicNavbar />
+      <LandingNavbar />
       <Container maxWidth="lg" sx={{ py: 8 }}>
         <Typography variant="h3" fontWeight={800}>บทความและแนวทางใช้งานระบบจองคิว</Typography>
         <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
@@ -97,7 +97,7 @@ export default function BlogPage() {
           ))}
         </Grid>
       </Container>
-      <PublicFooter />
+      <LandingFooter />
     </main>
   );
 }

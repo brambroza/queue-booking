@@ -173,7 +173,7 @@ export function CalendarClient() {
             <p className="text-xs text-slate-500">Calendar</p>
             <h3 className="text-lg font-semibold text-slate-800">{view === 'month' ? monthTitle(monthCursor) : `ตาราง${laneLabel} ${formatDateDMY(meetingDate)}`}</h3>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button className={view === 'month' ? 'btn-primary inline-flex items-center gap-1' : 'btn-outline inline-flex items-center gap-1'} onClick={() => setView('month')}>
               <CalendarMonthRoundedIcon fontSize="small" /> เดือน
             </button>
@@ -182,7 +182,7 @@ export function CalendarClient() {
             </button>
             {view === 'resource' ? (
               <select
-                className="input text-sm w-40"
+                className="input text-sm w-full sm:w-40"
                 value={laneType}
                 onChange={(e) => setLaneType(e.target.value as ResourceType)}
               >
@@ -196,24 +196,30 @@ export function CalendarClient() {
       {view === 'month' ? (
         <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
           <section className="card overflow-hidden">
-            <div className="flex items-center justify-end gap-2 border-b border-slate-200 p-3">
-              <button className="btn-outline inline-flex items-center gap-1" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}><ChevronLeftRoundedIcon fontSize="small" />เดือนก่อน</button>
+            <div className="flex flex-wrap items-center justify-end gap-2 border-b border-slate-200 p-3">
+              <button className="btn-outline inline-flex items-center gap-1" aria-label="เดือนก่อน" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}><ChevronLeftRoundedIcon fontSize="small" /><span className="hidden sm:inline">เดือนก่อน</span></button>
               <button className="btn-outline inline-flex items-center gap-1" onClick={() => { const now = new Date(); setMonthCursor(new Date(now.getFullYear(), now.getMonth(), 1)); setSelectedDate(toISO(now)); }}><TodayRoundedIcon fontSize="small" />วันนี้</button>
-              <button className="btn-outline inline-flex items-center gap-1" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}>เดือนถัดไป<ChevronRightRoundedIcon fontSize="small" /></button>
+              <button className="btn-outline inline-flex items-center gap-1" aria-label="เดือนถัดไป" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}><span className="hidden sm:inline">เดือนถัดไป</span><ChevronRightRoundedIcon fontSize="small" /></button>
             </div>
-            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">{WEEKDAYS.map((w) => <div key={w} className="px-3 py-2 text-center text-xs font-semibold text-slate-600">{w}</div>)}</div>
+            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">{WEEKDAYS.map((w) => <div key={w} className="px-1 py-2 text-center text-xs font-semibold text-slate-600 sm:px-3">{w}</div>)}</div>
+            {/* Phones: compact cells (day number + count badge); the day's bookings are listed in the aside below. sm+: original cells with chips. */}
             <div className="grid grid-cols-7">
               {monthCells.map((cell) => {
                 const list = rowsByDate.get(cell.iso) ?? [];
                 const isToday = cell.iso === todayIso;
                 const isSelected = cell.iso === selectedDate;
                 return (
-                  <button key={cell.iso} className={`min-h-32 border-b border-r border-slate-100 p-2 text-left transition hover:bg-slate-50 ${cell.inMonth ? 'bg-white' : 'bg-slate-50/70'} ${isSelected ? 'ring-2 ring-inset ring-emerald-400' : ''}`} onClick={() => setSelectedDate(cell.iso)}>
-                    <div className="mb-1 flex items-center justify-between">
+                  <button key={cell.iso} className={`min-h-14 border-b border-r border-slate-100 p-1 text-left transition hover:bg-slate-50 sm:min-h-32 sm:p-2 ${cell.inMonth ? 'bg-white' : 'bg-slate-50/70'} ${isSelected ? 'ring-2 ring-inset ring-emerald-400' : ''}`} onClick={() => setSelectedDate(cell.iso)}>
+                    <div className="mb-1 flex flex-wrap items-center justify-between gap-0.5">
                       <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${isToday ? 'bg-emerald-600 text-white' : cell.inMonth ? 'text-slate-800' : 'text-slate-400'}`}>{cell.day}</span>
-                      {list.length > 0 ? <span className="text-[10px] font-medium text-slate-500">{list.length} คิว</span> : null}
+                      {list.length > 0 ? (
+                        <>
+                          <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-semibold text-white sm:hidden" aria-label={`${list.length} คิว`}>{list.length}</span>
+                          <span className="hidden text-[10px] font-medium text-slate-500 sm:inline">{list.length} คิว</span>
+                        </>
+                      ) : null}
                     </div>
-                    <div className="space-y-1">
+                    <div className="hidden space-y-1 sm:block">
                       {list.slice(0, 3).map((item) => <div key={item.id} className={`truncate rounded-md border px-1.5 py-1 text-[10px] ${statusClass(String(item.status))}`}><span className="font-semibold">{hhmm(item.start_time)}</span> {item.queue_number}</div>)}
                       {list.length > 3 ? <p className="text-[10px] text-slate-500">+ อีก {list.length - 3} รายการ</p> : null}
                     </div>

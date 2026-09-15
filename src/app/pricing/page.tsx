@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Box, Button, Chip, Container, Grid, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
-import { PublicFooter } from '@/components/public/public-footer';
-import { PublicNavbar } from '@/components/public/public-navbar';
+import { LandingFooter } from '@/components/public/landing-footer';
+import { LandingNavbar } from '@/components/public/landing-navbar';
 import { faqs, featureCompare, pricingPlans } from '@/components/public/content';
 import { FaqSection } from '@/components/public/faq-section';
 import { PricingCard } from '@/components/public/pricing-card';
@@ -48,7 +48,7 @@ export default function PricingPage() {
   return (
     <main>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
-      <PublicNavbar />
+      <LandingNavbar />
       <Container maxWidth="lg" sx={{ py: { xs: 6, md: 10 } }}>
         <Stack spacing={1.5} alignItems="center" textAlign="center" sx={{ mb: { xs: 5, md: 7 } }}>
           <Chip
@@ -160,7 +160,7 @@ export default function PricingPage() {
           </Button>
         </Box>
       </Container>
-      <PublicFooter />
+      <LandingFooter />
     </main>
   );
 }

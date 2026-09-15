@@ -32,12 +32,22 @@ export function ReportKpiSummary({ data }: { data: ReportData }) {
   ];
 
   return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(6, 1fr)' }, border: '1px solid', borderColor: 'divider', borderRadius: 1.5, overflow: 'hidden' }}>
+    // Phones: 2 columns with wrapping labels; sm+ (and print, A4 > sm): the original 6-column strip.
+    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(6, 1fr)' }, border: '1px solid', borderColor: 'divider', borderRadius: 1.5, overflow: 'hidden' }}>
       {items.map((it, i) => (
-        <Box key={it.label} sx={{ p: 1.25, borderLeft: i % 6 === 0 ? 'none' : '1px solid', borderColor: 'divider', borderTop: { xs: i >= 3 ? '1px solid' : 'none', sm: 'none' }, borderTopColor: 'divider' }}>
-          <Typography sx={{ fontSize: DOC_FONT.caption, color: 'text.secondary', fontWeight: 600 }} noWrap>{it.label}</Typography>
-          <Typography sx={{ fontSize: 22, fontWeight: 800, lineHeight: 1.15, color: 'text.primary' }}>{it.value}</Typography>
-          {it.sub ? <Typography sx={{ fontSize: DOC_FONT.caption, color: 'text.secondary' }} noWrap>{it.sub}</Typography> : null}
+        <Box
+          key={it.label}
+          sx={{
+            p: 1.25,
+            borderLeft: { xs: i % 2 === 0 ? 'none' : '1px solid', sm: i % 6 === 0 ? 'none' : '1px solid' },
+            borderColor: 'divider',
+            borderTop: { xs: i >= 2 ? '1px solid' : 'none', sm: 'none' },
+            borderTopColor: 'divider',
+          }}
+        >
+          <Typography sx={{ fontSize: DOC_FONT.caption, color: 'text.secondary', fontWeight: 600, whiteSpace: { xs: 'normal', sm: 'nowrap' } }} noWrap>{it.label}</Typography>
+          <Typography sx={{ fontSize: { xs: 20, sm: 22 }, fontWeight: 800, lineHeight: 1.15, color: 'text.primary' }}>{it.value}</Typography>
+          {it.sub ? <Typography sx={{ fontSize: DOC_FONT.caption, color: 'text.secondary', whiteSpace: { xs: 'normal', sm: 'nowrap' } }} noWrap>{it.sub}</Typography> : null}
         </Box>
       ))}
     </Box>

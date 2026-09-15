@@ -114,7 +114,7 @@ export function SalesInbox() {
           upgrades.length === 0 ? (
             <p className="text-sm text-slate-500">ยังไม่มีคำขออัปเกรด</p>
           ) : (
-            <table className="min-w-full text-sm">
+            <table className="w-full min-w-[840px] text-sm">
               <thead>
                 <tr>
                   <th className="px-2 py-2 text-left">วันที่</th>
@@ -163,7 +163,7 @@ export function SalesInbox() {
         ) : leads.length === 0 ? (
           <p className="text-sm text-slate-500">ยังไม่มี lead จากเว็บไซต์</p>
         ) : (
-          <table className="min-w-full text-sm">
+          <table className="w-full min-w-[840px] text-sm">
             <thead>
               <tr>
                 <th className="px-2 py-2 text-left">วันที่</th>

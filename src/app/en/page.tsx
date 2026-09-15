@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Box, Button, Container, Grid, Paper, Stack, Typography } from '@mui/material';
-import { PublicNavbar } from '@/components/public/public-navbar';
-import { PublicFooter } from '@/components/public/public-footer';
+import { LandingNavbar } from '@/components/public/landing-navbar';
+import { LandingFooter } from '@/components/public/landing-footer';
 
 export const metadata: Metadata = {
   title: 'LINE OA Queue Booking Platform for Service Businesses',
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 export default function HomeEnPage() {
   return (
     <main>
-      <PublicNavbar />
+      <LandingNavbar />
       <Box sx={{ background: '#fff', py: { xs: 8, md: 10 }, borderBottom: '1px solid', borderColor: 'divider' }}>
         <Container maxWidth="lg">
           <Grid container spacing={4} alignItems="center">
@@ -55,7 +55,7 @@ export default function HomeEnPage() {
           </Grid>
         </Container>
       </Box>
-      <PublicFooter />
+      <LandingFooter />
     </main>
   );
 }

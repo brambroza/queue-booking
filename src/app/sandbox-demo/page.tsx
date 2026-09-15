@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Container } from '@mui/material';
 import { LandingNavbar } from '@/components/public/landing-navbar';
-import { PublicFooter } from '@/components/public/public-footer';
+import { LandingFooter } from '@/components/public/landing-footer';
 import { DemoHero } from '@/components/demo/demo-hero';
 import { DemoLineExperiencePanel } from '@/components/demo/demo-line-experience-panel';
 
@@ -23,7 +23,7 @@ export default function SandboxDemoPage() {
           <DemoLineExperiencePanel />
         </div>
       </Container>
-      <PublicFooter />
+      <LandingFooter />
     </main>
   );
 }

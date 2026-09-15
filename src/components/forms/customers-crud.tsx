@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
+import { MobileCardList } from '@/components/ui/responsive-table';
 import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 
 type LineUser = { id: string; line_user_id: string; display_name: string | null };
@@ -143,15 +144,35 @@ export function CustomersCrud() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-slate-700">รายการลูกค้า</h3>
-        <div className="flex items-center gap-2">
-          <input className="input w-56" placeholder="ค้นหาชื่อ/ชื่อเล่น/เบอร์" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <input className="input w-full sm:w-56" placeholder="ค้นหาชื่อ/ชื่อเล่น/เบอร์" value={q} onChange={(e) => setQ(e.target.value)} />
           <button className="btn-outline" onClick={() => void load()}>Search</button>
-          <button className="btn-primary" onClick={openAdd}>Add New</button>
+          <button className="btn-primary" onClick={openAdd}>เพิ่ม</button>
         </div>
       </div>
 
-      <div className="card overflow-x-auto">
-        <table className="min-w-full text-sm">
+      <div className="card">
+        {/* Phones: one card per customer. */}
+        <MobileCardList
+          rows={pagedRows}
+          rowKey={(r) => r.id}
+          columns={[
+            { key: 'name', label: 'Name', card: 'title', render: (r) => (r.nickname ? `${r.full_name} (${r.nickname})` : r.full_name) },
+            { key: 'phone', label: 'Phone', card: 'subtitle', render: (r) => r.phone },
+            { key: 'line', label: 'LINE User', render: (r) => r.line_user?.display_name || r.line_user?.line_user_id || '-' },
+            { key: 'note', label: 'Note', render: (r) => r.note || '-' },
+          ]}
+          actions={(r) => (
+            <>
+              <button className="btn-outline" onClick={() => openEdit(r)}>Edit</button>
+              <button className="btn-outline" onClick={() => void onDelete(r)}>Delete</button>
+            </>
+          )}
+          emptyState={<p className="px-3 py-4 text-sm text-slate-500">ยังไม่มีลูกค้า</p>}
+          sx={{ display: { xs: 'flex', sm: 'none' } }}
+        />
+        <div className="hidden overflow-x-auto sm:block">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-slate-50">
             <tr>
               <th className="px-3 py-2 text-left">Name</th>
@@ -180,6 +201,7 @@ export function CustomersCrud() {
             ))}
           </tbody>
         </table>
+        </div>
         {rows.length > 0 ? (
           <TablePaginationControls
             page={page}
@@ -194,7 +216,7 @@ export function CustomersCrud() {
       {drawerOpen ? (
         <>
           <button className="fixed inset-0 z-40 bg-slate-900/30" onClick={() => setDrawerOpen(false)} aria-label="Close drawer" />
-          <aside className="fixed right-0 top-0 z-50 h-screen w-full overflow-y-auto bg-white p-5 shadow-2xl sm:w-[60%]">
+          <aside className="fixed right-0 top-0 z-50 h-dvh w-full overflow-y-auto bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl sm:w-[60%]">
             <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3">
               <h4 className="text-lg font-semibold">{editing ? 'แก้ไขลูกค้า' : 'เพิ่มลูกค้า'}</h4>
               <button className="btn-outline" onClick={() => setDrawerOpen(false)}>Close</button>

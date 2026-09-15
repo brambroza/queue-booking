@@ -7,7 +7,12 @@ import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
+import TagRoundedIcon from '@mui/icons-material/TagRounded';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
+import { MobileCardList } from '@/components/ui/responsive-table';
+import { MobileRecordCard } from '@/components/ui/mobile-record-card';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 
 type Column = { key: string; label: string; type?: 'text' | 'number' | 'time' | 'date' | 'checkbox' };
 
@@ -23,6 +28,7 @@ export function SimpleCrud({
   defaults: Record<string, string | number | boolean>;
 }) {
   const { push } = useToast();
+  const confirm = useConfirm();
   const { openPaywall } = useUpgrade();
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,11 +120,34 @@ export function SimpleCrud({
 
   const pagedRows = rows.slice((page - 1) * rowsPerPage, page * rowsPerPage);
 
+  /** Same confirm dialog the table's ActionIconGroup shows, for the phone card button. */
+  async function confirmDelete(row: Record<string, unknown>) {
+    const ok = await confirm({
+      tone: 'error',
+      title: `ลบ${title}นี้?`,
+      description: 'รายการจะถูกซ่อนจากระบบทันที ข้อมูลที่เกี่ยวข้องยังอยู่ในรายงาน',
+      context: { primary: String(row[columns[0]?.key] ?? row.id) },
+      confirmLabel: `ลบ${title}`,
+    });
+    if (ok) await onDelete(String(row.id));
+  }
+
+  /** Cell text for the phone card: times trimmed to HH:MM, checkboxes as ใช่/ไม่. */
+  function cellText(c: Column, row: Record<string, unknown>) {
+    if (c.type === 'checkbox') return row[c.key] ? 'ใช่' : 'ไม่';
+    if (c.type === 'time') return String(row[c.key] ?? '-').slice(0, 5);
+    return String(row[c.key] ?? '-');
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-700">รายการ{title}</h3>
-        <button className="btn-primary" onClick={openCreate}>เพิ่ม{title}</button>
+      {/* Phones: title row then a full-width 44px button. sm+: title left, button right (unchanged). */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-700">รายการ{title}</h3>
+          <p className="text-xs text-slate-500 sm:hidden">{rows.length} รายการ</p>
+        </div>
+        <button className="btn-primary min-h-[44px] sm:min-h-0" onClick={openCreate}>เพิ่ม{title}</button>
       </div>
 
       <div className="card overflow-hidden">
@@ -133,8 +162,48 @@ export function SimpleCrud({
           />
         ) : null}
         {!loading && rows.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+          <>
+          {/*
+            Phones: one card per row, same look as /portal/services. Column roles are
+            derived from the generic config: first column = title, `active` checkbox =
+            status pill, time/number columns = stat tiles (max 3), the rest = note lines.
+          */}
+          <MobileCardList<Record<string, unknown>>
+            rows={pagedRows}
+            rowKey={(row) => String(row.id)}
+            columns={[]}
+            renderCard={(row) => {
+              const [first, ...rest] = columns;
+              const statusCol = rest.find((c) => c.type === 'checkbox' && c.key === 'active');
+              const statCols = rest.filter((c) => c.type === 'time' || c.type === 'number').slice(0, 3);
+              const noteCols = rest.filter((c) => c !== statusCol && !statCols.includes(c));
+              return (
+                <MobileRecordCard
+                  title={String(row[first?.key ?? 'id'] ?? '-')}
+                  status={statusCol ? { active: Boolean(row[statusCol.key]) } : undefined}
+                  note={
+                    noteCols.length > 0
+                      ? noteCols.map((c) => (
+                          <span key={c.key} className="block">
+                            {c.label}: {cellText(c, row)}
+                          </span>
+                        ))
+                      : undefined
+                  }
+                  stats={statCols.map((c) => ({
+                    icon: c.type === 'time' ? <AccessTimeRoundedIcon /> : <TagRoundedIcon />,
+                    value: cellText(c, row),
+                    label: c.label,
+                  }))}
+                  onEdit={() => openEdit(row)}
+                  onDelete={() => void confirmDelete(row)}
+                />
+              );
+            }}
+            sx={{ display: { xs: 'flex', sm: 'none' }, p: 1.5, bgcolor: 'action.hover' }}
+          />
+          <div className="hidden overflow-x-auto sm:block">
+            <table className="w-full min-w-[720px] text-sm">
               <thead className="bg-slate-50">
                 <tr>
                   {columns.map((c) => <th key={c.key} className="px-3 py-2 text-left">{c.label}</th>)}
@@ -179,6 +248,7 @@ export function SimpleCrud({
               </tbody>
             </table>
           </div>
+          </>
         ) : null}
         {!loading && rows.length > 0 ? (
           <TablePaginationControls
@@ -194,7 +264,7 @@ export function SimpleCrud({
       {drawerOpen ? (
         <>
           <button className="fixed inset-0 z-40 bg-slate-900/30" onClick={() => setDrawerOpen(false)} aria-label="Close drawer" />
-          <aside className="fixed right-0 top-0 z-50 h-screen w-full bg-white p-5 shadow-2xl sm:w-[60%]">
+          <aside className="fixed right-0 top-0 z-50 h-dvh w-full overflow-y-auto bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl sm:w-[60%]">
             <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3">
               <h4 className="text-lg font-semibold">{editingId ? `แก้ไข${title}` : `เพิ่ม${title}`}</h4>
               <button className="btn-outline" onClick={() => setDrawerOpen(false)}>Close</button>

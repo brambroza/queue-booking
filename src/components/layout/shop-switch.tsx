@@ -89,15 +89,19 @@ export function ShopSwitch({ activeShopId }: { activeShopId: string | null }) {
   if (loading) {
     return (
       <Box>
-        <Typography variant="caption" color="text.secondary">{t('menu.shop_selector', 'เลือกร้าน')}</Typography>
-        <Skeleton width={160} height={28} />
+        <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
+          {t('menu.shop_selector', 'เลือกร้าน')}
+        </Typography>
+        <Skeleton height={28} sx={{ width: { xs: 120, sm: 160 } }} />
       </Box>
     );
   }
 
   return (
     <Box>
-      <Typography variant="caption" color="text.secondary">{t('menu.shop_selector', 'เลือกร้าน')}</Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
+        {t('menu.shop_selector', 'เลือกร้าน')}
+      </Typography>
       <Box>
         <Button
           size="small"
@@ -109,7 +113,7 @@ export function ShopSwitch({ activeShopId }: { activeShopId: string | null }) {
           disabled={busy}
           aria-haspopup="menu"
           aria-expanded={Boolean(anchorEl)}
-          sx={{ borderRadius: 999, textTransform: 'none', whiteSpace: 'nowrap', maxWidth: 260, fontWeight: 700 }}
+          sx={{ borderRadius: 999, textTransform: 'none', whiteSpace: 'nowrap', maxWidth: { xs: 150, sm: 260 }, fontWeight: 700 }}
         >
           <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{current?.name || pickLabel}</Box>
         </Button>
@@ -121,7 +125,15 @@ export function ShopSwitch({ activeShopId }: { activeShopId: string | null }) {
         onClose={close}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-        slotProps={{ paper: { sx: { minWidth: 280, maxHeight: 420 } } }}
+        slotProps={{
+          paper: {
+            sx: {
+              minWidth: { xs: 240, sm: 280 },
+              maxWidth: 'calc(100vw - 32px)',
+              maxHeight: { xs: '60vh', sm: 420 },
+            },
+          },
+        }}
       >
         {shops.length > SEARCH_THRESHOLD ? (
           <Box sx={{ px: 1.5, pt: 0.5, pb: 1 }}>

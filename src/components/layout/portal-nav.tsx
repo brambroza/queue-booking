@@ -190,7 +190,7 @@ export function PortalNav({ isSuperAdmin = false, collapsed = false, onNavigate 
                     transition: 'background-color .15s ease, color .15s ease',
                     ...(collapsed
                       ? { width: 44, height: 40, mx: 'auto', px: 0, justifyContent: 'center' }
-                      : { py: 0.75, pl: 1.5 }),
+                      : { py: { xs: 1.1, md: 0.75 }, pl: 1.5 }), // taller touch rows in the mobile drawer
                     '&::before': active
                       ? {
                           content: '""',

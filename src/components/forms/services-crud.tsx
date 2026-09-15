@@ -11,29 +11,32 @@ import {
   FormControl,
   FormControlLabel,
   Grid,
+  IconButton,
   InputLabel,
   MenuItem,
   Select,
   Stack,
   Switch,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   TablePagination,
   TextField,
   Typography,
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material/Select';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
+import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
+import PaymentsRoundedIcon from '@mui/icons-material/PaymentsRounded';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade-provider';
 import { BookingModeChip } from '@/components/shared/booking-mode-chip';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ResponsiveTable } from '@/components/ui/responsive-table';
+import { MobileRecordCard } from '@/components/ui/mobile-record-card';
 
 type Service = Record<string, unknown>;
 type Template = {
@@ -68,6 +71,32 @@ const BOOKING_MODE_LABELS: Record<(typeof BOOKING_MODES)[number], string> = {
   walk_in: 'Walk-in',
   request_approval: 'ต้องยืนยันก่อน',
 };
+
+/** Human-readable duration for a service row ("30 นาที", "90 - 180 นาที", "-"). */
+function durationLabel(r: Service): string {
+  if (r.booking_mode === 'flexible_duration') {
+    return `${String(r.min_duration_minutes ?? '-')} - ${String(r.max_duration_minutes ?? '-')} นาที`;
+  }
+  return r.duration_minutes ? `${String(r.duration_minutes)} นาที` : '-';
+}
+
+/** Phone-only card for one service (the desktop table is unchanged). */
+function ServiceMobileCard({ service, onEdit, onDelete }: { service: Service; onEdit: () => void; onDelete: () => void }) {
+  return (
+    <MobileRecordCard
+      title={String(service.service_name)}
+      status={{ active: Boolean(service.active) }}
+      tags={<BookingModeChip mode={String(service.booking_mode ?? 'fixed_slot')} />}
+      stats={[
+        { icon: <AccessTimeRoundedIcon />, value: durationLabel(service), label: 'เวลา' },
+        { icon: <GroupsRoundedIcon />, value: String(service.capacity_per_slot ?? 1), label: 'ต่อรอบ' },
+        { icon: <PaymentsRoundedIcon />, value: `฿${Number(service.price ?? 0).toLocaleString('th-TH')}`, label: 'ราคา' },
+      ]}
+      onEdit={onEdit}
+      onDelete={onDelete}
+    />
+  );
+}
 
 export function ServicesCrud() {
   const { push } = useToast();
@@ -330,11 +359,22 @@ export function ServicesCrud() {
     <Stack spacing={2}>
       <Card>
         <CardContent>
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
+          {/* Phones: title above a full-width add button. sm+: title left, button right (unchanged). */}
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            alignItems={{ xs: 'stretch', sm: 'center' }}
+            justifyContent="space-between"
+            spacing={{ xs: 1.5, sm: 0 }}
+          >
             <Box>
               <Typography variant="h6" fontWeight={700}>Service Management</Typography>
-             </Box>
-            <Button startIcon={<AddRoundedIcon />} variant="contained" onClick={openCreate}>เพิ่มบริการ</Button>
+              <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'block', sm: 'none' } }}>
+                {rows.length} บริการ
+              </Typography>
+            </Box>
+            <Button startIcon={<AddRoundedIcon />} variant="contained" onClick={openCreate} sx={{ minHeight: { xs: 44, sm: 'auto' } }}>
+              เพิ่มบริการ
+            </Button>
           </Stack>
         </CardContent>
       </Card>
@@ -359,59 +399,63 @@ export function ServicesCrud() {
 
       <Card>
         <CardContent sx={{ p: 0 }}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>บริการ</TableCell>
-                <TableCell>ประเภท</TableCell>
-                <TableCell>เวลา/บริการ</TableCell>
-                <TableCell>จำนวน</TableCell>
-                <TableCell>ราคา</TableCell>
-                <TableCell>สถาน</TableCell>
-                <TableCell align="right">Action</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {rows.length === 0 ? (
-                <TableRow><TableCell colSpan={7}>No service found</TableCell></TableRow>
-              ) : pagedRows.map((r) => (
-                <TableRow key={String(r.id)} hover>
-                  <TableCell sx={{ fontWeight: 600 }}>{String(r.service_name)}</TableCell>
-                  <TableCell><BookingModeChip mode={String(r.booking_mode ?? 'fixed_slot')} /></TableCell>
-                  <TableCell>
-                    {r.booking_mode === 'flexible_duration'
-                      ? `${String(r.min_duration_minutes ?? '-')} - ${String(r.max_duration_minutes ?? '-')} min`
-                      : `${String(r.duration_minutes ?? '-')}${r.duration_minutes ? ' min' : ''}`}
-                  </TableCell>
-                  <TableCell>{String(r.capacity_per_slot ?? 1)}</TableCell>
-                  <TableCell>{String(r.price ?? 0)}</TableCell>
-                  <TableCell><Chip size="small" color={Boolean(r.active) ? 'success' : 'default'} label={Boolean(r.active) ? 'active' : 'inactive'} /></TableCell>
-                  <TableCell align="right">
-                    <ActionIconGroup
-                      actions={[
-                        {
-                          key: 'edit',
-                          icon: <EditOutlinedIcon fontSize="small" />,
-                          labelKey: 'common.edit',
-                          fallbackLabel: 'Edit',
-                          color: 'primary',
-                          onClick: () => openEdit(r),
-                        },
-                        {
-                          key: 'delete',
-                          icon: <DeleteOutlineIcon fontSize="small" />,
-                          labelKey: 'common.delete',
-                          fallbackLabel: 'Delete',
-                          color: 'error',
-                          onClick: () => void onDelete(r),
-                        },
-                      ]}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <ResponsiveTable
+            rows={pagedRows}
+            rowKey={(r) => String(r.id)}
+            minWidth={640}
+            renderCard={(r) => <ServiceMobileCard service={r} onEdit={() => openEdit(r)} onDelete={() => void onDelete(r)} />}
+            cardListSx={{ p: 1.5, bgcolor: 'action.hover' }}
+            columns={[
+              { key: 'name', label: 'บริการ', render: (r) => <Box component="span" sx={{ fontWeight: 600 }}>{String(r.service_name)}</Box> },
+              { key: 'mode', label: 'ประเภท', render: (r) => <BookingModeChip mode={String(r.booking_mode ?? 'fixed_slot')} /> },
+              {
+                key: 'duration',
+                label: 'เวลา/บริการ',
+                render: (r) =>
+                  r.booking_mode === 'flexible_duration'
+                    ? `${String(r.min_duration_minutes ?? '-')} - ${String(r.max_duration_minutes ?? '-')} min`
+                    : `${String(r.duration_minutes ?? '-')}${r.duration_minutes ? ' min' : ''}`,
+              },
+              { key: 'capacity', label: 'จำนวน', render: (r) => String(r.capacity_per_slot ?? 1) },
+              { key: 'price', label: 'ราคา', render: (r) => String(r.price ?? 0) },
+              {
+                key: 'status',
+                label: 'สถาน',
+                render: (r) => <Chip size="small" color={Boolean(r.active) ? 'success' : 'default'} label={Boolean(r.active) ? 'active' : 'inactive'} />,
+              },
+            ]}
+            actions={(r) => (
+              <ActionIconGroup
+                actions={[
+                  {
+                    key: 'edit',
+                    icon: <EditOutlinedIcon fontSize="small" />,
+                    labelKey: 'common.edit',
+                    fallbackLabel: 'Edit',
+                    color: 'primary',
+                    onClick: () => openEdit(r),
+                  },
+                  {
+                    key: 'delete',
+                    icon: <DeleteOutlineIcon fontSize="small" />,
+                    labelKey: 'common.delete',
+                    fallbackLabel: 'Delete',
+                    color: 'error',
+                    onClick: () => void onDelete(r),
+                  },
+                ]}
+              />
+            )}
+            emptyState={
+              <EmptyState
+                title="ยังไม่มีบริการ"
+                description="เพิ่มบริการแรกเพื่อให้ลูกค้าเลือกได้ตอนจองคิว"
+                actionLabel="เพิ่มบริการ"
+                onAction={openCreate}
+                icon="✂️"
+              />
+            }
+          />
           <TablePagination
             component="div"
             count={rows.length}
@@ -423,12 +467,27 @@ export function ServicesCrud() {
               setPage(0);
             }}
             rowsPerPageOptions={[10, 20, 50, 100]}
+            sx={{
+              // Phones: drop the "rows per page" label so the toolbar fits one line; sm+ unchanged.
+              '& .MuiTablePagination-selectLabel': { display: { xs: 'none', sm: 'block' } },
+              '& .MuiTablePagination-toolbar': { pl: { xs: 1, sm: 2 } },
+            }}
           />
         </CardContent>
       </Card>
 
-      <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)} PaperProps={{ sx: { width: { xs: '100%', sm: '60%' }, p: 3 } }}>
-        <Typography variant="h6" fontWeight={700} mb={2}>{editingId ? 'Edit Service' : 'Add Service'}</Typography>
+      <Drawer
+        anchor="right"
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        PaperProps={{ sx: { width: { xs: '100%', sm: '60%' }, p: { xs: 2, sm: 3 }, pb: { xs: 'calc(16px + env(safe-area-inset-bottom))', sm: 3 } } }}
+      >
+        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
+          <Typography variant="h6" fontWeight={700}>{editingId ? 'Edit Service' : 'Add Service'}</Typography>
+          <IconButton aria-label="ปิด" onClick={() => setDrawerOpen(false)} sx={{ display: { xs: 'inline-flex', sm: 'none' } }}>
+            <CloseRoundedIcon />
+          </IconButton>
+        </Stack>
 
         <Card variant="outlined" sx={{ mb: 2 }}>
           <CardContent>
@@ -519,9 +578,14 @@ export function ServicesCrud() {
             <Grid size={{ xs: 12, sm: 6 }}><FormControlLabel control={<Switch checked={requiresApproval} onChange={(e: ChangeEvent<HTMLInputElement>) => setRequiresApproval(e.target.checked)} />} label="Require Staff Confirm" /></Grid>
             <Grid size={{ xs: 12, sm: 6 }}><FormControlLabel control={<Switch checked={allowWalkIn} onChange={(e: ChangeEvent<HTMLInputElement>) => setAllowWalkIn(e.target.checked)} />} label="Allow Walk-in" /></Grid>
           </Grid>
+          {/* Phones: two equal 44px buttons; sm+: natural widths as before. */}
           <Stack direction="row" spacing={1} mt={3}>
-            <Button variant="contained" type="submit" disabled={saving}>{saving ? 'Saving...' : (editingId ? 'Update Service' : 'Save Service')}</Button>
-            <Button variant="outlined" onClick={() => setDrawerOpen(false)}>Cancel</Button>
+            <Button variant="contained" type="submit" disabled={saving} sx={{ flex: { xs: 1, sm: 'none' }, minHeight: { xs: 44, sm: 'auto' } }}>
+              {saving ? 'Saving...' : (editingId ? 'Update Service' : 'Save Service')}
+            </Button>
+            <Button variant="outlined" onClick={() => setDrawerOpen(false)} sx={{ flex: { xs: 1, sm: 'none' }, minHeight: { xs: 44, sm: 'auto' } }}>
+              Cancel
+            </Button>
           </Stack>
         </Box>
       </Drawer>

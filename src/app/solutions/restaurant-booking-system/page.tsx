@@ -25,8 +25,8 @@ import TableRestaurantRoundedIcon from '@mui/icons-material/TableRestaurantRound
 import NotificationsActiveRoundedIcon from '@mui/icons-material/NotificationsActiveRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import EventSeatRoundedIcon from '@mui/icons-material/EventSeatRounded';
-import { PublicNavbar } from '@/components/public/public-navbar';
-import { PublicFooter } from '@/components/public/public-footer';
+import { LandingNavbar } from '@/components/public/landing-navbar';
+import { LandingFooter } from '@/components/public/landing-footer';
 import { FaqSection } from '@/components/public/faq-section';
 
 export const metadata: Metadata = {
@@ -298,7 +298,7 @@ export default function RestaurantBookingSystemPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }} />
 
-      <PublicNavbar />
+      <LandingNavbar />
 
       <Box sx={{ py: { xs: 7, md: 9 }, borderBottom: '1px solid', borderColor: 'divider' }}>
         <Container maxWidth="lg">
@@ -507,7 +507,7 @@ export default function RestaurantBookingSystemPage() {
         </Box>
       </Container>
 
-      <PublicFooter />
+      <LandingFooter />
     </main>
   );
 }

@@ -23,8 +23,8 @@ import ToggleOnRoundedIcon from '@mui/icons-material/ToggleOnRounded';
 import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
 import WebhookIcon from '@mui/icons-material/SettingsEthernetRounded';
 import CloudDoneRoundedIcon from '@mui/icons-material/CloudDoneRounded';
-import { PublicNavbar } from '@/components/public/public-navbar';
-import { PublicFooter } from '@/components/public/public-footer';
+import { LandingNavbar } from '@/components/public/landing-navbar';
+import { LandingFooter } from '@/components/public/landing-footer';
 import { FaqSection } from '@/components/public/faq-section';
 
 export const metadata: Metadata = {
@@ -145,7 +145,7 @@ export default function PromptPayPaymentPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }} />
 
-      <PublicNavbar />
+      <LandingNavbar />
 
       {/* Hero */}
       <Box
@@ -399,7 +399,7 @@ export default function PromptPayPaymentPage() {
         </Box>
       </Container>
 
-      <PublicFooter />
+      <LandingFooter />
     </main>
   );
 }

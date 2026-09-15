@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
-import { Button, Chip, ListItemText, Menu, MenuItem } from '@mui/material';
+import { Button, Chip, IconButton, ListItemText, Menu, MenuItem, Tooltip } from '@mui/material';
 import { useBranchScope } from '@/components/layout/branch-scope-provider';
 
 /**
@@ -32,17 +32,38 @@ export function BranchSwitch() {
 
   const allLabel = scope === 'shop' ? 'ทุกสาขา' : 'ทุกสาขาของฉัน';
   const current = branches.find((b) => b.id === branchId);
+  const currentLabel = current?.branch_name ?? allLabel;
 
   return (
     <>
+      {/* Phones: icon-only trigger. sm+: labelled pill. Both open the same menu. */}
+      <Tooltip title={currentLabel}>
+        <IconButton
+          size="small"
+          color="primary"
+          aria-label={`เลือกสาขา: ${currentLabel}`}
+          onClick={(e) => setAnchorEl(e.currentTarget)}
+          sx={{ display: { xs: 'inline-flex', sm: 'none' }, border: '1px solid', borderColor: 'divider' }}
+        >
+          <StorefrontRoundedIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
       <Button
         size="small"
         variant="outlined"
         startIcon={<StorefrontRoundedIcon />}
         onClick={(e) => setAnchorEl(e.currentTarget)}
-        sx={{ borderRadius: 999, textTransform: 'none', whiteSpace: 'nowrap', maxWidth: 200 }}
+        sx={{
+          display: { xs: 'none', sm: 'inline-flex' },
+          borderRadius: 999,
+          textTransform: 'none',
+          whiteSpace: 'nowrap',
+          maxWidth: 200,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
       >
-        {current?.branch_name ?? allLabel}
+        {currentLabel}
       </Button>
 
       <Menu

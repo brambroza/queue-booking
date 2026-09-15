@@ -6,8 +6,15 @@ import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
+import PaymentsRoundedIcon from '@mui/icons-material/PaymentsRounded';
+import PlaceRoundedIcon from '@mui/icons-material/PlaceRounded';
+import { Chip } from '@mui/material';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
-import { RESOURCE_TYPES, resourceTypeLabel, type ResourceType } from '@/lib/booking/resource-types';
+import { MobileCardList } from '@/components/ui/responsive-table';
+import { MobileRecordCard } from '@/components/ui/mobile-record-card';
+import { useConfirm } from '@/components/ui/confirm-dialog';
+import { RESOURCE_TYPES, resourceTypeIcon, resourceTypeLabel, type ResourceType } from '@/lib/booking/resource-types';
 
 type Branch = { id: string; branch_name: string };
 type Service = { id: string; service_name: string; active?: boolean };
@@ -58,6 +65,7 @@ function ServiceLinkPicker({ services, selected, onToggle }: { services: Service
 
 export function ResourcesCrud() {
   const { push } = useToast();
+  const confirm = useConfirm();
   const { openPaywall } = useUpgrade();
   const [rows, setRows] = useState<Resource[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -212,11 +220,24 @@ export function ResourcesCrud() {
     await load();
   }
 
+  /** Same confirm dialog the table's ActionIconGroup shows, for the phone card button. */
+  async function confirmRemove(r: Resource) {
+    const ok = await confirm({
+      tone: 'error',
+      title: 'ลบทรัพยากรนี้?',
+      description: 'คิวที่ผูกกับทรัพยากรนี้ยังอยู่ แต่จะเลือกใช้ทรัพยากรนี้ไม่ได้อีก',
+      context: { primary: r.resource_name, secondary: resourceTypeLabel(r.resource_type) },
+      confirmLabel: 'ลบทรัพยากร',
+    });
+    if (ok) await removeRow(r.id);
+  }
+
   return (
     <div className="space-y-4">
       <div className="card p-4">
-        <div className="grid gap-2 md:grid-cols-6">
-          <input className="input" placeholder="ค้นหา code/name" value={q} onChange={(e) => setQ(e.target.value)} />
+        {/* Phones: search full width, 2 filters per row, full-width search button. md+: one row of 6 (unchanged). */}
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
+          <input className="input col-span-2 md:col-span-1" placeholder="ค้นหา code/name" value={q} onChange={(e) => setQ(e.target.value)} />
           <select className="input" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
             <option value="">ทุกประเภท</option>
             {RESOURCE_TYPES.map((t) => <option key={t} value={t}>{resourceTypeLabel(t)}</option>)}
@@ -231,21 +252,60 @@ export function ResourcesCrud() {
             <option value="true">active</option>
             <option value="false">inactive</option>
           </select>
-          <button className="btn-outline" onClick={() => void load()}>ค้นหา</button>
+          <button className="btn-outline col-span-2 min-h-[44px] md:col-span-1 md:min-h-0" onClick={() => void load()}>ค้นหา</button>
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-700">ทรัพยากรร้าน</h3>
-        <div className="flex gap-2">
-          <button className="btn-outline" onClick={() => setBulkOpen(true)}>เพิ่มด่วน</button>
-          <button className="btn-primary" onClick={openCreateDrawer}>เพิ่ม</button>
+      {/* Phones: title row then two equal 44px buttons. sm+: title left, buttons right (unchanged). */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-700">ทรัพยากรร้าน</h3>
+          <p className="text-xs text-slate-500 sm:hidden">{rows.length} รายการ</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:flex">
+          <button className="btn-outline min-h-[44px] sm:min-h-0" onClick={() => setBulkOpen(true)}>เพิ่มด่วน</button>
+          <button className="btn-primary min-h-[44px] sm:min-h-0" onClick={openCreateDrawer}>เพิ่ม</button>
         </div>
       </div>
 
-      <div className="card p-4 overflow-x-auto">
+      <div className="card p-4">
         {rows.length === 0 ? <p className="text-sm text-slate-500">ยังไม่มีทรัพยากร</p> : (
-          <table className="min-w-full text-sm">
+          <>
+          {/* Phones: one card per resource, same look as /portal/services. */}
+          <MobileCardList
+            rows={pagedRows}
+            rowKey={(r) => r.id}
+            columns={[]}
+            renderCard={(r) => (
+              <MobileRecordCard
+                title={r.resource_name}
+                subtitle={[r.resource_code, r.branches?.branch_name].filter(Boolean).join(' · ') || undefined}
+                status={{ active: r.active }}
+                tags={
+                  <>
+                    <Chip size="small" variant="outlined" color="primary" label={`${resourceTypeIcon(r.resource_type)} ${resourceTypeLabel(r.resource_type)}`} />
+                    {r.zone ? <Chip size="small" variant="outlined" icon={<PlaceRoundedIcon />} label={r.zone} /> : null}
+                  </>
+                }
+                note={
+                  <>
+                    ให้บริการ:{' '}
+                    {(r.service_ids?.length ?? 0) === 0 ? 'ทุกบริการ' : linkedServicesLabel(r)}
+                  </>
+                }
+                stats={[
+                  { icon: <GroupsRoundedIcon />, value: String(r.capacity), label: 'ความจุ' },
+                  { icon: <PaymentsRoundedIcon />, value: `฿${Number(r.unit_price ?? 0).toLocaleString('th-TH')}`, label: 'ราคา' },
+                  { icon: <PlaceRoundedIcon />, value: r.floor ? `ชั้น ${r.floor}` : '-', label: 'ชั้น' },
+                ]}
+                onEdit={() => openEditDrawer(r)}
+                onDelete={() => void confirmRemove(r)}
+              />
+            )}
+            sx={{ display: { xs: 'flex', sm: 'none' }, mx: -2, mt: -2, p: 1.5, bgcolor: 'action.hover' }}
+          />
+          <div className="hidden overflow-x-auto sm:block">
+          <table className="w-full min-w-[880px] text-sm">
             <thead>
               <tr>
                 <th className="px-2 py-2 text-left">Code</th>
@@ -306,6 +366,8 @@ export function ResourcesCrud() {
               ))}
             </tbody>
           </table>
+          </div>
+          </>
         )}
         {rows.length > 0 ? (
           <TablePaginationControls
@@ -321,7 +383,7 @@ export function ResourcesCrud() {
       {drawerOpen ? (
         <>
           <button className="fixed inset-0 z-40 bg-slate-900/30" onClick={closeSingleDrawer} aria-label="Close drawer" />
-          <aside className="fixed right-0 top-0 z-50 h-screen w-full bg-white p-5 shadow-2xl sm:w-[60%] overflow-y-auto">
+          <aside className="fixed right-0 top-0 z-50 h-dvh w-full overflow-y-auto bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl sm:w-[60%]">
             <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3">
               <h4 className="text-lg font-semibold">{editing ? 'แก้ไขทรัพยากร' : 'เพิ่มทรัพยากร'}</h4>
               <button className="btn-outline" onClick={closeSingleDrawer}>Close</button>
@@ -389,7 +451,7 @@ export function ResourcesCrud() {
       {bulkOpen ? (
         <>
           <button className="fixed inset-0 z-40 bg-slate-900/30" onClick={() => setBulkOpen(false)} aria-label="Close drawer" />
-          <aside className="fixed right-0 top-0 z-50 h-screen w-full bg-white p-5 shadow-2xl sm:w-[60%] overflow-y-auto">
+          <aside className="fixed right-0 top-0 z-50 h-dvh w-full overflow-y-auto bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl sm:w-[60%]">
             <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3">
               <h4 className="text-lg font-semibold">Quick Create Resource</h4>
               <button className="btn-outline" onClick={() => setBulkOpen(false)}>Close</button>

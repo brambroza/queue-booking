@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Box, Card, CardContent, Container, Grid, Stack, Typography } from '@mui/material';
-import { PublicNavbar } from '@/components/public/public-navbar';
-import { PublicFooter } from '@/components/public/public-footer';
+import { LandingNavbar } from '@/components/public/landing-navbar';
+import { LandingFooter } from '@/components/public/landing-footer';
 import { useCases } from '@/components/public/content';
 import { useCasesEnBySlug } from '@/components/public/use-cases-content-en';
 
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 export default function UseCasesEnPage() {
   return (
     <main>
-      <PublicNavbar />
+      <LandingNavbar />
       <Container maxWidth="xl" sx={{ py: 8 }}>
         <Typography variant="h3" fontWeight={800}>Use Cases by Industry</Typography>
         <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
@@ -64,7 +64,7 @@ export default function UseCasesEnPage() {
           })}
         </Grid>
       </Container>
-      <PublicFooter />
+      <LandingFooter />
     </main>
   );
 }

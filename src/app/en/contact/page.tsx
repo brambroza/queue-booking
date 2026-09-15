@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Container, Grid, Paper, Stack, Typography } from '@mui/material';
-import { PublicNavbar } from '@/components/public/public-navbar';
-import { PublicFooter } from '@/components/public/public-footer';
+import { LandingNavbar } from '@/components/public/landing-navbar';
+import { LandingFooter } from '@/components/public/landing-footer';
 import { ContactForm } from '@/components/public/contact-form';
 
 export const metadata: Metadata = {
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 export default function ContactEnPage() {
   return (
     <main>
-      <PublicNavbar />
+      <LandingNavbar />
       <Container maxWidth="xl" sx={{ py: 8 }}>
         <Typography variant="h3" fontWeight={800}>Contact Us</Typography>
         <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>Our team is ready to help you launch your LINE OA queue booking flow.</Typography>
@@ -41,7 +41,7 @@ export default function ContactEnPage() {
           </Grid>
         </Grid>
       </Container>
-      <PublicFooter />
+      <LandingFooter />
     </main>
   );
 }

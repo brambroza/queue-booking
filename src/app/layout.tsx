@@ -1,5 +1,5 @@
 import './globals.css';
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { ToastProvider } from '@/components/ui/toast';
 import { ConfirmProvider } from '@/components/ui/confirm-dialog';
 import { Kanit } from 'next/font/google';
@@ -8,6 +8,7 @@ import { MuiAppProvider } from '@/components/theme/mui-provider';
 import { PostHogProvider } from '@/components/analytics/posthog-provider';
 import { CookieConsent } from '@/components/consent/cookie-consent';
 import { BreadcrumbSchema } from '@/components/seo/breadcrumb-schema';
+import { darkSurface, lightSurface } from '@/theme/tokens';
 
 const kanit = Kanit({
   subsets: ['latin', 'thai'],
@@ -71,6 +72,21 @@ export const metadata: Metadata = {
   verification: {
     google: 'vSwRXNYx8325qISY5YeR3oEyPIOGDMHUBKVrrRGXAd4',
   },
+};
+
+/**
+ * Mobile viewport: `viewportFit: cover` lets the portal shell pad for iOS
+ * safe areas, and `themeColor` tints the browser chrome to match the app
+ * background in each color scheme. Zoom is intentionally left enabled.
+ */
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: lightSurface.bg },
+    { media: '(prefers-color-scheme: dark)', color: darkSurface.bg },
+  ],
 };
 
 

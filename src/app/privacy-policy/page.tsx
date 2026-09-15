@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Box, Container, Divider, Paper, Stack, Typography } from '@mui/material';
-import { PublicFooter } from '@/components/public/public-footer';
-import { PublicNavbar } from '@/components/public/public-navbar';
+import { LandingFooter } from '@/components/public/landing-footer';
+import { LandingNavbar } from '@/components/public/landing-navbar';
 import { ManageConsentButton } from '@/components/consent/manage-consent-button';
 
 export const metadata: Metadata = {
@@ -49,7 +49,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function PrivacyPolicyPage() {
   return (
     <>
-      <PublicNavbar />
+      <LandingNavbar />
       <Box sx={{ bgcolor: 'background.default', py: { xs: 5, md: 8 } }}>
         <Container maxWidth="md">
           <Stack spacing={1} sx={{ mb: 4 }}>
@@ -124,7 +124,7 @@ export default function PrivacyPolicyPage() {
           </Typography>
         </Container>
       </Box>
-      <PublicFooter />
+      <LandingFooter />
     </>
   );
 }

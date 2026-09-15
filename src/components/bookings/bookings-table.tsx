@@ -1,7 +1,35 @@
 'use client';
 
-import { Box, Card, CardContent, Chip, Skeleton, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
+import { useState } from 'react';
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Divider,
+  IconButton,
+  ListItemIcon,
+  ListItemText,
+  Menu,
+  MenuItem,
+  Skeleton,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  Typography,
+} from '@mui/material';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import EventRoundedIcon from '@mui/icons-material/EventRounded';
+import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
+import MeetingRoomRoundedIcon from '@mui/icons-material/MeetingRoomRounded';
+import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
+import { MobileCardList } from '@/components/ui/responsive-table';
+import { MobileRecordCard } from '@/components/ui/mobile-record-card';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import MarkChatUnreadRoundedIcon from '@mui/icons-material/MarkChatUnreadRounded';
 import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
 import HourglassBottomRoundedIcon from '@mui/icons-material/HourglassBottomRounded';
@@ -118,6 +146,160 @@ export function AckChip({ state }: { state: ChangeAckState }) {
 }
 
 /**
+ * Phone-only booking card (same look as the services / resources cards):
+ * queue-number badge, customer, status + payment chips, date / time / resource
+ * tiles, then a footer with the primary transition, edit, and an overflow menu
+ * for move / secondary transitions / cancel.
+ */
+function BookingMobileCard({
+  booking: b,
+  busy,
+  resourceLabel,
+  onStatus,
+  onMove,
+  onEdit,
+}: {
+  booking: BookingRow;
+  busy: boolean;
+  resourceLabel: string;
+  onStatus: (b: BookingRow, status: string) => void;
+  onMove: (b: BookingRow) => void;
+  onEdit: (b: BookingRow) => void;
+}) {
+  const { t } = useTranslation('bookings');
+  const confirm = useConfirm();
+  const [menuEl, setMenuEl] = useState<HTMLElement | null>(null);
+
+  const next = NEXT_STATUSES[b.status] ?? [];
+  const primary = next.find((o) => o.primary);
+  const secondary = next.filter((o) => !o.primary);
+  const canMove = MOVABLE.has(b.status);
+  const canCancel = CANCELLABLE.has(b.status);
+  const hasMenu = canMove || secondary.length > 0 || canCancel;
+
+  async function cancelBooking() {
+    setMenuEl(null);
+    const ok = await confirm({
+      tone: 'warning',
+      title: t('cancel_confirm_title', 'ยกเลิกคิวนี้?'),
+      description: t('cancel_confirm_desc', 'ลูกค้าจะได้รับข้อความแจ้งยกเลิกทาง LINE ทันที และคิวนี้จะไม่นับในรายงาน'),
+      context: {
+        avatar: b.queue_number,
+        avatarSquare: true,
+        primary: [customerName(b), b.services?.service_name].filter(Boolean).join(' · '),
+        secondary: [formatDateDMY(b.booking_date), hhmm(b.start_time), b.resource_name].filter(Boolean).join(' · '),
+      },
+      confirmLabel: t('cancel_yes_short', 'ยกเลิกคิว'),
+      cancelLabel: t('cancel_no', 'ไม่ยกเลิก'),
+    });
+    if (ok) onStatus(b, 'cancelled');
+  }
+
+  const footerButtonSx = { minHeight: 44, borderRadius: 0, fontWeight: 600 } as const;
+  const timeRange = b.end_time ? `${hhmm(b.start_time)}–${hhmm(b.end_time)}` : hhmm(b.start_time);
+  /** Button colour for the primary transition; the chip palette's `default` maps to `inherit`. */
+  const paletteColor = primary ? NEXT_COLOR[primary.kind] : 'default';
+  const primaryColor = paletteColor === 'default' ? 'inherit' : paletteColor;
+
+  return (
+    <MobileRecordCard
+      leading={
+        <Box
+          sx={{
+            minWidth: 48,
+            height: 48,
+            px: 1,
+            borderRadius: 2,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            bgcolor: 'primary.main',
+            color: 'primary.contrastText',
+            fontWeight: 800,
+            fontSize: 16,
+            letterSpacing: '-0.01em',
+          }}
+        >
+          {b.queue_number}
+        </Box>
+      }
+      title={customerName(b)}
+      subtitle={[customerPhone(b), b.services?.service_name ?? '-', b.branches?.branch_name].filter(Boolean).join(' · ')}
+      badge={<StatusChip status={b.status} />}
+      tags={
+        <>
+          <PaymentChip status={b.payment_status} />
+          <AckChip state={changeAckState(b)} />
+          <ArrivalChip booking={b} />
+        </>
+      }
+      note={b.note ? `${t('note', 'หมายเหตุ')}: ${b.note}` : undefined}
+      stats={[
+        { icon: <EventRoundedIcon />, value: formatDateDMY(b.booking_date), label: t('col_date', 'วันที่') },
+        { icon: <AccessTimeRoundedIcon />, value: timeRange, label: t('col_time', 'เวลา') },
+        { icon: <MeetingRoomRoundedIcon />, value: b.resource_name ?? t('unassigned', 'ยังไม่ระบุ'), label: resourceLabel },
+      ]}
+      footer={
+        <>
+          {primary ? (
+            <Button
+              fullWidth
+              color={primaryColor}
+              startIcon={NEXT_ICON[primary.kind]}
+              disabled={busy}
+              onClick={() => onStatus(b, primary.status)}
+              sx={footerButtonSx}
+            >
+              {primary.label}
+            </Button>
+          ) : null}
+          {primary ? <Box sx={{ width: '1px', bgcolor: 'divider' }} /> : null}
+          <Button fullWidth color="inherit" startIcon={<EditRoundedIcon />} disabled={busy} onClick={() => onEdit(b)} sx={footerButtonSx}>
+            {t('edit_short', 'รายละเอียด')}
+          </Button>
+          {hasMenu ? (
+            <>
+              <Box sx={{ width: '1px', bgcolor: 'divider' }} />
+              <IconButton
+                aria-label={t('more_actions', 'เพิ่มเติม')}
+                disabled={busy}
+                onClick={(e) => setMenuEl(e.currentTarget)}
+                sx={{ width: 52, minHeight: 44, borderRadius: 0, flexShrink: 0 }}
+              >
+                <MoreHorizRoundedIcon />
+              </IconButton>
+              <Menu anchorEl={menuEl} open={Boolean(menuEl)} onClose={() => setMenuEl(null)}>
+                {canMove ? (
+                  <MenuItem onClick={() => { setMenuEl(null); onMove(b); }}>
+                    <ListItemIcon><SwapHorizRoundedIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText>{t('move_queue', 'โยกย้ายคิว')}</ListItemText>
+                  </MenuItem>
+                ) : null}
+                {secondary.map((o) => (
+                  <MenuItem key={o.status} onClick={() => { setMenuEl(null); onStatus(b, o.status); }}>
+                    <ListItemIcon>{NEXT_ICON[o.kind]}</ListItemIcon>
+                    <ListItemText>{o.label}</ListItemText>
+                  </MenuItem>
+                ))}
+                {canCancel ? (
+                  <>
+                    {canMove || secondary.length > 0 ? <Divider /> : null}
+                    <MenuItem onClick={() => void cancelBooking()} sx={{ color: 'error.main' }}>
+                      <ListItemIcon sx={{ color: 'inherit' }}><PersonOffRoundedIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText>{t('cancel_booking', 'ยกเลิกการจอง')}</ListItemText>
+                    </MenuItem>
+                  </>
+                ) : null}
+              </Menu>
+            </>
+          ) : null}
+        </>
+      }
+    />
+  );
+}
+
+/**
  * Bookings list. Row actions: primary next-status, move (date / time / resource),
  * edit, and secondary transitions in the overflow menu.
  */
@@ -156,7 +338,35 @@ export function BookingsTable({
   return (
     <Card>
       <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
-        <Box sx={{ overflowX: 'auto' }}>
+        {/* Phones: card list (same style as /portal/services). sm+: the table below, unchanged. */}
+        <Box sx={{ display: { xs: 'block', sm: 'none' } }}>
+          {loading && rows.length === 0 ? (
+            <Stack spacing={1.5} sx={{ p: 1.5 }}>
+              {Array.from({ length: 3 }, (_, i) => (
+                <Skeleton key={`skc-${i}`} variant="rounded" height={196} sx={{ borderRadius: 3 }} />
+              ))}
+            </Stack>
+          ) : rows.length === 0 ? (
+            <EmptyState
+              title={t('empty_title', 'ยังไม่มีคิวในช่วงที่เลือก')}
+              description={t('empty_desc', 'ส่งลิงก์ LIFF ให้ลูกค้าจองเอง หรือเพิ่มคิวหน้าร้านด้วยตัวเอง')}
+              actionLabel={t('add_queue', 'เพิ่มคิวใหม่')}
+              onAction={onCreate}
+              icon="🎫"
+            />
+          ) : (
+            <MobileCardList
+              rows={rows}
+              rowKey={(b) => b.id}
+              columns={[]}
+              renderCard={(b) => (
+                <BookingMobileCard booking={b} busy={busy} resourceLabel={resourceLabel} onStatus={onStatus} onMove={onMove} onEdit={onEdit} />
+              )}
+              sx={{ p: 1.5, bgcolor: 'action.hover', opacity: loading ? 0.6 : 1, transition: 'opacity .15s' }}
+            />
+          )}
+        </Box>
+        <Box sx={{ display: { xs: 'none', sm: 'block' }, overflowX: 'auto' }}>
           <Table size="small" sx={{ minWidth: 760 }}>
             <TableHead>
               <TableRow>

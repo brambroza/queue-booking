@@ -3,6 +3,13 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
+import LocalCafeRoundedIcon from '@mui/icons-material/LocalCafeRounded';
+import TimerRoundedIcon from '@mui/icons-material/TimerRounded';
+import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
+import { Chip } from '@mui/material';
+import { MobileCardList } from '@/components/ui/responsive-table';
+import { MobileRecordCard } from '@/components/ui/mobile-record-card';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -186,12 +193,16 @@ export function WorkingHoursCrud() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-700">จัดการวันทำงาน</h3>
-        <button className="btn-primary" onClick={openCreate}>เพิ่มวันทำงาน</button>
+      {/* Phones: title row then a full-width 44px button. sm+: title left, button right (unchanged). */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-700">จัดการวันทำงาน</h3>
+          <p className="text-xs text-slate-500 sm:hidden">{rows.length} รายการ</p>
+        </div>
+        <button className="btn-primary min-h-[44px] sm:min-h-0" onClick={openCreate}>เพิ่มวันทำงาน</button>
       </div>
 
-      <div className="card p-4 overflow-x-auto">
+      <div className="card p-4">
         {rows.length === 0 ? (
           <EmptyState
             title="ยังไม่ได้ตั้งเวลาทำการ"
@@ -201,7 +212,31 @@ export function WorkingHoursCrud() {
             icon="🕘"
           />
         ) : (
-          <table className="min-w-full text-sm">
+          <>
+          {/* Phones: one card per working day, same look as /portal/services. */}
+          <MobileCardList
+            rows={pagedRows}
+            rowKey={(r) => r.id}
+            columns={[]}
+            renderCard={(r) => (
+              <MobileRecordCard
+                title={WEEKDAYS[r.weekday] ?? String(r.weekday)}
+                subtitle={r.branches?.branch_name ?? undefined}
+                status={{ active: r.active, inactiveLabel: 'ปิด' }}
+                tags={<Chip size="small" variant="outlined" color="primary" icon={<GroupsRoundedIcon />} label={`รับ ${r.capacity_per_slot} คิว/รอบ`} />}
+                stats={[
+                  { icon: <AccessTimeRoundedIcon />, value: `${String(r.open_time).slice(0, 5)}–${String(r.close_time).slice(0, 5)}`, label: 'เปิด-ปิด' },
+                  { icon: <LocalCafeRoundedIcon />, value: r.break_start ? `${String(r.break_start).slice(0, 5)}–${String(r.break_end ?? '').slice(0, 5)}` : '-', label: 'พัก' },
+                  { icon: <TimerRoundedIcon />, value: `${r.slot_interval_minutes} นาที`, label: 'ต่อ slot' },
+                ]}
+                onEdit={() => openEdit(r)}
+                onDelete={() => void onDelete(r)}
+              />
+            )}
+            sx={{ display: { xs: 'flex', sm: 'none' }, mx: -2, mt: -2, p: 1.5, bgcolor: 'action.hover' }}
+          />
+          <div className="hidden overflow-x-auto sm:block">
+          <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr>
                 <th className="px-2 py-2 text-left">สาขา</th>
@@ -236,6 +271,8 @@ export function WorkingHoursCrud() {
               ))}
             </tbody>
           </table>
+          </div>
+          </>
         )}
         {rows.length > 0 ? (
           <TablePaginationControls
@@ -251,7 +288,7 @@ export function WorkingHoursCrud() {
       {drawerOpen ? (
         <>
           <button className="fixed inset-0 z-40 bg-slate-900/30" onClick={() => setDrawerOpen(false)} aria-label="Close drawer" />
-          <aside className="fixed right-0 top-0 z-50 h-screen w-full overflow-y-auto bg-white p-5 shadow-2xl sm:w-[60%]">
+          <aside className="fixed right-0 top-0 z-50 h-dvh w-full overflow-y-auto bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl sm:w-[60%]">
             <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3">
               <h4 className="text-lg font-semibold">{draft.id ? 'แก้ไขวันทำงาน' : 'เพิ่มวันทำงาน'}</h4>
               <button className="btn-outline" onClick={() => setDrawerOpen(false)}>ปิด</button>

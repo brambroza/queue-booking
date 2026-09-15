@@ -4,10 +4,11 @@ import { Box, Chip, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip }
 import { COLOR_PRESETS } from '@/lib/line/rich-menu/colors';
 import { STYLE_KEYS, type StyleKey } from '@/lib/line/rich-menu/schema';
 
-const STYLE_LABELS: Record<StyleKey, string> = {
-  clean: 'Clean — พื้นขาว',
-  bold: 'Bold — พื้นสีเข้ม',
-  card: 'Card — การ์ดขาว',
+/** `short` always shows; `detail` only from `sm` up so the 3 toggles fit a phone row. */
+const STYLE_LABELS: Record<StyleKey, { short: string; detail: string }> = {
+  clean: { short: 'Clean', detail: 'พื้นขาว' },
+  bold: { short: 'Bold', detail: 'พื้นสีเข้ม' },
+  card: { short: 'Card', detail: 'การ์ดขาว' },
 };
 
 type Props = {
@@ -28,7 +29,10 @@ export function StylePicker({ style, primary, onStyleChange, onPrimaryChange }: 
         onChange={(_, v: StyleKey | null) => { if (v) onStyleChange(v); }}
       >
         {STYLE_KEYS.map((key) => (
-          <ToggleButton key={key} value={key} sx={{ textTransform: 'none', px: 1.5 }}>{STYLE_LABELS[key]}</ToggleButton>
+          <ToggleButton key={key} value={key} sx={{ textTransform: 'none', px: 1.5 }}>
+            {STYLE_LABELS[key].short}
+            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>&nbsp;— {STYLE_LABELS[key].detail}</Box>
+          </ToggleButton>
         ))}
       </ToggleButtonGroup>
       <Stack direction="row" flexWrap="wrap" gap={1} alignItems="center">

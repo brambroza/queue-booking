@@ -5,8 +5,8 @@ import EmailRoundedIcon from '@mui/icons-material/EmailRounded';
 import ChatRoundedIcon from '@mui/icons-material/ChatRounded';
 import LocationOnRoundedIcon from '@mui/icons-material/LocationOnRounded';
 import ApartmentRoundedIcon from '@mui/icons-material/ApartmentRounded';
-import { PublicFooter } from '@/components/public/public-footer';
-import { PublicNavbar } from '@/components/public/public-navbar';
+import { LandingFooter } from '@/components/public/landing-footer';
+import { LandingNavbar } from '@/components/public/landing-navbar';
 import { ContactForm } from '@/components/public/contact-form';
 import { FaqSection } from '@/components/public/faq-section';
 import { faqs } from '@/components/public/content';
@@ -16,6 +16,7 @@ const COMPANY = {
   phone: '085-608-3298',
   phoneHref: 'tel:0856083298',
   email: 'amnart.gl@gmail.com',
+  emailCompany: 'info@goalong.co.th',
   lineOA: '@queuebooking',
   lineHref: 'https://line.me/R/ti/p/@queuebooking',
   address: '918/288 หมู่ 10 ต.ในคลองบางปลากด อ.พระสมุทรเจดีย์ จ.สมุทรปราการ 10290',
@@ -114,7 +115,7 @@ export default function ContactPage() {
   return (
     <main>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
-      <PublicNavbar />
+      <LandingNavbar />
       <Container maxWidth="xl" sx={{ py: 8 }}>
         <Typography variant="h3" fontWeight={800}>ติดต่อเรา</Typography>
         <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>หากต้องการเดโมหรือคำแนะนำการเริ่มใช้งาน ทีมงานพร้อมช่วยทันที</Typography>
@@ -163,6 +164,7 @@ export default function ContactPage() {
               {/* รายละเอียดติดต่อ */}
               <Stack spacing={2.25} sx={{ p: 3 }}>
                 <InfoRow icon={<PhoneRoundedIcon fontSize="small" />} label="โทรศัพท์" value={COMPANY.phone} href={COMPANY.phoneHref} />
+                <InfoRow icon={<EmailRoundedIcon fontSize="small" />} label="อีเมลบริษัท" value={COMPANY.emailCompany} href={`mailto:${COMPANY.emailCompany}`} />
                 <InfoRow icon={<EmailRoundedIcon fontSize="small" />} label="อีเมล" value={COMPANY.email} href={`mailto:${COMPANY.email}`} />
                 <InfoRow icon={<ChatRoundedIcon fontSize="small" />} label="LINE Official" value={COMPANY.lineOA} href={COMPANY.lineHref} />
                 <InfoRow icon={<LocationOnRoundedIcon fontSize="small" />} label="ที่อยู่" value={COMPANY.address} />
@@ -189,7 +191,7 @@ export default function ContactPage() {
         </Grid>
       </Container>
       <FaqSection items={contactFaqs} />
-      <PublicFooter />
+      <LandingFooter />
     </main>
   );
 }

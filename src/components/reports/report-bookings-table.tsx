@@ -49,9 +49,7 @@ export function ReportBookingsTable({ data, print = false }: { data: ReportData;
   return (
     <Box>
       {truncated ? <Typography sx={{ fontSize: 11, color: 'warning.main', mb: 0.5 }}>{t('bookings_truncated', 'แสดงเฉพาะ 1,000 รายการแรก — เลือกช่วงให้แคบลงหรือ Export CSV')}</Typography> : null}
-      <Box sx={{ overflowX: 'auto' }}>
-        <DocTable columns={columns} rows={visible} rowKey={(b) => b.id} emptyText={t('empty_range', 'ไม่มีข้อมูลในช่วงนี้')} />
-      </Box>
+      <DocTable columns={columns} rows={visible} rowKey={(b) => b.id} emptyText={t('empty_range', 'ไม่มีข้อมูลในช่วงนี้')} />
       {!print && rows.length > PREVIEW_ROWS ? (
         <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <DocMuted>{showAll ? `${rows.length} / ${total}` : `${visible.length} / ${total}`} {t('items_unit', 'รายการ')}</DocMuted>

@@ -4068,6 +4068,20 @@
   text-decoration: none;
 }
 
+/* Footer mounted with navScope (for brand tokens) must keep its dark palette — navScope's ink color would otherwise win the cascade. */
+.navScope.footer {
+  color: #d6dfda;
+}
+
+.navScope .footerLinks a,
+.navScope .footerLinks span {
+  color: #91a097;
+}
+
+.navScope .footerLinks a:hover {
+  color: #fff;
+}
+
 .mobileLinkActive {
   color: var(--landing-green-dark);
   background: var(--landing-mint);

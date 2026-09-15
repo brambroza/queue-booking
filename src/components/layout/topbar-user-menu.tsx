@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Box, Drawer } from '@mui/material';
 import { useToast } from '@/components/ui/toast';
+import { ColorModeToggle } from '@/components/theme/color-mode-toggle';
+import { LanguageSwitch } from '@/components/layout/language-switch';
 
 type Props = {
   initialName?: string | null;
@@ -17,6 +20,11 @@ function initials(name?: string | null, email?: string | null) {
   return raw.slice(0, 2).toUpperCase();
 }
 
+/**
+ * Avatar button in the topbar that opens the profile drawer (name / phone /
+ * app version / logout). On phones the drawer also hosts the color-mode and
+ * language toggles, which the topbar hides below the `sm` breakpoint.
+ */
 export function TopbarUserMenu({ initialName, email, appVersion }: Props) {
   const router = useRouter();
   const { push } = useToast();
@@ -62,47 +70,73 @@ export function TopbarUserMenu({ initialName, email, appVersion }: Props) {
   return (
     <>
       <button
-        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-emerald-200 bg-white text-xs font-semibold text-slate-700"
+        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-emerald-200 bg-surface text-xs font-semibold text-content"
         onClick={() => setOpen(true)}
         aria-label="User menu"
       >
         {avatarText}
       </button>
-      {open ? (
-        <>
-          <button className="fixed inset-0 z-40 bg-slate-900/30" onClick={() => setOpen(false)} aria-label="Close drawer" />
-          <aside className="fixed right-0 top-0 z-50 h-screen w-full max-w-md overflow-y-auto bg-white p-5 shadow-2xl">
-            <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3">
-              <h4 className="text-lg font-semibold">My Profile</h4>
-              <button className="btn-outline" onClick={() => setOpen(false)}>Close</button>
-            </div>
-            <div className="space-y-4">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">Signed in as</p>
-                <p className="text-sm font-medium text-slate-700">{email ?? '-'}</p>
-              </div>
-              <label className="block text-sm">
-                <span className="mb-1 block text-slate-600">ชื่อ</span>
-                <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
-              </label>
-              <label className="block text-sm">
-                <span className="mb-1 block text-slate-600">เบอร์โทร</span>
-                <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Optional" />
-              </label>
-              <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
-                <p className="text-slate-500">App Version</p>
-                <p className="font-medium text-slate-700">{appVersion}</p>
-              </div>
-              <div className="flex gap-2 pt-2">
-                <button className="btn-primary" onClick={() => void saveProfile()} disabled={saving}>
-                  {saving ? 'กำลังบันทึก...' : 'บันทึกโปรไฟล์'}
-                </button>
-                <button className="btn-outline" onClick={() => void logout()}>Logout</button>
-              </div>
-            </div>
-          </aside>
-        </>
-      ) : null}
+      <Drawer
+        anchor="right"
+        open={open}
+        onClose={() => setOpen(false)}
+        PaperProps={{
+          sx: {
+            width: { xs: '100%', sm: 448 },
+            maxWidth: '100%',
+            p: 2.5,
+            pb: 'calc(20px + env(safe-area-inset-bottom))',
+          },
+        }}
+      >
+        <div className="mb-4 flex items-center justify-between border-b pb-3">
+          <h4 className="text-lg font-semibold">My Profile</h4>
+          <button className="btn-outline" onClick={() => setOpen(false)}>Close</button>
+        </div>
+        <div className="space-y-4">
+          <div className="rounded-xl border bg-surface-soft p-3">
+            <p className="text-xs text-muted">Signed in as</p>
+            <p className="text-sm font-medium">{email ?? '-'}</p>
+          </div>
+          {/* Phone-only: toggles that the topbar hides below `sm`. */}
+          <Box
+            sx={{
+              display: { xs: 'flex', sm: 'none' },
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 1,
+              borderRadius: 3,
+              border: '1px solid',
+              borderColor: 'divider',
+              p: 1.5,
+            }}
+          >
+            <span className="text-sm text-muted">การแสดงผล / ภาษา</span>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <ColorModeToggle />
+              <LanguageSwitch />
+            </Box>
+          </Box>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">ชื่อ</span>
+            <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">เบอร์โทร</span>
+            <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Optional" />
+          </label>
+          <div className="rounded-xl border bg-surface p-3 text-sm">
+            <p className="text-muted">App Version</p>
+            <p className="font-medium">{appVersion}</p>
+          </div>
+          <div className="flex flex-wrap gap-2 pt-2">
+            <button className="btn-primary" onClick={() => void saveProfile()} disabled={saving}>
+              {saving ? 'กำลังบันทึก...' : 'บันทึกโปรไฟล์'}
+            </button>
+            <button className="btn-outline" onClick={() => void logout()}>Logout</button>
+          </div>
+        </div>
+      </Drawer>
     </>
   );
 }

@@ -3,8 +3,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import { Box, Button, Chip, Container, Divider, Paper, Stack, Typography } from '@mui/material';
-import { PublicNavbar } from '@/components/public/public-navbar';
-import { PublicFooter } from '@/components/public/public-footer';
+import { LandingNavbar } from '@/components/public/landing-navbar';
+import { LandingFooter } from '@/components/public/landing-footer';
 import { blogPostsEn, getBlogBySlugEn } from '@/components/public/blog-content-en';
 import { formatDateDMY } from '@/lib/utils/date-format';
 
@@ -67,7 +67,7 @@ export default async function BlogDetailEnPage({ params }: { params: Promise<Par
   return (
     <main>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }} />
-      <PublicNavbar />
+      <LandingNavbar />
       <Container maxWidth="md" sx={{ py: 8 }}>
         <Stack spacing={1}>
           <Chip label={post.category} size="small" sx={{ width: 'fit-content' }} />
@@ -153,7 +153,7 @@ export default async function BlogDetailEnPage({ params }: { params: Promise<Par
           </Typography>
         </Box>
       </Container>
-      <PublicFooter />
+      <LandingFooter />
     </main>
   );
 }

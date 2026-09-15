@@ -102,7 +102,7 @@ export function PreviewPanel({
           <Chip size="small" color="success" variant="outlined" label={labels.preview_live} />
           {dirty ? <Chip size="small" color="warning" variant="outlined" label={labels.unsaved_hint} /> : null}
         </Stack>
-        <Stack direction="row" spacing={0.5} alignItems="center">
+        <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap justifyContent="flex-end">
           <Tooltip title={labels.refresh}><IconButton size="small" onClick={onRefresh}><RefreshRoundedIcon fontSize="small" /></IconButton></Tooltip>
           <Tooltip title={labels.fullscreen}><IconButton size="small" onClick={() => void enterFullscreen()}><FullscreenRoundedIcon fontSize="small" /></IconButton></Tooltip>
           {tvUrl ? (
