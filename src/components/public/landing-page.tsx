@@ -30,6 +30,7 @@ import TranslateRoundedIcon from '@mui/icons-material/TranslateRounded';
 import UpdateRoundedIcon from '@mui/icons-material/UpdateRounded';
 import { faqs, pricingPlans } from './content';
 import { DigitalSignageShowcase } from './landing-signage-showcase';
+import { BankAppPaymentShowcaseSection } from './sections';
 import { LandingFooter } from './landing-footer';
 import { LandingNavbar, lineFriendUrl } from './landing-navbar';
 import styles from './landing-page.module.css';
@@ -877,6 +878,7 @@ export function LandingPage() {
         <HeroSection />
         <WorkflowSection />
         <PromptPayDepositSection />
+        <BankAppPaymentShowcaseSection />
         <GoogleCalendarShowcase />
         <DigitalSignageShowcase />
         <OutcomeSection />

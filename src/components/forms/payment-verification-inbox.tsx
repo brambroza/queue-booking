@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { formatDateDMY } from '@/lib/utils/date-format';
 import { customerLabel } from '@/lib/booking/customer-label';
 import type { SlipStatus } from '@/types/db';
+import type { SlipAutoCheckStatus, SlipCheck } from '@/lib/payments/slip/evaluate';
 
 type SlipRow = {
   id: string;
@@ -17,6 +18,12 @@ type SlipRow = {
   reviewed_at: string | null;
   created_at: string;
   image_url: string | null;
+  sending_bank_code: string | null;
+  trans_ref: string | null;
+  auto_check_status: SlipAutoCheckStatus | null;
+  auto_check_result: { checks?: SlipCheck[]; provider?: string | null } | null;
+  auto_approved: boolean | null;
+  verified_amount: number | null;
   bookings?: {
     queue_number?: string;
     booking_date?: string;
@@ -33,7 +40,29 @@ const TABS: Array<{ key: SlipStatus; label: string }> = [
   { key: 'rejected', label: 'ปฏิเสธ' },
 ];
 
-const REJECT_PRESETS = ['ยอดเงินไม่ตรง', 'รูปไม่ชัด อ่านไม่ออก', 'ไม่พบรายการโอนเข้าบัญชี'];
+const REJECT_PRESETS = ['ยอดเงินไม่ตรง', 'รูปไม่ชัด อ่านไม่ออก', 'ไม่พบรายการโอนเข้าบัญชี', 'สลิปซ้ำ / ถูกใช้ไปแล้ว'];
+
+/** Badge per automatic-check outcome. `plausible` is deliberately not green: the amount is still unconfirmed. */
+const AUTO_CHECK_BADGE: Record<SlipAutoCheckStatus, { label: string; className: string }> = {
+  verified: { label: 'ธนาคารยืนยันแล้ว', className: 'bg-emerald-50 text-emerald-700' },
+  plausible: { label: 'QR ถูกต้อง · ยังไม่ยืนยันยอด', className: 'bg-sky-50 text-sky-700' },
+  suspicious: { label: 'น่าสงสัย', className: 'bg-rose-50 text-rose-700' },
+  unreadable: { label: 'อ่าน QR ไม่ได้', className: 'bg-amber-50 text-amber-700' },
+  error: { label: 'ตรวจอัตโนมัติไม่สำเร็จ', className: 'bg-slate-100 text-slate-600' },
+};
+
+const CHECK_ICON: Record<SlipCheck['status'], { icon: string; className: string }> = {
+  pass: { icon: '✓', className: 'text-emerald-600' },
+  fail: { icon: '✕', className: 'text-rose-600' },
+  warn: { icon: '!', className: 'text-amber-600' },
+  skip: { icon: '–', className: 'text-slate-400' },
+};
+
+function AutoCheckBadge({ status }: { status: SlipAutoCheckStatus | null }) {
+  if (!status) return <span className="text-xs text-slate-400">-</span>;
+  const badge = AUTO_CHECK_BADGE[status];
+  return <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}>{badge.label}</span>;
+}
 
 function formatTHB(amount: number | null | undefined) {
   return Number(amount ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -132,7 +161,7 @@ export function PaymentVerificationInbox({ initialBookingId }: { initialBookingI
         <EmptyState title="ไม่มีรายการ" description={tab === 'pending' ? 'ยังไม่มีสลิปรอตรวจสอบ' : 'ไม่มีรายการในสถานะนี้'} />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-          <table className="w-full min-w-[720px] text-sm">
+          <table className="w-full min-w-[860px] text-sm">
             <thead className="bg-slate-50 text-xs text-slate-500">
               <tr>
                 <th className="px-3 py-2 text-left">คิว</th>
@@ -140,6 +169,7 @@ export function PaymentVerificationInbox({ initialBookingId }: { initialBookingI
                 <th className="px-3 py-2 text-left">วันเวลาจอง</th>
                 <th className="px-3 py-2 text-right">ยอดที่ต้องจ่าย</th>
                 <th className="px-3 py-2 text-right">ยอดที่แจ้ง</th>
+                <th className="px-3 py-2 text-left">ตรวจอัตโนมัติ</th>
                 <th className="px-3 py-2 text-left">อัปโหลดเมื่อ</th>
                 <th className="px-3 py-2 text-left">สลิป</th>
                 <th className="px-3 py-2" />
@@ -163,6 +193,7 @@ export function PaymentVerificationInbox({ initialBookingId }: { initialBookingI
                     <td className={`px-3 py-2 text-right ${mismatch ? 'font-semibold text-rose-600' : 'text-slate-700'}`}>
                       {r.amount_claimed ? formatTHB(r.amount_claimed) : '-'}
                     </td>
+                    <td className="px-3 py-2"><AutoCheckBadge status={r.auto_check_status} /></td>
                     <td className="px-3 py-2 text-xs text-slate-500">{formatDateTime(r.created_at)}</td>
                     <td className="px-3 py-2">
                       {r.image_url ? (
@@ -210,6 +241,34 @@ export function PaymentVerificationInbox({ initialBookingId }: { initialBookingI
               <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
                 ⚠️ ยอดที่ลูกค้าแจ้งไม่ตรงกับยอดที่ต้องชำระ — ตรวจสอบสลิปให้ละเอียด
               </p>
+            )}
+
+            {selected.auto_check_status && (
+              <div className="mt-3 rounded-xl border border-slate-200 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-slate-700">ผลตรวจอัตโนมัติ</p>
+                  <AutoCheckBadge status={selected.auto_check_status} />
+                </div>
+                {selected.trans_ref && (
+                  <p className="mt-1 break-all text-xs text-slate-500">เลขอ้างอิง {selected.trans_ref}</p>
+                )}
+                <ul className="mt-2 space-y-1">
+                  {(selected.auto_check_result?.checks ?? []).map((check) => (
+                    <li key={check.key} className="flex gap-2 text-xs text-slate-600">
+                      <span className={`w-3 shrink-0 text-center font-bold ${CHECK_ICON[check.status].className}`}>{CHECK_ICON[check.status].icon}</span>
+                      <span>{check.detail}</span>
+                    </li>
+                  ))}
+                </ul>
+                {selected.auto_check_status === 'plausible' && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    QR บนสลิปบอกได้แค่ธนาคารและเลขอ้างอิง — กรุณาตรวจยอดเงินและบัญชีผู้รับจากรูป หรือเช็กยอดเข้าในแอปธนาคารก่อนอนุมัติ
+                  </p>
+                )}
+                {selected.auto_approved && (
+                  <p className="mt-2 text-xs font-medium text-emerald-700">อนุมัติโดยระบบอัตโนมัติ</p>
+                )}
+              </div>
             )}
 
             {selected.image_url ? (

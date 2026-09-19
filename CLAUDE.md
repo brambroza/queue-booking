@@ -331,6 +331,17 @@ called | waiting ─(เริ่มบริการ)─▶ serving ─▶ com
 | `bank_transfer` | Shop PromptPay QR + slip upload | Staff approves slip |
 | `bank_deeplink` | Open bank app (SCB Easy / K PLUS) via `src/lib/payments/deeplink/` adapters; bank in `bookings.bank_provider` | Bank inquiry API (`confirmDeeplinkPayment`) — never the webhook body |
 
+### Slip auto-check (`bank_transfer`)
+
+On upload (`/api/public/shop/[shopKey]/payment/slip`) the server runs `autoVerifySlip` (`src/lib/payments/slip/`) on the stored bytes — never throws, never fails the upload:
+- `decode-image.ts` (sharp + jsQR, server-only) → `slip-qr.ts` parses the BoT slip mini-QR (EMVCo TLV: tag 00 = api id `000001` + sending bank + `transRef`, tag 51 `TH`, tag 91 CRC-16/CCITT-FALSE, reuses `crc16ccitt` from `promptpay.ts`)
+- The slip QR carries **no amount / receiver / time** — those need a bank-side source. `provider.ts` is that seam (`resolveSlipProvider` returns `null` today; adapter + per-shop key via `secret-box` is a TODO — do not guess vendor field names)
+- `evaluate.ts` (pure, vitest) → `auto_check_status`: `verified` (bank confirmed amount+receiver+time) | `plausible` (valid unseen QR, amount NOT confirmed) | `suspicious` (bad CRC / duplicate `transRef` / bank mismatch) | `unreadable` | `error`
+- **Auto-approve only on `verified`** and not past `payment_expires_at`. Local checks alone never mark a booking paid (QR + CRC are forgeable). No auto-reject — every doubt goes to the manual queue
+- Duplicate lookup is cross-tenant by design (service role, boolean only); rejected/superseded slips release their `transRef`
+- `approve.ts` `approveSlip` = single approval path for staff PATCH and auto (`slip.auto_approved` event, `reviewed_by` null); unique index `uq_payment_slips_approved_trans_ref` → 409 "สลิปซ้ำ"
+- Migration `202609190001_slip_auto_verify.sql` (must run before deploy — `/api/payment-slips` selects the new columns)
+
 Bank deeplink field names are unverified against bank portals — every literal in `deeplink/scb.ts` and `deeplink/kbank.ts` is marked `VERIFY`. KBank ships disabled (`DEEPLINK_KBANK_ENABLED`). Requires `PAYMENT_LINK_SECRET`.
 
 Omise Mobile Banking: toggle `shops.mobile_banking_enabled` (migration `202609160001`), same Omise keys as QR, needs `PAYMENT_LINK_SECRET` (return page) and https `NEXT_PUBLIC_APP_URL`. Always offers all 5 banks — a bank not activated on the shop's Omise account fails at charge creation (booking still saved, LIFF toast + "เปลี่ยนธนาคาร"). Limits 20–150,000 THB (`isMobileBankingAmountOk`; out of range → method skipped, falls through). Re-issue/switch bank = `POST /api/public/shop/[shopKey]/payment/mobile-banking` (new charge; old one lapses on Omise). Hidden on desktop like `bank_deeplink`. `BankCode` (5) ⊃ `BankProvider` (scb/kbank, direct-API only) — never widen `BankProvider`, it keys `Record`s in `deeplink/registry.ts`.

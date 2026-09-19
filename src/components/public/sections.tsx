@@ -20,9 +20,9 @@ import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
 import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
 import ApartmentRoundedIcon from '@mui/icons-material/ApartmentRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
-import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import { alpha, type Theme } from '@mui/material/styles';
+import { MOBILE_BANKS } from '@/lib/payments/mobile-banking/banks';
 import { features, pricingPlans, testimonials, useCases as useCaseCards } from './content';
 
 /** สไตล์ chip แบรนด์ (soft) — theme-aware รองรับ light/dark */
@@ -344,92 +344,154 @@ export function SolutionSection() {
   );
 }
 
-/** A compact preview of the PromptPay flow, with the QR and receipt shown as LINE messages. */
-export function PromptPayShowcaseSection() {
+/** Screens captured from the LIFF bank-app payment flow, in the order a customer sees them. */
+const bankAppScreens = [
+  { src: '/images/landing/bank-app-1-pick.png', label: 'เลือกธนาคารใน LINE', alt: 'หน้าจองคิวใน LINE ที่ลูกค้าเลือกจ่ายผ่านแอปธนาคารและเลือก K PLUS' },
+  { src: '/images/landing/bank-app-2-bank.png', label: 'แอปธนาคารเปิดเอง', alt: 'หน้าจอจำลองแอปธนาคารที่ตั้งชื่อร้านและยอด 500 บาทไว้แล้ว' },
+  { src: '/images/landing/bank-app-4-receipt.png', label: 'ใบเสร็จเข้า LINE', alt: 'แชต LINE ของร้านที่ส่งใบเสร็จชำระเงินสำเร็จให้ลูกค้า' },
+];
+
+const bankAppPoints = [
+  'ไม่ต้องสแกน QR ไม่ต้องสลับจอ ไม่ต้องแนบสลิป',
+  'ยอดเงินล็อกจากระบบ ลูกค้าพิมพ์ผิดไม่ได้',
+  'เงินเข้าแล้วคิวเปลี่ยนเป็นชำระแล้วทันที พร้อมใบเสร็จใน LINE',
+];
+
+/**
+ * Landing palette for this section. The landing page keeps one fixed look in
+ * light and dark mode (see `landing-page.module.css`), so these do not follow the MUI theme.
+ */
+const bankAppPalette = {
+  ink: '#111714',
+  muted: '#66706b',
+  green: '#0eaa5c',
+  greenDark: '#087f45',
+  mint: '#edf9f2',
+  line: '#dce4df',
+} as const;
+
+/** The bank-app payment flow: pick a bank in LIFF, the bank app opens, the receipt lands in LINE. */
+export function BankAppPaymentShowcaseSection() {
   return (
-    <Box sx={{ py: 8, bgcolor: sectionBg('#F7FAFF'), borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider' }}>
-      <Container maxWidth="lg">
-        <Grid container spacing={{ xs: 4, md: 6 }} alignItems="center">
+    <Box
+      component="section"
+      id="bank-app-payment"
+      sx={{
+        py: { xs: '86px', md: '124px' },
+        overflow: 'hidden',
+        color: bankAppPalette.ink,
+        borderBottom: `1px solid ${bankAppPalette.line}`,
+        background: `radial-gradient(circle at 78% 30%, rgba(14,170,92,.16), transparent 34%), ${bankAppPalette.mint}`,
+      }}
+    >
+      <Box sx={{ width: 'min(1240px, calc(100% - 48px))', mx: 'auto' }}>
+        <Grid container spacing={{ xs: 6, md: 6 }} alignItems="center">
           <Grid size={{ xs: 12, md: 5 }}>
-            <Box sx={{ width: 44, height: 44, borderRadius: 2, bgcolor: '#EAF0FE', display: 'grid', placeItems: 'center', mb: 2 }}>
-              <QrCode2RoundedIcon sx={{ color: '#1D4ED8' }} />
-            </Box>
-            <Typography sx={{ fontSize: { xs: 28, md: 38 }, lineHeight: 1.2, fontWeight: 800 }}>
-              รับมัดจำผ่าน PromptPay QR ได้ทันทีใน LINE
+            <Typography sx={{ m: 0, mb: '30px', color: bankAppPalette.greenDark, fontSize: 13, fontWeight: 600, letterSpacing: '0.04em' }}>
+              NEW / Bank App Payment
             </Typography>
-            <Typography color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.8 }}>
-              เมื่อลูกค้าจองคิว ระบบจะส่ง QR Code พร้อมยอดชำระให้ทันที สแกนจ่ายได้ทุกธนาคาร แล้วระบบยืนยันเงินเข้าและส่งใบเสร็จให้อัตโนมัติ
+            <Typography
+              component="h2"
+              sx={{ m: 0, color: 'inherit', fontSize: 'clamp(38px, 4.2vw, 58px)', lineHeight: 1.12, fontWeight: 700, letterSpacing: '-0.04em', textWrap: 'balance' }}
+            >
+              เลือกธนาคารใน LINE{' '}
+              <Box component="span" sx={{ color: bankAppPalette.green }}>แอปธนาคารเปิดให้เอง</Box>
             </Typography>
-            <Stack spacing={1} sx={{ mt: 2.5 }}>
-              {['สร้าง QR ตามยอดบริการอัตโนมัติ', 'ลดงานเช็คสลิปและลดคิวเบี้ยวนัด', 'อัปเดตสถานะการจองทันทีเมื่อชำระสำเร็จ'].map((item) => (
-                <Stack key={item} direction="row" spacing={1} alignItems="center">
-                  <CheckCircleRoundedIcon sx={{ color: '#1D4ED8', fontSize: 20 }} />
-                  <Typography variant="body2">{item}</Typography>
+            <Typography sx={{ mt: '28px', maxWidth: 510, color: bankAppPalette.muted, fontSize: 16, lineHeight: 1.75 }}>
+              ลูกค้าจองคิวเสร็จ กดเลือกธนาคารที่ใช้ แอปธนาคารเด้งขึ้นมาพร้อมยอดมัดจำและชื่อร้านที่ตั้งไว้แล้ว ยืนยันด้วย PIN ครั้งเดียว ระบบรู้ทันทีว่าเงินเข้า
+            </Typography>
+            <Stack spacing={1.25} sx={{ mt: 3.5 }}>
+              {bankAppPoints.map((item) => (
+                <Stack key={item} direction="row" spacing={1.25} alignItems="flex-start">
+                  <CheckCircleRoundedIcon sx={{ color: bankAppPalette.green, fontSize: 20, mt: '3px' }} />
+                  <Typography sx={{ color: 'inherit', fontSize: 15, lineHeight: 1.6 }}>{item}</Typography>
                 </Stack>
               ))}
             </Stack>
-            <Button component={Link} href="/features/promptpay-payment" variant="outlined" sx={{ mt: 3, borderColor: '#1D4ED8', color: '#1D4ED8', '&:hover': { borderColor: '#1E40AF', bgcolor: '#EEF3FF' } }}>
-              ดูรายละเอียด QR Payment
-            </Button>
-          </Grid>
-          <Grid size={{ xs: 12, md: 7 }}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="center" alignItems="center">
-              <PaymentPhone label="1. ลูกค้าได้รับ QR หลังจองคิว">
-                {/*  <PaymentQrMessage /> */}
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 4, pt: 3, borderTop: `1px solid ${bankAppPalette.line}` }}>
+              {MOBILE_BANKS.map((bank) => (
                 <Box
-                  component="img"
-                  src="/images/landing/p1.jpg"
-                  alt="ตัวอย่างหน้าเลือกวันเวลาและช่วงเวลาจอง"
-                  sx={{
-                    width: '100%',
-                    height: 420,
-                    display: 'block',
-                    objectFit: 'cover',
-                    objectPosition: 'top center',
-                    borderRadius: 0.7,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                  }}
-                />
-              </PaymentPhone>
-              <PaymentPhone label="2. ร้านและลูกค้าได้รับการยืนยัน">
-                {/*    <PaymentReceiptMessage /> */}
-                <Box
-                  component="img"
-                  src="/images/landing/p2.jpg"
-                  alt="ตัวอย่างหน้าเลือกวันเวลาและช่วงเวลาจอง"
-                  sx={{
-                    width: '100%',
-                    height: 290,
-                    display: 'block',
-                    objectFit: 'cover',
-                    objectPosition: 'top center',
-                    borderRadius: 1,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                  }}
-                />
-              </PaymentPhone>
+                  key={bank.code}
+                  title={bank.name}
+                  sx={{ width: 38, height: 38, borderRadius: '11px', bgcolor: bank.color, display: 'grid', placeItems: 'center', overflow: 'hidden', boxShadow: '0 8px 16px -10px rgba(17,23,20,.5)' }}
+                >
+                  <Box component="img" src={`/images/banks/${bank.code}.svg`} alt={bank.name} sx={{ width: 28, height: 28, display: 'block' }} />
+                </Box>
+              ))}
+              <Typography sx={{ pl: 0.75, color: bankAppPalette.muted, fontSize: 13 }}>
+                รองรับ 5 แอปธนาคาร · ยอด 20–150,000 บาท
+              </Typography>
             </Stack>
           </Grid>
+          <Grid size={{ xs: 12, md: 7 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                gap: { xs: 1.75, sm: 2.5 },
+                justifyContent: { xs: 'flex-start', sm: 'center' },
+                alignItems: 'flex-start',
+                // A swipeable row on mobile, three across from sm up.
+                overflowX: { xs: 'auto', sm: 'visible' },
+                scrollSnapType: { xs: 'x mandatory', sm: 'none' },
+                mx: { xs: '-24px', sm: 0 },
+                px: { xs: '24px', sm: 0 },
+                pt: { xs: 1, md: 4 },
+                pb: 2,
+                scrollbarWidth: 'none',
+                '&::-webkit-scrollbar': { display: 'none' },
+              }}
+            >
+              {bankAppScreens.map((screen, index) => (
+                <BankAppPhone key={screen.src} step={index + 1} raised={index === 1} {...screen} />
+              ))}
+            </Box>
+          </Grid>
         </Grid>
-      </Container>
+      </Box>
     </Box>
   );
 }
 
-function PaymentPhone({ children, label }: { children: React.ReactNode; label: string }) {
+/** One captured screen inside a phone bezel, with its step caption underneath. */
+function BankAppPhone({ src, alt, label, step, raised }: { src: string; alt: string; label: string; step: number; raised?: boolean }) {
   return (
-    <Stack spacing={1.1} alignItems="center">
-      <Box sx={{ width: 236, borderRadius: 1,   p: '8px', boxShadow: '0 22px 45px -22px rgba(15,23,42,.42)' }}>
-        <Box sx={{ overflow: 'hidden', borderRadius: 0.8, bgcolor: '#EEF1F5' }}>
-          <Box sx={{ bgcolor: '#1D4ED8', px: 1.5, py: 1.1 }}>
-            <Typography color="#fff" fontWeight={700} fontSize={12} textAlign="center">แชทร้านค้า</Typography>
-          </Box>
-          <Box sx={{ p: 1.2, minHeight: 444, display: 'flex', alignItems: 'flex-end' }}>{children}</Box>
-        </Box>
+    <Stack
+      spacing={1.5}
+      alignItems="center"
+      sx={{
+        flex: { xs: '0 0 220px', sm: '1 1 0' },
+        minWidth: 0,
+        maxWidth: { sm: 232 },
+        scrollSnapAlign: 'center',
+        // The bank app is the moment of the flow, so it sits a little higher than its neighbours.
+        transform: { xs: 'none', md: raised ? 'translateY(-28px)' : 'none' },
+      }}
+    >
+      <Box
+        sx={{
+          width: '100%',
+          p: '6px',
+          borderRadius: '30px',
+          bgcolor: '#0b0f16',
+          boxShadow: raised
+            ? '0 32px 56px -24px rgba(11,89,55,.55), 0 10px 20px -12px rgba(15,23,42,.4)'
+            : '0 24px 44px -24px rgba(15,23,42,.5)',
+        }}
+      >
+        <Box
+          component="img"
+          src={src}
+          alt={alt}
+          loading="lazy"
+          sx={{ display: 'block', width: '100%', aspectRatio: '360 / 760', objectFit: 'cover', objectPosition: 'top center', borderRadius: '24px' }}
+        />
       </Box>
-      <Typography variant="body2" fontWeight={700} color="text.secondary" textAlign="center">{label}</Typography>
+      <Stack direction="row" spacing={0.75} alignItems="center">
+        <Box sx={{ width: 22, height: 22, borderRadius: 999, bgcolor: bankAppPalette.green, color: '#fff', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+          {step}
+        </Box>
+        <Typography sx={{ color: bankAppPalette.ink, fontSize: 14, fontWeight: 600 }}>{label}</Typography>
+      </Stack>
     </Stack>
   );
 }

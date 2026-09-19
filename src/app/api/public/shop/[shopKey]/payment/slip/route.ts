@@ -5,6 +5,8 @@ import { slipReceivedFlex } from '@/lib/line/messages-payment';
 import { safeCreateNotification } from '@/lib/notifications/createNotification';
 import { isOwnerLookupFailure, resolveBookingForLineUser } from '@/lib/payments/liff-auth';
 import { sniffImageMime } from '@/lib/utils/image-sniff';
+import { autoVerifySlip } from '@/lib/payments/slip/auto-verify';
+import { approveSlip } from '@/lib/payments/slip/approve';
 import {
   PAYMENT_SLIP_BUCKET,
   SLIP_ALLOWED_MIME,
@@ -31,7 +33,8 @@ function randomHex(bytes: number) {
 }
 
 /**
- * Accept a customer-uploaded transfer slip and hand it to staff for review.
+ * Accept a customer-uploaded transfer slip, run the automatic checks on it, and
+ * either settle it (bank-verified) or hand it to staff for review.
  * POST multipart: line_user_id, booking_id, file, amount_claimed?, transferred_at?
  */
 export async function POST(req: Request, { params }: { params: Promise<{ shopKey: string }> }) {
@@ -168,14 +171,43 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     raw_event: { slip_id: slip.id, amount_claimed: amountClaimed, file_size: file.size, mime_type: mime },
   });
 
+  // ── Automatic checks ── never throws; on any doubt the slip stays in the manual queue.
+  const claimedTHB = amountClaimed !== null && Number.isFinite(amountClaimed) && amountClaimed > 0 ? amountClaimed : null;
+  const { evaluation, transRef } = await autoVerifySlip(admin, {
+    slipId: slip.id,
+    bookingId: booking.id,
+    shopId: shop.id,
+    imageBytes: bytes,
+    expectedAmountTHB: amount,
+    amountClaimedTHB: claimedTHB,
+    paymentExpiresAt: booking.payment_expires_at,
+  });
+
+  if (evaluation.autoApprove && evaluation.providerId && transRef) {
+    const approved = await approveSlip(admin, {
+      slipId: slip.id,
+      bookingId: booking.id,
+      shopId: shop.id,
+      companyId: shop.company_id,
+      reviewerId: null,
+      amountClaimed: claimedTHB,
+      auto: { providerId: evaluation.providerId, verifiedAmountTHB: evaluation.verifiedAmountTHB, transRef },
+    });
+    // approveSlip already sent the receipt and the staff notification.
+    if (approved.ok) return NextResponse.json({ data: { slip_id: slip.id, payment_status: 'paid' } });
+  }
+
+  const suspicious = evaluation.status === 'suspicious';
   await safeCreateNotification(admin, {
     companyId: shop.company_id,
     shopId: shop.id,
     type: 'payment_slip_uploaded',
     category: 'billing',
     priority: 'high',
-    title: 'สลิปใหม่รอตรวจสอบ',
-    message: `คิว ${booking.queue_number} อัปโหลดสลิปแล้ว ยอด ${amount.toLocaleString('th-TH')} บาท`,
+    title: suspicious ? 'สลิปน่าสงสัย — กรุณาตรวจสอบ' : 'สลิปใหม่รอตรวจสอบ',
+    message: suspicious
+      ? `คิว ${booking.queue_number} อัปโหลดสลิปที่ไม่ผ่านการตรวจอัตโนมัติ ยอด ${amount.toLocaleString('th-TH')} บาท`
+      : `คิว ${booking.queue_number} อัปโหลดสลิปแล้ว ยอด ${amount.toLocaleString('th-TH')} บาท`,
     relatedType: 'booking',
     relatedId: booking.id,
     actionUrl: '/portal/payment-verification',

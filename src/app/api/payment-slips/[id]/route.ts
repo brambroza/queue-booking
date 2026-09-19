@@ -3,9 +3,8 @@ import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { pushMessage } from '@/lib/line/client';
-import { paymentReceiptFlex, slipRejectedFlex } from '@/lib/line/messages-payment';
-import { safeCreateNotification } from '@/lib/notifications/createNotification';
-import { formatThaiDateLabel } from '@/lib/utils/date-format';
+import { slipRejectedFlex } from '@/lib/line/messages-payment';
+import { approveSlip } from '@/lib/payments/slip/approve';
 
 const schema = z
   .object({
@@ -15,11 +14,6 @@ const schema = z
   .refine((v) => v.action !== 'reject' || Boolean(v.reject_reason), {
     message: 'reject_reason is required when rejecting',
   });
-
-function receiptRef(queueNumber: string) {
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  return `RCP-${queueNumber}-${today}`;
-}
 
 /** Push a LINE message to a booking's customer. Never throws — a failed push must not undo a decision. */
 async function notifyCustomer(
@@ -77,7 +71,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const { data: booking } = await supabase
       .from('bookings')
-      .select('id,queue_number,booking_date,start_time,payment_amount,line_user_id,branches(branch_name),services(service_name)')
+      .select('id,queue_number,payment_amount,line_user_id')
       .eq('id', slip.booking_id)
       .eq('shop_id', profile.shop_id)
       .maybeSingle();
@@ -96,78 +90,25 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const now = new Date().toISOString();
     const amount = Number(booking.payment_amount ?? 0);
-    const branchName = (booking.branches as unknown as { branch_name?: string } | null)?.branch_name ?? '-';
-    const serviceName = (booking.services as unknown as { service_name?: string } | null)?.service_name ?? '-';
 
     if (action === 'approve') {
-      const { error: slipError } = await admin
-        .from('payment_slips')
-        .update({ status: 'approved', reviewed_by: user.id, reviewed_at: now, updated_by: user.id })
-        .eq('id', slip.id)
-        .eq('status', 'pending');
-      if (slipError) throw slipError;
-
-      await admin
-        .from('bookings')
-        .update({
-          payment_status: 'paid',
-          paid_at: now,
-          payment_verified_at: now,
-          payment_verified_by: user.id,
-          payment_reject_reason: null,
-        })
-        .eq('id', booking.id)
-        .eq('shop_id', profile.shop_id);
-
-      await admin.from('payment_transactions').insert({
-        company_id: profile.company_id,
-        shop_id: profile.shop_id,
-        booking_id: booking.id,
-        slip_id: slip.id,
-        method: 'bank_transfer',
-        amount,
-        currency: 'THB',
-        status: 'successful',
-        event_type: 'slip.approved',
-        raw_event: { reviewed_by: user.id, amount_claimed: slip.amount_claimed },
-        created_by: user.id,
-      });
-
-      await admin.from('booking_logs').insert({
-        company_id: profile.company_id,
-        shop_id: profile.shop_id,
-        booking_id: booking.id,
-        action: 'payment_slip_approved',
-        description: `Slip approved for ${booking.queue_number} (${amount} THB)`,
-        created_by: user.id,
-      });
-
-      await safeCreateNotification(admin, {
-        companyId: profile.company_id,
+      const result = await approveSlip(admin, {
+        slipId: slip.id,
+        bookingId: booking.id,
         shopId: profile.shop_id,
-        type: 'payment_verified',
-        category: 'billing',
-        title: 'ยืนยันการชำระเงินแล้ว',
-        message: `คิว ${booking.queue_number} ชำระ ${amount.toLocaleString('th-TH')} บาท เรียบร้อย`,
-        relatedType: 'booking',
-        relatedId: booking.id,
-        createdBy: user.id,
+        companyId: profile.company_id,
+        reviewerId: user.id,
+        amountClaimed: slip.amount_claimed === null ? null : Number(slip.amount_claimed),
       });
-
-      await notifyCustomer(admin, profile.shop_id, booking.line_user_id, [
-        paymentReceiptFlex({
-          shopName: shopRow?.name ?? 'Queue Booking',
-          queueNumber: booking.queue_number,
-          service: serviceName,
-          branch: branchName,
-          date: formatThaiDateLabel(String(booking.booking_date)),
-          time: String(booking.start_time).slice(0, 5),
-          amountTHB: amount,
-          receiptRef: receiptRef(booking.queue_number),
-          paidAt: now,
-        }),
-      ]);
-
+      if (!result.ok) {
+        if (result.reason === 'not_pending') {
+          return NextResponse.json({ error: 'สลิปนี้ถูกตรวจสอบไปแล้ว' }, { status: 409 });
+        }
+        if (result.reason === 'duplicate_trans_ref') {
+          return NextResponse.json({ error: 'สลิปนี้ถูกใช้ยืนยันการชำระเงินของรายการอื่นไปแล้ว (สลิปซ้ำ)' }, { status: 409 });
+        }
+        return NextResponse.json({ error: 'ดำเนินการไม่สำเร็จ' }, { status: result.reason === 'booking_not_found' ? 404 : 500 });
+      }
       return NextResponse.json({ data: { status: 'approved' } });
     }
 
