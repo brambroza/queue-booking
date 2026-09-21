@@ -84,15 +84,6 @@ export function bookingConfirmFlex(payload: {
       action: { type: 'message', label: 'ยกเลิกคิว', text: 'ยกเลิกคิว' },
     },
   ];
-  if (payload.liffUrl) {
-    footerButtons.push({
-      type: 'button',
-      style: 'primary',
-      color: '#12a862',
-      height: 'sm',
-      action: { type: 'uri', label: 'เปิด LIFF อีกครั้ง', uri: payload.liffUrl },
-    });
-  }
 
   return {
     type: 'flex',
