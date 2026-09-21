@@ -65,9 +65,9 @@ export function FlexBookingSuccess({
         <Button onClick={() => onAction?.('cancel')} fullWidth variant="contained" sx={{ bgcolor: '#dfe3e9', color: '#2b3440', boxShadow: 'none' }}>
           ยกเลิกคิว
         </Button>
-        <Button onClick={() => onAction?.('open_liff')} fullWidth variant="contained" sx={{ bgcolor: '#12a862', color: '#fff', boxShadow: 'none', '&:hover': { bgcolor: '#5ead77' } }}>
+      {/*   <Button onClick={() => onAction?.('open_liff')} fullWidth variant="contained" sx={{ bgcolor: '#12a862', color: '#fff', boxShadow: 'none', '&:hover': { bgcolor: '#5ead77' } }}>
           เปิด LIFF อีกครั้ง
-        </Button>
+        </Button> */}
       </Stack>
     </Box>
   );
