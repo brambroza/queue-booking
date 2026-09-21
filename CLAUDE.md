@@ -124,6 +124,7 @@ src/
 | `/api/rich-menu` | Rich menu builder state (GET) + save `business_type` / `rich_menu_config` (PATCH) |
 | `/api/rich-menu/image` | Upload rendered rich menu PNG/JPEG (2500×1686 / 2500×843, ≤1 MB) → `shop-assets` bucket |
 | `/api/rich-menu/publish` | POST = create rich menu on LINE + upload image + set default; DELETE = unpublish |
+| `/api/shop-assets/image` | Upload one photo (`kind=resources\|services\|branches`, ≤5 MB, JPEG/PNG/WebP sniffed, re-encoded to JPEG ≤1600px, EXIF stripped) → public `shop-assets` bucket, returns `{ url }` only — no DB write |
 
 ### Public (ไม่ต้องมี auth)
 | Route | Resource |
@@ -291,6 +292,16 @@ await safeCreateNotification({ shopId, type: 'booking_created', ... });
 - ตั้งค่าที่ `/portal/resources` (single + bulk) — API ตรวจว่า id เป็น service ของร้านนี้
 - LIFF / portal create drawer / move dialog กรองตัวเลือก resource ตาม service ที่เลือก; `/api/public/shop/[shopKey]/book`, `/api/bookings` POST+PATCH ปฏิเสธ 400 ถ้า resource ไม่ให้บริการนั้น
 - Migration `202609120003_resource_service_link.sql`
+
+## Resource / Service Images (ช่วยลูกค้าจำสนาม/ห้อง)
+
+- Columns (migration `202609210001_resource_service_images.sql` — **must run before deploy**, `/meta` selects them): `booking_resources.image_urls text[]` (≤5, first = cover), `services.image_url`, `branches.layout_image_url` (venue map)
+- Flow: form uploads first via `POST /api/shop-assets/image` (`ImageUploader`, `src/components/forms/image-uploader.tsx`) → URL saved by the normal `/api/resources|services|branches` POST/PATCH. Those routes reject any URL outside the shop's own `shop-assets/<shop_id>/` prefix (`findForeignAssetUrl`) and delete detached objects best-effort (`removeDetachedShopAssets`, `src/lib/storage/shop-assets-server.ts`). PATCH only touches the image column when the key is present in the body
+- Pure helpers + vitest: `src/lib/storage/shop-assets.ts` (`isOwnShopAssetUrl`, `removedAssetPaths`), `src/lib/booking/resource-history.ts` (`summarizeResourceHistory`, `sortResourcesByHistory`, `resourceHistoryBadge`)
+- LIFF: `OptionCard` takes `imageUrl` / `badge` / `onPreview`; `LiffGalleryDialog` (scroll-snap, no carousel dep) shows photos + floor/zone/description, "ดูผัง" opens the branch map. Previously booked resources sort first with "จองล่าสุด / เคยจอง N ครั้ง" derived from `/me` history — no favourites table, never auto-selects. Booking cards look the photo up live by `resource_id` (no URL snapshot on `bookings`)
+- `SimpleCrud` column `type: 'image'` (+ `imageKind`) = single uploaded photo; resource type `court` ("สนาม") added in `resource-types.ts` (DB column is free text)
+- Images render with plain `<img>` — `next.config.ts` has no `images.remotePatterns`
+- Not done: pins on the venue map, heart/favourite button, photo in LINE Flex, photos in bulk create
 
 ## Booking Status Flow
 

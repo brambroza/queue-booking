@@ -12,6 +12,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ shopKey: s
 
   if (!shop) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
 
+  // Photos, floor/zone and the branch venue map let the customer recognise the
+  // court / room they liked last time (columns from migration 202609210001).
   // `price` is needed so LIFF can tell whether a booking costs anything and
   // therefore whether to show the payment method picker at all.
   const [
@@ -22,11 +24,11 @@ export async function GET(_: Request, { params }: { params: Promise<{ shopKey: s
     bookingEchoEnabled,
     showServiceDuration,
   ] = await Promise.all([
-    admin.from('branches').select('id,branch_name').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
-    admin.from('services').select('id,service_name,duration_minutes,price').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
+    admin.from('branches').select('id,branch_name,layout_image_url').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
+    admin.from('services').select('id,service_name,duration_minutes,price,image_url').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
     admin
       .from('booking_resources')
-      .select('id,branch_id,resource_name,resource_code,resource_type,capacity,unit_price,service_ids')
+      .select('id,branch_id,resource_name,resource_code,resource_type,capacity,unit_price,service_ids,image_urls,floor,zone,description')
       .eq('shop_id', shop.id)
       .eq('active', true)
       .eq('is_deleted', false)

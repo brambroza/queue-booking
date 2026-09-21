@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { serviceSchema } from '@/lib/booking/schemas';
+import { findForeignAssetUrl, removeDetachedShopAssets } from '@/lib/storage/shop-assets-server';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 import { subscriptionErrorResponse } from '@/lib/subscription/response';
 import { writeAuditLog } from '@/lib/audit/activity-log';
@@ -43,6 +44,9 @@ export async function POST(req: Request) {
     const { supabase, user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
     const parsed = serviceSchema.safeParse(await req.json());
     if (!parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    if (findForeignAssetUrl([parsed.data.image_url], profile.shop_id)) {
+      return NextResponse.json({ error: 'รูปภาพไม่ถูกต้อง กรุณาอัปโหลดใหม่' }, { status: 400 });
+    }
 
     const { count: serviceCount } = await supabase
       .from('services')
@@ -67,6 +71,7 @@ export async function POST(req: Request) {
       allow_walk_in: parsed.data.allow_walk_in,
       price: parsed.data.price,
       active: parsed.data.active,
+      image_url: parsed.data.image_url ?? null,
       created_by: user.id,
       updated_by: user.id,
     });
@@ -87,6 +92,17 @@ export async function PATCH(req: Request) {
     const id = body.id as string;
     const parsed = serviceSchema.safeParse(body);
     if (!id || !parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    if (findForeignAssetUrl([parsed.data.image_url], profile.shop_id)) {
+      return NextResponse.json({ error: 'รูปภาพไม่ถูกต้อง กรุณาอัปโหลดใหม่' }, { status: 400 });
+    }
+
+    const hasImage = 'image_url' in body;
+    const { data: current } = await supabase
+      .from('services')
+      .select('image_url')
+      .eq('id', id)
+      .eq('shop_id', profile.shop_id)
+      .maybeSingle();
 
     const { error } = await supabase
       .from('services')
@@ -101,12 +117,15 @@ export async function PATCH(req: Request) {
         allow_walk_in: parsed.data.allow_walk_in,
         price: parsed.data.price,
         active: parsed.data.active,
+        // Absent key = caller does not manage the photo; leave it alone.
+        ...(hasImage ? { image_url: parsed.data.image_url ?? null } : {}),
         updated_by: user.id,
       })
       .eq('id', id)
       .eq('shop_id', profile.shop_id);
 
     if (error) throw error;
+    if (hasImage) await removeDetachedShopAssets([current?.image_url], [parsed.data.image_url], profile.shop_id);
     await writeAuditLog({
       companyId: profile.company_id,
       shopId: profile.shop_id,

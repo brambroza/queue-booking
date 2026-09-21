@@ -13,8 +13,17 @@ import { ActionIconGroup } from '@/components/ui/action-icon-group';
 import { MobileCardList } from '@/components/ui/responsive-table';
 import { MobileRecordCard } from '@/components/ui/mobile-record-card';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { ImageUploader } from '@/components/forms/image-uploader';
+import type { ShopImageKind } from '@/lib/storage/shop-assets';
 
-type Column = { key: string; label: string; type?: 'text' | 'number' | 'time' | 'date' | 'checkbox' };
+type Column = {
+  key: string;
+  label: string;
+  /** `image` = one uploaded photo (needs `imageKind`); stored as a URL, '' when none. */
+  type?: 'text' | 'number' | 'time' | 'date' | 'checkbox' | 'image';
+  imageKind?: ShopImageKind;
+  hint?: string;
+};
 
 export function SimpleCrud({
   endpoint,
@@ -36,6 +45,8 @@ export function SimpleCrud({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formSeed, setFormSeed] = useState<Record<string, string | number | boolean>>(defaults);
+  /** Uploaded photo URL per `image` column; lives outside the uncontrolled form. */
+  const [images, setImages] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
@@ -53,18 +64,25 @@ export function SimpleCrud({
   function openCreate() {
     setEditingId(null);
     setFormSeed(defaults);
+    setImages({});
     setDrawerOpen(true);
   }
 
   function openEdit(row: Record<string, unknown>) {
     const next: Record<string, string | number | boolean> = { ...defaults };
+    const nextImages: Record<string, string> = {};
     columns.forEach((c) => {
       const v = row[c.key];
+      if (c.type === 'image') {
+        if (typeof v === 'string' && v) nextImages[c.key] = v;
+        return;
+      }
       if (c.type === 'checkbox') next[c.key] = Boolean(v);
       else next[c.key] = String(v ?? defaults[c.key] ?? '');
     });
     setEditingId(String(row.id));
     setFormSeed(next);
+    setImages(nextImages);
     setDrawerOpen(true);
   }
 
@@ -75,7 +93,8 @@ export function SimpleCrud({
     const payload = { ...defaults } as Record<string, unknown>;
 
     columns.forEach((c) => {
-      if (c.type === 'checkbox') payload[c.key] = formData.get(c.key) === 'on';
+      if (c.type === 'image') payload[c.key] = images[c.key] ?? '';
+      else if (c.type === 'checkbox') payload[c.key] = formData.get(c.key) === 'on';
       else payload[c.key] = formData.get(c.key);
     });
     if (editingId) payload.id = editingId;
@@ -135,6 +154,7 @@ export function SimpleCrud({
   /** Cell text for the phone card: times trimmed to HH:MM, checkboxes as ใช่/ไม่. */
   function cellText(c: Column, row: Record<string, unknown>) {
     if (c.type === 'checkbox') return row[c.key] ? 'ใช่' : 'ไม่';
+    if (c.type === 'image') return row[c.key] ? 'มีรูป' : '-';
     if (c.type === 'time') return String(row[c.key] ?? '-').slice(0, 5);
     return String(row[c.key] ?? '-');
   }
@@ -213,7 +233,7 @@ export function SimpleCrud({
               <tbody>
                 {pagedRows.map((row) => (
                   <tr key={String(row.id)} className="border-t border-slate-100">
-                    {columns.map((c) => <td key={c.key} className="px-3 py-2">{String(row[c.key] ?? '-')}</td>)}
+                    {columns.map((c) => <td key={c.key} className="px-3 py-2">{c.type === 'image' ? cellText(c, row) : String(row[c.key] ?? '-')}</td>)}
                     <td className="px-3 py-2">
                       <ActionIconGroup
                         actions={[
@@ -271,7 +291,16 @@ export function SimpleCrud({
             </div>
 
             <form key={editingId ?? 'new'} onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2">
-              {columns.map((c) => (
+              {columns.map((c) => c.type === 'image' ? (
+                <ImageUploader
+                  key={c.key}
+                  kind={c.imageKind ?? 'branches'}
+                  value={images[c.key] ? [images[c.key]] : []}
+                  onChange={(next) => setImages((prev) => ({ ...prev, [c.key]: next[0] ?? '' }))}
+                  label={c.label}
+                  hint={c.hint}
+                />
+              ) : (
                 <label key={c.key} className="text-sm">
                   <span className="mb-1 block text-slate-600">{c.label}</span>
                   {c.type === 'checkbox' ? (

@@ -6,12 +6,16 @@ import {
   ButtonBase,
   Card,
   CardContent,
+  Dialog,
+  IconButton,
   Skeleton,
   Stack,
   Typography,
 } from '@mui/material';
 import { alpha, useTheme, type Theme } from '@mui/material/styles';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import PhotoLibraryRoundedIcon from '@mui/icons-material/PhotoLibraryRounded';
 import { lineGreen, shadowLight } from '@/theme/tokens';
 
 /** Width of the LIFF column — a phone screen, centred when opened on desktop. */
@@ -214,15 +218,22 @@ export function LiffLabel({ children, hint }: { children: React.ReactNode; hint?
  */
 export function OptionCard({
   icon,
+  imageUrl,
+  badge,
   title,
   subtitle,
   trailing,
   selected,
   disabled,
   onClick,
+  onPreview,
 }: {
   /** Emoji or short text shown in the leading tile. */
   icon: React.ReactNode;
+  /** Photo for the leading tile; the tile grows so a court / room is recognisable. */
+  imageUrl?: string | null;
+  /** Small highlighted line under the title, e.g. "จองล่าสุด". */
+  badge?: string;
   title: string;
   subtitle?: string;
   /** Right-aligned text such as a price. */
@@ -230,8 +241,12 @@ export function OptionCard({
   selected: boolean;
   disabled?: boolean;
   onClick: () => void;
+  /** Tap on the photo — opens the gallery instead of selecting the card. */
+  onPreview?: () => void;
 }) {
+  const tile = imageUrl ? 56 : 38;
   return (
+    <Box sx={{ position: 'relative', width: '100%' }}>
     <ButtonBase
       onClick={onClick}
       disabled={disabled}
@@ -255,22 +270,34 @@ export function OptionCard({
     >
       <Box
         sx={{
-          width: 38,
-          height: 38,
+          width: tile,
+          height: tile,
           borderRadius: '10px',
           flexShrink: 0,
           display: 'grid',
           placeItems: 'center',
           fontSize: 19,
+          overflow: 'hidden',
           bgcolor: selected ? 'background.paper' : 'grey.100',
         }}
       >
-        {icon}
+        {imageUrl ? (
+          // Plain <img>: Supabase Storage is not in next.config `images.remotePatterns`.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imageUrl} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        ) : (
+          icon
+        )}
       </Box>
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Typography variant="body2" sx={{ fontWeight: 600, fontSize: 14 }}>
           {title}
         </Typography>
+        {badge ? (
+          <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, color: 'primary.dark' }}>
+            ★ {badge}
+          </Typography>
+        ) : null}
         {subtitle ? (
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
             {subtitle}
@@ -299,6 +326,109 @@ export function OptionCard({
         {selected ? <CheckRoundedIcon sx={{ fontSize: 13 }} /> : null}
       </Box>
     </ButtonBase>
+      {imageUrl && onPreview ? (
+        // A sibling laid over the photo, not a child: a button inside ButtonBase is invalid HTML.
+        <ButtonBase
+          onClick={onPreview}
+          aria-label={`ดูรูป ${title}`}
+          sx={{
+            position: 'absolute',
+            left: 12,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: tile,
+            height: tile,
+            borderRadius: '10px',
+            alignItems: 'flex-end',
+            justifyContent: 'flex-end',
+            p: 0.25,
+          }}
+        >
+          <Box sx={{ display: 'grid', placeItems: 'center', width: 18, height: 18, borderRadius: '6px', bgcolor: 'rgba(15,23,42,.6)', color: '#fff' }}>
+            <PhotoLibraryRoundedIcon sx={{ fontSize: 12 }} />
+          </Box>
+        </ButtonBase>
+      ) : null}
+    </Box>
+  );
+}
+
+/**
+ * Full-screen photo viewer: resource photos, or the branch venue map.
+ * Swipes with CSS scroll-snap, so there is no carousel dependency.
+ */
+export function LiffGalleryDialog({
+  open,
+  onClose,
+  title,
+  subtitle,
+  description,
+  images,
+  actions,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  /** e.g. "ชั้น 2 • โซน Outdoor". */
+  subtitle?: string;
+  description?: string | null;
+  images: string[];
+  /** Buttons under the text, e.g. "เลือกสนามนี้". */
+  actions?: React.ReactNode;
+}) {
+  return (
+    <Dialog open={open} onClose={onClose} fullScreen PaperProps={{ sx: { bgcolor: '#0f172a', color: '#fff' } }}>
+      <Stack sx={{ height: '100%' }}>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 2, py: 1.25 }}>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }} noWrap>
+              {title}
+            </Typography>
+            {subtitle ? (
+              <Typography variant="caption" sx={{ display: 'block', opacity: 0.75 }}>
+                {subtitle}
+              </Typography>
+            ) : null}
+          </Box>
+          <IconButton onClick={onClose} aria-label="ปิด" sx={{ color: '#fff' }}>
+            <CloseRoundedIcon />
+          </IconButton>
+        </Stack>
+        <Box
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            display: 'flex',
+            overflowX: 'auto',
+            scrollSnapType: 'x mandatory',
+            WebkitOverflowScrolling: 'touch',
+            '&::-webkit-scrollbar': { display: 'none' },
+          }}
+        >
+          {images.map((url, index) => (
+            <Box key={url} sx={{ flex: '0 0 100%', scrollSnapAlign: 'center', display: 'grid', placeItems: 'center', position: 'relative' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt={`${title} ${index + 1}`} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+              {images.length > 1 ? (
+                <Typography variant="caption" sx={{ position: 'absolute', bottom: 8, right: 12, px: 1, borderRadius: 999, bgcolor: 'rgba(15,23,42,.6)' }}>
+                  {index + 1}/{images.length}
+                </Typography>
+              ) : null}
+            </Box>
+          ))}
+        </Box>
+        {description || actions ? (
+          <Stack spacing={1.25} sx={{ px: 2, pt: 1.5, pb: 'max(16px, env(safe-area-inset-bottom))' }}>
+            {description ? (
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                {description}
+              </Typography>
+            ) : null}
+            {actions}
+          </Stack>
+        ) : null}
+      </Stack>
+    </Dialog>
   );
 }
 

@@ -22,6 +22,7 @@ import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
 import CampaignRoundedIcon from '@mui/icons-material/CampaignRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import HowToRegRoundedIcon from '@mui/icons-material/HowToRegRounded';
+import MapRoundedIcon from '@mui/icons-material/MapRounded';
 import HourglassTopRoundedIcon from '@mui/icons-material/HourglassTopRounded';
 import EventBusyRoundedIcon from '@mui/icons-material/EventBusyRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
@@ -32,6 +33,7 @@ import { StatusChip } from '@/components/shared/status-chip';
 import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import { isPersonResourceType, resourceTypeIcon, resourceTypeLabel } from '@/lib/booking/resource-types';
 import { filterResourcesForService } from '@/lib/booking/resource-service-link';
+import { resourceHistoryBadge, sortResourcesByHistory, summarizeResourceHistory } from '@/lib/booking/resource-history';
 import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 import { buildBookingEchoText } from '@/lib/line/booking-echo';
 import { CUSTOMER_CANCELLABLE_STATUSES, checkInEligibility } from '@/lib/booking/status-flow';
@@ -44,6 +46,7 @@ import {
   LiffShell,
   LiffSkeleton,
   LiffStepper,
+  LiffGalleryDialog,
   OptionCard,
   SlotButton,
   brandGradient,
@@ -53,8 +56,8 @@ import type { PaymentMethod } from '@/types/db';
 import { BankGrid } from '@/components/line/bank-grid';
 import { isBankAppMethod, isMobileBankingAmountOk } from '@/lib/payments/mobile-banking/banks';
 
-type Branch = { id: string; branch_name: string };
-type Service = { id: string; service_name: string; duration_minutes: number; price?: number | null };
+type Branch = { id: string; branch_name: string; /** Venue map, so the customer can see where each court / room sits. */ layout_image_url?: string | null };
+type Service = { id: string; service_name: string; duration_minutes: number; price?: number | null; image_url?: string | null };
 type Resource = {
   id: string;
   branch_id?: string | null;
@@ -65,6 +68,11 @@ type Resource = {
   unit_price?: number | null;
   /** Services this resource serves; empty / null = every service. */
   service_ids?: string[] | null;
+  /** Photos, first = cover. */
+  image_urls?: string[] | null;
+  floor?: string | null;
+  zone?: string | null;
+  description?: string | null;
 };
 type Slot = {
   slot_time: string;
@@ -294,6 +302,11 @@ function serviceMeta(s: Service): ServiceCardMeta {
  * answer ("เทรนเนอร์", "ห้องประชุม"); the service name is only a fallback for
  * shops that never set a meaningful type.
  */
+/** "ชั้น 2 • โซน Outdoor" — where the resource is, or '' when the shop left both blank. */
+function resourceLocationText(r: Pick<Resource, 'floor' | 'zone'>): string {
+  return [r.floor ? `ชั้น ${r.floor}` : '', r.zone ? `โซน ${r.zone}` : ''].filter(Boolean).join(' • ');
+}
+
 function resourcePickerLabel(resourceType?: string | null, serviceName?: string) {
   if (resourceType) return `เลือก${resourceTypeLabel(resourceType)}`;
   const kind = detectServiceKind(serviceName);
@@ -314,6 +327,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const [branchId, setBranchId] = useState('');
   const [serviceId, setServiceId] = useState('');
   const [selectedResourceId, setSelectedResourceId] = useState('');
+  /** Resource whose photos are open in the gallery; '' = closed. */
+  const [galleryResourceId, setGalleryResourceId] = useState('');
+  const [layoutOpen, setLayoutOpen] = useState(false);
   const [date, setDate] = useState(getTodayISOInBangkok());
   const [slots, setSlots] = useState<Slot[]>([]);
   const [slotHint, setSlotHint] = useState('');
@@ -811,13 +827,24 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const selectedService = useMemo(() => services.find((s) => s.id === serviceId), [services, serviceId]);
   // Branch first, then service: a yoga teacher linked to "คลาสโยคะ" must not
   // appear when the customer picked "พิลาทิส". Unlinked resources always show.
+  // Courts the customer booked before float to the top with a badge, so a
+  // favourite is easy to find again. Order only — nothing is ever pre-selected.
+  const resourceHistory = useMemo(() => summarizeResourceHistory([...upcoming, ...history]), [upcoming, history]);
   const filteredResources = useMemo(
-    () => filterResourcesForService(resources.filter((r) => !r.branch_id || r.branch_id === branchId), serviceId),
-    [resources, branchId, serviceId],
+    () =>
+      sortResourcesByHistory(
+        filterResourcesForService(resources.filter((r) => !r.branch_id || r.branch_id === branchId), serviceId),
+        resourceHistory,
+      ),
+    [resources, branchId, serviceId, resourceHistory],
   );
   const selectedResource = useMemo(
     () => filteredResources.find((r) => r.id === selectedResourceId),
     [filteredResources, selectedResourceId],
+  );
+  const galleryResource = useMemo(
+    () => filteredResources.find((r) => r.id === galleryResourceId),
+    [filteredResources, galleryResourceId],
   );
   const resourceType = selectedResource?.resource_type || filteredResources[0]?.resource_type;
   const pickerLabel = useMemo(
@@ -1065,7 +1092,12 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     />
   );
 
+  /** Cover photo of a booking's resource, looked up live — bookings never snapshot a URL. */
+  const bookingResourceImage = (bookingResourceId?: string | null) =>
+    (bookingResourceId && resources.find((r) => r.id === bookingResourceId)?.image_urls?.[0]) || null;
+
   const renderBookingCard = (b: MyBooking, opts: { active: boolean }) => {
+    const resourceImage = bookingResourceImage(b.resource_id);
     const rows = [
       { label: 'เวลา', value: `${formatDateDMY(b.booking_date)} • ${String(b.start_time).slice(0, 5)}` },
       { label: 'สาขา', value: b.branches?.branch_name ?? '-' },
@@ -1074,16 +1106,22 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     ];
     if (!opts.active) {
       return (
-        <Box key={b.id} sx={{ border: 1, borderColor: 'divider', borderRadius: '16px', p: 1.5 }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ mb: 0.5 }}>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>{b.queue_number}</Typography>
-            <StatusChip status={String(b.status)} />
-          </Stack>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-            {formatDateDMY(b.booking_date)} • {String(b.start_time).slice(0, 5)} ·{' '}
-            {[b.branches?.branch_name ?? '-', b.services?.service_name ?? '-', b.resource_name ?? ''].filter(Boolean).join(' • ')}
-          </Typography>
-        </Box>
+        <Stack key={b.id} direction="row" spacing={1.25} alignItems="center" sx={{ border: 1, borderColor: 'divider', borderRadius: '16px', p: 1.5 }}>
+          {resourceImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={resourceImage} alt="" loading="lazy" style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} />
+          ) : null}
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ mb: 0.5 }}>
+              <Typography variant="subtitle2" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>{b.queue_number}</Typography>
+              <StatusChip status={String(b.status)} />
+            </Stack>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+              {formatDateDMY(b.booking_date)} • {String(b.start_time).slice(0, 5)} ·{' '}
+              {[b.branches?.branch_name ?? '-', b.services?.service_name ?? '-', b.resource_name ?? ''].filter(Boolean).join(' • ')}
+            </Typography>
+          </Box>
+        </Stack>
       );
     }
     const canResumeSlip = b.payment_method === 'bank_transfer' && (b.payment_status === 'pending_payment' || b.payment_status === 'rejected');
@@ -1107,6 +1145,16 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
           <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>{b.queue_number}</Typography>
           <StatusChip status={String(b.status)} />
         </Stack>
+        {resourceImage ? (
+          // Upcoming booking: a wide photo so the customer can find the court on arrival.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={resourceImage}
+            alt={b.resource_name ?? ''}
+            loading="lazy"
+            style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 12, marginBottom: 8, display: 'block' }}
+          />
+        ) : null}
         <KeyValueList rows={rows} dense />
         {isCalled ? (
           <Alert severity="info" icon={<CampaignRoundedIcon fontSize="inherit" />} sx={{ mt: 1.25 }}>
@@ -1209,6 +1257,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                     <OptionCard
                       key={`preset-${s.id}`}
                       icon={meta.icon}
+                      imageUrl={s.image_url}
                       title={s.service_name}
                       subtitle={[showDuration ? `${s.duration_minutes} นาที` : '', meta.subtitle].filter(Boolean).join(' • ')}
                       trailing={formatPrice(s.price) || undefined}
@@ -1221,15 +1270,29 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
 
               {filteredResources.length > 0 ? (
                 <Stack spacing={1}>
-                  <LiffLabel hint="(เลือกหรือไม่เลือกก็ได้)">{pickerLabel}</LiffLabel>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+                    <LiffLabel hint="(เลือกหรือไม่เลือกก็ได้)">{pickerLabel}</LiffLabel>
+                    {selectedBranch?.layout_image_url ? (
+                      <Button size="small" variant="text" startIcon={<MapRoundedIcon />} onClick={() => setLayoutOpen(true)}>
+                        ดูผัง
+                      </Button>
+                    ) : null}
+                  </Stack>
                   {filteredResources.map((r) => {
                     const isPerson = isPersonResourceType(r.resource_type);
                     return (
                       <OptionCard
                         key={`resource-${r.id}`}
                         icon={resourceTypeIcon(r.resource_type)}
+                        imageUrl={r.image_urls?.[0]}
+                        badge={resourceHistoryBadge(r.id, resourceHistory)}
+                        onPreview={() => setGalleryResourceId(r.id)}
                         title={resourceDisplayName(r)}
-                        subtitle={[resourceTypeLabel(r.resource_type), !isPerson && r.capacity ? `${r.capacity} ที่นั่ง` : '']
+                        subtitle={[
+                          resourceTypeLabel(r.resource_type),
+                          !isPerson && r.capacity ? `${r.capacity} ที่นั่ง` : '',
+                          resourceLocationText(r),
+                        ]
                           .filter(Boolean)
                           .join(' • ')}
                         trailing={formatPrice(r.unit_price) || undefined}
@@ -1280,12 +1343,24 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                       display: 'grid',
                       placeItems: 'center',
                       fontSize: 19,
+                      overflow: 'hidden',
                       bgcolor: 'background.paper',
                       border: 1,
                       borderColor: 'divider',
                     }}
                   >
-                    {selectedService ? serviceMeta(selectedService).icon : '📌'}
+                    {selectedResource?.image_urls?.[0] || selectedService?.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={selectedResource?.image_urls?.[0] || selectedService?.image_url || ''}
+                        alt=""
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      />
+                    ) : selectedService ? (
+                      serviceMeta(selectedService).icon
+                    ) : (
+                      '📌'
+                    )}
                   </Box>
                   <Box sx={{ minWidth: 0, flex: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>{selectedService?.service_name ?? '-'}</Typography>
@@ -1476,6 +1551,51 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
           </LiffSection>
         </>
       )}
+
+      <LiffGalleryDialog
+        open={Boolean(galleryResource)}
+        onClose={() => setGalleryResourceId('')}
+        title={galleryResource ? resourceDisplayName(galleryResource) : ''}
+        subtitle={galleryResource ? resourceLocationText(galleryResource) : undefined}
+        description={galleryResource?.description}
+        images={galleryResource?.image_urls ?? []}
+        actions={
+          galleryResource ? (
+            <Stack direction="row" spacing={1}>
+              {selectedBranch?.layout_image_url ? (
+                <Button
+                  variant="outlined"
+                  color="inherit"
+                  fullWidth
+                  startIcon={<MapRoundedIcon />}
+                  onClick={() => {
+                    setGalleryResourceId('');
+                    setLayoutOpen(true);
+                  }}
+                >
+                  ดูผัง
+                </Button>
+              ) : null}
+              <Button
+                variant="contained"
+                fullWidth
+                onClick={() => {
+                  setSelectedResourceId(galleryResource.id);
+                  setGalleryResourceId('');
+                }}
+              >
+                เลือก{resourceTypeLabel(galleryResource.resource_type)}นี้
+              </Button>
+            </Stack>
+          ) : undefined
+        }
+      />
+      <LiffGalleryDialog
+        open={layoutOpen && Boolean(selectedBranch?.layout_image_url)}
+        onClose={() => setLayoutOpen(false)}
+        title={`ผัง${selectedBranch?.branch_name ? ` • ${selectedBranch.branch_name}` : ''}`}
+        images={selectedBranch?.layout_image_url ? [selectedBranch.layout_image_url] : []}
+      />
     </LiffShell>
   );
 }

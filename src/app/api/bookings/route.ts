@@ -7,6 +7,7 @@ import { pushMessage } from '@/lib/line/client';
 import { bookingConfirmFlex } from '@/lib/line/messages';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 import { subscriptionErrorResponse } from '@/lib/subscription/response';
+import { monthBounds } from '@/lib/subscription/usage';
 import { safeCreateNotification } from '@/lib/notifications/createNotification';
 import { resolvePaymentForBooking } from '@/lib/payments/resolve';
 import { detectOmisePlatform } from '@/lib/payments/mobile-banking/banks';
@@ -99,15 +100,20 @@ export async function POST(req: Request) {
 
     const payload = parsed.data;
     assertBranchAllowed(branchScope, payload.branch_id);
-    const monthStart = `${payload.booking_date.slice(0, 7)}-01`;
-    const monthEnd = `${payload.booking_date.slice(0, 7)}-31`;
-    const { count: monthlyCount } = await supabase
+    const bounds = monthBounds(payload.booking_date);
+    if (!bounds) return NextResponse.json({ error: 'ข้อมูลไม่ถูกต้อง: booking_date' }, { status: 400 });
+    const { count: monthlyCount, error: monthlyError } = await supabase
       .from('bookings')
       .select('id', { count: 'exact', head: true })
       .eq('shop_id', profile.shop_id)
       .eq('is_deleted', false)
-      .gte('booking_date', monthStart)
-      .lte('booking_date', monthEnd);
+      .gte('booking_date', bounds.from)
+      .lte('booking_date', bounds.to);
+    // A failed count must not read as "0 used" — that silently disables the quota.
+    if (monthlyError) {
+      console.error('[bookings] monthly quota count failed', monthlyError.message);
+      return NextResponse.json({ error: 'ไม่สามารถตรวจสอบโควต้าการจองได้ กรุณาลองใหม่อีกครั้ง' }, { status: 500 });
+    }
     await assertFeatureQuota(profile.shop_id, 'bookings', monthlyCount ?? 0);
 
     const { count, error: countError } = await supabase

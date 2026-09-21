@@ -30,6 +30,7 @@ import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import PaymentsRoundedIcon from '@mui/icons-material/PaymentsRounded';
 import { useToast } from '@/components/ui/toast';
+import { ImageUploader } from '@/components/forms/image-uploader';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade-provider';
 import { BookingModeChip } from '@/components/shared/booking-mode-chip';
@@ -117,6 +118,8 @@ export function ServicesCrud() {
   const [capacity, setCapacity] = useState('1');
   const [price, setPrice] = useState('0');
   const [active, setActive] = useState(true);
+  /** Cover photo shown on the LIFF service card; '' = none. */
+  const [imageUrl, setImageUrl] = useState('');
   const [requiresApproval, setRequiresApproval] = useState(false);
   const [allowWalkIn, setAllowWalkIn] = useState(false);
   /** Shop-wide display flag, not part of the per-service form. Default on. */
@@ -252,6 +255,7 @@ export function ServicesCrud() {
     setCapacity('1');
     setPrice('0');
     setActive(true);
+    setImageUrl('');
     setRequiresApproval(false);
     setAllowWalkIn(false);
   }
@@ -273,6 +277,7 @@ export function ServicesCrud() {
     setCapacity(String(row.capacity_per_slot ?? 1));
     setPrice(String(row.price ?? 0));
     setActive(Boolean(row.active));
+    setImageUrl(typeof row.image_url === 'string' ? row.image_url : '');
     setRequiresApproval(Boolean(row.requires_approval));
     setAllowWalkIn(Boolean(row.allow_walk_in));
     setDrawerOpen(true);
@@ -317,6 +322,7 @@ export function ServicesCrud() {
       requires_approval: bookingMode === 'request_approval' ? true : requiresApproval,
       allow_walk_in: bookingMode === 'walk_in' ? true : allowWalkIn,
       active,
+      image_url: imageUrl || null,
     };
     const res = await fetch('/api/services', {
       method: editingId ? 'PATCH' : 'POST',
@@ -577,6 +583,15 @@ export function ServicesCrud() {
             <Grid size={{ xs: 12, sm: 6 }}><FormControlLabel control={<Switch checked={active} onChange={(e: ChangeEvent<HTMLInputElement>) => setActive(e.target.checked)} />} label="Active" /></Grid>
             <Grid size={{ xs: 12, sm: 6 }}><FormControlLabel control={<Switch checked={requiresApproval} onChange={(e: ChangeEvent<HTMLInputElement>) => setRequiresApproval(e.target.checked)} />} label="Require Staff Confirm" /></Grid>
             <Grid size={{ xs: 12, sm: 6 }}><FormControlLabel control={<Switch checked={allowWalkIn} onChange={(e: ChangeEvent<HTMLInputElement>) => setAllowWalkIn(e.target.checked)} />} label="Allow Walk-in" /></Grid>
+            <Grid size={12}>
+              <ImageUploader
+                kind="services"
+                value={imageUrl ? [imageUrl] : []}
+                onChange={(next) => setImageUrl(next[0] ?? '')}
+                label="รูปปกบริการ"
+                hint="ลูกค้าเห็นรูปนี้ตอนเลือกบริการใน LINE"
+              />
+            </Grid>
           </Grid>
           {/* Phones: two equal 44px buttons; sm+: natural widths as before. */}
           <Stack direction="row" spacing={1} mt={3}>

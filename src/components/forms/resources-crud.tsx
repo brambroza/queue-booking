@@ -15,6 +15,8 @@ import { MobileCardList } from '@/components/ui/responsive-table';
 import { MobileRecordCard } from '@/components/ui/mobile-record-card';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { RESOURCE_TYPES, resourceTypeIcon, resourceTypeLabel, type ResourceType } from '@/lib/booking/resource-types';
+import { ImageUploader } from '@/components/forms/image-uploader';
+import { RESOURCE_IMAGE_MAX } from '@/lib/storage/shop-assets';
 
 type Branch = { id: string; branch_name: string };
 type Service = { id: string; service_name: string; active?: boolean };
@@ -32,6 +34,8 @@ type Resource = {
   active: boolean;
   /** Services this resource serves; empty / null = every service. */
   service_ids?: string[] | null;
+  /** Photos shown to the customer, first = cover. */
+  image_urls?: string[] | null;
   branches?: { branch_name?: string } | null;
 };
 
@@ -72,6 +76,7 @@ export function ResourcesCrud() {
   const [services, setServices] = useState<Service[]>([]);
   const [linkedServiceIds, setLinkedServiceIds] = useState<string[]>([]);
   const [bulkServiceIds, setBulkServiceIds] = useState<string[]>([]);
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [editing, setEditing] = useState<Resource | null>(null);
@@ -91,12 +96,14 @@ export function ResourcesCrud() {
   function openCreateDrawer() {
     setEditing(null);
     setLinkedServiceIds([]);
+    setImageUrls([]);
     setDrawerOpen(true);
   }
 
   function openEditDrawer(row: Resource) {
     setEditing(row);
     setLinkedServiceIds(row.service_ids ?? []);
+    setImageUrls(row.image_urls ?? []);
     setDrawerOpen(true);
   }
 
@@ -157,6 +164,7 @@ export function ResourcesCrud() {
       description: String(fd.get('description') || '') || null,
       active: fd.get('active') === 'on',
       service_ids: linkedServiceIds,
+      image_urls: imageUrls,
     };
 
     const isEdit = Boolean(editing);
@@ -285,6 +293,7 @@ export function ResourcesCrud() {
                   <>
                     <Chip size="small" variant="outlined" color="primary" label={`${resourceTypeIcon(r.resource_type)} ${resourceTypeLabel(r.resource_type)}`} />
                     {r.zone ? <Chip size="small" variant="outlined" icon={<PlaceRoundedIcon />} label={r.zone} /> : null}
+                    {(r.image_urls?.length ?? 0) > 0 ? <Chip size="small" variant="outlined" label={`🖼️ ${r.image_urls?.length} รูป`} /> : null}
                   </>
                 }
                 note={
@@ -324,7 +333,15 @@ export function ResourcesCrud() {
               {pagedRows.map((r) => (
                 <tr key={r.id} className="border-t border-slate-100">
                   <td className="px-2 py-2">{r.resource_code ?? '-'}</td>
-                  <td className="px-2 py-2">{r.resource_name}</td>
+                  <td className="px-2 py-2">
+                    <div className="flex items-center gap-2">
+                      {r.image_urls?.[0] ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={r.image_urls[0]} alt="" className="h-9 w-9 shrink-0 rounded-lg border border-slate-200 object-cover" />
+                      ) : null}
+                      <span>{r.resource_name}</span>
+                    </div>
+                  </td>
                   <td className="px-2 py-2">{resourceTypeLabel(r.resource_type)}</td>
                   <td className="px-2 py-2">{r.branches?.branch_name ?? '-'}</td>
                   <td className="px-2 py-2">{r.capacity}</td>
@@ -424,12 +441,20 @@ export function ResourcesCrud() {
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-600">โซน (Zone)</label>
-                <input className="input" name="zone" placeholder="เช่น Indoor, Outdoor, VIP" defaultValue={editing?.zone ?? ''} />
+                <input className="input" name="zone" placeholder="เช่น Indoor, Outdoor, ฝั่งลานจอดรถ" defaultValue={editing?.zone ?? ''} />
               </div>
               <div className="space-y-1 sm:col-span-2">
-                <label className="text-xs font-medium text-slate-600">รายละเอียดเพิ่มเติม</label>
-                <input className="input" name="description" placeholder="รายละเอียดทรัพยากร (ถ้ามี)" defaultValue={editing?.description ?? ''} />
+                <label className="text-xs font-medium text-slate-600">รายละเอียด / จุดสังเกต (ลูกค้าเห็นตอนจอง)</label>
+                <input className="input" name="description" maxLength={500} placeholder="เช่น สนามริมสุด ติดห้องน้ำ พื้นยางใหม่" defaultValue={editing?.description ?? ''} />
               </div>
+              <ImageUploader
+                kind="resources"
+                max={RESOURCE_IMAGE_MAX}
+                value={imageUrls}
+                onChange={setImageUrls}
+                label={`รูปภาพ (สูงสุด ${RESOURCE_IMAGE_MAX} รูป)`}
+                hint="ลูกค้าเห็นรูปตอนเลือกจอง ช่วยให้จำสนาม/ห้องที่ชอบได้ • รูปแรกเป็นรูปปก"
+              />
               <ServiceLinkPicker
                 services={services}
                 selected={linkedServiceIds}

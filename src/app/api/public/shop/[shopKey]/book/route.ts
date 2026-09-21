@@ -5,6 +5,7 @@ import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { pushMessage } from '@/lib/line/client';
 import { bookingConfirmFlex } from '@/lib/line/messages';
 import { assertFeatureQuota, SubscriptionInactiveError, SubscriptionQuotaError } from '@/lib/subscription/enforcement';
+import { monthBounds } from '@/lib/subscription/usage';
 import { createNotification, safeCreateNotification } from '@/lib/notifications/createNotification';
 import { resolvePaymentForBooking, type PaymentBankInfo, type PaymentDeeplinkInfo } from '@/lib/payments/resolve';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
@@ -88,15 +89,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     return NextResponse.json({ error: SLOT_PAST_MESSAGE, code: SLOT_PAST_CODE }, { status: 400 });
   }
 
-  const monthStart = `${payload.booking_date.slice(0, 7)}-01`;
-  const monthEnd = `${payload.booking_date.slice(0, 7)}-31`;
-  const { count: monthlyCount } = await admin
+  const bounds = monthBounds(payload.booking_date);
+  if (!bounds) return NextResponse.json({ error: invalidFieldMessage('booking_date') }, { status: 400 });
+  const { count: monthlyCount, error: monthlyError } = await admin
     .from('bookings')
     .select('id', { count: 'exact', head: true })
     .eq('shop_id', shop.id)
     .eq('is_deleted', false)
-    .gte('booking_date', monthStart)
-    .lte('booking_date', monthEnd);
+    .gte('booking_date', bounds.from)
+    .lte('booking_date', bounds.to);
+  // A failed count must not read as "0 used" — that silently disables the quota.
+  if (monthlyError) {
+    console.error('[public/book] monthly quota count failed', monthlyError.message);
+    return NextResponse.json({ error: 'ขออภัย ระบบไม่สามารถรับการจองได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง' }, { status: 500 });
+  }
 
   // The quota belongs to the shop, not to the person booking. Never surface a
   // plan error (or an unhandled 500) to an end customer on the LIFF screen —

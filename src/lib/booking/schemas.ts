@@ -1,6 +1,16 @@
 import { z } from 'zod';
 import { BANK_CODES, PAYMENT_METHODS } from '@/types/db';
 import { NICKNAME_MAX } from '@/lib/booking/customer-label';
+import { RESOURCE_TYPES } from '@/lib/booking/resource-types';
+import { RESOURCE_IMAGE_MAX } from '@/lib/storage/shop-assets';
+
+/** A stored photo URL. Ownership (own shop-assets prefix) is checked in the route. */
+const imageUrlSchema = z.string().trim().url().max(500);
+/** Single optional photo; forms send '' for "none". */
+const optionalImageUrlSchema = z.preprocess(
+  (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
+  imageUrlSchema.optional().nullable(),
+);
 
 export const branchSchema = z.object({
   branch_name: z.string().min(2),
@@ -10,6 +20,8 @@ export const branchSchema = z.object({
   close_time: z.string(),
   max_parallel_queues: z.coerce.number().int().min(1).max(100),
   active: z.coerce.boolean().default(true),
+  /** Venue map shown to customers so they can see where each court / room sits. */
+  layout_image_url: optionalImageUrlSchema,
 });
 
 export const serviceSchema = z.object({
@@ -23,6 +35,8 @@ export const serviceSchema = z.object({
   allow_walk_in: z.coerce.boolean().default(false),
   price: z.coerce.number().nonnegative(),
   active: z.coerce.boolean().default(true),
+  /** Cover photo shown on the LIFF service card. */
+  image_url: optionalImageUrlSchema,
 });
 
 export const workingHourSchema = z.object({
@@ -65,7 +79,7 @@ export const bookingSchema = z.object({
 });
 
 export const bookingResourceSchema = z.object({
-  resource_type: z.enum(['table', 'buffet_zone', 'meeting_room', 'counter', 'service_area', 'trainer']),
+  resource_type: z.enum(RESOURCE_TYPES),
   resource_code: z.string().trim().min(1).max(40).optional().nullable(),
   resource_name: z.string().trim().min(1).max(120),
   capacity: z.coerce.number().int().min(1).max(1000).default(1),
@@ -76,12 +90,14 @@ export const bookingResourceSchema = z.object({
   active: z.coerce.boolean().default(true),
   /** Services this resource serves; empty / omitted = every service. */
   service_ids: z.array(z.string().uuid()).max(200).optional().nullable(),
+  /** Photos of the resource, first = cover. */
+  image_urls: z.array(imageUrlSchema).max(RESOURCE_IMAGE_MAX).optional().nullable(),
 });
 
 export const bookingResourceBulkSchema = z.object({
   /** Services every generated resource serves; empty / omitted = every service. */
   service_ids: z.array(z.string().uuid()).max(200).optional().nullable(),
-  resource_type: z.enum(['table', 'buffet_zone', 'meeting_room', 'counter', 'service_area', 'trainer']),
+  resource_type: z.enum(RESOURCE_TYPES),
   branch_id: z.string().uuid().optional().nullable(),
   floor: z.string().trim().max(50).optional().nullable(),
   zone: z.string().trim().max(80).optional().nullable(),

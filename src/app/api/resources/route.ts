@@ -5,6 +5,7 @@ import { bookingResourceSchema } from '@/lib/booking/schemas';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 import { subscriptionErrorResponse } from '@/lib/subscription/response';
 import { writeAuditLog } from '@/lib/audit/activity-log';
+import { findForeignAssetUrl, removeDetachedShopAssets } from '@/lib/storage/shop-assets-server';
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
@@ -107,6 +108,11 @@ export async function POST(req: Request) {
       );
     }
 
+    const imageUrls = Array.from(new Set(parsed.data.image_urls ?? []));
+    if (findForeignAssetUrl(imageUrls, profile.shop_id)) {
+      return NextResponse.json({ error: 'รูปภาพไม่ถูกต้อง กรุณาอัปโหลดใหม่' }, { status: 400 });
+    }
+
     const { count: resourceCount } = await supabase
       .from('booking_resources')
       .select('id', { count: 'exact', head: true })
@@ -144,6 +150,7 @@ export async function POST(req: Request) {
       description: parsed.data.description || null,
       active: parsed.data.active,
       service_ids: serviceLink.value,
+      image_urls: imageUrls,
       created_by: user.id,
       updated_by: user.id,
     });
@@ -189,12 +196,18 @@ export async function PATCH(req: Request) {
       );
     }
 
+    const imageUrls = Array.from(new Set(parsed.data.image_urls ?? []));
+    if (findForeignAssetUrl(imageUrls, profile.shop_id)) {
+      return NextResponse.json({ error: 'รูปภาพไม่ถูกต้อง กรุณาอัปโหลดใหม่' }, { status: 400 });
+    }
+
+    const hasImages = 'image_urls' in body;
     const branchId = typeof body.branch_id === 'string' && body.branch_id.trim() ? body.branch_id : null;
     // Both the branch the resource is moving to and the one it currently sits in.
     assertBranchWritable(branchScope, branchId);
     const { data: currentResource } = await supabase
       .from('booking_resources')
-      .select('branch_id')
+      .select('branch_id,image_urls')
       .eq('id', id)
       .eq('shop_id', profile.shop_id)
       .maybeSingle();
@@ -228,6 +241,8 @@ export async function PATCH(req: Request) {
         description: parsed.data.description || null,
         active: parsed.data.active,
         service_ids: serviceLink.value,
+        // Absent key = caller does not manage photos; leave them alone.
+        ...(hasImages ? { image_urls: imageUrls } : {}),
         updated_by: user.id,
       })
       .eq('id', id)
@@ -242,6 +257,7 @@ export async function PATCH(req: Request) {
       }
       throw error;
     }
+    if (hasImages) await removeDetachedShopAssets((currentResource.image_urls as string[] | null) ?? [], imageUrls, profile.shop_id);
     await writeAuditLog({
       companyId: profile.company_id,
       shopId: profile.shop_id,

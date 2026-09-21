@@ -1,3 +1,4 @@
+import { endOfMonth, parseISODate, startOfMonth, toISODate } from '@/lib/dashboard/date-range';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getTodayISOInBangkok } from '@/lib/utils/date-format';
 
@@ -11,6 +12,27 @@ export type ShopUsage = {
 };
 
 /**
+ * First and last calendar day of the month containing `iso`, as the inclusive
+ * `booking_date` range for the monthly booking quota.
+ *
+ * A literal `-31` upper bound is not a valid date in a 30-day month or February,
+ * which makes Postgres reject the whole query — always derive the real last day.
+ *
+ * @param iso - Any yyyy-mm-dd date inside the month.
+ * @returns The bounds, or `null` when `iso` is not a real calendar date — callers
+ *   on request paths pass unvalidated client input and must answer 400, not throw.
+ */
+export function monthBounds(iso: string): { from: string; to: string } | null {
+  try {
+    // Round-trip so an impossible day ("2026-02-30") is rejected rather than rolled over.
+    if (toISODate(parseISODate(iso)) !== iso) return null;
+    return { from: startOfMonth(iso), to: endOfMonth(iso) };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Counts what the shop is currently consuming, so the UI can show
  * "3 / 3 บริการ" instead of only telling the owner after they hit the wall.
  *
@@ -21,31 +43,34 @@ export type ShopUsage = {
  */
 export async function countShopUsage(shopId: string): Promise<ShopUsage> {
   const admin = createAdminClient();
-  const now = new Date();
-  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const today = getTodayISOInBangkok();
+  // `today` is always a real date; the fallback only keeps the type non-null.
+  const { from, to } = monthBounds(today) ?? { from: today, to: today };
 
   const countTable = async (table: string) => {
-    const { count } = await admin
+    const { count, error } = await admin
       .from(table)
       .select('id', { count: 'exact', head: true })
       .eq('shop_id', shopId)
       .eq('is_deleted', false);
+    if (error) console.error(`[subscription/usage] count ${table} failed`, error.message);
     return count ?? 0;
   };
 
-  const { count: bookingCount } = await admin
+  const { count: bookingCount, error: bookingError } = await admin
     .from('bookings')
     .select('id', { count: 'exact', head: true })
     .eq('shop_id', shopId)
     .eq('is_deleted', false)
-    .gte('booking_date', `${month}-01`)
-    .lte('booking_date', `${month}-31`);
+    .gte('booking_date', from)
+    .lte('booking_date', to);
+  if (bookingError) console.error('[subscription/usage] count bookings failed', bookingError.message);
 
   const [branches, services, staff, resources] = await Promise.all([
     countTable('branches'),
     countTable('services'),
     countTable('staff'),
-    countTable('resources'),
+    countTable('booking_resources'),
   ]);
 
   return { branches, services, staff, resources, bookings: bookingCount ?? 0 };

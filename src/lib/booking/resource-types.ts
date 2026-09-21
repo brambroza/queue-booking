@@ -6,7 +6,7 @@
  * A resource is whatever serves the customer — a table, a room, or a person
  * (`trainer`), so the labels have to read naturally in both worlds.
  */
-export const RESOURCE_TYPES = ['table', 'buffet_zone', 'meeting_room', 'counter', 'service_area', 'trainer'] as const;
+export const RESOURCE_TYPES = ['table', 'buffet_zone', 'meeting_room', 'counter', 'service_area', 'court', 'trainer'] as const;
 
 export type ResourceType = (typeof RESOURCE_TYPES)[number];
 
@@ -16,6 +16,7 @@ const RESOURCE_TYPE_LABELS: Record<ResourceType, string> = {
   meeting_room: 'ห้องประชุม',
   counter: 'เคาน์เตอร์',
   service_area: 'พื้นที่บริการ',
+  court: 'สนาม',
   trainer: 'เทรนเนอร์',
 };
 
@@ -25,6 +26,7 @@ const RESOURCE_TYPE_ICONS: Record<ResourceType, string> = {
   meeting_room: '🏢',
   counter: '🧾',
   service_area: '📍',
+  court: '🏟️',
   trainer: '🏋️',
 };
 

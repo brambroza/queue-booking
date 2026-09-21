@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { applyBranchScope, assertBranchAllowed } from '@/lib/auth/branch-scope';
 import { branchSchema } from '@/lib/booking/schemas';
+import { findForeignAssetUrl, removeDetachedShopAssets } from '@/lib/storage/shop-assets-server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 import { subscriptionErrorResponse } from '@/lib/subscription/response';
@@ -121,6 +122,9 @@ export async function POST(req: Request) {
     }
 
     const payload = parsed.data;
+    if (findForeignAssetUrl([payload.layout_image_url], targetShopId)) {
+      return NextResponse.json({ error: 'รูปภาพไม่ถูกต้อง กรุณาอัปโหลดใหม่' }, { status: 400 });
+    }
     const { count: branchCount } = await createAdminClient()
       .from('branches')
       .select('id', { count: 'exact', head: true })
@@ -138,6 +142,7 @@ export async function POST(req: Request) {
       close_time: payload.close_time,
       max_parallel_queues: payload.max_parallel_queues,
       active: payload.active,
+      layout_image_url: payload.layout_image_url ?? null,
       created_by: user.id,
       updated_by: user.id,
     };
@@ -178,6 +183,17 @@ export async function PATCH(req: Request) {
     const parsed = branchSchema.safeParse(body);
     if (!id || !parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
     assertBranchAllowed(branchScope, id);
+    if (findForeignAssetUrl([parsed.data.layout_image_url], profile.shop_id)) {
+      return NextResponse.json({ error: 'รูปภาพไม่ถูกต้อง กรุณาอัปโหลดใหม่' }, { status: 400 });
+    }
+
+    const hasImage = 'layout_image_url' in body;
+    const { data: current } = await supabase
+      .from('branches')
+      .select('layout_image_url')
+      .eq('id', id)
+      .eq('shop_id', profile.shop_id)
+      .maybeSingle();
 
     const { error } = await supabase
       .from('branches')
@@ -189,12 +205,15 @@ export async function PATCH(req: Request) {
         close_time: parsed.data.close_time,
         max_parallel_queues: parsed.data.max_parallel_queues,
         active: parsed.data.active,
+        // Absent key = caller does not manage the venue map; leave it alone.
+        ...(hasImage ? { layout_image_url: parsed.data.layout_image_url ?? null } : {}),
         updated_by: user.id,
       })
       .eq('id', id)
       .eq('shop_id', profile.shop_id);
 
     if (error) throw error;
+    if (hasImage) await removeDetachedShopAssets([current?.layout_image_url], [parsed.data.layout_image_url], profile.shop_id);
     await writeAuditLog({
       companyId: profile.company_id,
       shopId: profile.shop_id,

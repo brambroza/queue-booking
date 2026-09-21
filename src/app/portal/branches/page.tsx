@@ -16,6 +16,13 @@ export default function BranchesPage() {
           { key: 'close_time', label: 'เวลาปิด', type: 'time' },
           { key: 'max_parallel_queues', label: 'จำนวนคิวพร้อมกัน', type: 'number' },
           { key: 'active', label: 'เปิดใช้งาน', type: 'checkbox' },
+          {
+            key: 'layout_image_url',
+            label: 'รูปผังสนาม / ผังร้าน',
+            type: 'image',
+            imageKind: 'branches',
+            hint: 'ลูกค้ากดดูได้ตอนเลือกสนาม/ห้อง เพื่อดูว่าแต่ละจุดอยู่ตรงไหน',
+          },
         ]}
       />
     </PageShell>
