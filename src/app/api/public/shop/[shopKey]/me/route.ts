@@ -56,6 +56,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     .limit(3);
 
   let customer = (existingCustomers ?? [])[0] ?? null;
+  // True when this call created the shop's customer record for the LINE user,
+  // so the LIFF page can greet a first-time member.
+  let wasRegistered = false;
 
   if (customer) {
     customerId = customer.id;
@@ -101,6 +104,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     }
     customer = created;
     customerId = created.id;
+    wasRegistered = true;
   }
 
   const { data: bookings } = await admin
@@ -129,6 +133,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       line_user: lineUser,
       customer,
       customer_id: customerId,
+      was_registered: wasRegistered,
       /** Bangkok date, so the LIFF check-in button and the API agree on "today". */
       today: nowDate,
       upcoming,

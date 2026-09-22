@@ -170,6 +170,18 @@ const PENDING_PAYMENT_TTL_MS = 48 * 3600 * 1000;
 type ServiceKind = 'barber' | 'nail' | 'clinic' | 'buffet' | 'meeting' | 'default';
 type ServiceCardMeta = { icon: string; subtitle: string };
 
+type LiffProfile = { userId: string; displayName: string; pictureUrl?: string };
+
+/** What `/api/public/shop/[shopKey]/me` returns under `data`. */
+type MePayload = {
+  customer?: { id: string; full_name?: string | null; phone?: string | null; nickname?: string | null } | null;
+  /** True when this call created the customer record — first visit to the shop. */
+  was_registered?: boolean;
+  today?: string;
+  upcoming?: MyBooking[];
+  history?: MyBooking[];
+};
+
 type LiffApi = {
   init: (x: { liffId: string }) => Promise<void>;
   isLoggedIn: () => boolean;
@@ -180,7 +192,7 @@ type LiffApi = {
   openWindow?: (params: { url: string; external?: boolean }) => void;
   getOS?: () => 'ios' | 'android' | 'web';
   sendMessages?: (messages: object[]) => Promise<void>;
-  getProfile: () => Promise<{ userId: string; displayName: string; pictureUrl?: string }>;
+  getProfile: () => Promise<LiffProfile>;
   getIDToken?: () => string | null;
 };
 
@@ -402,16 +414,23 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
           ? 'กรุณากรอกเบอร์โทรให้ครบ'
           : '';
 
-  async function loadMe(opts?: { mode?: 'view' | 'update' }) {
-    if (!lineUserId) return;
+  /**
+   * Fetch (or save) the customer's record and queues. `profile` lets the LIFF
+   * init call this straight after `liff.getProfile()`, before the ids have
+   * landed in state — otherwise the call reads the ids from state.
+   * @returns The `/me` payload, or `null` when the request failed (already toasted).
+   */
+  async function loadMe(opts?: { mode?: 'view' | 'update'; profile?: LiffProfile }): Promise<MePayload | null> {
+    const userId = opts?.profile?.userId ?? lineUserId;
+    if (!userId) return null;
     setAccountLoading(true);
     const res = await fetch(`/api/public/shop/${shopKey}/me`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        line_user_id: lineUserId,
-        display_name: displayName || undefined,
-        picture_url: pictureUrl || undefined,
+        line_user_id: userId,
+        display_name: (opts?.profile?.displayName ?? displayName) || undefined,
+        picture_url: (opts?.profile?.pictureUrl ?? pictureUrl) || undefined,
         full_name: customerName || undefined,
         phone: customerPhone || undefined,
         // Sent only on save: '' means the customer cleared it on purpose.
@@ -421,7 +440,10 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     });
     const json = await res.json();
     setAccountLoading(false);
-    if (!res.ok) return push(json.error ?? 'โหลดข้อมูลสมาชิกไม่สำเร็จ', 'error');
+    if (!res.ok) {
+      push(json.error ?? 'โหลดข้อมูลสมาชิกไม่สำเร็จ', 'error');
+      return null;
+    }
     // A plain view must never overwrite what the customer is typing — this runs
     // after booking and on the account tab, so a late response would otherwise
     // clobber the form. On an explicit save the server's copy is the truth.
@@ -438,6 +460,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     setUpcoming(json.data?.upcoming ?? []);
     setHistory(json.data?.history ?? []);
     if (typeof json.data?.today === 'string') setTodayIso(json.data.today);
+    return (json.data ?? null) as MePayload | null;
   }
 
   useEffect(() => {
@@ -524,38 +547,24 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         setLineUserId(profile.userId);
         setDisplayName(profile.displayName);
         setPictureUrl(profile.pictureUrl ?? '');
-        setCustomerName((prev) => (prev.trim() ? prev : profile.displayName));
 
-        const memberRes = await fetch(`/api/public/shop/${shopKey}/member-context`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            line_user_id: profile.userId,
-            display_name: profile.displayName,
-            picture_url: profile.pictureUrl,
-          }),
-        });
-
-        const memberJson = await memberRes.json();
-        if (!memberRes.ok) {
-          push(memberJson.error ?? 'ตรวจสอบสมาชิกไม่สำเร็จ', 'error');
+        // One round trip registers the member and brings back their record and
+        // queues. It used to be member-context followed by /me, which wrote the
+        // LINE user twice and repainted the form and queue list twice.
+        const me = await loadMe({ profile });
+        if (!me) {
           setMemberStatus('error');
-          setMemberError(memberJson.error ?? 'ตรวจสอบสมาชิกไม่สำเร็จ');
+          setMemberError('ตรวจสอบสมาชิกไม่สำเร็จ');
           return;
         }
 
-        // Prefill only into empty fields. The shop's stored copy can be worse
-        // than what the customer just typed (a one-character LINE name, a phone
-        // that was never filled in), and overwriting it left them unable to fix
-        // either one.
-        const member = memberJson.data?.customer;
-        if (member?.full_name) setCustomerName((prev) => (prev.trim() ? prev : member.full_name));
-        if (member?.phone) setCustomerPhone((prev) => (prev.trim() ? prev : member.phone));
-        if (member?.nickname) setCustomerNickname((prev) => (prev.trim() ? prev : member.nickname));
-        if (memberJson.data?.was_registered) push('สมัครสมาชิกกับร้านสำเร็จแล้ว กรุณายืนยันข้อมูลก่อนจองคิว', 'success');
+        // Prefill only into an empty name: what the customer already typed
+        // wins, then the name they saved with the shop, then the LINE name.
+        // Phone and nickname are prefilled by loadMe under the same rule.
+        setCustomerName((prev) => (prev.trim() ? prev : me.customer?.full_name || profile.displayName));
+        if (me.was_registered) push('สมัครสมาชิกกับร้านสำเร็จแล้ว กรุณายืนยันข้อมูลก่อนจองคิว', 'success');
         setMemberReady(true);
         setMemberStatus('ready');
-        void loadMe();
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'LIFF init failed';
         push(msg, 'error');
@@ -564,17 +573,11 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       }
     })();
     // customerName must stay out of this list: with it, every keystroke in the
-    // name field re-ran LIFF init and member-context, and the late response
-    // overwrote what was being typed — including after the customer had already
-    // moved to step 2, where the name field is not on screen.
+    // name field re-ran LIFF init and /me, and the late response overwrote
+    // what was being typed — including after the customer had already moved
+    // to step 2, where the name field is not on screen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shop, push, shopKey, initialTab]);
-
-  useEffect(() => {
-    if (!lineUserId || memberStatus !== 'ready') return;
-    void loadMe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lineUserId, memberStatus]);
 
   function retryMemberCheck() {
     setMemberReady(false);
