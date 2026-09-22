@@ -116,15 +116,6 @@ export async function POST(req: Request) {
     }
     await assertFeatureQuota(profile.shop_id, 'bookings', monthlyCount ?? 0);
 
-    const { count, error: countError } = await supabase
-      .from('bookings')
-      .select('id', { count: 'exact', head: true })
-      .eq('shop_id', profile.shop_id)
-      .eq('branch_id', payload.branch_id)
-      .eq('booking_date', payload.booking_date);
-
-    if (countError) throw countError;
-    const queueNumber = `A${String((count ?? 0) + 1).padStart(3, '0')}`;
     const partySize = payload.party_size ?? null;
     const lineUserPk = payload.line_user_pk ?? null;
 
@@ -264,7 +255,7 @@ export async function POST(req: Request) {
         booking_date: payload.booking_date,
         start_time: payload.start_time,
         end_time: endTime,
-        queue_number: queueNumber,
+        // queue_number is issued by the assign_queue_number trigger (202609220001).
         status: payload.status,
         party_size: partySize,
         resource_id: assignedResource?.resource_id ?? null,
@@ -274,10 +265,11 @@ export async function POST(req: Request) {
         created_by: user.id,
         updated_by: user.id,
       })
-      .select('id')
+      .select('id,queue_number')
       .single();
 
     if (error || !inserted) throw error ?? new Error('Create booking failed');
+    const queueNumber = String(inserted.queue_number);
 
     await supabase.from('booking_logs').insert({
       company_id: profile.company_id,

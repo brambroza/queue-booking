@@ -138,15 +138,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     return NextResponse.json({ error: 'Invalid branch or service for this shop' }, { status: 400 });
   }
 
-  const { count } = await admin
-    .from('bookings')
-    .select('id', { count: 'exact', head: true })
-    .eq('shop_id', shop.id)
-    .eq('branch_id', payload.branch_id)
-    .eq('booking_date', payload.booking_date);
-
-  const queueNumber = `A${String((count ?? 0) + 1).padStart(3, '0')}`;
-
   let lineUserPk: string | null = null;
   if (payload.line_user_id) {
     const { data: lineUser } = await admin
@@ -299,7 +290,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     booking_date: payload.booking_date,
     start_time: payload.start_time,
     end_time: endTime,
-    queue_number: queueNumber,
+    // queue_number is issued by the assign_queue_number trigger (202609220001).
     status: initialStatus,
     party_size: partySize,
     resource_id: assignedResource?.resource_id ?? null,
@@ -308,6 +299,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   }).select('id,queue_number').single();
 
   if (error || !booking) return NextResponse.json({ error: error?.message ?? 'Create booking failed' }, { status: 400 });
+  const queueNumber = String(booking.queue_number);
 
   await admin.from('booking_logs').insert({
     company_id: shop.company_id,

@@ -303,6 +303,15 @@ await safeCreateNotification({ shopId, type: 'booking_created', ... });
 - Images render with plain `<img>` — `next.config.ts` has no `images.remotePatterns`
 - Not done: pins on the venue map, heart/favourite button, photo in LINE Flex, photos in bulk create
 
+## Queue Number
+
+เลขคิวออกโดย **DB trigger** `assign_queue_number` (migration `202609220001_queue_number_sequence.sql` — **must run before deploy**: app ไม่ส่ง `queue_number` ตอน insert แล้ว ถ้าไม่มี trigger จะพัง NOT NULL)
+- นับต่อ `shop + branch + booking_date` ทุกสถานะ (รวมยกเลิก/ลบ/demo) → เลขไม่ถูกใช้ซ้ำในวันนั้น, reset รายวันต่อสาขา
+- รูปแบบ `A001–A999 → B001 … Z999` (`format_queue_number(ordinal)`; เกิน Z999 คง `Z` เลขวิ่งต่อ) — mirror ใน TS `src/lib/booking/queue-number.ts` (`formatQueueNumber`, มี vitest) ไว้อ้างอิง ไม่ได้ใช้ออกเลขจริง
+- Race: advisory lock ต่อ (shop, branch, วัน) ใน trigger + unique index `uq_bookings_queue_number_per_day` — insert ซ้ำได้ 23505; migration มี `do` block renumber เลขซ้ำเก่าก่อนสร้าง index (แถวแรกสุดคงเลขเดิม แถวหลังได้เลขว่างถัดไปของวันนั้น)
+- Row ที่ส่ง `queue_number` มาเอง trigger ไม่แตะ (demo sandbox ใช้ prefix `D` ใน `src/lib/demo/sandbox.ts`)
+- อ่านเลขที่ DB ออกให้ผ่าน `.select('id,queue_number')` หลัง insert (`/api/bookings`, `/api/public/shop/[shopKey]/book`)
+
 ## Booking Status Flow
 
 ```
