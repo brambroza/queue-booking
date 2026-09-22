@@ -265,6 +265,8 @@ await safeCreateNotification({ shopId, type: 'booking_created', ... });
 
 `safeCreateNotification` = notification center ของ **staff** เท่านั้น ไม่ถึงลูกค้า
 
+**ลิงก์ในปุ่ม Flex / quick reply ที่ส่งหาลูกค้า** ต้องสร้างผ่าน `resolveCustomerLiffUrl` (`src/lib/line/liff-url.ts`) → `https://liff.line.me/{id}?shop_key=…&tab=account|booking` (ลำดับ ID: account = `liff_id_login_shop` → `liff_id` → env `LIFF_ID`; booking กลับกัน) — **ห้าม**ใส่ `${APP_URL}/liff/{shopKey}` ตรง ๆ เพราะ LINE เปิดใน in-app browser นอก LIFF context → `liff.isLoggedIn()` false → หน้าขึ้น "กรุณาเปิดหน้านี้ผ่าน LINE LIFF"; ร้านที่ไม่มี LIFF ID เลยจึงค่อย fallback app URL. ปุ่ม "ดูคิวของฉัน" (เรียกคิว/เตือนคิว) และ "ไม่สะดวก / ยกเลิกคิว" ใช้ `tab: 'account'`; "จองคิวใหม่" และบอทตอบ "จองคิว" ใช้ `tab: 'booking'`. Flex จองสำเร็จ ปุ่ม "ดูคิวของฉัน" ยังเป็น `message` "เช็คคิวของฉัน" (บอทตอบข้อความ) ตั้งใจคงไว้
+
 แจ้ง **ลูกค้า** ทาง LINE เมื่อร้านย้าย / เปลี่ยนคน / ยกเลิกคิว ใช้ `safeNotifyBookingChange` (`src/lib/line/notify-booking-change.ts`) — ไม่ throw, คิวที่ไม่มี LINE ได้ `{ sent: false }`
 - `moved` / `reassigned` → Flex มีปุ่ม postback `action=ack_change` → webhook เรียก `acknowledgeBookingChange` (`src/lib/booking/acknowledge-change.ts`) และ stamp `bookings.change_acknowledged_at`
 - `reassigned` ส่งเฉพาะ resource ที่เป็นคน (`isPersonResourceType`) — เปลี่ยนโต๊ะ/ห้องไม่แจ้ง

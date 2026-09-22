@@ -43,9 +43,18 @@ const booking = {
   services: { service_name: 'ตัดผม' },
 };
 
-const shop = { name: 'ร้านตัดผมดี', shop_key: 'barber', line_channel_access_token: 'tok' };
+const LIFF_ID = '2001234567-AbCdEfGh';
+const shop = { name: 'ร้านตัดผมดี', shop_key: 'barber', line_channel_access_token: 'tok', liff_id: LIFF_ID, liff_id_login_shop: null };
 
-type FlexMsg = { type: string; altText: string; contents: { header: { contents: Array<{ text: string }> }; body: { contents: Array<{ text?: string }> } } };
+type FlexMsg = {
+  type: string;
+  altText: string;
+  contents: {
+    header: { contents: Array<{ text: string }> };
+    body: { contents: Array<{ text?: string }> };
+    footer: { contents: Array<{ action: { type: string; label: string; uri?: string } }> };
+  };
+};
 
 describe('safeNotifyBookingStatus', () => {
   it('skips silently when the booking has no LINE user', async () => {
@@ -77,6 +86,36 @@ describe('safeNotifyBookingStatus', () => {
     expect(texts.some((t) => t.includes('ช่างต้น'))).toBe(true);
     expect(updates).toHaveLength(1);
     expect(updates[0].values).toHaveProperty('last_line_notify_at');
+  });
+
+  it('links "ดูคิวของฉัน" to the LIFF account tab, not the booking form', async () => {
+    const { admin } = stubAdmin({ bookings: booking, line_users: { line_user_id: 'Uabc' }, shops: shop });
+    const push = vi.fn().mockResolvedValue(undefined);
+    await safeNotifyBookingStatus({ shopId: SHOP, bookingId: BOOKING, kind: 'called', callCount: 1 }, { admin, push });
+    const [, , messages] = push.mock.calls[0] as [string, string, FlexMsg[]];
+    const myQueues = messages[0].contents.footer.contents.find((c) => c.action.label === 'ดูคิวของฉัน');
+    expect(myQueues?.action.type).toBe('uri');
+    expect(myQueues?.action.uri).toBe(`https://liff.line.me/${LIFF_ID}?shop_key=barber&tab=account`);
+  });
+
+  it('keeps the direct member link when the shop has no LIFF ID', async () => {
+    const prev = { LIFF_ID: process.env.LIFF_ID, NEXT_PUBLIC_LIFF_ID: process.env.NEXT_PUBLIC_LIFF_ID, NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL };
+    delete process.env.LIFF_ID;
+    delete process.env.NEXT_PUBLIC_LIFF_ID;
+    process.env.NEXT_PUBLIC_APP_URL = 'https://app.test';
+    try {
+      const { admin } = stubAdmin({ bookings: booking, line_users: { line_user_id: 'Uabc' }, shops: { ...shop, liff_id: null } });
+      const push = vi.fn().mockResolvedValue(undefined);
+      await safeNotifyBookingStatus({ shopId: SHOP, bookingId: BOOKING, kind: 'called', callCount: 1 }, { admin, push });
+      const [, , messages] = push.mock.calls[0] as [string, string, FlexMsg[]];
+      const myQueues = messages[0].contents.footer.contents.find((c) => c.action.label === 'ดูคิวของฉัน');
+      expect(myQueues?.action.uri).toBe('https://app.test/liff/barber/member');
+    } finally {
+      for (const [k, v] of Object.entries(prev)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
   });
 
   it('marks a repeat call in the header', async () => {

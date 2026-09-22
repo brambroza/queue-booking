@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { pushMessage } from '@/lib/line/client';
 import { bookingCancelledFlex, bookingChangedFlex } from '@/lib/line/messages';
+import { resolveCustomerLiffUrl } from '@/lib/line/liff-url';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
 import { resourceTypeLabel } from '@/lib/booking/resource-types';
 
@@ -63,7 +64,7 @@ export async function safeNotifyBookingChange(args: BookingChangeNotifyArgs, dep
 
     const [{ data: lineUser }, { data: shop }] = await Promise.all([
       admin.from('line_users').select('line_user_id').eq('id', booking.line_user_id).eq('shop_id', args.shopId).maybeSingle(),
-      admin.from('shops').select('name,shop_key,line_channel_access_token').eq('id', args.shopId).maybeSingle(),
+      admin.from('shops').select('name,shop_key,line_channel_access_token,liff_id,liff_id_login_shop').eq('id', args.shopId).maybeSingle(),
     ]);
     const externalLineId = (lineUser as { line_user_id?: string | null } | null)?.line_user_id ?? null;
     if (!externalLineId) return { sent: false, reason: 'no_line_user' };
@@ -71,10 +72,17 @@ export async function safeNotifyBookingChange(args: BookingChangeNotifyArgs, dep
     const token = (shop as { line_channel_access_token?: string | null } | null)?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
     if (!token) return { sent: false, reason: 'no_token' };
 
-    const shopName = (shop as { name?: string | null } | null)?.name ?? 'Queue Booking';
-    const shopKey = (shop as { shop_key?: string | null } | null)?.shop_key ?? null;
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
-    const liffUrl = shopKey && appUrl ? `${appUrl}/liff/${encodeURIComponent(shopKey)}` : undefined;
+    const shopRow = shop as { name?: string | null; shop_key?: string | null; liff_id?: string | null; liff_id_login_shop?: string | null } | null;
+    const shopName = shopRow?.name ?? 'Queue Booking';
+    // A cancelled queue offers "จองคิวใหม่" (booking form); a moved/reassigned one
+    // offers "ไม่สะดวก / ยกเลิกคิว", which lives on the account tab.
+    const liffUrl = resolveCustomerLiffUrl({
+      shopKey: shopRow?.shop_key,
+      liffId: shopRow?.liff_id,
+      liffIdLoginShop: shopRow?.liff_id_login_shop,
+      tab: args.kind === 'cancelled' ? 'booking' : 'account',
+      appUrl: process.env.NEXT_PUBLIC_APP_URL,
+    });
 
     const queueNumber = booking.queue_number ?? '-';
     const branch = one(booking.branches)?.branch_name ?? '-';

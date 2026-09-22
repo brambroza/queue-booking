@@ -4,6 +4,7 @@ import { parseIntent } from '@/lib/intent/rule-based';
 import { verifyLineSignature } from '@/lib/line/signature';
 import { replyMessage } from '@/lib/line/client';
 import { bookingConfirmMessage, fallbackMessage, liffEntryMessage, slotMessage } from '@/lib/line/messages';
+import { resolveCustomerLiffUrl } from '@/lib/line/liff-url';
 import { isBookingEcho } from '@/lib/line/booking-echo';
 import type { LineWebhookBody, LineWebhookEvent } from '@/lib/line/types';
 import { env } from '@/lib/utils/env';
@@ -31,13 +32,18 @@ async function getShopAndConfig(shopKey: string) {
   const admin = createAdminClient();
   const { data: shop } = await admin
     .from('shops')
-    .select('id,company_id,name,shop_key,line_channel_access_token,line_channel_secret,auto_reply_enabled')
+    .select('id,company_id,name,shop_key,line_channel_access_token,line_channel_secret,auto_reply_enabled,liff_id,liff_id_login_shop')
     .eq('shop_key', shopKey)
     .single();
   return { admin, shop };
 }
 
-async function handleTextEvent(admin: ReturnType<typeof createAdminClient>, shop: { id: string; company_id: string; shop_key: string; name: string }, event: LineWebhookEvent, token: string) {
+async function handleTextEvent(
+  admin: ReturnType<typeof createAdminClient>,
+  shop: { id: string; company_id: string; shop_key: string; name: string; liff_id?: string | null; liff_id_login_shop?: string | null },
+  event: LineWebhookEvent,
+  token: string,
+) {
   const userId = event.source?.userId;
   const replyToken = event.replyToken;
   const text = event.message?.text ?? '';
@@ -97,7 +103,14 @@ async function handleTextEvent(admin: ReturnType<typeof createAdminClient>, shop
   }
 
   if (parsed.intent === 'book_queue') {
-    const liffUrl = `${env.appUrl}/liff/${shop.shop_key}`;
+    // A plain app URL opens outside the LIFF context; prefer the liff.line.me link.
+    const liffUrl = resolveCustomerLiffUrl({
+      shopKey: shop.shop_key,
+      liffId: shop.liff_id,
+      liffIdLoginShop: shop.liff_id_login_shop,
+      tab: 'booking',
+      appUrl: env.appUrl,
+    }) ?? `${env.appUrl}/liff/${shop.shop_key}`;
     await replyMessage(token, replyToken, [liffEntryMessage(liffUrl)]);
     return;
   }
@@ -245,7 +258,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   await Promise.all(
     events.map(async (event) => {
       if (event.type === 'message' && event.message?.type === 'text') {
-        await handleTextEvent(admin, { id: shop.id, company_id: shop.company_id, shop_key: shop.shop_key, name: shop.name }, event, channelToken);
+        await handleTextEvent(
+          admin,
+          { id: shop.id, company_id: shop.company_id, shop_key: shop.shop_key, name: shop.name, liff_id: shop.liff_id, liff_id_login_shop: shop.liff_id_login_shop },
+          event,
+          channelToken,
+        );
       } else if (event.type === 'message') {
         await handleNonTextMessageEvent(admin, { id: shop.id, company_id: shop.company_id }, event, channelToken);
       }

@@ -42,7 +42,36 @@ const booking = {
   services: { service_name: 'เทรนส่วนตัว' },
 };
 
+const LIFF_ID = '2001234567-AbCdEfGh';
+const shopWithLiff = { name: 'ฟิตเนสดี', shop_key: 'fit', line_channel_access_token: 'tok', liff_id: LIFF_ID, liff_id_login_shop: null };
+
+type FooterMsg = { contents: { footer: { contents: Array<{ action: { type: string; label: string; uri?: string } }> } } };
+
 describe('safeNotifyBookingChange', () => {
+  it('links "ไม่สะดวก / ยกเลิกคิว" to the LIFF account tab on a move', async () => {
+    const { admin } = stubAdmin({ bookings: booking, line_users: { line_user_id: 'Uabc' }, shops: shopWithLiff });
+    const push = vi.fn().mockResolvedValue(undefined);
+    await safeNotifyBookingChange(
+      { shopId: SHOP, bookingId: BOOKING, kind: 'moved', prev: { booking_date: '2026-09-14', start_time: '09:00:00' } },
+      { admin, push },
+    );
+    const [, , messages] = push.mock.calls[0] as [string, string, FooterMsg[]];
+    const cancel = messages[0].contents.footer.contents.find((c) => c.action.label === 'ไม่สะดวก / ยกเลิกคิว');
+    expect(cancel?.action.uri).toBe(`https://liff.line.me/${LIFF_ID}?shop_key=fit&tab=account`);
+  });
+
+  it('links "จองคิวใหม่" to the LIFF booking tab on a cancel', async () => {
+    const { admin } = stubAdmin({ bookings: booking, line_users: { line_user_id: 'Uabc' }, shops: shopWithLiff });
+    const push = vi.fn().mockResolvedValue(undefined);
+    await safeNotifyBookingChange(
+      { shopId: SHOP, bookingId: BOOKING, kind: 'cancelled', prev: { booking_date: '2026-09-15', start_time: '10:30:00' } },
+      { admin, push },
+    );
+    const [, , messages] = push.mock.calls[0] as [string, string, FooterMsg[]];
+    const rebook = messages[0].contents.footer.contents.find((c) => c.action.label === 'จองคิวใหม่');
+    expect(rebook?.action.uri).toBe(`https://liff.line.me/${LIFF_ID}?shop_key=fit&tab=booking`);
+  });
+
   it('skips silently when the booking has no LINE user', async () => {
     const { admin, updates } = stubAdmin({ bookings: { ...booking, line_user_id: null }, line_users: null, shops: null });
     const push = vi.fn();

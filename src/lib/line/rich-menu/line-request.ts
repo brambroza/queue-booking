@@ -1,4 +1,5 @@
 import { isValidLiffId, normalizeLiffId } from '@/lib/line/liff-id';
+import { buildLiffUri, type LiffTab } from '@/lib/line/liff-url';
 import { LAYOUTS } from './layouts';
 import type { RichMenuConfig } from './schema';
 
@@ -36,17 +37,8 @@ export type LiffContext = {
   liffMemberId: string | null;
 };
 
-type LiffTab = 'booking' | 'account';
-
-/**
- * Same URL shape the LIFF client and the bank-return page use
- * (`https://liff.line.me/{id}?shop_key=…&tab=…`), so a rich menu tap lands on
- * the same page as every other entry point.
- */
-export function buildLiffUri(liffId: string, shopKey: string, tab: LiffTab): string {
-  const params = new URLSearchParams({ shop_key: shopKey, tab });
-  return `https://liff.line.me/${encodeURIComponent(liffId)}?${params.toString()}`;
-}
+// Rich menu taps use the same `liff.line.me` shape as every other entry point.
+export { buildLiffUri };
 
 /** Normalize + validate a stored LIFF id; returns null when unusable. */
 function usableLiffId(raw: string | null | undefined): string | null {

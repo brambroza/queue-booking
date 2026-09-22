@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { pushMessage } from '@/lib/line/client';
 import { bookingApprovedFlex, bookingCalledFlex } from '@/lib/line/messages';
+import { resolveCustomerLiffUrl } from '@/lib/line/liff-url';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
 import { resourceTypeLabel } from '@/lib/booking/resource-types';
 
@@ -73,7 +74,7 @@ export async function safeNotifyBookingStatus(args: BookingStatusNotifyArgs, dep
 
     const [{ data: lineUser }, { data: shop }, { data: resource }] = await Promise.all([
       admin.from('line_users').select('line_user_id').eq('id', booking.line_user_id).eq('shop_id', args.shopId).maybeSingle(),
-      admin.from('shops').select('name,shop_key,line_channel_access_token').eq('id', args.shopId).maybeSingle(),
+      admin.from('shops').select('name,shop_key,line_channel_access_token,liff_id,liff_id_login_shop').eq('id', args.shopId).maybeSingle(),
       booking.resource_id
         ? admin.from('booking_resources').select('resource_type').eq('id', booking.resource_id).eq('shop_id', args.shopId).maybeSingle()
         : Promise.resolve({ data: null as { resource_type?: string | null } | null }),
@@ -84,10 +85,16 @@ export async function safeNotifyBookingStatus(args: BookingStatusNotifyArgs, dep
     const token = (shop as { line_channel_access_token?: string | null } | null)?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
     if (!token) return { sent: false, reason: 'no_token' };
 
-    const shopName = (shop as { name?: string | null } | null)?.name ?? 'Queue Booking';
-    const shopKey = (shop as { shop_key?: string | null } | null)?.shop_key ?? null;
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
-    const liffUrl = shopKey && appUrl ? `${appUrl}/liff/${encodeURIComponent(shopKey)}` : undefined;
+    const shopRow = shop as { name?: string | null; shop_key?: string | null; liff_id?: string | null; liff_id_login_shop?: string | null } | null;
+    const shopName = shopRow?.name ?? 'Queue Booking';
+    // "ดูคิวของฉัน" must open the LIFF account tab, not the booking form.
+    const liffUrl = resolveCustomerLiffUrl({
+      shopKey: shopRow?.shop_key,
+      liffId: shopRow?.liff_id,
+      liffIdLoginShop: shopRow?.liff_id_login_shop,
+      tab: 'account',
+      appUrl: process.env.NEXT_PUBLIC_APP_URL,
+    });
 
     const common = {
       shopName,
