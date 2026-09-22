@@ -404,15 +404,21 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   /**
    * Why step 1 cannot be left yet, or '' when it can. A silently dead button
    * gave the customer nothing to act on and support nothing to go on.
+   * While the member check is running or failed, `memberBlock` already says
+   * so at the top of the step — repeating it here showed the same
+   * "กำลังตรวจสอบสมาชิก" twice on one screen, so those states stay silent.
    */
   const nextBlockedReason =
-    memberStatus !== 'ready'
-      ? 'กำลังตรวจสอบสมาชิกของร้าน กรุณารอสักครู่'
-      : !customerName.trim()
-        ? 'กรุณากรอกชื่อผู้จอง'
-        : customerPhone.trim().length < 8
-          ? 'กรุณากรอกเบอร์โทรให้ครบ'
-          : '';
+    memberStatus === 'checking' || memberStatus === 'error'
+      ? ''
+      : memberStatus !== 'ready'
+        ? 'กำลังตรวจสอบสมาชิกของร้าน กรุณารอสักครู่'
+        : !customerName.trim()
+          ? 'กรุณากรอกชื่อผู้จอง'
+          : customerPhone.trim().length < 8
+            ? 'กรุณากรอกเบอร์โทรให้ครบ'
+            : '';
+  const nextBlocked = memberStatus !== 'ready' || Boolean(nextBlockedReason);
 
   /**
    * Fetch (or save) the customer's record and queues. `profile` lets the LIFF
@@ -1349,7 +1355,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                   size="large"
                   fullWidth
                   endIcon={<ArrowForwardRoundedIcon />}
-                  disabled={Boolean(nextBlockedReason)}
+                  disabled={nextBlocked}
                   onClick={() => setStep(2)}
                 >
                   ถัดไป: เลือกคิว
