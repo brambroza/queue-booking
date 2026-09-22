@@ -37,6 +37,7 @@ import { resourceHistoryBadge, sortResourcesByHistory, summarizeResourceHistory 
 import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 import { buildBookingEchoText } from '@/lib/line/booking-echo';
 import { CUSTOMER_CANCELLABLE_STATUSES, checkInEligibility } from '@/lib/booking/status-flow';
+import { DAILY_LIMIT_CODE, dailyLimitMessage, findSameDayBooking } from '@/lib/booking/daily-limit';
 import { LiffPaymentPanel, openBankDeeplink } from '@/components/line/liff-payment-panel';
 import {
   KeyValueList,
@@ -101,6 +102,8 @@ type ShopMeta = {
   booking_echo_enabled?: boolean;
   /** Off when the shop hides service duration from customers. */
   show_service_duration?: boolean;
+  /** On when the shop allows each customer one booking per day (any service). */
+  one_booking_per_day?: boolean;
 };
 type MyBooking = {
   id: string;
@@ -371,8 +374,20 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   // it off in the portal Services page. Unset means visible.
   const showDuration = shop?.show_service_duration !== false;
 
+  /**
+   * Booking this customer already holds on the chosen day when the shop limits
+   * customers to one per day. `upcoming` only has live statuses, `history` has
+   * the completed ones — the rule counts both. The server enforces it too; this
+   * only greys the button early so the customer is not surprised at the end.
+   */
+  const sameDayBooking = useMemo(
+    () => (shop?.one_booking_per_day && date ? findSameDayBooking([...upcoming, ...history], date) : null),
+    [shop?.one_booking_per_day, date, upcoming, history],
+  );
+
   const canLoadSlots = branchId && serviceId && date;
-  const canBook = memberReady && branchId && serviceId && date && selectedTime && customerName.trim().length >= 1 && customerPhone.trim().length >= 8;
+  const canBook =
+    memberReady && !sameDayBooking && branchId && serviceId && date && selectedTime && customerName.trim().length >= 1 && customerPhone.trim().length >= 8;
 
   /**
    * Why step 1 cannot be left yet, or '' when it can. A silently dead button
@@ -748,6 +763,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       // The grid was left open past the slot's start — refresh it so the
       // customer sees which slots are still bookable.
       if (json.code === 'slot_past') void loadSlots();
+      // Booked from another device meanwhile — pull the list so the warning
+      // under the date picker matches what the server just refused.
+      if (json.code === DAILY_LIMIT_CODE) void loadMe();
       return push(json.error ?? 'จองคิวไม่สำเร็จ', 'error');
     }
     setQueueNo(json.data.queue_number);
@@ -1221,8 +1239,19 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     );
   };
 
-  const slotAlert =
-    slotMeta.reason === 'holiday' ? (
+  const slotAlert = sameDayBooking ? (
+    <Alert
+      severity="warning"
+      icon={<EventBusyRoundedIcon fontSize="inherit" />}
+      action={
+        <Button color="inherit" size="small" onClick={() => setTab('account')}>
+          ดูคิว
+        </Button>
+      }
+    >
+      {dailyLimitMessage(date)}
+    </Alert>
+  ) : slotMeta.reason === 'holiday' ? (
       <Alert severity="info" icon={<EventBusyRoundedIcon fontSize="inherit" />}>วันหยุด</Alert>
     ) : slotMeta.reason === 'closed' ? (
       <Alert severity="info" icon={<EventBusyRoundedIcon fontSize="inherit" />}>ปิดทำการ</Alert>

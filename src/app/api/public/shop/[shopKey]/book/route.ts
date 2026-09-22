@@ -18,6 +18,8 @@ import { detectOmisePlatform, isBankAppMethod } from '@/lib/payments/mobile-bank
 import { resolveInitialBookingStatus } from '@/lib/booking/status-flow';
 import { isSlotPast, SLOT_PAST_CODE, SLOT_PAST_MESSAGE } from '@/lib/booking/slot-time';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
+import { isOneBookingPerDay } from '@/lib/booking/display-settings';
+import { DAILY_LIMIT_CODE, DAILY_LIMIT_FREE_STATUSES, dailyLimitMessage, isDailyLimitDbError } from '@/lib/booking/daily-limit';
 
 const bookSchema = z
   .object({
@@ -198,6 +200,29 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     customerId = customer.id;
   }
 
+  // Shop-wide "one booking per customer per day" (opt-in). Checked here with a
+  // clear message; the DB trigger from 202609220002 closes the race two taps
+  // could open between this count and the insert below.
+  if (await isOneBookingPerDay(admin, shop.id)) {
+    const { count: sameDayCount, error: sameDayError } = await admin
+      .from('bookings')
+      .select('id', { count: 'exact', head: true })
+      .eq('shop_id', shop.id)
+      .eq('customer_id', customerId)
+      .eq('booking_date', payload.booking_date)
+      .eq('is_deleted', false)
+      .eq('is_demo', false)
+      .not('status', 'in', `(${DAILY_LIMIT_FREE_STATUSES.join(',')})`);
+    // A failed count must not read as "0 today" — that silently disables the rule.
+    if (sameDayError) {
+      console.error('[public/book] daily limit count failed', sameDayError.message);
+      return NextResponse.json({ error: 'ขออภัย ระบบไม่สามารถรับการจองได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง' }, { status: 500 });
+    }
+    if ((sameDayCount ?? 0) > 0) {
+      return NextResponse.json({ error: dailyLimitMessage(payload.booking_date), code: DAILY_LIMIT_CODE }, { status: 409 });
+    }
+  }
+
   const partySize = payload.party_size ?? null;
   const startLabel = payload.start_time.length === 5 ? `${payload.start_time}:00` : payload.start_time;
   const startAt = new Date(`${payload.booking_date}T${startLabel}+07:00`);
@@ -298,6 +323,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     resource_capacity: assignedResource?.capacity ?? null,
   }).select('id,queue_number').single();
 
+  // The trigger caught a concurrent booking the count above missed.
+  if (error && isDailyLimitDbError(error.message)) {
+    return NextResponse.json({ error: dailyLimitMessage(payload.booking_date), code: DAILY_LIMIT_CODE }, { status: 409 });
+  }
   if (error || !booking) return NextResponse.json({ error: error?.message ?? 'Create booking failed' }, { status: 400 });
   const queueNumber = String(booking.queue_number);
 

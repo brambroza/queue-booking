@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { getShopPaymentConfig, toPublicPaymentInfo } from '@/lib/payments/settings';
 import { isBookingEchoEnabled } from '@/lib/line/booking-echo';
-import { isServiceDurationVisible } from '@/lib/booking/display-settings';
+import { isOneBookingPerDay, isServiceDurationVisible } from '@/lib/booking/display-settings';
 
 export async function GET(_: Request, { params }: { params: Promise<{ shopKey: string }> }) {
   const { shopKey } = await params;
@@ -23,6 +23,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ shopKey: s
     paymentConfig,
     bookingEchoEnabled,
     showServiceDuration,
+    oneBookingPerDay,
   ] = await Promise.all([
     admin.from('branches').select('id,branch_name,layout_image_url').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
     admin.from('services').select('id,service_name,duration_minutes,price,image_url').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
@@ -36,11 +37,19 @@ export async function GET(_: Request, { params }: { params: Promise<{ shopKey: s
     getShopPaymentConfig(admin, shop.id),
     isBookingEchoEnabled(admin, shop.id),
     isServiceDurationVisible(admin, shop.id),
+    isOneBookingPerDay(admin, shop.id),
   ]);
 
   return NextResponse.json({
     data: {
-      shop: { ...shop, booking_echo_enabled: bookingEchoEnabled, show_service_duration: showServiceDuration },
+      // `one_booking_per_day` lets the LIFF warn before the customer picks a
+      // slot; the server still enforces it on /book.
+      shop: {
+        ...shop,
+        booking_echo_enabled: bookingEchoEnabled,
+        show_service_duration: showServiceDuration,
+        one_booking_per_day: oneBookingPerDay,
+      },
       branches: branches ?? [],
       services: services ?? [],
       resources: resources ?? [],

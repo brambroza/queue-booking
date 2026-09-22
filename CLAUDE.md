@@ -111,6 +111,7 @@ src/
 | `/api/chat-inbox` | LINE chat inbox + push reply |
 | `/api/line-settings` | LINE OA configuration |
 | `/api/settings` | Shop settings |
+| `/api/shop-display-settings` | Customer-facing flags on `shops`: `show_service_duration`, `one_booking_per_day` (GET both; PATCH keys optional) |
 | `/api/shop-profile` | Shop profile |
 | `/api/shop-payment-settings` | Omise + bank transfer settings |
 | `/api/shop-payment-settings/deeplink` | Bank deeplink (SCB/KBank) credentials per shop + `/test` connection check |
@@ -302,6 +303,14 @@ await safeCreateNotification({ shopId, type: 'booking_created', ... });
 - `SimpleCrud` column `type: 'image'` (+ `imageKind`) = single uploaded photo; resource type `court` ("สนาม") added in `resource-types.ts` (DB column is free text)
 - Images render with plain `<img>` — `next.config.ts` has no `images.remotePatterns`
 - Not done: pins on the venue map, heart/favourite button, photo in LINE Flex, photos in bulk create
+
+## Daily Booking Limit (ลูกค้าจองได้วันละ 1 คิว)
+
+Opt-in ต่อร้าน `shops.one_booking_per_day` (default false) — switch อยู่หน้า `/portal/services` ผ่าน `PATCH /api/shop-display-settings` (ทุก key optional, เขียนเฉพาะที่ส่งมา); migration `202609220002_daily_booking_limit.sql` (**must run before deploy** — app อ่าน flag ผ่าน `isOneBookingPerDay` แบบ defensive จึงไม่พัง แต่ trigger กัน race ต้องมี)
+- ขอบเขต **ทั้งร้าน** (ไม่ว่าบริการไหน) key = `bookings.customer_id`; นับทุกสถานะยกเว้น `cancelled`/`no_show` (completed ยังนับ — เหมือน slot capacity)
+- บังคับ **เฉพาะลูกค้าจองเองผ่าน LIFF** — `/api/public/shop/[shopKey]/book` count ก่อน insert → 409 `{ error, code: 'daily_limit' }`; DB trigger `enforce_daily_booking_limit` (advisory lock ต่อ shop+customer+วัน) เป็น backstop กัน 2 device/double-tap, raise `daily_limit` → route map เป็น 409 เดียวกัน
+- Trigger ข้ามแถวที่ `created_by is not null` (portal staff = override ได้ตั้งใจ) และ `is_demo` — `/api/bookings` POST ไม่มี check นี้
+- Pure helpers + vitest: `src/lib/booking/daily-limit.ts` (`countsTowardDailyLimit`, `findSameDayBooking`, `dailyLimitMessage`, `isDailyLimitDbError`); `/meta` ส่ง `shop.one_booking_per_day` ให้ LIFF เตือนใต้วันที่ + ปิดปุ่มยืนยันจาก `[...upcoming, ...history]` (`upcoming` ไม่มี completed จึงต้องรวม history)
 
 ## Queue Number
 

@@ -125,6 +125,9 @@ export function ServicesCrud() {
   /** Shop-wide display flag, not part of the per-service form. Default on. */
   const [showDuration, setShowDuration] = useState(true);
   const [savingDisplay, setSavingDisplay] = useState(false);
+  /** Shop-wide booking rule: one LIFF booking per customer per day. Default off. */
+  const [oneBookingPerDay, setOneBookingPerDay] = useState(false);
+  const [savingDailyLimit, setSavingDailyLimit] = useState(false);
   const [category, setCategory] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [presetKey, setPresetKey] = useState('');
@@ -212,7 +215,10 @@ export function ServicesCrud() {
     ]);
     const [s, t, d] = await Promise.all([resServices.json(), resTemplates.json(), resDisplay.json()]);
     // The display flag is secondary — a failure here must not hide the services.
-    if (resDisplay.ok) setShowDuration(d.data?.show_service_duration !== false);
+    if (resDisplay.ok) {
+      setShowDuration(d.data?.show_service_duration !== false);
+      setOneBookingPerDay(d.data?.one_booking_per_day === true);
+    }
     if (!resServices.ok) return push(s.error ?? 'โหลด services ไม่สำเร็จ', 'error');
     if (!resTemplates.ok) return push(t.error ?? 'โหลด templates ไม่สำเร็จ', 'error');
     setRows(s.data ?? []);
@@ -236,6 +242,24 @@ export function ServicesCrud() {
     setSavingDisplay(false);
     if (!res.ok) {
       setShowDuration(!next);
+      return push(json.error ?? 'บันทึกการตั้งค่าไม่สำเร็จ', 'error');
+    }
+    push('บันทึกการตั้งค่าแล้ว');
+  }
+
+  /** Same commit-on-toggle pattern as the duration switch, for the daily limit. */
+  async function onToggleOneBookingPerDay(next: boolean) {
+    setOneBookingPerDay(next);
+    setSavingDailyLimit(true);
+    const res = await fetch('/api/shop-display-settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ one_booking_per_day: next }),
+    });
+    const json = await res.json();
+    setSavingDailyLimit(false);
+    if (!res.ok) {
+      setOneBookingPerDay(!next);
       return push(json.error ?? 'บันทึกการตั้งค่าไม่สำเร็จ', 'error');
     }
     push('บันทึกการตั้งค่าแล้ว');
@@ -399,6 +423,25 @@ export function ServicesCrud() {
           />
           <Typography variant="caption" color="text.secondary" display="block">
             ปิดไว้ถ้าไม่ต้องการให้ลูกค้าเห็นจำนวนนาทีของแต่ละบริการ — มีผลกับการ์ดบริการ สรุปการจอง และรายการเลือกบริการ (ตั้งค่านี้ใช้ทั้งร้าน)
+          </Typography>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={oneBookingPerDay}
+                disabled={savingDailyLimit}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => void onToggleOneBookingPerDay(e.target.checked)}
+              />
+            }
+            label="ลูกค้าจองได้วันละ 1 คิว"
+          />
+          <Typography variant="caption" color="text.secondary" display="block">
+            ลูกค้า 1 คน (ตาม LINE / เบอร์โทร) จองผ่าน LINE ได้วันละ 1 คิว ไม่ว่าบริการไหน — คิวที่ยกเลิกหรือไม่มาไม่นับ
+            พนักงานสร้างคิวจากหน้าจองในระบบให้ซ้ำได้ (ตั้งค่านี้ใช้ทั้งร้าน)
           </Typography>
         </CardContent>
       </Card>
