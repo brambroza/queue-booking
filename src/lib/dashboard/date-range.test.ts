@@ -13,6 +13,14 @@ describe('date helpers', () => {
     expect(weekdayOf(TODAY)).toBe(6);
     expect(eachDay('2026-09-11', TODAY)).toEqual(['2026-09-11', TODAY]);
   });
+  it('resolves the weekday from the date string regardless of process timezone', () => {
+    // Guards the public slots route: under TZ=UTC, `new Date(`${d}T00:00:00+07:00`).getDay()`
+    // returned the previous day and shifted every working-hours lookup by one.
+    expect(weekdayOf('2026-09-23')).toBe(3); // Wednesday
+    expect(weekdayOf('2026-09-20')).toBe(0); // Sunday
+    expect(weekdayOf('2026-09-26')).toBe(6); // Saturday
+    expect(() => weekdayOf('23/09/2026')).toThrow();
+  });
   it('finds Monday and month end', () => {
     expect(startOfWeekMonday(TODAY)).toBe('2026-09-07');
     expect(startOfWeekMonday('2026-09-13')).toBe('2026-09-07'); // Sunday belongs to the same week

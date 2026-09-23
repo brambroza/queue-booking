@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import { DATE_PAST_HINT, DAY_OVER_HINT, isSlotPast } from '@/lib/booking/slot-time';
+import { weekdayOf } from '@/lib/dashboard/date-range';
 
 export async function GET(req: Request, { params }: { params: Promise<{ shopKey: string }> }) {
   const { shopKey } = await params;
@@ -22,7 +23,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
   const shop = await resolveShopByKeyOrId(admin, shopKey);
   if (!shop) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
 
-  const weekday = new Date(`${date}T00:00:00+07:00`).getDay();
+  // Weekday must come from the date string itself, never from `Date#getDay()`:
+  // that reads the process timezone, and on Vercel (UTC) Bangkok midnight is
+  // still the previous day, so every working-hours lookup shifted by one day.
+  let weekday: number;
+  try {
+    weekday = weekdayOf(date);
+  } catch {
+    return NextResponse.json({ error: 'Invalid date' }, { status: 400 });
+  }
 
   const [{ data: holidayRows }, { data: whRows }, { data: anyWhRows }] = await Promise.all([
     admin

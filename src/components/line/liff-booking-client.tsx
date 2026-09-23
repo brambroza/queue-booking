@@ -601,7 +601,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     setSelectedTime('');
     const params = new URLSearchParams({
       branch_id: branchId,
-      service_id: serviceId,
+      service_id: serviceId, 
       date,
     });
     if (selectedResourceId) params.set('resource_id', selectedResourceId);
