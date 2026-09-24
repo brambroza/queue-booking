@@ -1,5 +1,34 @@
 import { reminderLeadLabel } from '@/lib/line/booking-reminder';
 
+/** Postback `action` value of the one-tap "ยกเลิกคิว" button; parsed by the LINE webhook. */
+export const CANCEL_BOOKING_ACTION = 'cancel_booking';
+
+/**
+ * Postback payload for the "ยกเลิกคิว" button. Same shape as `ack_change` so
+ * the webhook parses both with `URLSearchParams`.
+ *
+ * @param bookingId - Booking the customer may cancel (ownership is re-checked server side).
+ */
+export function cancelBookingPostbackData(bookingId: string) {
+  return `action=${CANCEL_BOOKING_ACTION}&booking_id=${encodeURIComponent(bookingId)}`;
+}
+
+/** Footer button that cancels `bookingId` in one tap (postback, no typing). */
+function cancelBookingButton(bookingId: string, queueNumber: string, style: 'primary' | 'secondary' = 'secondary'): Record<string, unknown> {
+  return {
+    type: 'button',
+    style,
+    ...(style === 'primary' ? { color: '#dc2626' } : {}),
+    height: 'sm',
+    action: {
+      type: 'postback',
+      label: 'ยกเลิกคิว',
+      data: cancelBookingPostbackData(bookingId),
+      displayText: `ยกเลิกคิว ${queueNumber}`,
+    },
+  };
+}
+
 export function quickReply(items: Array<{ label: string; text: string }>) {
   return {
     items: items.slice(0, 13).map((x) => ({
@@ -64,6 +93,8 @@ export function bookingConfirmFlex(payload: {
   liffUrl?: string;
   /** True when the service needs shop approval: header + note say "รอร้านยืนยัน" instead of "สำเร็จ". */
   pendingApproval?: boolean;
+  /** When set, "ยกเลิกคิว" is a one-tap postback; otherwise it falls back to the legacy text message. */
+  bookingId?: string;
 }) {
   const title = payload.pendingApproval ? 'รับคำขอจองแล้ว' : 'จองคิวสำเร็จ';
   const headerColor = payload.pendingApproval ? '#d97706' : '#12a862';
@@ -77,12 +108,14 @@ export function bookingConfirmFlex(payload: {
       height: 'sm',
       action: { type: 'message', label: 'ดูคิวของฉัน', text: 'เช็คคิวของฉัน' },
     },
-    {
-      type: 'button',
-      style: 'secondary',
-      height: 'sm',
-      action: { type: 'message', label: 'ยกเลิกคิว', text: 'ยกเลิกคิว' },
-    },
+    payload.bookingId
+      ? cancelBookingButton(payload.bookingId, payload.queueNumber)
+      : {
+          type: 'button',
+          style: 'secondary',
+          height: 'sm',
+          action: { type: 'message', label: 'ยกเลิกคิว', text: 'ยกเลิกคิว' },
+        },
   ];
 
   return {
@@ -166,6 +199,7 @@ export function bookingApprovedFlex(payload: {
   assignedTo?: string | null;
   assignedLabel?: string | null;
   liffUrl?: string;
+  bookingId?: string;
 }) {
   const flex = bookingConfirmFlex(payload);
   const header = flex.contents.header.contents[1] as { text: string };
@@ -399,7 +433,7 @@ export function bookingChangedFlex(payload: {
 
 /**
  * Flex pushed by the booking-reminders cron shortly before the booking starts.
- * Informational only — nothing to acknowledge; the LIFF link covers "can't make it".
+ * Nothing to acknowledge; "ยกเลิกคิว" cancels in one tap when `bookingId` is given.
  */
 export function bookingReminderFlex(payload: {
   shopName: string;
@@ -412,6 +446,8 @@ export function bookingReminderFlex(payload: {
   /** Shop's configured lead time, used for the "อีก X" line. */
   minutesBefore: number;
   liffUrl?: string;
+  /** When set, adds the one-tap "ยกเลิกคิว" postback button. */
+  bookingId?: string;
 }) {
   const lead = reminderLeadLabel(payload.minutesBefore);
   const bodyRows: Array<Record<string, unknown>> = [
@@ -432,6 +468,9 @@ export function bookingReminderFlex(payload: {
       height: 'sm',
       action: { type: 'uri', label: 'ดูคิวของฉัน', uri: payload.liffUrl },
     });
+  }
+  if (payload.bookingId) {
+    footerButtons.push(cancelBookingButton(payload.bookingId, payload.queueNumber));
   }
   footerButtons.push({
     type: 'button',
@@ -542,6 +581,142 @@ export function bookingCancelledFlex(payload: {
             paddingAll: '10px',
             contents: [
               { type: 'text', text: 'ขออภัยในความไม่สะดวก คุณสามารถจองคิวใหม่ได้ทันที หรือติดต่อเจ้าหน้าที่ค่ะ', size: 'xs', color: '#991b1b', wrap: true },
+            ],
+          },
+        ],
+      },
+      footer: { type: 'box', layout: 'vertical', spacing: 'sm', contents: footerButtons },
+    },
+  };
+}
+
+/**
+ * Reply when the customer types "ยกเลิก…" (or taps a legacy message-type
+ * "ยกเลิกคิว" button). Text carries no booking id, so the bot shows the soonest
+ * cancellable booking and asks for one more tap — the postback then cancels.
+ */
+export function bookingCancelPromptFlex(payload: {
+  shopName: string;
+  bookingId: string;
+  queueNumber: string;
+  branch: string;
+  service: string;
+  date: string;
+  time: string;
+  liffUrl?: string;
+}) {
+  const footerButtons: Array<Record<string, unknown>> = [cancelBookingButton(payload.bookingId, payload.queueNumber, 'primary')];
+  if (payload.liffUrl) {
+    footerButtons.push({
+      type: 'button',
+      style: 'secondary',
+      height: 'sm',
+      action: { type: 'uri', label: 'ดูคิวของฉัน', uri: payload.liffUrl },
+    });
+  }
+
+  return {
+    type: 'flex',
+    altText: `ยืนยันยกเลิกคิว ${payload.queueNumber} — ${payload.date} ${payload.time}`,
+    contents: {
+      type: 'bubble',
+      size: 'kilo',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: '#d97706',
+        paddingAll: '16px',
+        contents: [
+          { type: 'text', text: payload.shopName, color: '#ffffffcc', size: 'xs' },
+          { type: 'text', text: 'ต้องการยกเลิกคิวนี้ใช่ไหม?', color: '#ffffff', weight: 'bold', size: 'xl', margin: 'sm', wrap: true },
+        ],
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'sm',
+        contents: [
+          { type: 'text', text: `เลขคิว ${payload.queueNumber}`, weight: 'bold', size: 'lg', color: '#111827' },
+          { type: 'text', text: `${payload.service} · ${payload.branch}`, size: 'sm', color: '#374151', wrap: true },
+          { type: 'text', text: `${payload.date} ${payload.time}`, size: 'md', weight: 'bold', color: '#111827' },
+          {
+            type: 'box',
+            layout: 'vertical',
+            margin: 'lg',
+            backgroundColor: '#fef3c7',
+            cornerRadius: '10px',
+            paddingAll: '10px',
+            contents: [
+              { type: 'text', text: 'กดปุ่มด้านล่างเพื่อยกเลิกคิวทันที (ระบบจะไม่ถามซ้ำ)', size: 'xs', color: '#92400e', wrap: true },
+            ],
+          },
+        ],
+      },
+      footer: { type: 'box', layout: 'vertical', spacing: 'sm', contents: footerButtons },
+    },
+  };
+}
+
+/**
+ * Reply after the customer cancelled their own booking from LINE. Distinct
+ * from `bookingCancelledFlex`, which says the *shop* cancelled.
+ */
+export function bookingSelfCancelledFlex(payload: {
+  shopName: string;
+  queueNumber: string;
+  date: string;
+  time: string;
+  liffUrl?: string;
+}) {
+  const footerButtons: Array<Record<string, unknown>> = [];
+  if (payload.liffUrl) {
+    footerButtons.push({
+      type: 'button',
+      style: 'primary',
+      color: '#12a862',
+      height: 'sm',
+      action: { type: 'uri', label: 'จองคิวใหม่', uri: payload.liffUrl },
+    });
+  }
+  footerButtons.push({
+    type: 'button',
+    style: 'secondary',
+    height: 'sm',
+    action: { type: 'message', label: 'ติดต่อเจ้าหน้าที่', text: 'ติดต่อเจ้าหน้าที่' },
+  });
+
+  return {
+    type: 'flex',
+    altText: `ยกเลิกคิว ${payload.queueNumber} (${payload.date} ${payload.time}) แล้วค่ะ`,
+    contents: {
+      type: 'bubble',
+      size: 'kilo',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: '#6b7280',
+        paddingAll: '16px',
+        contents: [
+          { type: 'text', text: payload.shopName, color: '#ffffffcc', size: 'xs' },
+          { type: 'text', text: 'ยกเลิกคิวแล้ว', color: '#ffffff', weight: 'bold', size: 'xl', margin: 'sm' },
+        ],
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'sm',
+        contents: [
+          { type: 'text', text: `เลขคิว ${payload.queueNumber}`, weight: 'bold', size: 'lg', color: '#111827' },
+          { type: 'text', text: `${payload.date} ${payload.time}`, size: 'md', color: '#374151' },
+          {
+            type: 'box',
+            layout: 'vertical',
+            margin: 'lg',
+            backgroundColor: '#f3f4f6',
+            cornerRadius: '10px',
+            paddingAll: '10px',
+            contents: [
+              { type: 'text', text: `ยกเลิกคิว ${payload.queueNumber} (วันที่ ${payload.date} เวลา ${payload.time}) แล้วค่ะ หากต้องการใช้บริการสามารถจองคิวใหม่ได้ทันที`, size: 'xs', color: '#4b5563', wrap: true },
             ],
           },
         ],

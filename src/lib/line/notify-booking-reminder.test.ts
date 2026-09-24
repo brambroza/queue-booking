@@ -46,7 +46,7 @@ const MEMBER_LIFF_ID = '2007654321-ZyXwVuTs';
 const shop = { name: 'ฟิตเนสดี', shop_key: 'fit', line_channel_access_token: 'tok', liff_id: '2001234567-AbCdEfGh', liff_id_login_shop: MEMBER_LIFF_ID };
 const args = { shopId: SHOP, bookingId: BOOKING, minutesBefore: 30 };
 
-type FooterMsg = { contents: { footer: { contents: Array<{ action: { type: string; label: string; uri?: string } }> } } };
+type FooterMsg = { contents: { footer: { contents: Array<{ action: { type: string; label: string; uri?: string; data?: string } }> } } };
 
 describe('safeNotifyBookingReminder', () => {
   it('links "ดูคิวของฉัน" to the member LIFF account tab', async () => {
@@ -56,6 +56,16 @@ describe('safeNotifyBookingReminder', () => {
     const [, , messages] = push.mock.calls[0] as [string, string, FooterMsg[]];
     const myQueues = messages[0].contents.footer.contents.find((c) => c.action.label === 'ดูคิวของฉัน');
     expect(myQueues?.action.uri).toBe(`https://liff.line.me/${MEMBER_LIFF_ID}?shop_key=fit&tab=account`);
+  });
+
+  it('adds a one-tap "ยกเลิกคิว" postback carrying the booking id', async () => {
+    const { admin } = stubAdmin({ bookings: booking, line_users: { line_user_id: 'Uabc' }, shops: shop });
+    const push = vi.fn().mockResolvedValue(undefined);
+    await safeNotifyBookingReminder(args, { admin, push });
+    const [, , messages] = push.mock.calls[0] as [string, string, FooterMsg[]];
+    const cancel = messages[0].contents.footer.contents.find((c) => c.action.label === 'ยกเลิกคิว');
+    expect(cancel?.action.type).toBe('postback');
+    expect(cancel?.action.data).toBe(`action=cancel_booking&booking_id=${BOOKING}`);
   });
 
   it('pushes a reminder flex and stamps reminder_sent_at', async () => {

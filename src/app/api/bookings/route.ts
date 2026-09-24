@@ -346,6 +346,7 @@ export async function POST(req: Request) {
               assignedTo: assignedResource?.resource_name ?? null,
               assignedLabel: assignedResource ? resourceTypeLabel(assignedResource.resource_type) : null,
               liffUrl,
+              bookingId: inserted.id,
             }),
           ]);
           linePushSent = true;

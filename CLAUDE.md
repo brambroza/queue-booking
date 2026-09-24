@@ -267,11 +267,13 @@ await safeCreateNotification({ shopId, type: 'booking_created', ... });
 
 **ลิงก์ในปุ่ม Flex / quick reply ที่ส่งหาลูกค้า** ต้องสร้างผ่าน `resolveCustomerLiffUrl` (`src/lib/line/liff-url.ts`) → `https://liff.line.me/{id}?shop_key=…&tab=account|booking` (ลำดับ ID: account = `liff_id_login_shop` → `liff_id` → env `LIFF_ID`; booking กลับกัน) — **ห้าม**ใส่ `${APP_URL}/liff/{shopKey}` ตรง ๆ เพราะ LINE เปิดใน in-app browser นอก LIFF context → `liff.isLoggedIn()` false → หน้าขึ้น "กรุณาเปิดหน้านี้ผ่าน LINE LIFF"; ร้านที่ไม่มี LIFF ID เลยจึงค่อย fallback app URL. ปุ่ม "ดูคิวของฉัน" (เรียกคิว/เตือนคิว) และ "ไม่สะดวก / ยกเลิกคิว" ใช้ `tab: 'account'`; "จองคิวใหม่" และบอทตอบ "จองคิว" ใช้ `tab: 'booking'`. Flex จองสำเร็จ ปุ่ม "ดูคิวของฉัน" ยังเป็น `message` "เช็คคิวของฉัน" (บอทตอบข้อความ) ตั้งใจคงไว้
 
+**ลูกค้ายกเลิกคิวเองจาก LINE** — ปุ่ม "ยกเลิกคิว" บน Flex จองสำเร็จ / ร้านยืนยันคิว / เตือนคิว เป็น postback `action=cancel_booking&booking_id=` (`cancelBookingPostbackData` ใน `messages.ts`) **กดครั้งเดียวยกเลิกทันที** ไม่มี confirm → webhook เรียก `cancelBookingByCustomer` (`src/lib/booking/cancel-by-customer.ts`) ตัวเดียวกับ LIFF `/cancel-booking`: guard `CUSTOMER_CANCELLABLE_STATUSES`, ต่อท้าย `bookings.note` (ไม่ทับ), `booking_logs` `cancel_by_customer_liff|line`, แจ้ง staff `booking_cancelled` (high); Google Calendar sync อยู่ที่ caller. ตอบลูกค้าด้วย `bookingSelfCancelledFlex` ("ยกเลิกคิวแล้ว" + "จองคิวใหม่") — **ไม่ใช่** `bookingCancelledFlex` ซึ่งแปลว่าร้านยกเลิก. พิมพ์ "ยกเลิก…" (หรือกดการ์ดเก่าที่ยังเป็น `message`) → บอทตอบ `bookingCancelPromptFlex` โชว์คิวที่ใกล้สุดที่ยกเลิกได้ + ปุ่ม postback เดียว (text path ถูก gate `auto_reply_enabled`, postback ไม่). ไม่มี `bookingId` → builder fallback เป็น `message` เดิม
+
 แจ้ง **ลูกค้า** ทาง LINE เมื่อร้านย้าย / เปลี่ยนคน / ยกเลิกคิว ใช้ `safeNotifyBookingChange` (`src/lib/line/notify-booking-change.ts`) — ไม่ throw, คิวที่ไม่มี LINE ได้ `{ sent: false }`
 - `moved` / `reassigned` → Flex มีปุ่ม postback `action=ack_change` → webhook เรียก `acknowledgeBookingChange` (`src/lib/booking/acknowledge-change.ts`) และ stamp `bookings.change_acknowledged_at`
 - `reassigned` ส่งเฉพาะ resource ที่เป็นคน (`isPersonResourceType`) — เปลี่ยนโต๊ะ/ห้องไม่แจ้ง
 - `cancelled` ไม่ต้อง ack
-- Postback events ถูก handle **ก่อน** เช็ค `auto_reply_enabled` ใน webhook
+- Postback events (`ack_change`, `cancel_booking`) ถูก handle **ก่อน** เช็ค `auto_reply_enabled` ใน webhook
 
 แจ้งเตือน **ลูกค้าล่วงหน้าก่อนถึงคิว** (ค่าเริ่มต้นปิด) — ตั้งค่าที่ `/portal/line-settings` (`shops.reminder_enabled`, `shops.reminder_minutes` preset 15/30/60/120/180/1440)
 - Scheduler: **Supabase pg_cron + pg_net** ทุก 5 นาที (migration `202609120005`) เรียก `GET /api/cron/booking-reminders` ด้วย `Bearer CRON_SECRET` — Vercel Hobby ยิง cron ได้แค่รายวัน จึงไม่ใช้ `vercel.json`
@@ -334,11 +336,13 @@ confirmed | checked_in ─(staff รอเรียก)─▶ waiting
 confirmed | checked_in | waiting ─(staff เรียกคิว → LINE "ถึงคิวของคุณแล้ว")─▶ called ─(เรียกซ้ำ = called อีกครั้ง, call_count+1)
 called | waiting ─(เริ่มบริการ)─▶ serving ─▶ completed
                                           ↘ cancelled / no_show
+pending | pending_approval | confirmed | checked_in | waiting ─(ลูกค้ากด "ยกเลิกคิว" ใน LIFF หรือ Flex)─▶ cancelled
 ```
 
 - Rules ทั้งหมดอยู่ที่ `src/lib/booking/status-flow.ts` (`resolveInitialBookingStatus`, `checkInEligibility`, `isCallTransition`, `isApprovalTransition`, `CUSTOMER_*_STATUSES`) — LIFF, public API และ portal ใช้ตัวเดียวกัน
 - **เรียกคิว** = `PATCH /api/bookings { status: 'called' }` → stamp `called_at`, `called_by`, `call_count` แล้ว push `bookingCalledFlex` ผ่าน `safeNotifyBookingStatus` (`src/lib/line/notify-booking-status.ts`, ไม่ throw, stamp `last_line_notify_at`) — signage เรียงคิว "กำลังเรียก" ตาม `called_at`
 - **อนุมัติ** = `pending_approval → confirmed` → push `bookingApprovedFlex`; ปฏิเสธใช้ปุ่มยกเลิกเดิม (ลูกค้าได้ Flex ยกเลิก)
+- **ลูกค้ายกเลิกเอง** = `cancelBookingByCustomer` (`src/lib/booking/cancel-by-customer.ts`) ใช้ทั้ง `POST /api/public/shop/[shopKey]/cancel-booking` (LIFF) และ webhook postback `cancel_booking`; อนุญาตเฉพาะ `CUSTOMER_CANCELLABLE_STATUSES`, `called|serving` ต้องติดต่อร้าน
 - **เช็คอิน** = `POST /api/public/shop/[shopKey]/check-in` → `checkInBookingByCustomer` (`src/lib/booking/check-in.ts`) stamp `bookings.checked_in_at` + แจ้ง staff ผ่าน notification center; อนุญาตเฉพาะ `pending|confirmed` และ `booking_date` = วันนี้ (Asia/Bangkok, `/me` ส่ง `today` มาให้ LIFF ใช้กฎเดียวกัน)
 - ปุ่ม staff ต่อสถานะอยู่ที่ `NEXT_STATUSES` ใน `src/components/bookings/booking-types.ts`; kanban `/portal/queue-board` รวม `checked_in` ไว้คอลัมน์ "รอเรียก"
 - Migration `202609130001_booking_checkin.sql` (เพิ่ม `checked_in_at`) — enum `called`/`checked_in`/`pending_approval` มีตั้งแต่ `202605110001`

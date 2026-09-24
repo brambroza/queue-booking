@@ -113,6 +113,7 @@ export async function safeNotifyBookingStatus(args: BookingStatusNotifyArgs, dep
             ...common,
             date: formatThaiDateLabel(booking.booking_date),
             time: String(booking.start_time).slice(0, 5),
+            bookingId: args.bookingId,
           });
 
     try {

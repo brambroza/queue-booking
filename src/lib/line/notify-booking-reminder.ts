@@ -95,7 +95,7 @@ export async function safeNotifyBookingReminder(args: BookingReminderArgs, deps:
 
     const shopRow = shop as { name?: string | null; shop_key?: string | null; liff_id?: string | null; liff_id_login_shop?: string | null } | null;
     const shopName = shopRow?.name ?? 'Queue Booking';
-    // "ดูคิวของฉัน" opens the LIFF account tab where the customer can cancel.
+    // "ดูคิวของฉัน" opens the LIFF account tab; "ยกเลิกคิว" is a one-tap postback.
     const liffUrl = resolveCustomerLiffUrl({
       shopKey: shopRow?.shop_key,
       liffId: shopRow?.liff_id,
@@ -114,6 +114,7 @@ export async function safeNotifyBookingReminder(args: BookingReminderArgs, deps:
       assignedTo: booking.resource_name ?? null,
       minutesBefore: args.minutesBefore,
       liffUrl,
+      bookingId: booking.id,
     });
 
     try {

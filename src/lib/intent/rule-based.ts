@@ -50,8 +50,9 @@ export function parseIntent(text: string): ParsedIntent {
   const time = parseTime(t);
 
   if (/คิวว่าง|ว่างไหม|มีคิว|ช่วงบ่าย|ช่วงเช้า/.test(t)) return { intent: 'ask_available_slots', date, time, raw: text };
-  if (/จองคิว|จอง|นัด/.test(t)) return { intent: 'book_queue', date, time, raw: text };
+  // "ยกเลิก" first: "ยกเลิกการจอง" must not read as a new booking.
   if (/ยกเลิกคิว|ยกเลิก/.test(t)) return { intent: 'cancel_booking', date, time, raw: text };
+  if (/จองคิว|จอง|นัด/.test(t)) return { intent: 'book_queue', date, time, raw: text };
   if (/เลื่อนนัด|เลื่อนคิว|เปลี่ยนเวลา/.test(t)) return { intent: 'reschedule_booking', date, time, raw: text };
   if (/เช็คคิว|คิวของฉัน|นัดของฉัน/.test(t)) return { intent: 'check_my_booking', date, time, raw: text };
   if (/ข้อมูลร้าน|ที่อยู่|เวลาเปิดปิด|เบอร์ติดต่อ/.test(t)) return { intent: 'ask_shop_info', date, time, raw: text };

@@ -3,13 +3,48 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { parseIntent } from '@/lib/intent/rule-based';
 import { verifyLineSignature } from '@/lib/line/signature';
 import { replyMessage } from '@/lib/line/client';
-import { bookingConfirmMessage, fallbackMessage, liffEntryMessage, slotMessage } from '@/lib/line/messages';
+import {
+  CANCEL_BOOKING_ACTION,
+  bookingCancelPromptFlex,
+  bookingConfirmMessage,
+  bookingSelfCancelledFlex,
+  fallbackMessage,
+  liffEntryMessage,
+  slotMessage,
+} from '@/lib/line/messages';
 import { resolveCustomerLiffUrl } from '@/lib/line/liff-url';
 import { isBookingEcho } from '@/lib/line/booking-echo';
+import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import type { LineWebhookBody, LineWebhookEvent } from '@/lib/line/types';
 import { env } from '@/lib/utils/env';
 import { acknowledgeBookingChange } from '@/lib/booking/acknowledge-change';
+import { cancelBookingByCustomer } from '@/lib/booking/cancel-by-customer';
+import { CUSTOMER_CANCELLABLE_STATUSES } from '@/lib/booking/status-flow';
+import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
+
+/** Shop columns the event handlers need (subset of `getShopAndConfig`). */
+type WebhookShop = {
+  id: string;
+  company_id: string;
+  shop_key: string;
+  name: string;
+  liff_id?: string | null;
+  liff_id_login_shop?: string | null;
+};
+
+const UUID_RE = /^[0-9a-f-]{36}$/i;
+
+/** LIFF deep link for Flex buttons; falls back to the app URL for shops without a LIFF ID. */
+function customerLiffUrl(shop: WebhookShop, tab: 'account' | 'booking') {
+  return resolveCustomerLiffUrl({
+    shopKey: shop.shop_key,
+    liffId: shop.liff_id,
+    liffIdLoginShop: shop.liff_id_login_shop,
+    tab,
+    appUrl: env.appUrl,
+  }) ?? `${env.appUrl}/liff/${shop.shop_key}`;
+}
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -40,7 +75,7 @@ async function getShopAndConfig(shopKey: string) {
 
 async function handleTextEvent(
   admin: ReturnType<typeof createAdminClient>,
-  shop: { id: string; company_id: string; shop_key: string; name: string; liff_id?: string | null; liff_id_login_shop?: string | null },
+  shop: WebhookShop,
   event: LineWebhookEvent,
   token: string,
 ) {
@@ -104,14 +139,45 @@ async function handleTextEvent(
 
   if (parsed.intent === 'book_queue') {
     // A plain app URL opens outside the LIFF context; prefer the liff.line.me link.
-    const liffUrl = resolveCustomerLiffUrl({
-      shopKey: shop.shop_key,
-      liffId: shop.liff_id,
-      liffIdLoginShop: shop.liff_id_login_shop,
-      tab: 'booking',
-      appUrl: env.appUrl,
-    }) ?? `${env.appUrl}/liff/${shop.shop_key}`;
-    await replyMessage(token, replyToken, [liffEntryMessage(liffUrl)]);
+    await replyMessage(token, replyToken, [liffEntryMessage(customerLiffUrl(shop, 'booking'))]);
+    return;
+  }
+
+  if (parsed.intent === 'cancel_booking') {
+    // Typed text carries no booking id (and the regex is loose), so never cancel
+    // here: show the soonest cancellable booking with a one-tap postback instead.
+    if (!lineUser?.id) {
+      await replyMessage(token, replyToken, [{ type: 'text', text: 'ไม่พบคิวที่ยกเลิกได้ค่ะ' }]);
+      return;
+    }
+    const { data: booking } = await admin
+      .from('bookings')
+      .select('id,queue_number,booking_date,start_time,branches(branch_name),services(service_name)')
+      .eq('shop_id', shop.id)
+      .eq('line_user_id', lineUser.id)
+      .eq('is_deleted', false)
+      .in('status', [...CUSTOMER_CANCELLABLE_STATUSES])
+      .gte('booking_date', toBangkokStamp(new Date()).date)
+      .order('booking_date', { ascending: true })
+      .order('start_time', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (!booking) {
+      await replyMessage(token, replyToken, [{ type: 'text', text: 'ไม่พบคิวที่ยกเลิกได้ค่ะ' }]);
+      return;
+    }
+
+    await replyMessage(token, replyToken, [bookingCancelPromptFlex({
+      shopName: shop.name,
+      bookingId: String(booking.id),
+      queueNumber: booking.queue_number ?? '-',
+      branch: (booking.branches as { branch_name?: string } | null)?.branch_name ?? '-',
+      service: (booking.services as { service_name?: string } | null)?.service_name ?? '-',
+      date: formatThaiDateLabel(String(booking.booking_date)),
+      time: String(booking.start_time).slice(0, 5),
+      liffUrl: customerLiffUrl(shop, 'account'),
+    })]);
     return;
   }
 
@@ -189,12 +255,82 @@ async function handleNonTextMessageEvent(
 }
 
 /**
+ * One-tap "ยกเลิกคิว" from a Flex card. Same helper as the LIFF account tab.
+ * The customer is the actor, so the reply is their confirmation — no extra push.
+ */
+async function handleCancelPostback(
+  admin: ReturnType<typeof createAdminClient>,
+  shop: WebhookShop,
+  args: { userId: string; replyToken: string; bookingId: string },
+  token: string,
+) {
+  let result: Awaited<ReturnType<typeof cancelBookingByCustomer>>;
+  try {
+    result = await cancelBookingByCustomer(admin, {
+      shopId: shop.id,
+      companyId: shop.company_id,
+      externalLineUserId: args.userId,
+      bookingId: args.bookingId,
+      source: 'line',
+    });
+  } catch (e) {
+    console.error('[line_cancel_postback_failed]', e);
+    await replyMessage(token, args.replyToken, [{ type: 'text', text: 'ยกเลิกคิวไม่สำเร็จ กรุณาลองใหม่หรือติดต่อเจ้าหน้าที่ค่ะ' }]);
+    return;
+  }
+
+  if (!result.ok) {
+    if (!('booking' in result)) {
+      await replyMessage(token, args.replyToken, [{ type: 'text', text: 'ไม่พบคิวนี้แล้วค่ะ หากมีข้อสงสัยกรุณาติดต่อเจ้าหน้าที่' }]);
+      return;
+    }
+    const q = result.booking.queue_number ?? '-';
+    await replyMessage(token, args.replyToken, [{
+      type: 'text',
+      text: result.reason === 'already_cancelled'
+        ? `คิว ${q} ถูกยกเลิกไปแล้วค่ะ`
+        : `คิว ${q} ไม่สามารถยกเลิกผ่านระบบได้แล้วค่ะ (กำลังเรียก/ให้บริการ) กรุณาติดต่อเจ้าหน้าที่`,
+    }]);
+    return;
+  }
+
+  const { booking } = result;
+  // Log the tap so the portal chat inbox shows the customer's action.
+  const { data: lineUser } = await admin
+    .from('line_users')
+    .select('id')
+    .eq('shop_id', shop.id)
+    .eq('line_user_id', args.userId)
+    .maybeSingle();
+  await admin.from('line_messages').insert({
+    company_id: shop.company_id,
+    shop_id: shop.id,
+    line_user_id: lineUser?.id,
+    direction: 'inbound',
+    message_type: 'postback',
+    message_text: `ยกเลิกคิว ${booking.queue_number ?? ''}`.trim(),
+    payload: { action: CANCEL_BOOKING_ACTION, booking_id: booking.id },
+  });
+
+  await safeSyncBookingToGoogleCalendar(shop.id, booking.id);
+
+  await replyMessage(token, args.replyToken, [bookingSelfCancelledFlex({
+    shopName: shop.name,
+    queueNumber: booking.queue_number ?? '-',
+    date: formatThaiDateLabel(booking.booking_date),
+    time: booking.start_time.slice(0, 5),
+    liffUrl: customerLiffUrl(shop, 'booking'),
+  })]);
+}
+
+/**
  * Postback buttons come from Flex messages the shop itself pushed (e.g. "รับทราบ"
- * on a change notice), so they are handled even when auto-reply is switched off.
+ * on a change notice, "ยกเลิกคิว" on a confirmation), so they are handled even
+ * when auto-reply is switched off.
  */
 async function handlePostbackEvent(
   admin: ReturnType<typeof createAdminClient>,
-  shop: { id: string; company_id: string },
+  shop: WebhookShop,
   event: LineWebhookEvent,
   token: string,
 ) {
@@ -203,9 +339,16 @@ async function handlePostbackEvent(
   const data = new URLSearchParams(event.postback?.data ?? '');
   if (!userId || !replyToken) return;
 
+  if (data.get('action') === CANCEL_BOOKING_ACTION) {
+    const bookingId = data.get('booking_id') ?? '';
+    if (!UUID_RE.test(bookingId)) return;
+    await handleCancelPostback(admin, shop, { userId, replyToken, bookingId }, token);
+    return;
+  }
+
   if (data.get('action') === 'ack_change') {
     const bookingId = data.get('booking_id') ?? '';
-    if (!/^[0-9a-f-]{36}$/i.test(bookingId)) return;
+    if (!UUID_RE.test(bookingId)) return;
     const result = await acknowledgeBookingChange(admin, {
       shopId: shop.id,
       companyId: shop.company_id,
@@ -248,8 +391,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   const body = JSON.parse(rawBody) as LineWebhookBody;
 
   const events = body.events ?? [];
+  const webhookShop: WebhookShop = {
+    id: shop.id,
+    company_id: shop.company_id,
+    shop_key: shop.shop_key,
+    name: shop.name,
+    liff_id: shop.liff_id,
+    liff_id_login_shop: shop.liff_id_login_shop,
+  };
   const postbacks = events.filter((e) => e.type === 'postback');
-  await Promise.all(postbacks.map((event) => handlePostbackEvent(admin, { id: shop.id, company_id: shop.company_id }, event, channelToken)));
+  await Promise.all(postbacks.map((event) => handlePostbackEvent(admin, webhookShop, event, channelToken)));
 
   if (!shop.auto_reply_enabled) {
     return NextResponse.json({ ok: true, skipped: 'auto_reply_disabled', postbacks: postbacks.length });
@@ -258,12 +409,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   await Promise.all(
     events.map(async (event) => {
       if (event.type === 'message' && event.message?.type === 'text') {
-        await handleTextEvent(
-          admin,
-          { id: shop.id, company_id: shop.company_id, shop_key: shop.shop_key, name: shop.name, liff_id: shop.liff_id, liff_id_login_shop: shop.liff_id_login_shop },
-          event,
-          channelToken,
-        );
+        await handleTextEvent(admin, webhookShop, event, channelToken);
       } else if (event.type === 'message') {
         await handleNonTextMessageEvent(admin, { id: shop.id, company_id: shop.company_id }, event, channelToken);
       }

@@ -418,6 +418,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
             assignedLabel: assignedResource ? resourceTypeLabel(assignedResource.resource_type) : null,
             liffUrl,
             pendingApproval,
+            bookingId: booking.id,
           }),
         /*   bookingConfirmMessage({
             queueNumber,
