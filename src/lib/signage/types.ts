@@ -5,8 +5,13 @@
  * and the portal designer, so keep this file free of React and Supabase imports.
  */
 
-export const SIGNAGE_TEMPLATES = ['classic', 'spotlight', 'counter', 'board', 'minimal'] as const;
-export const SIGNAGE_THEMES = ['emerald', 'midnight', 'restaurant', 'clinic', 'meeting', 'nail', 'light'] as const;
+/** The first five are the original layouts; the rest are the illustrated 2D scenes (migration 202609280001). */
+export const SIGNAGE_TEMPLATES = ['classic', 'spotlight', 'counter', 'board', 'minimal', 'lane', 'timeline', 'route', 'floor', 'invite', 'flap'] as const;
+/** `day_*` are flat light palettes, one per business family, made for the 2D scene templates. */
+export const SIGNAGE_THEMES = [
+  'emerald', 'midnight', 'restaurant', 'clinic', 'meeting', 'nail', 'light',
+  'day_navy', 'day_teal', 'day_brick', 'day_chili', 'day_indigo', 'day_court', 'day_rose', 'day_lime',
+] as const;
 export const SIGNAGE_LAYOUTS = ['landscape', 'portrait'] as const;
 export const CUSTOMER_NAME_MODES = ['hidden', 'masked', 'full'] as const;
 
@@ -44,11 +49,16 @@ export type SignagePerson = {
   status: string;
   /** 'HH:MM' or null. */
   start_time: string | null;
+  /** 'HH:MM' or null. Bookings without an end time have none. */
+  end_time: string | null;
   called_at: string | null;
   customer_name: string | null;
   service_name: string | null;
   resource_name: string | null;
 };
+
+/** A service point (chair, room, table, court) the shop has set up, whether or not it is in use. */
+export type SignageResource = { id: string; name: string };
 
 /** Normalised payload rendered by `SignageBoard`. Identical shape for TV, portal preview and mock. */
 export type SignageData = {
@@ -64,6 +74,10 @@ export type SignageData = {
   totals: { waiting: number; calling: number; served_today: number };
   /** LIFF booking URL when `show_qr` is on and the shop has a LIFF id. */
   qr_url: string | null;
+  /** Every active service point of the scope, so a scene can draw the free ones too. */
+  resources: SignageResource[];
+  /** Every booking of the day, served ones included, ordered by start time. Used by the timeline. */
+  schedule: SignagePerson[];
 };
 
 /** Where a loaded config came from, so the designer can label it. */

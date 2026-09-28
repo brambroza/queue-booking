@@ -87,10 +87,10 @@ const content: SolutionPageContent = {
     { title: 'รายงานสนาม', desc: 'อัตราจองโค้ช อัตราใช้คอร์ท และรายได้มัดจำ', icon: InsightsRoundedIcon },
   ],
   previewItems: [
-    { title: 'ตารางคอร์ทและโค้ช', image: '/images/use-cases/barber/calendar-view.jpg', alt: 'ตัวอย่างปฏิทินการจองแยกตามทรัพยากรในระบบหลังบ้าน' },
-    { title: 'หน้าเลือกโค้ชใน LINE', image: '/images/use-cases/barber/liff-step-2.jpg', alt: 'ตัวอย่างหน้าเลือกผู้ให้บริการและเวลาผ่าน LINE' },
-    { title: 'รายการจองวันนี้', image: '/images/use-cases/barber/daily-queue-list.jpg', alt: 'ตัวอย่างรายการจองประจำวันในระบบหลังบ้าน' },
-    { title: 'แจ้งเตือนทีมงาน', image: '/images/use-cases/barber/notification-dropdown.jpg', alt: 'ตัวอย่างการแจ้งเตือนการจองใหม่ให้ทีมงาน' },
+    { title: 'ตารางคอร์ทและโค้ช', image: '/images/use-cases/barber/calendar-view.jpg', alt: 'ตัวอย่างปฏิทินการจองแยกตามทรัพยากรในระบบหลังบ้าน', width: 749, height: 901 },
+    { title: 'หน้าเลือกโค้ชใน LINE', image: '/images/product/tennis/liff-slots.webp', alt: 'ตัวอย่างหน้าเลือกผู้ให้บริการและเวลาผ่าน LINE', width: 780, height: 1688 },
+    { title: 'รายการจองวันนี้', image: '/images/product/tennis/portal-bookings.webp', alt: 'ตัวอย่างรายการจองประจำวันในระบบหลังบ้าน', width: 2320, height: 2064 },
+    { title: 'แจ้งเตือนทีมงาน', image: '/images/use-cases/barber/notification-dropdown.jpg', alt: 'ตัวอย่างการแจ้งเตือนการจองใหม่ให้ทีมงาน', width: 439, height: 621 },
   ],
   faqItems: [
     { q: 'ระบบจองสนามเทนนิสผ่าน LINE คืออะไร', a: 'คือระบบที่ให้สมาชิกจองคอร์ทเทนนิส โค้ชส่วนตัว และคลาสกลุ่มผ่าน LINE OA ของสนามได้เอง พร้อมมัดจำและแจ้งเตือนอัตโนมัติ.' },

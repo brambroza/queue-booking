@@ -211,10 +211,10 @@ const faqs = [
 ];
 
 const previewItems = [
-  { title: 'Reservation Calendar', image: '/images/use-cases/restaurant/calendar-view.jpg', alt: 'ปฏิทินการจองโต๊ะร้านอาหาร' },
-  { title: 'Queue Board', image: '/images/use-cases/restaurant/signage-desktop.jpg', alt: 'หน้าจอระบบคิวร้านอาหาร' },
-  { title: 'Staff Dashboard', image: '/images/use-cases/restaurant/daily-queue-list.jpg', alt: 'หน้าจอจัดการคิวสำหรับพนักงานร้านอาหาร' },
-  { title: 'Analytics Dashboard', image: '/images/use-cases/restaurant/notification-dropdown.jpg', alt: 'ตัวอย่าง Dashboard วิเคราะห์ข้อมูลการจองร้านอาหาร' },
+  { title: 'Reservation Calendar', image: '/images/use-cases/restaurant/calendar-view.jpg', alt: 'ปฏิทินการจองโต๊ะร้านอาหาร', width: 749, height: 901 },
+  { title: 'Queue Board', image: '/images/product/restaurant/signage-tv.webp', alt: 'หน้าจอระบบคิวร้านอาหาร', width: 1920, height: 1080 },
+  { title: 'Staff Dashboard', image: '/images/product/restaurant/portal-bookings.webp', alt: 'หน้าจอจัดการคิวสำหรับพนักงานร้านอาหาร', width: 2320, height: 2064 },
+  { title: 'Analytics Dashboard', image: '/images/product/restaurant/portal-reports.webp', alt: 'ตัวอย่าง Dashboard วิเคราะห์ข้อมูลการจองร้านอาหาร', width: 2320, height: 2064 },
 ];
 
 export default function RestaurantBookingSystemPage() {
@@ -468,8 +468,8 @@ export default function RestaurantBookingSystemPage() {
                   <Image
                     src={item.image}
                     alt={item.alt}
-                    width={1200}
-                    height={900}
+                    width={item.width}
+                    height={item.height}
                     loading="lazy"
                     style={{ width: '100%', height: 'auto', borderRadius: 8, border: '1px solid #e5e7eb' }}
                   />

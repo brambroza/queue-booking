@@ -87,10 +87,10 @@ const content: SolutionPageContent = {
     { title: 'รายงานสนาม', desc: 'รอบที่ขายดี จำนวนผู้เล่น และอุปกรณ์ที่ถูกเช่า', icon: InsightsRoundedIcon },
   ],
   previewItems: [
-    { title: 'ตารางรอบเกม', image: '/images/use-cases/buffet/calendar-view.jpg', alt: 'ตัวอย่างตารางรอบแบบรับจำนวนต่อรอบในระบบหลังบ้าน' },
-    { title: 'หน้าจองรอบใน LINE', image: '/images/use-cases/buffet/liff-step-2.jpg', alt: 'ตัวอย่างหน้าเลือกวันและรอบผ่าน LINE' },
-    { title: 'รายการทีมวันนี้', image: '/images/use-cases/buffet/daily-queue-list.jpg', alt: 'ตัวอย่างรายการจองประจำวันในระบบหลังบ้าน' },
-    { title: 'แจ้งเตือนทีมงาน', image: '/images/use-cases/buffet/notification-dropdown.jpg', alt: 'ตัวอย่างการแจ้งเตือนการจองใหม่ให้ทีมงาน' },
+    { title: 'ตารางรอบเกม', image: '/images/use-cases/buffet/calendar-view.jpg', alt: 'ตัวอย่างตารางรอบแบบรับจำนวนต่อรอบในระบบหลังบ้าน', width: 749, height: 901 },
+    { title: 'หน้าจองรอบใน LINE', image: '/images/product/bb-gun/liff-slots.webp', alt: 'ตัวอย่างหน้าเลือกวันและรอบผ่าน LINE', width: 780, height: 1688 },
+    { title: 'รายการทีมวันนี้', image: '/images/product/bb-gun/portal-bookings.webp', alt: 'ตัวอย่างรายการจองประจำวันในระบบหลังบ้าน', width: 2320, height: 2064 },
+    { title: 'แจ้งเตือนทีมงาน', image: '/images/use-cases/buffet/notification-dropdown.jpg', alt: 'ตัวอย่างการแจ้งเตือนการจองใหม่ให้ทีมงาน', width: 439, height: 621 },
   ],
   faqItems: [
     { q: 'ระบบจองสนาม BB Gun ผ่าน LINE คืออะไร', a: 'คือระบบที่ให้หัวหน้าทีมจองรอบเกมผ่าน LINE OA ของสนามได้เอง ระบุจำนวนผู้เล่น เลือกอุปกรณ์เช่า และวางมัดจำ พร้อมรับแจ้งเตือนอัตโนมัติ.' },

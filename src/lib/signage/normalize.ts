@@ -1,4 +1,4 @@
-import type { CustomerNameMode, SignageConfig, SignageData, SignagePerson } from './types';
+import type { CustomerNameMode, SignageConfig, SignageData, SignagePerson, SignageResource } from './types';
 
 /** Statuses that mean "this queue is being called / served right now". */
 export const SIGNAGE_CALLING_STATUSES = ['called', 'serving', 'in_service'] as const;
@@ -15,7 +15,7 @@ export const SIGNAGE_ALL_STATUSES = [
 
 /** Columns both display routes must select so `buildSignageData` sees the same shape. */
 export const SIGNAGE_BOOKING_SELECT =
-  'id,queue_number,status,start_time,called_at,resource_name,branch_id,customers(full_name,nickname),line_users(display_name),services(service_name)';
+  'id,queue_number,status,start_time,end_time,called_at,resource_name,branch_id,customers(full_name,nickname),line_users(display_name),services(service_name)';
 
 type SignageCustomer = { full_name?: string | null; nickname?: string | null };
 
@@ -25,6 +25,7 @@ export type SignageBookingRow = {
   queue_number: string;
   status: string;
   start_time: string | null;
+  end_time?: string | null;
   called_at: string | null;
   resource_name: string | null;
   branch_id: string | null;
@@ -78,6 +79,7 @@ function toPerson(row: SignageBookingRow, config: SignageConfig): SignagePerson 
     queue_number: row.queue_number,
     status: row.status,
     start_time: toHHMM(row.start_time),
+    end_time: toHHMM(row.end_time),
     called_at: row.called_at ?? null,
     customer_name: signageDisplayName(first(row.customers), first(row.line_users)?.display_name, config.customer_name_mode),
     service_name: config.show_service_name ? first(row.services)?.service_name ?? null : null,
@@ -96,6 +98,8 @@ export type BuildSignageDataInput = {
   date: string;
   shop: { name: string; logo_url?: string | null; demo_mode_enabled?: boolean | null; liff_id?: string | null };
   branch: { id: string; name: string } | null;
+  /** Active service points of the scope; omitted by callers that have not loaded them. */
+  resources?: SignageResource[];
 };
 
 /**
@@ -141,5 +145,23 @@ export function buildSignageData(input: BuildSignageDataInput): SignageData {
       served_today: rows.filter((r) => served.has(r.status)).length,
     },
     qr_url: qrUrl,
+    resources: input.resources ?? [],
+    schedule: [...rows].sort(byStartTime).map((r) => toPerson(r, config)),
   };
+}
+
+/** Columns of `booking_resources` the signage needs. */
+export const SIGNAGE_RESOURCE_SELECT = 'id,resource_name,resource_code,branch_id';
+
+export type SignageResourceRow = { id: string; resource_name: string; resource_code?: string | null; branch_id?: string | null };
+
+/**
+ * Service points as the signage names them. The name must match `bookings.resource_name`,
+ * because that text is how a scene ties a queue to its chair, room or court.
+ */
+export function toSignageResources(rows: SignageResourceRow[] | null | undefined): SignageResource[] {
+  return (rows ?? [])
+    .filter((r) => r.resource_name?.trim())
+    .map((r) => ({ id: r.id, name: r.resource_name.trim() }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'th', { numeric: true }));
 }

@@ -325,6 +325,17 @@ Opt-in ต่อร้าน `shops.one_booking_per_day` (default false) — swi
 - Row ที่ส่ง `queue_number` มาเอง trigger ไม่แตะ (demo sandbox ใช้ prefix `D` ใน `src/lib/demo/sandbox.ts`)
 - อ่านเลขที่ DB ออกให้ผ่าน `.select('id,queue_number')` หลัง insert (`/api/bookings`, `/api/public/shop/[shopKey]/book`)
 
+## Signage Scene Templates (`/display/[shopKey]`)
+
+Six illustrated 2D templates next to the original five: `lane` (queue as people walking to a service point), `timeline` (one row per court / room, free stretches shown), `route` (queue as stops on a line), `floor` (every service point, dashed route to the called one), `invite` (shop-front poster with a large QR when nobody is waiting), `flap` (split-flap board)
+- Migration `202609280001_signage_scene_templates.sql` (**must run before a shop can save** a new template or `day_*` theme — `signage_settings` has CHECK constraints on both; `?template=&theme=` on the display URL works without it). Keep the lists equal to `SIGNAGE_TEMPLATES` / `SIGNAGE_THEMES` in `src/lib/signage/types.ts`
+- Feed: `SignageData` gained `resources` (all active `booking_resources` of the scope) and `schedule` (every booking of the day incl. served, by start time); `SignagePerson` gained `end_time`. Built in `buildSignageData`; both `/api/public/shop/[shopKey]/display` and `/api/queue-display` load resources (a failed lookup is logged, never fatal). A queue is tied to its service point by **name** (`bookings.resource_name`)
+- Pure rules + vitest: `src/lib/signage/scene.ts` (`buildTimeline`, `buildStations`, `diffScene`, `minutesUntil`, `isIdle`, `bangkokMinutes`). "Now" is always Bangkok time, never the TV's clock
+- UI: `src/components/signage/scenes/` — `scenes.module.css` is written in `em` (scene root sets `font-size: var(--sg-unit)`, ×1.7778 in portrait so the board is 56.25em × 100em), `scene-parts.tsx` (`SceneShell`, `HeroPanel`, `PosterQr`), `scene-art.ts` (fixed SVG markup, artwork chosen by **theme** because the feed carries no business type)
+- Motion = GSAP, loaded on demand in `use-scene-motion.ts`. Resting positions are plain CSS; GSAP only plays the way there (`useMoveTo` is a hand-rolled FLIP), so the board is correct without it. Off in `thumbnail` mode and under `prefers-reduced-motion`. Movement is read from the difference between two polls (`refresh_seconds`), not pushed in real time
+- Themes: palettes gained `highlight` / `highlightContrast` / `deep`; eight flat light themes `day_navy|teal|brick|chili|indigo|court|rose|lime`
+- Known limits: `floor` is an automatic grid, **not** a real floor plan (no positions are stored); `timeline` gaps are gaps between bookings, not checked against working hours; `route` counts down to the appointment time, it is not a wait estimate; `invite` shows no free slots (not in the feed) and needs `show_qr` + a LIFF id for its QR; a called queue with no `resource_name` has no figure in `lane` / `floor`
+
 ## Booking Status Flow
 
 ```

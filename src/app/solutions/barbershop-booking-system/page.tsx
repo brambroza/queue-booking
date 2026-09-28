@@ -210,21 +210,29 @@ const previewItems = [
     title: 'Appointment Calendar',
     image: '/images/use-cases/barber/calendar-view.jpg',
     alt: 'ตัวอย่างปฏิทินการจองร้านตัดผม',
+    width: 749,
+    height: 901,
   },
   {
     title: 'Staff Schedule',
-    image: '/images/use-cases/barber/liff-step-2.jpg',
+    image: '/images/product/barber/liff-slots.webp',
     alt: 'ตัวอย่างตารางช่างและการเลือกวันเวลา',
+    width: 780,
+    height: 1688,
   },
   {
     title: 'Booking Dashboard',
-    image: '/images/use-cases/barber/daily-queue-list.jpg',
+    image: '/images/product/barber/portal-bookings.webp',
     alt: 'ตัวอย่างแดชบอร์ดการจองร้านตัดผม',
+    width: 2320,
+    height: 2064,
   },
   {
     title: 'Analytics Dashboard',
-    image: '/images/use-cases/barber/notification-dropdown.jpg',
+    image: '/images/product/barber/portal-reports.webp',
     alt: 'ตัวอย่างแดชบอร์ดวิเคราะห์ข้อมูลการจอง',
+    width: 2320,
+    height: 2064,
   },
 ];
 
@@ -498,8 +506,8 @@ export default function BarbershopBookingSystemPage() {
                   <Image
                     src={item.image}
                     alt={item.alt}
-                    width={1200}
-                    height={900}
+                    width={item.width}
+                    height={item.height}
                     loading="lazy"
                     style={{ width: '100%', height: 'auto', borderRadius: 8, border: '1px solid #e5e7eb' }}
                   />

@@ -25,6 +25,25 @@ export type SignageLabels = {
   disabled_title: string;
   disabled_body: string;
   please_proceed: string;
+  serving: string;
+  in_use: string;
+  done: string;
+  get_ready: string;
+  booked: string;
+  free_bookable: string;
+  now: string;
+  /** `{n}` is replaced with the number of minutes. */
+  minutes_left: string;
+  time_reached: string;
+  appointment: string;
+  name: string;
+  waiting_area: string;
+  /** `{n}` is replaced with the number of queues not shown. */
+  more_queues: string;
+  invite_kicker: string;
+  invite_title: string;
+  invite_steps: [string, string, string];
+  invite_no_app: string;
 };
 
 export const SIGNAGE_LABELS_TH: SignageLabels = {
@@ -50,6 +69,23 @@ export const SIGNAGE_LABELS_TH: SignageLabels = {
   disabled_title: 'จอแสดงคิวปิดใช้งาน',
   disabled_body: 'เจ้าของร้านสามารถเปิดใช้งานได้ที่เมนู จอแสดงคิว',
   please_proceed: 'เชิญที่',
+  serving: 'กำลังให้บริการ',
+  in_use: 'กำลังใช้',
+  done: 'เสร็จแล้ว',
+  get_ready: 'เตรียมตัว',
+  booked: 'จองแล้ว',
+  free_bookable: 'ว่าง จองได้',
+  now: 'ตอนนี้',
+  minutes_left: 'อีก {n} นาที',
+  time_reached: 'ถึงเวลานัดแล้ว',
+  appointment: 'เวลานัด',
+  name: 'ชื่อ',
+  waiting_area: 'ที่นั่งรอ',
+  more_queues: '+{n} คิว',
+  invite_kicker: 'ไม่ต้องรอคิว',
+  invite_title: 'ว่างอยู่ จองได้เลย',
+  invite_steps: ['สแกน QR', 'เลือกบริการและเวลา', 'รับเลขคิวใน LINE'],
+  invite_no_app: 'ไม่ต้องโหลดแอป',
 };
 
 export const SIGNAGE_LABELS_EN: SignageLabels = {
@@ -75,6 +111,23 @@ export const SIGNAGE_LABELS_EN: SignageLabels = {
   disabled_title: 'Queue display is turned off',
   disabled_body: 'The shop owner can enable it from the Queue Display menu',
   please_proceed: 'Go to',
+  serving: 'Now serving',
+  in_use: 'In use',
+  done: 'Done',
+  get_ready: 'Get ready',
+  booked: 'Booked',
+  free_bookable: 'Free to book',
+  now: 'Now',
+  minutes_left: 'in {n} min',
+  time_reached: 'Time is up',
+  appointment: 'Time',
+  name: 'Name',
+  waiting_area: 'Waiting area',
+  more_queues: '+{n} more',
+  invite_kicker: 'No waiting',
+  invite_title: 'Free now, book right away',
+  invite_steps: ['Scan the QR', 'Pick a service and time', 'Get your number in LINE'],
+  invite_no_app: 'No app to install',
 };
 
 /** Pick a label set by language code, defaulting to Thai. */

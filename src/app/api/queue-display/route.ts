@@ -4,7 +4,15 @@ import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { applyBranchScope } from '@/lib/auth/branch-scope';
 import { getTodayISOInBangkok } from '@/lib/utils/date-format';
 import { loadSignageSettings } from '@/lib/signage/settings';
-import { buildSignageData, SIGNAGE_ALL_STATUSES, SIGNAGE_BOOKING_SELECT, type SignageBookingRow } from '@/lib/signage/normalize';
+import {
+  buildSignageData,
+  SIGNAGE_ALL_STATUSES,
+  SIGNAGE_BOOKING_SELECT,
+  SIGNAGE_RESOURCE_SELECT,
+  toSignageResources,
+  type SignageBookingRow,
+  type SignageResourceRow,
+} from '@/lib/signage/normalize';
 
 const DateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const BranchIdSchema = z.string().uuid();
@@ -66,8 +74,17 @@ export async function GET(req: Request) {
       .order('start_time', { ascending: true });
     query = applyBranchScope(query, branchScope, resolvedBranchId);
 
-    const { data, error } = await query;
+    let resourceQuery = supabase
+      .from('booking_resources')
+      .select(SIGNAGE_RESOURCE_SELECT)
+      .eq('shop_id', profile.shop_id)
+      .eq('active', true)
+      .eq('is_deleted', false);
+    if (resolvedBranchId) resourceQuery = resourceQuery.or(`branch_id.is.null,branch_id.eq.${resolvedBranchId}`);
+
+    const [{ data, error }, { data: resourceRows, error: resourceError }] = await Promise.all([query, resourceQuery]);
     if (error) throw error;
+    if (resourceError) console.error('[queue_display_resources_failed]', resourceError.message);
 
     const branchRows = (branches ?? []) as BranchRow[];
     const branch = resolvedBranchId
@@ -88,6 +105,7 @@ export async function GET(req: Request) {
         liff_id: shopMeta?.liff_id ?? null,
       },
       branch,
+      resources: toSignageResources(resourceRows as SignageResourceRow[] | null),
     });
 
     return NextResponse.json({

@@ -17,13 +17,36 @@ function person(
   resource_name: string | null,
   called_at: string | null = null,
 ): SignagePerson {
-  return { id, queue_number, status, start_time, called_at, customer_name, service_name, resource_name };
+  return { id, queue_number, status, start_time, end_time: null, called_at, customer_name, service_name, resource_name };
+}
+
+/** `HH:MM` plus minutes, clamped to the same day. */
+function plus(time: string, minutes: number): string {
+  const [h, m] = time.split(':').map(Number);
+  const total = Math.min(23 * 60 + 59, h * 60 + m + minutes);
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+/**
+ * Fill in what the 2D scene templates read: the list of service points and the
+ * day's schedule. Queues that were not given a service point are spread over the
+ * ones the sample already uses, and every booking gets the same length.
+ * @param data Sample payload without the scene fields.
+ * @param minutes Length of every booking, in minutes.
+ */
+function scene(data: Omit<SignageData, 'resources' | 'schedule'>, minutes = 45): SignageData {
+  const everyone = [...data.now_calling, ...data.next_queue, ...data.waiting_queue];
+  const names = Array.from(new Set(everyone.map((p) => p.resource_name).filter((n): n is string => Boolean(n))));
+  const resources = names.map((name, i) => ({ id: `r${i + 1}`, name }));
+  const timed = (list: SignagePerson[]) => list.map((p) => ({ ...p, end_time: p.start_time ? plus(p.start_time, minutes) : null }));
+  const schedule = timed(everyone).map((p, i) => ({ ...p, resource_name: p.resource_name ?? names[i % Math.max(1, names.length)] ?? null }));
+  return { ...data, now_calling: timed(data.now_calling), next_queue: timed(data.next_queue), waiting_queue: timed(data.waiting_queue), resources, schedule };
 }
 
 const MOCK_DATE = '2026-09-10';
 const MOCK_GENERATED = '2026-09-10T03:42:00.000Z';
 
-const BASE: Omit<SignageData, 'now_calling' | 'next_queue' | 'waiting_queue' | 'totals'> = {
+const BASE: Omit<SignageData, 'now_calling' | 'next_queue' | 'waiting_queue' | 'totals' | 'resources' | 'schedule'> = {
   date: MOCK_DATE,
   generated_at: MOCK_GENERATED,
   shop: { name: 'ร้านตัวอย่าง', logo_url: null, demo_mode_enabled: false },
@@ -31,7 +54,7 @@ const BASE: Omit<SignageData, 'now_calling' | 'next_queue' | 'waiting_queue' | '
   qr_url: 'https://liff.line.me/0000000000-demo',
 };
 
-export const MOCK_SIGNAGE_RESTAURANT: SignageData = {
+export const MOCK_SIGNAGE_RESTAURANT: SignageData = scene({
   ...BASE,
   shop: { ...BASE.shop, name: 'ครัวคุณแม่ สาขาลาดพร้าว' },
   now_calling: [
@@ -52,9 +75,9 @@ export const MOCK_SIGNAGE_RESTAURANT: SignageData = {
     person('w4', 'A21', 'waiting', '12:30', 'ป***', null, null),
   ],
   totals: { waiting: 9, calling: 2, served_today: 24 },
-};
+});
 
-export const MOCK_SIGNAGE_CLINIC: SignageData = {
+export const MOCK_SIGNAGE_CLINIC: SignageData = scene({
   ...BASE,
   shop: { ...BASE.shop, name: 'สุขใจคลินิก' },
   now_calling: [
@@ -74,9 +97,9 @@ export const MOCK_SIGNAGE_CLINIC: SignageData = {
     person('w2', 'B15', 'waiting', '12:15', 'ม***', null, null),
   ],
   totals: { waiting: 7, calling: 3, served_today: 18 },
-};
+});
 
-export const MOCK_SIGNAGE_BARBER: SignageData = {
+export const MOCK_SIGNAGE_BARBER: SignageData = scene({
   ...BASE,
   shop: { ...BASE.shop, name: 'Gentleman Barber' },
   now_calling: [
@@ -90,9 +113,9 @@ export const MOCK_SIGNAGE_BARBER: SignageData = {
   ],
   waiting_queue: [person('w1', '28', 'waiting', '15:30', 'ธ***', null, null)],
   totals: { waiting: 4, calling: 2, served_today: 12 },
-};
+});
 
-export const MOCK_SIGNAGE_NAIL: SignageData = {
+export const MOCK_SIGNAGE_NAIL: SignageData = scene({
   ...BASE,
   shop: { ...BASE.shop, name: 'Blush Nail Studio' },
   now_calling: [person('c1', '07', 'called', '13:00', 'ศ***', 'ทาสีเจล', 'เตียง 2', '2026-09-10T06:00:00.000Z')],
@@ -103,9 +126,9 @@ export const MOCK_SIGNAGE_NAIL: SignageData = {
   ],
   waiting_queue: [],
   totals: { waiting: 3, calling: 1, served_today: 6 },
-};
+});
 
-export const MOCK_SIGNAGE_BUFFET: SignageData = {
+export const MOCK_SIGNAGE_BUFFET: SignageData = scene({
   ...BASE,
   shop: { ...BASE.shop, name: 'หมูกระทะ 24 ชม.' },
   now_calling: [
@@ -127,7 +150,71 @@ export const MOCK_SIGNAGE_BUFFET: SignageData = {
     person('w5', 'T41', 'waiting', '19:10', 'จ***', null, null),
   ],
   totals: { waiting: 10, calling: 2, served_today: 41 },
+});
+
+/** A shop with nobody waiting: what the invite template shows as a shop-front poster. */
+export const MOCK_SIGNAGE_NAIL_IDLE: SignageData = scene({
+  ...BASE,
+  shop: { ...BASE.shop, name: 'Blush Nail Studio' },
+  now_calling: [],
+  next_queue: [],
+  waiting_queue: [],
+  totals: { waiting: 0, calling: 0, served_today: 6 },
+});
+
+/**
+ * One visit to the nail studio, step by step: the poster, a booking, the call,
+ * the service, and the poster again. The landing page loops over it so the
+ * invite template can be seen switching between its two faces.
+ */
+export const MOCK_SIGNAGE_NAIL_FRAMES: SignageData[] = (() => {
+  const guest = (status: string, resource: string | null) => person('g1', '07', status, '13:00', 'คุณเมย์', 'ทาสีเจล', resource, resource ? '2026-09-10T06:00:00.000Z' : null);
+  const follower = person('g2', '08', 'waiting', '13:30', 'ณ***', 'ต่อเล็บ', null);
+  const frame = (now: SignagePerson[], next: SignagePerson[], served: number): SignageData => ({
+    ...MOCK_SIGNAGE_NAIL_IDLE,
+    now_calling: now,
+    next_queue: next,
+    totals: { waiting: next.length, calling: now.length, served_today: served },
+  });
+  return [
+    MOCK_SIGNAGE_NAIL_IDLE,
+    MOCK_SIGNAGE_NAIL_IDLE,
+    frame([], [guest('waiting', null)], 6),
+    frame([guest('called', 'เตียง 2')], [follower], 6),
+    frame([guest('serving', 'เตียง 2')], [follower], 6),
+    frame([person('g2', '08', 'called', '13:30', 'ณ***', 'ต่อเล็บ', 'เตียง 1', '2026-09-10T06:30:00.000Z'), guest('serving', 'เตียง 2')], [], 6),
+    frame([person('g2', '08', 'serving', '13:30', 'ณ***', 'ต่อเล็บ', 'เตียง 1', '2026-09-10T06:30:00.000Z')], [], 7),
+  ];
+})();
+
+/** The barber shop with two more chairs, so the floor template has free service points to call into. */
+export const MOCK_SIGNAGE_BARBER_FLOOR: SignageData = {
+  ...MOCK_SIGNAGE_BARBER,
+  resources: [...MOCK_SIGNAGE_BARBER.resources, { id: 'r3', name: 'ช่างเอก' }, { id: 'r4', name: 'ช่างนิว' }],
 };
+
+/** Courts booked by the hour, with free stretches left for the timeline template. */
+export const MOCK_SIGNAGE_COURT: SignageData = scene(
+  {
+    ...BASE,
+    shop: { ...BASE.shop, name: 'Smash Badminton' },
+    now_calling: [
+      person('c1', 'A05', 'serving', '10:00', 'ทีมพี่โอ๊ต', 'แบดมินตัน 1 ชม.', 'สนาม 1', '2026-09-10T03:00:00.000Z'),
+      person('c2', 'A06', 'called', '10:30', 'น้องมิ้น', 'แบดมินตัน 1 ชม.', 'สนาม 3', '2026-09-10T03:30:00.000Z'),
+    ],
+    next_queue: [
+      person('n1', 'A07', 'confirmed', '11:00', 'ก***', 'แบดมินตัน 1 ชม.', 'สนาม 2'),
+      person('n2', 'A08', 'confirmed', '11:30', 'ธ***', 'แบดมินตัน 1 ชม.', 'สนาม 1'),
+      person('n3', 'A09', 'confirmed', '12:00', 'พี่บอย', 'แบดมินตัน 1 ชม.', 'สนาม 4'),
+    ],
+    waiting_queue: [
+      person('w1', 'A10', 'confirmed', '13:00', 'ส***', 'แบดมินตัน 1 ชม.', 'สนาม 3'),
+      person('w2', 'A11', 'confirmed', '13:00', 'อ***', 'แบดมินตัน 1 ชม.', 'สนาม 2'),
+    ],
+    totals: { waiting: 5, calling: 2, served_today: 9 },
+  },
+  60,
+);
 
 export const MOCK_SIGNAGE_DATA = MOCK_SIGNAGE_RESTAURANT;
 
@@ -141,11 +228,12 @@ export type SignageShowcasePreset = {
 };
 
 export const SIGNAGE_SHOWCASE_PRESETS: SignageShowcasePreset[] = [
-  { id: 'restaurant', label_th: 'ร้านอาหาร', template: 'spotlight', theme: 'restaurant', data: MOCK_SIGNAGE_RESTAURANT },
-  { id: 'clinic', label_th: 'คลินิก', template: 'counter', theme: 'clinic', data: MOCK_SIGNAGE_CLINIC },
-  { id: 'barber', label_th: 'ร้านตัดผม', template: 'classic', theme: 'emerald', data: MOCK_SIGNAGE_BARBER },
-  { id: 'nail', label_th: 'ร้านเล็บ / บิวตี้', template: 'minimal', theme: 'light', data: MOCK_SIGNAGE_NAIL },
-  { id: 'buffet', label_th: 'บุฟเฟ่ต์', template: 'board', theme: 'midnight', data: MOCK_SIGNAGE_BUFFET },
+  { id: 'restaurant', label_th: 'ร้านอาหาร', template: 'lane', theme: 'day_chili', data: MOCK_SIGNAGE_RESTAURANT },
+  { id: 'court', label_th: 'สนามกีฬา', template: 'timeline', theme: 'day_court', data: MOCK_SIGNAGE_COURT },
+  { id: 'barber', label_th: 'ร้านตัดผม', template: 'floor', theme: 'day_navy', data: MOCK_SIGNAGE_BARBER },
+  { id: 'clinic', label_th: 'คลินิก', template: 'flap', theme: 'day_teal', data: MOCK_SIGNAGE_CLINIC },
+  { id: 'buffet', label_th: 'บุฟเฟ่ต์', template: 'route', theme: 'day_brick', data: MOCK_SIGNAGE_BUFFET },
+  { id: 'nail', label_th: 'ร้านเล็บ / บิวตี้', template: 'invite', theme: 'day_rose', data: MOCK_SIGNAGE_NAIL_IDLE },
 ];
 
 /** Build a config for a preset on top of the defaults. */

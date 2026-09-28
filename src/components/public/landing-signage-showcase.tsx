@@ -14,19 +14,58 @@ import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
 import PowerRoundedIcon from '@mui/icons-material/PowerRounded';
 import { SignageBoard } from '@/components/signage/signage-board';
 import {
+  MOCK_SIGNAGE_BARBER_FLOOR,
   MOCK_SIGNAGE_CLINIC,
-  MOCK_SIGNAGE_NAIL,
-  MOCK_SIGNAGE_RESTAURANT,
+  MOCK_SIGNAGE_NAIL_FRAMES,
   presetConfig,
   SIGNAGE_SHOWCASE_PRESETS,
 } from '@/components/signage/mock-data';
+import { advanceSignage } from '@/lib/signage/simulate';
+import type { SignageData } from '@/lib/signage/types';
 import styles from './landing-page.module.css';
 
 const ROTATE_MS = 5000;
 const lineFriendUrl = 'https://lin.ee/oViqAoh';
 
+/** Time between two steps of a device sample. Each device has its own so they do not move in unison. */
+const LIVE_MS = { tv: 4200, kiosk: 5000, tablet: 4600 };
+
+/** The sample poster carries a QR that really scans, so it must lead somewhere real. */
+const NAIL_FRAMES = MOCK_SIGNAGE_NAIL_FRAMES.map((frame) => ({ ...frame, qr_url: lineFriendUrl }));
+
+/**
+ * Sample data that changes on its own, the way a board changes when it polls a shop.
+ * @param initial Data of the first step.
+ * @param step Works out the data of a step from the one before.
+ * @param intervalMs Time between two steps.
+ * @param active `false` holds the current step, e.g. while the sample is off screen.
+ * @returns Data of the current step.
+ */
+function useLiveSample(initial: SignageData, step: (data: SignageData, tick: number) => SignageData, intervalMs: number, active: boolean): SignageData {
+  const [state, setState] = useState({ data: initial, tick: 0 });
+
+  useEffect(() => {
+    if (!active) return;
+    const timer = setInterval(() => setState((s) => ({ data: step(s.data, s.tick), tick: s.tick + 1 })), intervalMs);
+    return () => clearInterval(timer);
+  }, [active, step, intervalMs]);
+
+  // The board shows the visitor's real clock, so the date beside it has to be today's too.
+  const [today, setToday] = useState<string | null>(null);
+  useEffect(() => {
+    setToday(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date()));
+  }, []);
+
+  return useMemo(() => (today ? { ...state.data, date: today } : state.data), [state.data, today]);
+}
+
+/** Next frame of the nail studio loop. */
+function nextNailFrame(_data: SignageData, tick: number): SignageData {
+  return NAIL_FRAMES[(tick + 1) % NAIL_FRAMES.length];
+}
+
 const signageChips = [
-  { number: '01', label: '5 เทมเพลต รองรับแนวตั้งและแนวนอน' },
+  { number: '01', label: '11 เทมเพลต รองรับแนวตั้งและแนวนอน' },
   { number: '02', label: 'ซ่อนหรือปิดบังชื่อลูกค้าได้ (PDPA)' },
   { number: '03', label: 'QR จองคิวผ่าน LINE บนจอ' },
 ];
@@ -105,20 +144,23 @@ const services = [
 /**
  * Landing section that sells the queue display as a package: the software
  * running on a mock TV, the hardware form factors it fits, and bundle options.
- * Uses only static mock data, no network.
+ * Uses only mock data, no network. The three device samples run the real board
+ * with motion and step through sample data on a timer, in place of polling a shop.
  */
 export function DigitalSignageShowcase() {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [visible, setVisible] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
+  const [devicesVisible, setDevicesVisible] = useState(false);
   const sectionRef = useRef<HTMLElement | null>(null);
+  const devicesRef = useRef<HTMLDivElement | null>(null);
   const preset = SIGNAGE_SHOWCASE_PRESETS[index] ?? SIGNAGE_SHOWCASE_PRESETS[0];
   const config = useMemo(() => presetConfig(preset), [preset]);
 
-  const tvConfig = useMemo(() => presetConfig({ template: 'spotlight', theme: 'restaurant' }), []);
-  const kioskConfig = useMemo(() => presetConfig({ template: 'counter', theme: 'clinic' }, { layout: 'portrait' }), []);
-  const tabletConfig = useMemo(() => presetConfig({ template: 'minimal', theme: 'light' }, { announcement_text: null }), []);
+  const tvConfig = useMemo(() => presetConfig({ template: 'floor', theme: 'day_navy' }), []);
+  const kioskConfig = useMemo(() => presetConfig({ template: 'lane', theme: 'day_teal' }, { layout: 'portrait' }), []);
+  const tabletConfig = useMemo(() => presetConfig({ template: 'invite', theme: 'day_rose' }, { announcement_text: null }), []);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -138,6 +180,22 @@ export function DigitalSignageShowcase() {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    const el = devicesRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setDevicesVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => setDevicesVisible(entries[0]?.isIntersecting ?? false), { threshold: 0.1 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const live = devicesVisible && !reduceMotion;
+  const tvData = useLiveSample(MOCK_SIGNAGE_BARBER_FLOOR, advanceSignage, LIVE_MS.tv, live);
+  const kioskData = useLiveSample(MOCK_SIGNAGE_CLINIC, advanceSignage, LIVE_MS.kiosk, live);
+  const tabletData = useLiveSample(NAIL_FRAMES[0], nextNailFrame, LIVE_MS.tablet, live);
 
   useEffect(() => {
     if (paused || !visible || reduceMotion) return;
@@ -218,7 +276,7 @@ export function DigitalSignageShowcase() {
           </p>
         </div>
 
-        <div className={styles.signageDevices}>
+        <div className={styles.signageDevices} ref={devicesRef}>
           {/* Scene 1: TV mounted on a wall */}
           <article className={styles.signageDevice} data-signage-device>
             <div className={styles.deviceScene} aria-label="ภาพจำลอง Smart TV แขวนผนัง">
@@ -229,8 +287,8 @@ export function DigitalSignageShowcase() {
                 <div className={styles.sceneTvGlow} aria-hidden="true" />
                 <div className={styles.sceneTvBracket} aria-hidden="true" />
                 <div className={styles.sceneTv}>
-                  <div className={styles.deviceScreenLandscape}>
-                    <SignageBoard data={MOCK_SIGNAGE_RESTAURANT} config={tvConfig} mode="thumbnail" clockOverride="12:08:41" />
+                  <div className={styles.deviceScreenLandscape} aria-hidden="true">
+                    <SignageBoard data={tvData} config={tvConfig} mode="preview" />
                   </div>
                   <i className={styles.sceneTvLed} aria-hidden="true" />
                 </div>
@@ -247,8 +305,8 @@ export function DigitalSignageShowcase() {
               <div className={styles.sceneSkirting} aria-hidden="true" />
               <div className={styles.sceneKioskShadow} aria-hidden="true" />
               <div className={styles.sceneKiosk}>
-                <div className={styles.deviceScreenPortrait}>
-                  <SignageBoard data={MOCK_SIGNAGE_CLINIC} config={kioskConfig} mode="thumbnail" clockOverride="09:15:22" />
+                <div className={styles.deviceScreenPortrait} aria-hidden="true">
+                  <SignageBoard data={kioskData} config={kioskConfig} mode="preview" />
                 </div>
                 <div className={styles.sceneKioskChin} aria-hidden="true"><span>Q</span></div>
                 <div className={styles.sceneKioskBase} aria-hidden="true"><i /><i /></div>
@@ -265,8 +323,8 @@ export function DigitalSignageShowcase() {
               <div className={styles.sceneFloor} aria-hidden="true" />
               <div className={styles.sceneCounter} aria-hidden="true"><i /></div>
               <div className={styles.sceneTablet}>
-                <div className={styles.deviceScreenLandscape}>
-                  <SignageBoard data={MOCK_SIGNAGE_NAIL} config={tabletConfig} mode="thumbnail" clockOverride="14:30:05" />
+                <div className={styles.deviceScreenLandscape} aria-hidden="true">
+                  <SignageBoard data={tabletData} config={tabletConfig} mode="preview" />
                 </div>
               </div>
               <div className={styles.sceneTabletStand} aria-hidden="true" />

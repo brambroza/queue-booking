@@ -20,7 +20,8 @@ import { FaqSection } from '@/components/public/faq-section';
 export type SolutionUseCase = { title: string; desc: string; icon: SvgIconComponent };
 export type SolutionFeature = { title: string; desc: string; icon: SvgIconComponent };
 export type SolutionFaq = { q: string; a: string };
-export type SolutionPreview = { title: string; image: string; alt: string };
+/** `width` / `height` are the image's real pixel size, so the layout reserves the right space. */
+export type SolutionPreview = { title: string; image: string; alt: string; width: number; height: number };
 
 /**
  * Content contract for a `/solutions/<slug>` landing page.
@@ -324,8 +325,8 @@ export function SolutionPage({ content }: { content: SolutionPageContent }) {
                   <Image
                     src={item.image}
                     alt={item.alt}
-                    width={1200}
-                    height={900}
+                    width={item.width}
+                    height={item.height}
                     loading="lazy"
                     style={{ width: '100%', height: 'auto', borderRadius: 8, border: '1px solid #e5e7eb' }}
                   />

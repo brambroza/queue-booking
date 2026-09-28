@@ -152,7 +152,7 @@ function LineConversation() {
 }
 
 function PhoneBooking({
-  image = '/images/landing/2.jpg',
+  image = '/images/product/clinic/liff-slots.webp',
   label = 'หน้าจองคิวผ่าน LIFF',
   priority = false,
 }: {
@@ -487,7 +487,7 @@ function OutcomeSection() {
           </div>
           <div className={styles.outcomeVisual} data-reveal>
             <div className={styles.outcomeDashboard} data-parallax="-22"><DashboardPreview /></div>
-            <div className={styles.outcomePhone} data-parallax="28"><PhoneBooking image="/images/landing/1.jpg" /></div>
+            <div className={styles.outcomePhone} data-parallax="28"><PhoneBooking image="/images/product/clinic/liff-services.webp" /></div>
             <div className={styles.liveQueueCard} data-float-label>
               <span><i /> คิวล่าสุด</span><strong>A012</strong><small>พร้อมเรียกคิว</small>
             </div>

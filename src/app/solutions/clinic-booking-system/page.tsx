@@ -184,10 +184,10 @@ const whyChooseItems = [
 ];
 
 const previewItems = [
-  { title: 'Appointment Calendar', image: '/images/use-cases/clinic/calendar-view.jpg', alt: 'ปฏิทินการนัดหมายคลินิก' },
-  { title: 'Doctor Schedule', image: '/images/use-cases/clinic/liff-step-2.jpg', alt: 'ตารางแพทย์และช่วงเวลานัดหมาย' },
-  { title: 'Queue Management', image: '/images/use-cases/clinic/daily-queue-list.jpg', alt: 'หน้าจอจัดการคิวคลินิก' },
-  { title: 'Analytics Dashboard', image: '/images/use-cases/clinic/notification-dropdown.jpg', alt: 'ตัวอย่างแดชบอร์ดวิเคราะห์ข้อมูลการนัดหมาย' },
+  { title: 'Appointment Calendar', image: '/images/use-cases/clinic/calendar-view.jpg', alt: 'ปฏิทินการนัดหมายคลินิก', width: 749, height: 901 },
+  { title: 'Doctor Schedule', image: '/images/product/clinic/liff-slots.webp', alt: 'ตารางแพทย์และช่วงเวลานัดหมาย', width: 780, height: 1688 },
+  { title: 'Queue Management', image: '/images/product/clinic/portal-bookings.webp', alt: 'หน้าจอจัดการคิวคลินิก', width: 2320, height: 2064 },
+  { title: 'Analytics Dashboard', image: '/images/product/clinic/portal-reports.webp', alt: 'ตัวอย่างแดชบอร์ดวิเคราะห์ข้อมูลการนัดหมาย', width: 2320, height: 2064 },
 ];
 
 export default function ClinicBookingSystemPage() {
@@ -475,8 +475,8 @@ export default function ClinicBookingSystemPage() {
                   <Image
                     src={item.image}
                     alt={item.alt}
-                    width={1200}
-                    height={900}
+                    width={item.width}
+                    height={item.height}
                     loading="lazy"
                     style={{ width: '100%', height: 'auto', borderRadius: 8, border: '1px solid #e5e7eb' }}
                   />

@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "create:super-admin": "node scripts/create-super-admin.mjs",
-    "cleanup:unconfirmed": "node scripts/cleanup-unconfirmed-users.mjs"
+    "cleanup:unconfirmed": "node scripts/cleanup-unconfirmed-users.mjs",
+    "screenshots": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/screenshots/capture.mts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -44,6 +45,7 @@
     "autoprefixer": "^10.4.21",
     "eslint": "^9.26.0",
     "eslint-config-next": "^15.3.1",
+    "playwright": "^1.63.0",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",

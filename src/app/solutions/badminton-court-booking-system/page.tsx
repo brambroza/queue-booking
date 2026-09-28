@@ -88,10 +88,10 @@ const content: SolutionPageContent = {
     { title: 'รายงานสนาม', desc: 'ชั่วโมงพีค อัตราใช้คอร์ท และรายได้แยกรายคอร์ท', icon: InsightsRoundedIcon },
   ],
   previewItems: [
-    { title: 'ตารางคอร์ทรายวัน', image: '/images/use-cases/restaurant/calendar-view.jpg', alt: 'ตัวอย่างตารางการจองรายวันในระบบหลังบ้าน' },
-    { title: 'หน้าจองใน LINE', image: '/images/use-cases/restaurant/liff-step-2.jpg', alt: 'ตัวอย่างหน้าเลือกวันเวลาจองผ่าน LINE' },
-    { title: 'รายการจองวันนี้', image: '/images/use-cases/restaurant/daily-queue-list.jpg', alt: 'ตัวอย่างรายการจองประจำวันในระบบหลังบ้าน' },
-    { title: 'แจ้งเตือนทีมงาน', image: '/images/use-cases/restaurant/notification-dropdown.jpg', alt: 'ตัวอย่างการแจ้งเตือนการจองใหม่ให้ทีมงาน' },
+    { title: 'ตารางคอร์ทรายวัน', image: '/images/use-cases/restaurant/calendar-view.jpg', alt: 'ตัวอย่างตารางการจองรายวันในระบบหลังบ้าน', width: 749, height: 901 },
+    { title: 'หน้าจองใน LINE', image: '/images/product/badminton/liff-slots.webp', alt: 'ตัวอย่างหน้าเลือกวันเวลาจองผ่าน LINE', width: 780, height: 1688 },
+    { title: 'รายการจองวันนี้', image: '/images/product/badminton/portal-bookings.webp', alt: 'ตัวอย่างรายการจองประจำวันในระบบหลังบ้าน', width: 2320, height: 2064 },
+    { title: 'แจ้งเตือนทีมงาน', image: '/images/use-cases/restaurant/notification-dropdown.jpg', alt: 'ตัวอย่างการแจ้งเตือนการจองใหม่ให้ทีมงาน', width: 439, height: 621 },
   ],
   faqItems: [
     { q: 'ระบบจองสนามแบดผ่าน LINE คืออะไร', a: 'คือระบบที่ให้ลูกค้าเห็นคอร์ทว่างและจองสนามแบดมินตันผ่าน LINE OA ของสนามได้เอง พร้อมวางมัดจำและรับแจ้งเตือนอัตโนมัติ.' },

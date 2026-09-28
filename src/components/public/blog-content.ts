@@ -378,12 +378,12 @@ export const blogPosts: BlogPost[] = [
     assets: {
       images: [
         {
-          src: '/images/use-cases/restaurant/liff-step-1.jpg',
+          src: '/images/product/restaurant/liff-services.webp',
           alt: 'ลูกค้าเลือกบริการและเวลาจองคิวใน LIFF',
           caption: 'ลูกค้าเลือกบริการ วัน และช่วงเวลาว่างได้เองในหน้า LIFF',
         },
         {
-          src: '/images/use-cases/restaurant/liff-step-2.jpg',
+          src: '/images/product/restaurant/liff-slots.webp',
           alt: 'ลูกค้าเลือกช่วงเวลาและยืนยันคิว',
           caption: 'ระบบแสดงช่วงเวลาว่างอัตโนมัติ ลดการถามคิวซ้ำในแชท',
         },
@@ -398,7 +398,7 @@ export const blogPosts: BlogPost[] = [
           caption: 'ฝั่งร้านเห็นแจ้งเตือนคิวใหม่ทันทีใน Notification Center',
         },
         {
-          src: '/images/use-cases/restaurant/daily-queue-list.jpg',
+          src: '/images/product/restaurant/portal-bookings.webp',
           alt: 'รายการคิวรายวันและสถานะคิว',
           caption: 'ดูคิวรายวันพร้อมสถานะ ลดคิวตกหล่นและลดคิวชน',
         },
@@ -408,7 +408,7 @@ export const blogPosts: BlogPost[] = [
           caption: 'Calendar ช่วยเห็นภาพรวมคิวทั้งเดือนและช่วงเวลาพีค',
         },
         {
-          src: '/images/use-cases/restaurant/signage-desktop.jpg',
+          src: '/images/product/restaurant/signage-tv.webp',
           alt: 'Digital Signage หน้าร้านสำหรับเรียกคิว',
           caption: 'เรียกคิวผ่านหลังบ้านและอัปเดตจอหน้าร้านแบบ realtime',
         },

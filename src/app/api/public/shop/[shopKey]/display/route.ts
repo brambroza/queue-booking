@@ -4,7 +4,15 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { getTodayISOInBangkok } from '@/lib/utils/date-format';
 import { loadSignageSettings } from '@/lib/signage/settings';
-import { buildSignageData, SIGNAGE_ALL_STATUSES, SIGNAGE_BOOKING_SELECT, type SignageBookingRow } from '@/lib/signage/normalize';
+import {
+  buildSignageData,
+  SIGNAGE_ALL_STATUSES,
+  SIGNAGE_BOOKING_SELECT,
+  SIGNAGE_RESOURCE_SELECT,
+  toSignageResources,
+  type SignageBookingRow,
+  type SignageResourceRow,
+} from '@/lib/signage/normalize';
 
 const BranchIdSchema = z.string().uuid();
 
@@ -60,8 +68,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
       .order('start_time', { ascending: true });
     if (branch) query = query.eq('branch_id', branch.id);
 
-    const { data, error } = await query;
+    // Service points are decoration for the scene templates: a failed lookup
+    // must not take the queue display down, so its error is only logged.
+    let resourceQuery = admin
+      .from('booking_resources')
+      .select(SIGNAGE_RESOURCE_SELECT)
+      .eq('shop_id', shop.id)
+      .eq('active', true)
+      .eq('is_deleted', false);
+    if (branch) resourceQuery = resourceQuery.or(`branch_id.is.null,branch_id.eq.${branch.id}`);
+
+    const [{ data, error }, { data: resourceRows, error: resourceError }] = await Promise.all([query, resourceQuery]);
     if (error) throw error;
+    if (resourceError) console.error('[public_display_resources_failed]', resourceError.message);
 
     const signage = buildSignageData({
       rows: (data ?? []) as unknown as SignageBookingRow[],
@@ -74,6 +93,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
         liff_id: shop.liff_id,
       },
       branch,
+      resources: toSignageResources(resourceRows as SignageResourceRow[] | null),
     });
 
     return NextResponse.json({ data: { enabled: true, config, signage } }, { headers });
