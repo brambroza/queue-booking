@@ -621,7 +621,7 @@ export function ServicesCrud() {
                 <Grid size={{ xs: 12, sm: 6 }}><TextField label="Max Duration" type="number" value={maxDuration} onChange={(e: ChangeEvent<HTMLInputElement>) => setMaxDuration(e.target.value)} fullWidth size="small" /></Grid>
               </>
             ) : null}
-            <Grid size={{ xs: 12, sm: 6 }}><TextField label="Capacity / Slot" type="number" value={capacity} onChange={(e: ChangeEvent<HTMLInputElement>) => setCapacity(e.target.value)} fullWidth size="small" /></Grid>
+            <Grid size={{ xs: 12, sm: 6 }}><TextField label="จำนวนคิวต่อรอบ" type="number" value={capacity} onChange={(e: ChangeEvent<HTMLInputElement>) => setCapacity(e.target.value)} fullWidth size="small" helperText="จำนวนคิวสูงสุดที่รับได้ในเวลาเดียวกันของบริการนี้ ตั้งค่าที่นี่ที่เดียว" slotProps={{ htmlInput: { min: 1 } }} /></Grid>
 
             <Grid size={{ xs: 12, sm: 6 }}><FormControlLabel control={<Switch checked={active} onChange={(e: ChangeEvent<HTMLInputElement>) => setActive(e.target.checked)} />} label="Active" /></Grid>
             <Grid size={{ xs: 12, sm: 6 }}><FormControlLabel control={<Switch checked={requiresApproval} onChange={(e: ChangeEvent<HTMLInputElement>) => setRequiresApproval(e.target.checked)} />} label="Require Staff Confirm" /></Grid>

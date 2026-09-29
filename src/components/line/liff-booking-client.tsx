@@ -38,6 +38,7 @@ import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 import { buildBookingEchoText } from '@/lib/line/booking-echo';
 import { CUSTOMER_CANCELLABLE_STATUSES, checkInEligibility } from '@/lib/booking/status-flow';
 import { DAILY_LIMIT_CODE, dailyLimitMessage, findSameDayBooking } from '@/lib/booking/daily-limit';
+import { SLOT_FULL_CODE } from '@/lib/booking/slot-capacity';
 import { LiffPaymentPanel, openBankDeeplink } from '@/components/line/liff-payment-panel';
 import {
   KeyValueList,
@@ -772,6 +773,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       // The grid was left open past the slot's start — refresh it so the
       // customer sees which slots are still bookable.
       if (json.code === 'slot_past') void loadSlots();
+      // Someone took the last seat after the grid was drawn — redraw it so the
+      // slot shows as full and the customer picks another.
+      if (json.code === SLOT_FULL_CODE) void loadSlots();
       // Booked from another device meanwhile — pull the list so the warning
       // under the date picker matches what the server just refused.
       if (json.code === DAILY_LIMIT_CODE) void loadMe();

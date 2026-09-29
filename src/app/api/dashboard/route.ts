@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { applyBranchScope, applyNullableBranchScope } from '@/lib/auth/branch-scope';
 import { getNowHourInBangkok, getTodayISOInBangkok } from '@/lib/utils/date-format';
-import { CapacityModel, type HolidayRow, type WorkingHoursRow } from '@/lib/dashboard/capacity';
+import { CapacityModel, seatsPerSlot, type HolidayRow, type WorkingHoursRow } from '@/lib/dashboard/capacity';
 import { addDays, eachDay, resolveRange, startOfWeekMonday, weekdayOf } from '@/lib/dashboard/date-range';
 import { buildInsights, pct, type HourCell, type WeekdayHourStat, type WeekdayStat } from '@/lib/dashboard/insights';
 import { compareStatus, statusOccupiesSlot } from '@/lib/booking/status-meta';
@@ -136,7 +136,7 @@ export async function GET(req: Request) {
         requestedBranchId,
         'id',
       ),
-      supabase.from('services').select('id,service_name').eq('shop_id', targetShopId).eq('is_deleted', false),
+      supabase.from('services').select('id,service_name,capacity_per_slot,active').eq('shop_id', targetShopId).eq('is_deleted', false),
       // The window spans the range, the comparison range, 8 pattern weeks and
       // the lookahead — well past PostgREST's 1000-row cap for a busy shop, so
       // page it rather than let a single request silently truncate the KPIs.
@@ -173,7 +173,7 @@ export async function GET(req: Request) {
       applyNullableBranchScope(
         supabase
           .from('working_hours')
-          .select('branch_id,weekday,open_time,close_time,break_start,break_end,slot_interval_minutes,capacity_per_slot,active')
+          .select('branch_id,weekday,open_time,close_time,break_start,break_end,slot_interval_minutes,active')
           .eq('shop_id', targetShopId)
           .eq('is_deleted', false)
           .eq('active', true),
@@ -198,12 +198,15 @@ export async function GET(req: Request) {
     if (firstError) throw firstError;
 
     const branches = (branchesRes.data ?? []) as Array<{ id: string; branch_name: string }>;
-    const services = (servicesRes.data ?? []) as Array<{ id: string; service_name: string }>;
+    const services = (servicesRes.data ?? []) as Array<{ id: string; service_name: string; capacity_per_slot: number | null; active: boolean | null }>;
     const rows = lightRes.data;
+    // Same value customers book against — slot capacity is set per service.
+    const perSlotSeats = seatsPerSlot(services);
     const model = new CapacityModel(
       branches.map((b) => b.id),
       (whRes.data ?? []) as WorkingHoursRow[],
       (holRes.data ?? []) as HolidayRow[],
+      perSlotSeats,
     );
     const hours = model.openHours();
 
@@ -318,7 +321,7 @@ export async function GET(req: Request) {
     const branchSummary: DashboardNamedCount[] = branches
       .map((b) => {
         const count = branchMap.get(b.id) ?? 0;
-        const single = new CapacityModel([b.id], (whRes.data ?? []) as WorkingHoursRow[], (holRes.data ?? []) as HolidayRow[]);
+        const single = new CapacityModel([b.id], (whRes.data ?? []) as WorkingHoursRow[], (holRes.data ?? []) as HolidayRow[], perSlotSeats);
         const capacity = rangeDays.reduce((s, d) => s + single.dailyCapacity(d), 0);
         return { name: b.branch_name, count, pct: pct(count, capacity) };
       })

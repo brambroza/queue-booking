@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>QueueBooking LINE — Facebook video 16:9</title>
+<!--
+  Landscape layout (1920x1080) of the same video as index.html.
+  Text sits in the left column, the product visual in the right column.
+  Timing comes from timeline.js and is shared with the 9:16 version.
+-->
+<style>
+  @font-face { font-family: 'Kanit'; font-weight: 400; src: url('../../../public/fonts/Kanit-Regular.ttf'); }
+  @font-face { font-family: 'Kanit'; font-weight: 700; src: url('../../../public/fonts/Kanit-Bold.ttf'); }
+
+  :root {
+    --brand: #12a862;
+    --brand-dark: #0a7043;
+    --brand-deep: #0a482e;
+    --brand-light: #2ec37c;
+    --mint: #edf9f2;
+    --mint-strong: #dff4e8;
+    --ink: #121926;
+    --muted: #697586;
+    --line: #e3e8ef;
+    --error: #e14b4a;
+    --night: #0b0f16;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+  body { font-family: 'Kanit', sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+
+  #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; }
+  .scene { position: absolute; inset: 0; overflow: hidden; opacity: 0; }
+  .scene.light { background: linear-gradient(120deg, #ffffff 0%, var(--mint) 50%, var(--mint-strong) 100%); }
+  .scene.dark { background: radial-gradient(1100px 900px at 68% 50%, #12352a 0%, var(--night) 70%); color: #fff; }
+  .scene.green { background: linear-gradient(135deg, var(--brand-light) 0%, var(--brand) 40%, var(--brand-dark) 100%); color: #fff; }
+
+  .abs { position: absolute; will-change: transform, opacity; }
+
+  /* Left column: x 110..870 */
+  .brand { left: 110px; top: 96px; display: flex; align-items: center; gap: 18px; font-weight: 700; font-size: 34px; }
+  .brand img { width: 68px; height: 68px; border-radius: 50%; background: #fff; }
+  .headline { left: 110px; width: 780px; top: 236px; font-weight: 700; font-size: 84px; line-height: 1.22; letter-spacing: -0.5px; }
+  .headline em { font-style: normal; color: var(--brand); }
+  .dark .headline em { color: var(--brand-light); }
+  .sub { left: 110px; width: 780px; font-size: 40px; line-height: 1.4; color: var(--muted); }
+  .dark .sub { color: #b8c4d0; }
+
+  /* Phone frame */
+  .phone { width: 450px; height: 950px; border-radius: 58px; background: #10151c; padding: 14px;
+           box-shadow: 0 40px 90px rgba(10, 72, 46, .28), 0 0 0 2px rgba(255,255,255,.08) inset; }
+  .phone .screen { position: relative; width: 100%; height: 100%; border-radius: 46px; overflow: hidden; background: #f7f8fa; }
+  .phone .screen img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+  .ring { position: absolute; left: 3%; right: 3%; border: 6px solid var(--brand); border-radius: 26px;
+          box-shadow: 0 0 0 8px rgba(18,168,98,.2); }
+
+  .pill { font-weight: 700; font-size: 38px; padding: 16px 32px; border-radius: 999px; background: #fff;
+          box-shadow: 0 14px 36px rgba(18, 25, 38, .14); white-space: nowrap; display: flex; align-items: center; gap: 16px; }
+  .pill .dot { width: 22px; height: 22px; border-radius: 50%; background: var(--brand); flex: none; }
+  .pill .num { width: 50px; height: 50px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 28px;
+               display: flex; align-items: center; justify-content: center; flex: none; }
+
+  /* Browser-like card for landscape portal screenshots */
+  .window { left: 900px; width: 930px; border-radius: 32px; overflow: hidden; background: #fff;
+            box-shadow: 0 40px 90px rgba(10, 72, 46, .25); border: 2px solid var(--line); }
+  .window .bar { height: 60px; background: #f1f4f8; display: flex; align-items: center; gap: 12px; padding: 0 26px; }
+  .window .bar i { width: 18px; height: 18px; border-radius: 50%; background: #d5dbe3; }
+  .window .view { position: relative; overflow: hidden; }
+  .window .view img { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+
+  /* LINE style notification */
+  .notify { left: 110px; width: 740px; border-radius: 34px; background: #fff; padding: 28px 32px; display: flex; gap: 24px;
+            align-items: center; box-shadow: 0 30px 70px rgba(18, 25, 38, .22); }
+  .notify .ico { width: 92px; height: 92px; border-radius: 26px; background: #06c755; color: #fff; font-weight: 700;
+                 font-size: 28px; display: flex; align-items: center; justify-content: center; flex: none; }
+  .notify b { display: block; font-size: 38px; line-height: 1.3; }
+  .notify span { display: block; font-size: 30px; line-height: 1.35; color: var(--muted); }
+
+  /* Scene 1 chat bubbles */
+  .bubble { font-size: 44px; line-height: 1.35; padding: 24px 38px; border-radius: 42px; max-width: 760px; }
+  .bubble.in { left: 1000px; background: #fff; color: var(--ink); border-bottom-left-radius: 10px; }
+  .bubble.out { right: 110px; background: #06c755; color: #fff; border-bottom-right-radius: 10px; }
+  .alert { left: 110px; width: 780px; text-align: center; font-weight: 700; font-size: 42px; padding: 24px 20px; border-radius: 30px;
+           background: rgba(225, 75, 74, .16); color: #ff8e8d; border: 3px solid rgba(225, 75, 74, .55); }
+
+  /* TV */
+  .tv { left: 870px; width: 960px; padding: 18px; border-radius: 30px; background: #05070a;
+        box-shadow: 0 0 120px rgba(46, 195, 124, .35), 0 0 0 3px #1d2630 inset; }
+  .tv img { display: block; width: 100%; border-radius: 14px; }
+  .tv-stand { left: 1200px; width: 300px; height: 24px; border-radius: 0 0 20px 20px; background: #1d2630; }
+  .thumb { width: 300px; border-radius: 18px; overflow: hidden; border: 3px solid #1d2630; box-shadow: 0 20px 50px rgba(0,0,0,.5); }
+  .thumb img { display: block; width: 100%; }
+
+  /* Feature grid */
+  .feat { width: 440px; height: 200px; border-radius: 36px; background: #fff; padding: 0 32px; display: flex; align-items: center;
+          gap: 24px; font-weight: 700; font-size: 38px; line-height: 1.25; box-shadow: 0 18px 44px rgba(10, 72, 46, .14); }
+  .check { width: 64px; height: 64px; border-radius: 50%; background: var(--brand); flex: none; position: relative; }
+  .check::after { content: ''; position: absolute; left: 22px; top: 12px; width: 16px; height: 30px; border: solid #fff;
+                  border-width: 0 7px 7px 0; transform: rotate(45deg); }
+
+  /* CTA */
+  .logo-big { left: 110px; top: 110px; width: 220px; height: 220px; border-radius: 50%; background: #fff;
+              box-shadow: 0 30px 80px rgba(0, 0, 0, .25); }
+  .cta-title { left: 110px; top: 360px; font-weight: 700; font-size: 140px; line-height: 1.2; }
+  .cta-sub { left: 110px; top: 545px; font-size: 48px; line-height: 1.4; }
+  .price { left: 110px; width: 780px; top: 665px; text-align: center; font-weight: 700; font-size: 42px; padding: 22px 0;
+           border-radius: 999px; background: rgba(255, 255, 255, .18); border: 3px solid rgba(255, 255, 255, .55); }
+  .site { left: 110px; top: 830px; font-weight: 700; font-size: 46px; letter-spacing: 1px; }
+  .qr { left: 1190px; top: 210px; width: 560px; border-radius: 48px; background: #fff; padding: 36px 36px 28px; text-align: center;
+        color: var(--ink); font-weight: 700; font-size: 40px; box-shadow: 0 30px 80px rgba(0, 0, 0, .28); }
+  .qr img { display: block; width: 488px; height: 488px; margin-bottom: 14px; image-rendering: pixelated; }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- 1. Pain -->
+  <section class="scene dark" id="s1">
+    <div class="abs headline" id="s1-h" style="top:250px;font-size:116px">ตอบแชทจองคิว<br><em>ทั้งวัน?</em></div>
+    <div class="abs alert" id="s1-a" style="top:680px">คิวชน · จองซ้ำ · ลูกค้าลืมนัด</div>
+    <div class="abs bubble in" id="s1-b1" style="top:200px">พรุ่งนี้มีคิวว่างไหมคะ</div>
+    <div class="abs bubble in" id="s1-b2" style="top:370px">ขอจองบ่ายสองได้ไหม</div>
+    <div class="abs bubble out" id="s1-b3" style="top:540px">รอสักครู่นะคะ…</div>
+    <div class="abs bubble in" id="s1-b4" style="top:710px">ขอเลื่อนคิวได้ไหมครับ</div>
+  </section>
+
+  <!-- 2. LINE booking -->
+  <section class="scene light" id="s2">
+    <div class="abs brand"><img src="../../../public/favicon.png" alt="">QueueBooking LINE</div>
+    <div class="abs headline" id="s2-h">ลูกค้าจองผ่าน<br><em>LINE ได้เอง</em></div>
+    <div class="abs pill" id="s2-c1" style="left:110px;top:540px"><span class="num">1</span>เลือกบริการ</div>
+    <div class="abs pill" id="s2-c2" style="left:110px;top:670px"><span class="num">2</span>เลือกวันเวลา</div>
+    <div class="abs pill" id="s2-c3" style="left:110px;top:800px"><span class="num">3</span>ได้เลขคิวทันที</div>
+    <div class="abs phone" id="s2-p" style="left:1140px;top:65px">
+      <div class="screen">
+        <img id="s2-i1" src="../../../public/images/product/liff-services.webp" alt="">
+        <img id="s2-i2" src="../../../public/images/product/liff-slots.webp" alt="">
+        <img id="s2-i3" src="../../../public/images/product/liff-my-queue.webp" alt="">
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Deposit -->
+  <section class="scene light" id="s3">
+    <div class="abs brand"><img src="../../../public/favicon.png" alt="">QueueBooking LINE</div>
+    <div class="abs headline" id="s3-h">รับมัดจำผ่าน<br><em>PromptPay QR</em></div>
+    <div class="abs pill" id="s3-c1" style="left:110px;top:540px"><span class="dot"></span>จ่ายใน LINE ตอนจอง</div>
+    <div class="abs pill" id="s3-c2" style="left:110px;top:670px"><span class="dot"></span>ใบเสร็จส่งเข้า LINE</div>
+    <div class="abs phone" id="s3-p" style="left:1140px;top:65px">
+      <div class="screen">
+        <img id="s3-i1" src="../../../public/images/product/liff-slots.webp" alt="">
+        <div class="ring" id="s3-r" style="top:76%;height:23%"></div>
+        <img id="s3-i2" src="../../../public/images/landing/bank-app-3-paid.png" alt="">
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Queue board -->
+  <section class="scene light" id="s4">
+    <div class="abs brand"><img src="../../../public/favicon.png" alt="">QueueBooking LINE</div>
+    <div class="abs headline" id="s4-h">เรียกคิว<em>คลิกเดียว</em><br>แจ้งลูกค้าทาง LINE</div>
+    <div class="abs window" id="s4-w" style="top:170px">
+      <div class="bar"><i></i><i></i><i></i></div>
+      <div class="view" style="height:680px"><img id="s4-i" src="../../../public/images/product/portal-queue-board.webp" alt=""></div>
+    </div>
+    <div class="abs notify" id="s4-n" style="top:560px">
+      <div class="ico">LINE</div>
+      <div><b>ถึงคิวของคุณแล้ว · A011</b><span>เชิญที่จุดบริการได้เลยค่ะ</span></div>
+    </div>
+  </section>
+
+  <!-- 5. Signage -->
+  <section class="scene dark" id="s5">
+    <div class="abs brand"><img src="../../../public/favicon.png" alt="">QueueBooking LINE</div>
+    <div class="abs headline" id="s5-h">จอแสดงคิว<br>ขึ้น <em>TV หน้าร้าน</em></div>
+    <div class="abs tv" id="s5-tv" style="top:130px"><img src="../../../public/images/product/signage-tv.webp" alt=""></div>
+    <div class="abs tv-stand" id="s5-st" style="top:686px"></div>
+    <div class="abs thumb" id="s5-t1" style="left:870px;top:780px"><img src="../../../public/images/product/barber/signage-tv.webp" alt=""></div>
+    <div class="abs thumb" id="s5-t2" style="left:1200px;top:780px"><img src="../../../public/images/product/clinic/signage-tv.webp" alt=""></div>
+    <div class="abs thumb" id="s5-t3" style="left:1530px;top:780px"><img src="../../../public/images/product/restaurant/signage-tv.webp" alt=""></div>
+  </section>
+
+  <!-- 6. Dashboard -->
+  <section class="scene light" id="s6">
+    <div class="abs brand"><img src="../../../public/favicon.png" alt="">QueueBooking LINE</div>
+    <div class="abs headline" id="s6-h">เห็นยอดคิว<br>และ<em>รายงาน</em>ทันที</div>
+    <div class="abs pill" id="s6-c1" style="left:110px;top:540px"><span class="dot"></span>สรุปรายวัน / รายเดือน</div>
+    <div class="abs pill" id="s6-c2" style="left:110px;top:670px"><span class="dot"></span>Export PDF · CSV</div>
+    <div class="abs window" id="s6-w" style="top:170px">
+      <div class="bar"><i></i><i></i><i></i></div>
+      <div class="view" style="height:680px"><img id="s6-i" src="../../../public/images/product/portal-dashboard.webp" alt=""></div>
+    </div>
+  </section>
+
+  <!-- 7. More -->
+  <section class="scene light" id="s7">
+    <div class="abs brand"><img src="../../../public/favicon.png" alt="">QueueBooking LINE</div>
+    <div class="abs headline" id="s7-h" style="top:330px;font-size:112px">ครบ<em>ในที่เดียว</em></div>
+    <div class="abs sub" id="s7-s" style="top:510px">ร้านตัดผม · คลินิก · ร้านอาหาร · สนามกีฬา</div>
+    <div class="abs feat" id="s7-f1" style="left:920px;top:195px"><span class="check"></span>สร้าง Rich Menu</div>
+    <div class="abs feat" id="s7-f2" style="left:1390px;top:195px"><span class="check"></span>Google Calendar Sync</div>
+    <div class="abs feat" id="s7-f3" style="left:920px;top:440px"><span class="check"></span>รองรับหลายสาขา</div>
+    <div class="abs feat" id="s7-f4" style="left:1390px;top:440px"><span class="check"></span>เตือนก่อนถึงคิว</div>
+    <div class="abs feat" id="s7-f5" style="left:920px;top:685px"><span class="check"></span>ปฏิทินคิวทั้งร้าน</div>
+    <div class="abs feat" id="s7-f6" style="left:1390px;top:685px"><span class="check"></span>เช็คอิน “ฉันมาถึงแล้ว”</div>
+  </section>
+
+  <!-- 8. CTA -->
+  <section class="scene green" id="s8">
+    <img class="abs logo-big" id="s8-l" src="../../../public/favicon.png" alt="">
+    <div class="abs cta-title" id="s8-h">เริ่มใช้ฟรี</div>
+    <div class="abs cta-sub" id="s8-s">50 คิว/เดือน · ไม่ต้องใช้บัตรเครดิต</div>
+    <div class="abs price" id="s8-p">Professional 990 บาท/เดือน</div>
+    <div class="abs site" id="s8-w">queuebooking.com</div>
+    <div class="abs qr" id="s8-q"><img src="../../../public/images/landing/line-add-friend-qr.png" alt="">สแกนเพิ่มเพื่อน LINE</div>
+  </section>
+</div>
+
+<script>
+  // Screenshot pans for this layout: view is 930x680
+  window.PANS = {
+    s4: { scale: 0.7, from: { x: 340, y: 230 }, to: { x: 750, y: 230 } },
+    s6: { scale: 0.75, from: { x: 300, y: 240 }, to: { x: 420, y: 445 } },
+  };
+</script>
+<script src="timeline.js"></script>
+</body>
+</html>

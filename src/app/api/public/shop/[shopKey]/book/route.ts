@@ -20,6 +20,7 @@ import { isSlotPast, SLOT_PAST_CODE, SLOT_PAST_MESSAGE } from '@/lib/booking/slo
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import { isOneBookingPerDay } from '@/lib/booking/display-settings';
 import { DAILY_LIMIT_CODE, DAILY_LIMIT_FREE_STATUSES, dailyLimitMessage, isDailyLimitDbError } from '@/lib/booking/daily-limit';
+import { SLOT_FULL_CODE, countSlotBookings, isSlotFull, isSlotFullDbError, slotFullMessage } from '@/lib/booking/slot-capacity';
 
 const bookSchema = z
   .object({
@@ -134,7 +135,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
 
   const [{ data: branch }, { data: service }] = await Promise.all([
     admin.from('branches').select('id,branch_name').eq('id', payload.branch_id).eq('shop_id', shop.id).eq('is_deleted', false).maybeSingle(),
-    admin.from('services').select('id,service_name,duration_minutes,price,requires_approval,booking_mode').eq('id', payload.service_id).eq('shop_id', shop.id).eq('is_deleted', false).maybeSingle(),
+    admin.from('services').select('id,service_name,duration_minutes,capacity_per_slot,price,requires_approval,booking_mode').eq('id', payload.service_id).eq('shop_id', shop.id).eq('is_deleted', false).maybeSingle(),
   ]);
   if (!branch || !service) {
     return NextResponse.json({ error: 'Invalid branch or service for this shop' }, { status: 400 });
@@ -300,6 +301,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     }
   }
 
+  // Slot capacity (services.capacity_per_slot). A booking tied to a resource is
+  // governed by the resource check above instead. The DB trigger from
+  // 202609290001 closes the race between this count and the insert below.
+  if (!assignedResource) {
+    let bookedCount: number;
+    try {
+      bookedCount = await countSlotBookings(admin, {
+        shopId: shop.id,
+        branchId: payload.branch_id,
+        serviceId: payload.service_id,
+        date: payload.booking_date,
+        startTime: payload.start_time,
+      });
+    } catch (countErr) {
+      console.error('[public/book]', countErr instanceof Error ? countErr.message : countErr);
+      return NextResponse.json({ error: 'ขออภัย ระบบไม่สามารถรับการจองได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง' }, { status: 500 });
+    }
+    if (isSlotFull(bookedCount, service.capacity_per_slot)) {
+      return NextResponse.json({ error: slotFullMessage(payload.start_time), code: SLOT_FULL_CODE }, { status: 409 });
+    }
+  }
+
   // A service that needs approval holds its slot as `pending_approval` until
   // staff confirm it from the portal (which pushes the customer an approval Flex).
   const initialStatus = resolveInitialBookingStatus(service);
@@ -326,6 +349,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   // The trigger caught a concurrent booking the count above missed.
   if (error && isDailyLimitDbError(error.message)) {
     return NextResponse.json({ error: dailyLimitMessage(payload.booking_date), code: DAILY_LIMIT_CODE }, { status: 409 });
+  }
+  if (error && isSlotFullDbError(error.message)) {
+    return NextResponse.json({ error: slotFullMessage(payload.start_time), code: SLOT_FULL_CODE }, { status: 409 });
   }
   if (error || !booking) return NextResponse.json({ error: error?.message ?? 'Create booking failed' }, { status: 400 });
   const queueNumber = String(booking.queue_number);

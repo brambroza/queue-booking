@@ -6,8 +6,6 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import LocalCafeRoundedIcon from '@mui/icons-material/LocalCafeRounded';
 import TimerRoundedIcon from '@mui/icons-material/TimerRounded';
-import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
-import { Chip } from '@mui/material';
 import { MobileCardList } from '@/components/ui/responsive-table';
 import { MobileRecordCard } from '@/components/ui/mobile-record-card';
 import { useToast } from '@/components/ui/toast';
@@ -26,7 +24,6 @@ type WorkingHour = {
   break_start?: string | null;
   break_end?: string | null;
   slot_interval_minutes: number;
-  capacity_per_slot: number;
   active: boolean;
   branches?: { branch_name?: string } | null;
 };
@@ -40,7 +37,6 @@ type Draft = {
   break_start: string;
   break_end: string;
   slot_interval_minutes: string;
-  capacity_per_slot: string;
   active: boolean;
 };
 
@@ -54,7 +50,6 @@ const EMPTY_DRAFT: Draft = {
   break_start: '',
   break_end: '',
   slot_interval_minutes: '30',
-  capacity_per_slot: '1',
   active: true,
 };
 
@@ -107,7 +102,6 @@ export function WorkingHoursCrud() {
       break_start: row.break_start ? String(row.break_start).slice(0, 5) : '',
       break_end: row.break_end ? String(row.break_end).slice(0, 5) : '',
       slot_interval_minutes: String(row.slot_interval_minutes),
-      capacity_per_slot: String(row.capacity_per_slot),
       active: Boolean(row.active),
     });
     setDrawerOpen(true);
@@ -123,7 +117,6 @@ export function WorkingHoursCrud() {
       break_start: draft.break_start || null,
       break_end: draft.break_end || null,
       slot_interval_minutes: Number(draft.slot_interval_minutes),
-      capacity_per_slot: Number(draft.capacity_per_slot),
       active: draft.active,
     };
 
@@ -223,7 +216,6 @@ export function WorkingHoursCrud() {
                 title={WEEKDAYS[r.weekday] ?? String(r.weekday)}
                 subtitle={r.branches?.branch_name ?? undefined}
                 status={{ active: r.active, inactiveLabel: 'ปิด' }}
-                tags={<Chip size="small" variant="outlined" color="primary" icon={<GroupsRoundedIcon />} label={`รับ ${r.capacity_per_slot} คิว/รอบ`} />}
                 stats={[
                   { icon: <AccessTimeRoundedIcon />, value: `${String(r.open_time).slice(0, 5)}–${String(r.close_time).slice(0, 5)}`, label: 'เปิด-ปิด' },
                   { icon: <LocalCafeRoundedIcon />, value: r.break_start ? `${String(r.break_start).slice(0, 5)}–${String(r.break_end ?? '').slice(0, 5)}` : '-', label: 'พัก' },
@@ -244,7 +236,6 @@ export function WorkingHoursCrud() {
                 <th className="px-2 py-2 text-left">เวลาเปิด-ปิด</th>
                 <th className="px-2 py-2 text-left">พัก</th>
                 <th className="px-2 py-2 text-left">Slot</th>
-                <th className="px-2 py-2 text-left">ความจุ</th>
                 <th className="px-2 py-2 text-left">สถานะ</th>
                 <th className="px-2 py-2 text-right">จัดการ</th>
               </tr>
@@ -257,7 +248,6 @@ export function WorkingHoursCrud() {
                   <td className="px-2 py-2">{String(r.open_time).slice(0, 5)} - {String(r.close_time).slice(0, 5)}</td>
                   <td className="px-2 py-2">{r.break_start ? `${String(r.break_start).slice(0, 5)} - ${String(r.break_end ?? '').slice(0, 5)}` : '-'}</td>
                   <td className="px-2 py-2">{r.slot_interval_minutes} นาที</td>
-                  <td className="px-2 py-2">{r.capacity_per_slot}</td>
                   <td className="px-2 py-2">{r.active ? 'เปิดใช้งาน' : 'ปิด'}</td>
                   <td className="px-2 py-2 text-right">
                     <ActionIconGroup
@@ -367,10 +357,9 @@ export function WorkingHoursCrud() {
                 <label className="text-xs font-medium text-slate-600">ช่วงเวลาต่อสล็อต (นาที)</label>
                 <input className="input" type="number" min={5} max={180} value={draft.slot_interval_minutes} onChange={(e) => setDraft((p) => ({ ...p, slot_interval_minutes: e.target.value }))} required />
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600">จำนวนคิวต่อสล็อต</label>
-                <input className="input" type="number" min={1} max={100} value={draft.capacity_per_slot} onChange={(e) => setDraft((p) => ({ ...p, capacity_per_slot: e.target.value }))} required />
-              </div>
+              <p className="text-xs text-slate-500 sm:col-span-2">
+                จำนวนคิวที่รับได้ต่อรอบ ตั้งค่าที่หน้า <a className="font-medium text-emerald-700 underline" href="/portal/services">บริการ</a> ของแต่ละบริการ
+              </p>
 
               <label className="text-sm flex items-center gap-2 sm:col-span-2">
                 <input type="checkbox" checked={draft.active} onChange={(e) => setDraft((p) => ({ ...p, active: e.target.checked }))} />

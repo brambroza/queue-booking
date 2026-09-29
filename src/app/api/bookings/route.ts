@@ -19,6 +19,7 @@ import { safeNotifyBookingChange } from '@/lib/line/notify-booking-change';
 import { safeNotifyBookingStatus } from '@/lib/line/notify-booking-status';
 import { shouldNotifyCancellation } from '@/lib/booking/status-meta';
 import { isApprovalTransition, isCallTransition } from '@/lib/booking/status-flow';
+import { SLOT_FULL_CODE, countSlotBookings, isSlotFull, occupiesSlot, slotFullStaffMessage } from '@/lib/booking/slot-capacity';
 
 /** Minimal shape needed to call a Postgres function — works for both the session and admin clients. */
 type RpcClient = { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown }> };
@@ -165,7 +166,7 @@ export async function POST(req: Request) {
 
     const { data: service } = await supabase
       .from('services')
-      .select('duration_minutes,service_name,price')
+      .select('duration_minutes,service_name,price,capacity_per_slot')
       .eq('id', payload.service_id)
       .eq('shop_id', profile.shop_id)
       .maybeSingle();
@@ -240,6 +241,27 @@ export async function POST(req: Request) {
           capacity: Number(top.capacity ?? 1),
           unit_price: Number(resourcePrice?.unit_price ?? 0),
         };
+      }
+    }
+
+    // Slot capacity (services.capacity_per_slot). Staff may overbook on purpose,
+    // so a full slot is refused once and the portal re-sends with
+    // `allow_overbook` after they confirm. Resource bookings are governed by the
+    // resource check above.
+    if (!assignedResource && !payload.allow_overbook && occupiesSlot(payload.status)) {
+      const capacity = Number(service?.capacity_per_slot ?? 1);
+      const bookedCount = await countSlotBookings(supabase, {
+        shopId: profile.shop_id,
+        branchId: payload.branch_id,
+        serviceId: payload.service_id,
+        date: payload.booking_date,
+        startTime: payload.start_time,
+      });
+      if (isSlotFull(bookedCount, capacity)) {
+        return NextResponse.json(
+          { error: slotFullStaffMessage(payload.start_time, bookedCount, capacity), code: SLOT_FULL_CODE },
+          { status: 409 },
+        );
       }
     }
 
@@ -429,7 +451,7 @@ export async function PATCH(req: Request) {
       if (!slotChanged && !resourceChanged) return NextResponse.json({ data: { ok: true, line_notified: false } });
 
       const [{ data: svc }, { data: prevResource }, { data: selected }] = await Promise.all([
-        supabase.from('services').select('duration_minutes').eq('id', before.service_id).eq('shop_id', profile.shop_id).maybeSingle(),
+        supabase.from('services').select('duration_minutes,capacity_per_slot').eq('id', before.service_id).eq('shop_id', profile.shop_id).maybeSingle(),
         prevResourceId
           ? supabase.from('booking_resources').select('resource_type').eq('id', prevResourceId).eq('shop_id', profile.shop_id).maybeSingle()
           : Promise.resolve({ data: null as { resource_type: string | null } | null }),
@@ -464,6 +486,25 @@ export async function PATCH(req: Request) {
         if (!free) {
           const busyType = selected?.resource_type ?? prevResource?.resource_type ?? null;
           return NextResponse.json({ error: resourceBusyMessage(busyType) }, { status: 409 });
+        }
+      }
+
+      // Moving into a full slot needs the same confirmation as creating one there.
+      if (slotChanged && !nextResourceId && body.allow_overbook !== true && before.service_id && occupiesSlot(before.status)) {
+        const capacity = Number(svc?.capacity_per_slot ?? 1);
+        const bookedCount = await countSlotBookings(supabase, {
+          shopId: profile.shop_id,
+          branchId: String(before.branch_id),
+          serviceId: String(before.service_id),
+          date: newDate,
+          startTime: newTime,
+          excludeBookingId: id,
+        });
+        if (isSlotFull(bookedCount, capacity)) {
+          return NextResponse.json(
+            { error: slotFullStaffMessage(newTime, bookedCount, capacity), code: SLOT_FULL_CODE },
+            { status: 409 },
+          );
         }
       }
 

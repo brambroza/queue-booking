@@ -5,12 +5,14 @@ import { Alert, Button, Stack } from '@mui/material';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { PageHeader } from '@/components/shared/page-header';
 import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade-provider';
 import { useBranchScope } from '@/components/layout/branch-scope-provider';
 import { track } from '@/lib/analytics/track';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { getTodayISOInBangkok } from '@/lib/utils/date-format';
 import { resourceTypeLabel } from '@/lib/booking/resource-types';
+import { SLOT_FULL_CODE } from '@/lib/booking/slot-capacity';
 import { BookingsFilterBar, dateForRange, type BookingsFilter } from '@/components/bookings/bookings-filter-bar';
 import { BookingsTable } from '@/components/bookings/bookings-table';
 import { BookingMoveDialog, type MoveDraft } from '@/components/bookings/booking-move-dialog';
@@ -31,7 +33,7 @@ function initialFilter(): BookingsFilter {
   return { ...base, range: 'custom', date: d };
 }
 
-type PatchResult = { ok: boolean; error?: string; lineNotified: boolean };
+type PatchResult = { ok: boolean; error?: string; code?: string; lineNotified: boolean };
 
 async function patchBooking(body: Record<string, unknown>): Promise<PatchResult> {
   const res = await fetch('/api/bookings', {
@@ -39,8 +41,8 @@ async function patchBooking(body: Record<string, unknown>): Promise<PatchResult>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const j = (await res.json().catch(() => ({}))) as { error?: string; data?: { line_notified?: boolean } };
-  return { ok: res.ok, error: j.error, lineNotified: Boolean(j.data?.line_notified) };
+  const j = (await res.json().catch(() => ({}))) as { error?: string; code?: string; data?: { line_notified?: boolean } };
+  return { ok: res.ok, error: j.error, code: j.code, lineNotified: Boolean(j.data?.line_notified) };
 }
 
 /**
@@ -50,6 +52,7 @@ async function patchBooking(body: Record<string, unknown>): Promise<PatchResult>
 export function BookingsCrud() {
   const { t } = useTranslation('bookings');
   const { push } = useToast();
+  const confirm = useConfirm();
   const { openPaywall } = useUpgrade();
   // Topbar branch selection narrows the list; the API enforces the caller's own scope.
   const { branchId, withBranch } = useBranchScope();
@@ -153,6 +156,24 @@ export function BookingsCrud() {
 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
+  /**
+   * The API refused because the slot is already full. Staff may still take the
+   * queue (walk-in, special case), but only after saying so explicitly.
+   *
+   * @param detail - Server message, e.g. "รอบ 10:30 เต็มแล้ว (3/3)".
+   * @param where - Date and time of the slot, shown as the dialog context.
+   */
+  function confirmOverbook(detail: string | undefined, where: { date: string; time: string }) {
+    return confirm({
+      tone: 'warning',
+      title: t('overbook_title', 'รอบนี้เต็มแล้ว จองเกินหรือไม่?'),
+      description: `${detail ?? t('overbook_detail', 'รอบนี้เต็มแล้ว')} — ${t('overbook_hint', 'คิวนี้จะเกินจำนวนที่บริการรับได้ต่อรอบ')}`,
+      context: { primary: hhmm(where.time), secondary: where.date },
+      confirmLabel: t('overbook_confirm', 'จองเกินรอบนี้'),
+      cancelLabel: t('overbook_cancel', 'เลือกเวลาอื่น'),
+    });
+  }
+
   async function submitCreate(draft: CreateDraft, lineUserId: string) {
     if (creating) return;
     // Untouched optional inputs hold '' — the API validates party_size/resource_id as
@@ -168,12 +189,22 @@ export function BookingsCrud() {
 
     setCreating(true);
     try {
-      const res = await fetch('/api/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const j = (await res.json().catch(() => ({}))) as { data?: { queue_number?: string; line_push_sent?: boolean; line_push_error?: string }; error?: string };
+      type CreateResponse = { data?: { queue_number?: string; line_push_sent?: boolean; line_push_error?: string }; error?: string; code?: string };
+      const send = (body: Record<string, unknown>) =>
+        fetch('/api/bookings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      let res = await send(payload);
+      let j = (await res.json().catch(() => ({}))) as CreateResponse;
+
+      if (res.status === 409 && j.code === SLOT_FULL_CODE) {
+        const ok = await confirmOverbook(j.error, { date: draft.booking_date, time: draft.start_time });
+        if (!ok) return;
+        res = await send({ ...payload, allow_overbook: true });
+        j = (await res.json().catch(() => ({}))) as CreateResponse;
+      }
 
       const paywall = readPaywallDetail(res, j);
       if (paywall) { openPaywall(paywall); return; }
@@ -238,7 +269,12 @@ export function BookingsCrud() {
       if (slotChanged) { body.booking_date = draft.date; body.start_time = draft.time; }
       if (resourceChanged) body.resource_id = draft.resourceId || null;
 
-      const r = await patchBooking(body);
+      let r = await patchBooking(body);
+      if (!r.ok && r.code === SLOT_FULL_CODE) {
+        const ok = await confirmOverbook(r.error, { date: draft.date, time: draft.time });
+        if (!ok) return;
+        r = await patchBooking({ ...body, allow_overbook: true });
+      }
       if (!r.ok) { push(r.error ?? t('move_failed', 'ย้ายคิวไม่สำเร็จ'), 'error'); return; }
 
       if (r.lineNotified) push(t('move_ok_line', 'ย้ายคิวแล้ว และแจ้งลูกค้าทาง LINE'));

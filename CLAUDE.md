@@ -308,6 +308,18 @@ await safeCreateNotification({ shopId, type: 'booking_created', ... });
 - Images render with plain `<img>` — `next.config.ts` has no `images.remotePatterns`
 - Not done: pins on the venue map, heart/favourite button, photo in LINE Flex, photos in bulk create
 
+## Slot Capacity (จำนวนคิวต่อรอบ)
+
+ตั้งค่า **ที่เดียว** = `services.capacity_per_slot` (หน้า `/portal/services` ช่อง "จำนวนคิวต่อรอบ"). `working_hours.capacity_per_slot` และ `branches.max_parallel_queues` เป็น **deprecated** — column ยังอยู่ แต่ไม่มีโค้ดอ่าน และถอดออกจากฟอร์มแล้ว (schema เป็น optional, insert ใช้ DB default 1, update ไม่แตะค่าเดิม)
+- กฎ: นับต่อ `shop + branch + service + booking_date + start_time`, ทุกสถานะยกเว้น `cancelled`/`no_show`, เต็มเมื่อ `count >= capacity_per_slot` — ตรงกับ `get_slot_availability` / `get_available_slots`
+- นับ **แยกต่อบริการ**: 2 บริการใน slot เดียวกันมี capacity ของตัวเอง — ร้านที่ช่างคนเดียวทำหลายบริการต้องใช้ resource กันซ้อน
+- คิวที่มี `resource_id` **ข้าม** กฎนี้ — `is_resource_available` คุมแทน
+- Migration `202609290001_slot_capacity_guard.sql` (**run before deploy** — ไม่รันก็ไม่พัง แต่ race ยังเปิด): trigger `enforce_slot_capacity` (before insert, advisory lock ต่อ slot) raise `slot_full`; ข้ามแถว `created_by is not null` (staff), `is_demo`, `resource_id is not null`. Trigger ไม่คุม update
+- Helpers + vitest: `src/lib/booking/slot-capacity.ts` (`countSlotBookings`, `isSlotFull`, `occupiesSlot`, `slotFullMessage`, `slotFullStaffMessage`, `isSlotFullDbError`, `SLOT_FULL_CODE`)
+- ลูกค้า: `/api/public/shop/[shopKey]/book` count ก่อน insert → 409 `{ error, code: 'slot_full' }`; LIFF โหลด slot ใหม่
+- Staff: `/api/bookings` POST + PATCH (ย้ายคิว) คืน 409 `slot_full` ครั้งแรก → portal ถาม `useConfirm` ("จองเกินรอบนี้") → ส่งซ้ำพร้อม `allow_overbook: true` (จองเกินได้ตั้งใจ)
+- Dashboard: `CapacityModel` รับ `perSlotSeats` = `seatsPerSlot(services)` (ผลรวม `capacity_per_slot` ของบริการ active) — เป็นค่าประมาณ, บริการที่ผูก resource capacity จริงคือจำนวน resource
+
 ## Daily Booking Limit (ลูกค้าจองได้วันละ 1 คิว)
 
 Opt-in ต่อร้าน `shops.one_booking_per_day` (default false) — switch อยู่หน้า `/portal/services` ผ่าน `PATCH /api/shop-display-settings` (ทุก key optional, เขียนเฉพาะที่ส่งมา); migration `202609220002_daily_booking_limit.sql` (**must run before deploy** — app อ่าน flag ผ่าน `isOneBookingPerDay` แบบ defensive จึงไม่พัง แต่ trigger กัน race ต้องมี)

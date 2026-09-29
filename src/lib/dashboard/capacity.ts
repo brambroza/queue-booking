@@ -1,14 +1,23 @@
 import { weekdayOf } from './date-range';
 
 /**
- * Theoretical booking capacity derived from `working_hours` and `holidays`.
+ * Theoretical booking capacity derived from `working_hours`, `holidays` and the
+ * services' slot capacity.
  *
- * Capacity for one branch on one weekday = number of slots × `capacity_per_slot`,
+ * Capacity for one branch on one weekday = number of slots × seats per slot,
  * where slots step through `open_time`–`close_time` by `slot_interval_minutes`,
  * skipping the break. A row with `branch_id = null` is a shop-wide default used by
  * any branch that has no row of its own for that weekday (same fallback as the
  * `get_available_slots` RPC). A holiday zeroes the day for its branch, or for every
  * branch when `branch_id` is null.
+ *
+ * Seats per slot come from `services.capacity_per_slot` — the value customers
+ * book against — summed over the active services (see `seatsPerSlot`), because
+ * each service holds its own seats in a slot. `working_hours.capacity_per_slot`
+ * is deprecated and not read.
+ *
+ * It stays an estimate: a service booked against resources (stylists, tables)
+ * is really limited by how many of those are free.
  */
 
 export type WorkingHoursRow = {
@@ -19,9 +28,29 @@ export type WorkingHoursRow = {
   break_start?: string | null;
   break_end?: string | null;
   slot_interval_minutes: number;
-  capacity_per_slot: number;
   active?: boolean | null;
 };
+
+export type ServiceCapacityRow = {
+  capacity_per_slot: number | null;
+  active?: boolean | null;
+};
+
+/**
+ * Seats one branch offers in a single slot: the sum of `capacity_per_slot` over
+ * the active services. A missing value reads as 1, the column default.
+ *
+ * @param services - Services of the shop (inactive ones are ignored).
+ */
+export function seatsPerSlot(services: ServiceCapacityRow[]): number {
+  let total = 0;
+  for (const s of services) {
+    if (s.active === false) continue;
+    const seats = Number(s.capacity_per_slot ?? 1);
+    total += Number.isFinite(seats) && seats >= 1 ? Math.floor(seats) : 1;
+  }
+  return total;
+}
 
 export type HolidayRow = {
   branch_id: string | null;
@@ -35,11 +64,16 @@ export function timeToMinutes(value: string): number {
   return h * 60 + m;
 }
 
-/** Per-hour capacity for one working-hours row (hour → seats). */
-export function hourlyCapacityForRow(row: WorkingHoursRow): Map<number, number> {
+/**
+ * Per-hour capacity for one working-hours row (hour → seats).
+ *
+ * @param row - Working-hours row.
+ * @param perSlotSeats - Seats in one slot, from `seatsPerSlot`.
+ */
+export function hourlyCapacityForRow(row: WorkingHoursRow, perSlotSeats: number): Map<number, number> {
   const out = new Map<number, number>();
   const interval = Math.max(5, row.slot_interval_minutes || 30);
-  const perSlot = Math.max(0, row.capacity_per_slot || 0);
+  const perSlot = Math.max(0, Math.floor(perSlotSeats) || 0);
   const open = timeToMinutes(row.open_time);
   const close = timeToMinutes(row.close_time);
   const breakStart = row.break_start ? timeToMinutes(row.break_start) : null;
@@ -57,6 +91,7 @@ export function hourlyCapacityForRow(row: WorkingHoursRow): Map<number, number> 
 
 export class CapacityModel {
   private readonly branchIds: string[];
+  private readonly perSlotSeats: number;
   private readonly byBranchWeekday = new Map<string, WorkingHoursRow[]>();
   private readonly shopWideByWeekday = new Map<number, WorkingHoursRow[]>();
   private readonly holidayAll = new Set<string>();
@@ -67,9 +102,11 @@ export class CapacityModel {
    * @param branchIds Branches in scope; capacity is summed across them.
    * @param workingHours Active working-hours rows for the shop (any branch).
    * @param holidays Holiday rows for the shop covering the dates that will be queried.
+   * @param perSlotSeats Seats one branch offers in a single slot, from `seatsPerSlot`.
    */
-  constructor(branchIds: string[], workingHours: WorkingHoursRow[], holidays: HolidayRow[]) {
+  constructor(branchIds: string[], workingHours: WorkingHoursRow[], holidays: HolidayRow[], perSlotSeats: number) {
     this.branchIds = Array.from(new Set(branchIds));
+    this.perSlotSeats = perSlotSeats;
     for (const row of workingHours) {
       if (row.active === false) continue;
       if (row.branch_id) {
@@ -111,7 +148,7 @@ export class CapacityModel {
     if (cached) return cached;
     const merged = new Map<number, number>();
     for (const row of this.rowsFor(branchId, weekday)) {
-      for (const [hour, seats] of hourlyCapacityForRow(row)) merged.set(hour, (merged.get(hour) ?? 0) + seats);
+      for (const [hour, seats] of hourlyCapacityForRow(row, this.perSlotSeats)) merged.set(hour, (merged.get(hour) ?? 0) + seats);
     }
     this.hourCache.set(key, merged);
     return merged;

@@ -18,7 +18,8 @@ export const branchSchema = z.object({
   phone: z.string().optional().default(''),
   open_time: z.string(),
   close_time: z.string(),
-  max_parallel_queues: z.coerce.number().int().min(1).max(100),
+  /** Deprecated, no longer in the form: slot capacity is set per service. */
+  max_parallel_queues: z.coerce.number().int().min(1).max(100).optional(),
   active: z.coerce.boolean().default(true),
   /** Venue map shown to customers so they can see where each court / room sits. */
   layout_image_url: optionalImageUrlSchema,
@@ -47,7 +48,8 @@ export const workingHourSchema = z.object({
   break_start: z.string().nullable().optional(),
   break_end: z.string().nullable().optional(),
   slot_interval_minutes: z.coerce.number().int().min(5).max(180),
-  capacity_per_slot: z.coerce.number().int().min(1).max(100),
+  /** Deprecated, no longer in the form: slot capacity is set per service. */
+  capacity_per_slot: z.coerce.number().int().min(1).max(100).optional(),
   active: z.coerce.boolean().default(true),
 });
 
@@ -76,6 +78,8 @@ export const bookingSchema = z.object({
    * the shop's first configured bank when omitted or not offered.
    */
   bank_provider: z.enum(BANK_CODES).optional(),
+  /** Staff confirmed booking into a slot that is already full. */
+  allow_overbook: z.boolean().optional(),
 });
 
 export const bookingResourceSchema = z.object({

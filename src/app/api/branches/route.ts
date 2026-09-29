@@ -140,7 +140,7 @@ export async function POST(req: Request) {
       phone: payload.phone,
       open_time: payload.open_time,
       close_time: payload.close_time,
-      max_parallel_queues: payload.max_parallel_queues,
+      ...(payload.max_parallel_queues !== undefined ? { max_parallel_queues: payload.max_parallel_queues } : {}),
       active: payload.active,
       layout_image_url: payload.layout_image_url ?? null,
       created_by: user.id,
@@ -203,7 +203,7 @@ export async function PATCH(req: Request) {
         phone: parsed.data.phone,
         open_time: parsed.data.open_time,
         close_time: parsed.data.close_time,
-        max_parallel_queues: parsed.data.max_parallel_queues,
+        ...(parsed.data.max_parallel_queues !== undefined ? { max_parallel_queues: parsed.data.max_parallel_queues } : {}),
         active: parsed.data.active,
         // Absent key = caller does not manage the venue map; leave it alone.
         ...(hasImage ? { layout_image_url: parsed.data.layout_image_url ?? null } : {}),
