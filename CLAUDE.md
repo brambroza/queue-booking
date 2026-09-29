@@ -342,16 +342,14 @@ Opt-in **ต่อสาขา** ตั้งที่ฟอร์ม `/portal/b
 - Chatbot (`ask_available_slots`) ตอบ `bookingWindowMessage` แทนรายการเวลาเมื่อวันที่ถามเกิน window; `/api/available-slots` คืน `data: []` + `meta.reason: 'beyond_window'`
 - Not done: ยังไม่มี integration test ของ route; ยังไม่ได้ทดสอบกับสาขาที่ตั้ง window จริง (ทุกสาขาใน DB ยังเป็น NULL)
 
-## LIFF แสดงเฉพาะวัน/เวลาที่จองได้ (2026-09-29)
+## LIFF ปฏิทินแสดงเฉพาะวันที่จองได้ (2026-09-29)
 
-ลูกค้า **ไม่เห็น** วัน/เวลาที่จองไม่ได้เลย (เดิม: greyed out) — กันลูกค้างง
+ลูกค้า **ไม่เห็นวัน** ที่จองไม่ได้ — กันลูกค้างง. **ช่วงเวลา** ยังแสดงครบแบบ disabled เหมือนเดิม
 - **วัน**: ช่องวันที่ native ถูกแทนด้วย `LiffDateCalendar` (`src/components/line/liff-date-calendar.tsx`, ปฏิทินรายเดือน อาทิตย์ขึ้นก่อน). วันที่ผ่านแล้ว / เกิน booking window / weekday ที่ไม่มี `working_hours` active / วันหยุด = ช่องว่าง; เดือนที่ไม่มีวันจองได้เลยถูกข้าม. สาขาไม่จำกัดระยะ = เลื่อนได้ 12 เดือน (`UNLIMITED_HORIZON_MONTHS`) — เป็นขีดของ **ปฏิทิน** เท่านั้น server ไม่ได้บังคับ
 - กฎมาจาก `GET /api/public/shop/[shopKey]/bookable-days?branch_id=` → `{ today, max_date, open_weekdays, holidays }` (scope `branch_id` หรือ null เหมือน `/slots`); โหลดใหม่ทุกครั้งที่เปลี่ยนสาขา แล้วเลื่อน `date` ไปวันแรกที่จองได้ถ้าวันเดิมไม่อยู่ในปฏิทิน. โหลดไม่สำเร็จ → fallback เป็นช่องวันที่ native (server ยังตรวจ)
-- **เวลา**: grid วาดเฉพาะ slot ที่ `!is_past && remaining_capacity > 0`; `/slots` ยังคืน slot เต็ม/ผ่านแล้วเหมือนเดิม (กรองฝั่ง client). วันที่เต็มทุกรอบ = ไม่มี grid มีแค่ alert "คิวเต็ม". `SlotButton` prop `disabled`/`disabledReason`/`booked`/`capacity` ยังอยู่แต่ LIFF ไม่ส่งแล้ว
+- **เวลา**: ไม่เปลี่ยน — grid วาดทุก slot, เต็ม = สีเทา "เต็ม N/N", ผ่านแล้ว = เส้นประ, กดไม่ได้. เคยลองซ่อน slot ที่จองไม่ได้แล้ว user ให้กลับเป็น disabled (2026-09-29) อย่าซ่อนอีก
 - วันที่ **คิวเต็มทั้งวัน** ยังแสดงในปฏิทิน (ปฏิทินไม่รู้ occupancy)
 - Pure helpers + vitest: `src/lib/booking/bookable-days.ts` (`isDayBookable`, `firstBookableDay`, `bookableMonths`, `buildMonthGrid`, `calendarEndDate`, `formatThaiMonthTitle`)
-- ข้อความเก่าในไฟล์นี้ที่บอกว่า LIFF "greys full as เต็ม N/N, past as ผ่านแล้ว" ไม่ตรงแล้ว
-
 ## Queue Number
 
 เลขคิวออกโดย **DB trigger** `assign_queue_number` (migration `202609220001_queue_number_sequence.sql` — **must run before deploy**: app ไม่ส่ง `queue_number` ตอน insert แล้ว ถ้าไม่มี trigger จะพัง NOT NULL)

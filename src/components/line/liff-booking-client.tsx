@@ -638,8 +638,8 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       const nextMeta = (json.meta ?? { reason: 'ok' }) as SlotMeta;
       setSlotMeta(nextMeta);
       if (typeof nextMeta.today === 'string') setTodayIso(nextMeta.today);
-      // A day where every slot is full or past renders no grid at all; the
-      // "คิวเต็ม" alert from slotMeta carries the message, not a hint.
+      // A day where every slot is full still renders the grid (all greyed);
+      // the "คิวเต็ม" alert from slotMeta carries the message, not a hint.
       if (nextSlots.length === 0 && nextMeta.reason === 'ok') {
         setSlotHint(nextMeta.hint || 'ไม่พบเวลาว่างในวันที่เลือก');
       }
@@ -1021,9 +1021,6 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const shellProps = { shopName: shop?.name, branchName: selectedBranch?.branch_name };
   // Full slots are excluded so a day with one open slot left still compares
   // against the open ones, not against zero.
-  // Only slots that can be booked are drawn: a full or already-started slot
-  // is dropped instead of greyed out, so nothing on screen is a dead end.
-  const openSlots = slots.filter((s) => s.is_past !== true && s.remaining_capacity > 0);
   const maxSlotCapacity = slots.reduce((max, s) => (!s.is_past && s.remaining_capacity > 0 ? Math.max(max, s.remaining_capacity) : max), 0);
 
   if (queueNo) {
@@ -1538,18 +1535,24 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                 {slotAlert}
                 {slotHint ? <Typography variant="caption" sx={{ color: 'warning.dark' }}>{slotHint}</Typography> : null}
                 {loading ? <LiffSkeleton rows={2} /> : null}
-                {!loading && openSlots.length > 0 ? (
+                {!loading && slots.length > 0 ? (
                   <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
-                    {openSlots.map((s) => {
+                    {slots.map((s) => {
                       const t = s.slot_time.slice(0, 5);
                       // "เหลือ N" only marks slots that are scarcer than the rest of the
                       // day — a shop with capacity 1 everywhere would otherwise label every slot.
-                      const scarce = s.remaining_capacity < maxSlotCapacity;
+                      const past = s.is_past === true;
+                      const full = s.remaining_capacity <= 0;
+                      const scarce = !past && !full && s.remaining_capacity < maxSlotCapacity;
                       return (
                         <SlotButton
                           key={s.slot_time}
                           label={t}
                           selected={selectedTime === t}
+                          disabled={past || full}
+                          disabledReason={past ? 'past' : full ? 'full' : undefined}
+                          booked={s.booked_count}
+                          capacity={s.capacity}
                           remaining={scarce ? s.remaining_capacity : undefined}
                           onClick={() => setSelectedTime(t)}
                         />
