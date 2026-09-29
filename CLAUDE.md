@@ -328,6 +328,30 @@ Opt-in ต่อร้าน `shops.one_booking_per_day` (default false) — swi
 - Trigger ข้ามแถวที่ `created_by is not null` (portal staff = override ได้ตั้งใจ) และ `is_demo` — `/api/bookings` POST ไม่มี check นี้
 - Pure helpers + vitest: `src/lib/booking/daily-limit.ts` (`countsTowardDailyLimit`, `findSameDayBooking`, `dailyLimitMessage`, `isDailyLimitDbError`); `/meta` ส่ง `shop.one_booking_per_day` ให้ LIFF เตือนใต้วันที่ + ปิดปุ่มยืนยันจาก `[...upcoming, ...history]` (`upcoming` ไม่มี completed จึงต้องรวม history)
 
+## Advance Booking Window (จำกัดระยะจองล่วงหน้า)
+
+Opt-in **ต่อสาขา** ตั้งที่ฟอร์ม `/portal/branches`; migration `202609290002_branch_booking_window.sql` (**must run before deploy** — flow จองอ่านผ่าน helper แบบ defensive จึงไม่พัง แต่บันทึกสาขาจาก portal จะ error เพราะฟอร์มส่ง 2 column นี้)
+- `branches.booking_advance_window` = ระยะเลื่อนตามวัน รหัส `<จำนวน><d|w|m>` เช่น `1w`, `1m`, `3m` (CHECK constraint); เดือนนับ **ตามปฏิทิน** (29/09 + 1 เดือน = 29/10, 31/01 + 1 เดือน = วันสุดท้ายของ ก.พ.) ไม่ใช่ 30 วัน
+- `branches.booking_open_until` = วันสุดท้ายที่จองได้แบบตายตัว
+- ตั้งทั้งคู่ = ใช้วันที่ถึงก่อน; `NULL` ทั้งคู่ = ไม่จำกัด (พฤติกรรมเดิม); วันสุดท้าย **จองได้** (inclusive)
+- บังคับ **ทั้งลูกค้าและ staff** (ไม่มี override ต่างจาก slot capacity / daily limit): `/api/public/shop/[shopKey]/book`, `/api/bookings` POST และ PATCH (เฉพาะเมื่อย้าย **วัน** — เปลี่ยนเวลา/คนในวันเดิมไม่ตรวจ) คืน 400 `{ error, code: 'beyond_booking_window' }`. ไม่มี DB trigger (ไม่มี race ให้กัน)
+- `/slots` คืน `meta.reason: 'beyond_window'` + `meta.max_date` และข้าม slot lookup; `/meta` ส่ง `branches[].max_booking_date` (คำนวณฝั่ง server ด้วยวัน Bangkok) ให้ LIFF ตั้ง `max` ของช่องวันที่ก่อนโหลด slot ครั้งแรก
+- Pure helpers + vitest: `src/lib/booking/booking-window.ts` (`resolveMaxBookingDate`, `advanceWindowEnd`, `addCalendarMonths`, `isBeyondBookingWindow`, `bookingWindowMessage`, `getBranchBookingWindow`, `getShopBookingWindows`, `ADVANCE_WINDOW_OPTIONS`)
+- `SimpleCrud` column `type: 'select'` (+ `options`) และ `optional: true` (ไม่บังคับกรอก) เพิ่มมาพร้อมฟีเจอร์นี้
+- Portal: `BookingCreateDrawer` ตั้ง `max` ช่องวันที่ตามสาขาที่เลือก; `BookingMoveDialog` (รับ prop `branches`) ขึ้น error + ปิดปุ่มเมื่อย้ายไปวันที่เกิน — คำนวณจาก `/api/branches` (`select *`) ด้วย `resolveMaxBookingDate`
+- Chatbot (`ask_available_slots`) ตอบ `bookingWindowMessage` แทนรายการเวลาเมื่อวันที่ถามเกิน window; `/api/available-slots` คืน `data: []` + `meta.reason: 'beyond_window'`
+- Not done: ยังไม่มี integration test ของ route; ยังไม่ได้ทดสอบกับสาขาที่ตั้ง window จริง (ทุกสาขาใน DB ยังเป็น NULL)
+
+## LIFF แสดงเฉพาะวัน/เวลาที่จองได้ (2026-09-29)
+
+ลูกค้า **ไม่เห็น** วัน/เวลาที่จองไม่ได้เลย (เดิม: greyed out) — กันลูกค้างง
+- **วัน**: ช่องวันที่ native ถูกแทนด้วย `LiffDateCalendar` (`src/components/line/liff-date-calendar.tsx`, ปฏิทินรายเดือน อาทิตย์ขึ้นก่อน). วันที่ผ่านแล้ว / เกิน booking window / weekday ที่ไม่มี `working_hours` active / วันหยุด = ช่องว่าง; เดือนที่ไม่มีวันจองได้เลยถูกข้าม. สาขาไม่จำกัดระยะ = เลื่อนได้ 12 เดือน (`UNLIMITED_HORIZON_MONTHS`) — เป็นขีดของ **ปฏิทิน** เท่านั้น server ไม่ได้บังคับ
+- กฎมาจาก `GET /api/public/shop/[shopKey]/bookable-days?branch_id=` → `{ today, max_date, open_weekdays, holidays }` (scope `branch_id` หรือ null เหมือน `/slots`); โหลดใหม่ทุกครั้งที่เปลี่ยนสาขา แล้วเลื่อน `date` ไปวันแรกที่จองได้ถ้าวันเดิมไม่อยู่ในปฏิทิน. โหลดไม่สำเร็จ → fallback เป็นช่องวันที่ native (server ยังตรวจ)
+- **เวลา**: grid วาดเฉพาะ slot ที่ `!is_past && remaining_capacity > 0`; `/slots` ยังคืน slot เต็ม/ผ่านแล้วเหมือนเดิม (กรองฝั่ง client). วันที่เต็มทุกรอบ = ไม่มี grid มีแค่ alert "คิวเต็ม". `SlotButton` prop `disabled`/`disabledReason`/`booked`/`capacity` ยังอยู่แต่ LIFF ไม่ส่งแล้ว
+- วันที่ **คิวเต็มทั้งวัน** ยังแสดงในปฏิทิน (ปฏิทินไม่รู้ occupancy)
+- Pure helpers + vitest: `src/lib/booking/bookable-days.ts` (`isDayBookable`, `firstBookableDay`, `bookableMonths`, `buildMonthGrid`, `calendarEndDate`, `formatThaiMonthTitle`)
+- ข้อความเก่าในไฟล์นี้ที่บอกว่า LIFF "greys full as เต็ม N/N, past as ผ่านแล้ว" ไม่ตรงแล้ว
+
 ## Queue Number
 
 เลขคิวออกโดย **DB trigger** `assign_queue_number` (migration `202609220001_queue_number_sequence.sql` — **must run before deploy**: app ไม่ส่ง `queue_number` ตอน insert แล้ว ถ้าไม่มี trigger จะพัง NOT NULL)

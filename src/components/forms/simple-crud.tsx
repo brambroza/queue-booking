@@ -20,8 +20,12 @@ type Column = {
   key: string;
   label: string;
   /** `image` = one uploaded photo (needs `imageKind`); stored as a URL, '' when none. */
-  type?: 'text' | 'number' | 'time' | 'date' | 'checkbox' | 'image';
+  /** `select` = one of `options`; the option with value '' means "not set". */
+  type?: 'text' | 'number' | 'time' | 'date' | 'checkbox' | 'image' | 'select';
   imageKind?: ShopImageKind;
+  options?: ReadonlyArray<{ value: string; label: string }>;
+  /** Field may be left empty; sent as ''. Default is required. */
+  optional?: boolean;
   hint?: string;
 };
 
@@ -156,6 +160,10 @@ export function SimpleCrud({
     if (c.type === 'checkbox') return row[c.key] ? 'ใช่' : 'ไม่';
     if (c.type === 'image') return row[c.key] ? 'มีรูป' : '-';
     if (c.type === 'time') return String(row[c.key] ?? '-').slice(0, 5);
+    if (c.type === 'select') {
+      const value = String(row[c.key] ?? '');
+      return c.options?.find((o) => o.value === value)?.label ?? (value || '-');
+    }
     return String(row[c.key] ?? '-');
   }
 
@@ -233,7 +241,7 @@ export function SimpleCrud({
               <tbody>
                 {pagedRows.map((row) => (
                   <tr key={String(row.id)} className="border-t border-slate-100">
-                    {columns.map((c) => <td key={c.key} className="px-3 py-2">{c.type === 'image' ? cellText(c, row) : String(row[c.key] ?? '-')}</td>)}
+                    {columns.map((c) => <td key={c.key} className="px-3 py-2">{c.type === 'image' || c.type === 'select' ? cellText(c, row) : String(row[c.key] ?? '-')}</td>)}
                     <td className="px-3 py-2">
                       <ActionIconGroup
                         actions={[
@@ -305,9 +313,14 @@ export function SimpleCrud({
                   <span className="mb-1 block text-slate-600">{c.label}</span>
                   {c.type === 'checkbox' ? (
                     <input type="checkbox" name={c.key} defaultChecked={Boolean(formSeed[c.key])} />
+                  ) : c.type === 'select' ? (
+                    <select className="input" name={c.key} defaultValue={String(formSeed[c.key] ?? '')} required={!c.optional}>
+                      {(c.options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
                   ) : (
-                    <input className="input" name={c.key} type={c.type ?? 'text'} defaultValue={String(formSeed[c.key] ?? '')} required />
+                    <input className="input" name={c.key} type={c.type ?? 'text'} defaultValue={String(formSeed[c.key] ?? '')} required={!c.optional} />
                   )}
+                  {c.hint ? <span className="mt-1 block text-xs text-slate-500">{c.hint}</span> : null}
                 </label>
               ))}
               <div className="sm:col-span-2 flex gap-2 pt-2">

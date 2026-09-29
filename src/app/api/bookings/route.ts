@@ -20,6 +20,14 @@ import { safeNotifyBookingStatus } from '@/lib/line/notify-booking-status';
 import { shouldNotifyCancellation } from '@/lib/booking/status-meta';
 import { isApprovalTransition, isCallTransition } from '@/lib/booking/status-flow';
 import { SLOT_FULL_CODE, countSlotBookings, isSlotFull, occupiesSlot, slotFullStaffMessage } from '@/lib/booking/slot-capacity';
+import {
+  BOOKING_WINDOW_CODE,
+  bookingWindowMessage,
+  getBranchBookingWindow,
+  isBeyondBookingWindow,
+  resolveMaxBookingDate,
+} from '@/lib/booking/booking-window';
+import { toBangkokStamp } from '@/lib/line/booking-reminder';
 
 /** Minimal shape needed to call a Postgres function — works for both the session and admin clients. */
 type RpcClient = { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown }> };
@@ -101,6 +109,17 @@ export async function POST(req: Request) {
 
     const payload = parsed.data;
     assertBranchAllowed(branchScope, payload.branch_id);
+
+    // Staff are bound by the branch's advance-booking window exactly like
+    // customers (decided 2026-09-29) — no override, unlike slot capacity.
+    const maxDate = resolveMaxBookingDate(
+      toBangkokStamp(new Date()).date,
+      await getBranchBookingWindow(supabase, profile.shop_id, payload.branch_id),
+    );
+    if (maxDate && isBeyondBookingWindow(payload.booking_date, maxDate)) {
+      return NextResponse.json({ error: bookingWindowMessage(maxDate), code: BOOKING_WINDOW_CODE }, { status: 400 });
+    }
+
     const bounds = monthBounds(payload.booking_date);
     if (!bounds) return NextResponse.json({ error: 'ข้อมูลไม่ถูกต้อง: booking_date' }, { status: 400 });
     const { count: monthlyCount, error: monthlyError } = await supabase
@@ -449,6 +468,19 @@ export async function PATCH(req: Request) {
       const slotChanged = newDate !== String(before.booking_date) || newTime.slice(0, 5) !== String(before.start_time).slice(0, 5);
       const resourceChanged = nextResourceId !== prevResourceId;
       if (!slotChanged && !resourceChanged) return NextResponse.json({ data: { ok: true, line_notified: false } });
+
+      // Moving to another day follows the branch's advance-booking window too.
+      // Only a date change is checked: a booking made before the limit was
+      // tightened can still change its time or provider on its own day.
+      if (newDate !== String(before.booking_date)) {
+        const maxDate = resolveMaxBookingDate(
+          toBangkokStamp(new Date()).date,
+          await getBranchBookingWindow(supabase, profile.shop_id, String(before.branch_id)),
+        );
+        if (maxDate && isBeyondBookingWindow(newDate, maxDate)) {
+          return NextResponse.json({ error: bookingWindowMessage(maxDate), code: BOOKING_WINDOW_CODE }, { status: 400 });
+        }
+      }
 
       const [{ data: svc }, { data: prevResource }, { data: selected }] = await Promise.all([
         supabase.from('services').select('duration_minutes,capacity_per_slot').eq('id', before.service_id).eq('shop_id', profile.shop_id).maybeSingle(),

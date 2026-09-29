@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { assertBranchAllowed } from '@/lib/auth/branch-scope';
+import { toBangkokStamp } from '@/lib/line/booking-reminder';
+import { bookingWindowMessage, getBranchBookingWindow, isBeyondBookingWindow, resolveMaxBookingDate } from '@/lib/booking/booking-window';
 
 export async function GET(req: Request) {
   try {
@@ -18,6 +20,15 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Missing branch_id, service_id or date' }, { status: 400 });
     }
     assertBranchAllowed(branchScope, branchId);
+
+    // Staff follow the branch's advance-booking window too: no slots past it.
+    const maxDate = resolveMaxBookingDate(
+      toBangkokStamp(new Date()).date,
+      await getBranchBookingWindow(supabase, profile.shop_id, branchId),
+    );
+    if (maxDate && isBeyondBookingWindow(date, maxDate)) {
+      return NextResponse.json({ data: [], meta: { reason: 'beyond_window', hint: bookingWindowMessage(maxDate), max_date: maxDate } });
+    }
 
     const { data, error } = await supabase.rpc('get_available_slots', {
       p_shop_id: profile.shop_id,

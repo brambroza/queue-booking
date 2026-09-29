@@ -143,6 +143,10 @@ export async function POST(req: Request) {
       ...(payload.max_parallel_queues !== undefined ? { max_parallel_queues: payload.max_parallel_queues } : {}),
       active: payload.active,
       layout_image_url: payload.layout_image_url ?? null,
+      // Only written when the form sends them, so a caller that does not know
+      // the booking window leaves the column defaults (unlimited).
+      ...('booking_advance_window' in body ? { booking_advance_window: payload.booking_advance_window ?? null } : {}),
+      ...('booking_open_until' in body ? { booking_open_until: payload.booking_open_until ?? null } : {}),
       created_by: user.id,
       updated_by: user.id,
     };
@@ -207,6 +211,9 @@ export async function PATCH(req: Request) {
         active: parsed.data.active,
         // Absent key = caller does not manage the venue map; leave it alone.
         ...(hasImage ? { layout_image_url: parsed.data.layout_image_url ?? null } : {}),
+        // Same rule for the booking window: absent key = leave the stored limit alone.
+        ...('booking_advance_window' in body ? { booking_advance_window: parsed.data.booking_advance_window ?? null } : {}),
+        ...('booking_open_until' in body ? { booking_open_until: parsed.data.booking_open_until ?? null } : {}),
         updated_by: user.id,
       })
       .eq('id', id)
@@ -221,7 +228,12 @@ export async function PATCH(req: Request) {
       action: 'data_updated',
       targetTable: 'branches',
       targetId: id,
-      payload: { branch_name: parsed.data.branch_name, active: parsed.data.active },
+      payload: {
+        branch_name: parsed.data.branch_name,
+        active: parsed.data.active,
+        ...('booking_advance_window' in body ? { booking_advance_window: parsed.data.booking_advance_window ?? null } : {}),
+        ...('booking_open_until' in body ? { booking_open_until: parsed.data.booking_open_until ?? null } : {}),
+      },
     });
     return NextResponse.json({ data: true });
   } catch (e) {

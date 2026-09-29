@@ -32,7 +32,13 @@ export type BookingRow = {
   customers?: { full_name: string; nickname?: string | null; phone: string } | null;
 };
 
-export type Branch = { id: string; branch_name: string };
+export type Branch = {
+  id: string;
+  branch_name: string;
+  /** Advance-booking limit of the branch (see booking-window.ts); unset = unlimited. */
+  booking_advance_window?: string | null;
+  booking_open_until?: string | null;
+};
 export type Service = { id: string; service_name: string; price?: number | null };
 export type LineUser = {
   id: string;

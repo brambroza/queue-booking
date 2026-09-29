@@ -4,6 +4,8 @@ import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { getShopPaymentConfig, toPublicPaymentInfo } from '@/lib/payments/settings';
 import { isBookingEchoEnabled } from '@/lib/line/booking-echo';
 import { isOneBookingPerDay, isServiceDurationVisible } from '@/lib/booking/display-settings';
+import { getShopBookingWindows, resolveMaxBookingDate } from '@/lib/booking/booking-window';
+import { toBangkokStamp } from '@/lib/line/booking-reminder';
 
 export async function GET(_: Request, { params }: { params: Promise<{ shopKey: string }> }) {
   const { shopKey } = await params;
@@ -24,6 +26,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ shopKey: s
     bookingEchoEnabled,
     showServiceDuration,
     oneBookingPerDay,
+    bookingWindows,
   ] = await Promise.all([
     admin.from('branches').select('id,branch_name,layout_image_url').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
     admin.from('services').select('id,service_name,duration_minutes,price,image_url').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
@@ -38,7 +41,18 @@ export async function GET(_: Request, { params }: { params: Promise<{ shopKey: s
     isBookingEchoEnabled(admin, shop.id),
     isServiceDurationVisible(admin, shop.id),
     isOneBookingPerDay(admin, shop.id),
+    // Read apart from the branch select above so the page still loads on a
+    // database where migration 202609290002 has not run.
+    getShopBookingWindows(admin, shop.id),
   ]);
+
+  // Resolved here with the server's Bangkok date, so the LIFF date picker's
+  // maximum agrees with what /slots and /book will accept.
+  const today = toBangkokStamp(new Date()).date;
+  const branchesWithWindow = (branches ?? []).map((b) => ({
+    ...b,
+    max_booking_date: resolveMaxBookingDate(today, bookingWindows.get(String(b.id))),
+  }));
 
   return NextResponse.json({
     data: {
@@ -50,7 +64,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ shopKey: s
         show_service_duration: showServiceDuration,
         one_booking_per_day: oneBookingPerDay,
       },
-      branches: branches ?? [],
+      branches: branchesWithWindow,
       services: services ?? [],
       resources: resources ?? [],
       payment: toPublicPaymentInfo(paymentConfig),

@@ -364,6 +364,7 @@ export function BookingsCrud() {
       <BookingMoveDialog
         booking={moveTarget}
         resources={resources}
+        branches={branches}
         resourceLabel={resourceLabel}
         saving={saving}
         onClose={() => setMoveTarget(null)}

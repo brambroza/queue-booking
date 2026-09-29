@@ -20,7 +20,8 @@ import NotificationsOffRoundedIcon from '@mui/icons-material/NotificationsOffRou
 import { StatusChip } from '@/components/shared/status-chip';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
-import { addDays, customerName, hhmm, shiftTime, type BookingRow, type Resource } from './booking-types';
+import { addDays, customerName, hhmm, shiftTime, type BookingRow, type Branch, type Resource } from './booking-types';
+import { bookingWindowMessage, isBeyondBookingWindow, resolveMaxBookingDate } from '@/lib/booking/booking-window';
 import { resourceServesService } from '@/lib/booking/resource-service-link';
 
 export type MoveDraft = { date: string; time: string; resourceId: string };
@@ -35,6 +36,7 @@ const TIME_SHIFTS = [-30, -15, 15, 30] as const;
 export function BookingMoveDialog({
   booking,
   resources,
+  branches = [],
   resourceLabel,
   saving,
   onClose,
@@ -42,6 +44,8 @@ export function BookingMoveDialog({
 }: {
   booking: BookingRow | null;
   resources: Resource[];
+  /** Used for the branch's advance-booking window; omitted = no cap on the picker. */
+  branches?: Branch[];
   resourceLabel: string;
   saving: boolean;
   onClose: () => void;
@@ -72,8 +76,12 @@ export function BookingMoveDialog({
   const slotChanged = draft.date !== booking.booking_date || draft.time !== originalTime;
   const resourceChanged = draft.resourceId !== (booking.resource_id ?? '');
   const valid = /^\d{4}-\d{2}-\d{2}$/.test(draft.date) && /^\d{2}:\d{2}$/.test(draft.time);
-  const canSubmit = valid && (slotChanged || resourceChanged) && !saving;
   const today = getTodayISOInBangkok();
+  // Moving to another DAY follows the branch's advance-booking window (the
+  // server refuses it); the booking's own day stays valid even past the limit.
+  const maxDate = resolveMaxBookingDate(today, branches.find((b) => b.id === booking.branch_id));
+  const beyondWindow = draft.date !== booking.booking_date && isBeyondBookingWindow(draft.date, maxDate);
+  const canSubmit = valid && !beyondWindow && (slotChanged || resourceChanged) && !saving;
 
   const targetResourceName = draft.resourceId ? resources.find((r) => r.id === draft.resourceId)?.resource_name ?? '-' : t('unassigned', 'ยังไม่ระบุ');
 
@@ -107,6 +115,8 @@ export function BookingMoveDialog({
                 label={t('date', 'วันที่')}
                 value={draft.date}
                 onChange={(e) => setDraft((p) => ({ ...p, date: e.target.value }))}
+                error={beyondWindow}
+                helperText={beyondWindow && maxDate ? bookingWindowMessage(maxDate) : undefined}
                 slotProps={{ inputLabel: { shrink: true } }}
               />
               <TextField

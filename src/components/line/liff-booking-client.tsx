@@ -38,6 +38,9 @@ import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 import { buildBookingEchoText } from '@/lib/line/booking-echo';
 import { CUSTOMER_CANCELLABLE_STATUSES, checkInEligibility } from '@/lib/booking/status-flow';
 import { DAILY_LIMIT_CODE, dailyLimitMessage, findSameDayBooking } from '@/lib/booking/daily-limit';
+import { BOOKING_WINDOW_CODE } from '@/lib/booking/booking-window';
+import { firstBookableDay, isDayBookable, type BookableDayRules } from '@/lib/booking/bookable-days';
+import { LiffDateCalendar } from '@/components/line/liff-date-calendar';
 import { SLOT_FULL_CODE } from '@/lib/booking/slot-capacity';
 import { LiffPaymentPanel, openBankDeeplink } from '@/components/line/liff-payment-panel';
 import {
@@ -58,7 +61,14 @@ import type { PaymentMethod } from '@/types/db';
 import { BankGrid } from '@/components/line/bank-grid';
 import { isBankAppMethod, isMobileBankingAmountOk } from '@/lib/payments/mobile-banking/banks';
 
-type Branch = { id: string; branch_name: string; /** Venue map, so the customer can see where each court / room sits. */ layout_image_url?: string | null };
+type Branch = {
+  id: string;
+  branch_name: string;
+  /** Venue map, so the customer can see where each court / room sits. */
+  layout_image_url?: string | null;
+  /** Last bookable date of this branch (server-resolved, Bangkok); null = unlimited. */
+  max_booking_date?: string | null;
+};
 type Service = { id: string; service_name: string; duration_minutes: number; price?: number | null; image_url?: string | null };
 type Resource = {
   id: string;
@@ -86,8 +96,10 @@ type Slot = {
   is_past?: boolean;
 };
 type SlotMeta = {
-  reason: 'ok' | 'holiday' | 'closed' | 'full';
+  reason: 'ok' | 'holiday' | 'closed' | 'full' | 'beyond_window';
   hint?: string;
+  /** Last bookable date of the branch; caps the date picker. */
+  max_date?: string | null;
   /** Slots with room left and not yet started; 0 with a non-empty grid = nothing bookable. */
   open_slots?: number;
   /** Bangkok date from the server; floors the date picker. */
@@ -347,6 +359,10 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const [galleryResourceId, setGalleryResourceId] = useState('');
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [date, setDate] = useState(getTodayISOInBangkok());
+  /** Which days the calendar may show for the chosen branch; null until loaded. */
+  const [dayRules, setDayRules] = useState<BookableDayRules | null>(null);
+  /** Rules failed to load — the native date input takes over so booking still works. */
+  const [dayRulesFailed, setDayRulesFailed] = useState(false);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [slotHint, setSlotHint] = useState('');
   const [slotMeta, setSlotMeta] = useState<SlotMeta>({ reason: 'ok' });
@@ -622,8 +638,8 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       const nextMeta = (json.meta ?? { reason: 'ok' }) as SlotMeta;
       setSlotMeta(nextMeta);
       if (typeof nextMeta.today === 'string') setTodayIso(nextMeta.today);
-      // A day where every slot is full still renders the grid (all greyed);
-      // the "คิวเต็ม" alert from slotMeta carries the message, not a hint.
+      // A day where every slot is full or past renders no grid at all; the
+      // "คิวเต็ม" alert from slotMeta carries the message, not a hint.
       if (nextSlots.length === 0 && nextMeta.reason === 'ok') {
         setSlotHint(nextMeta.hint || 'ไม่พบเวลาว่างในวันที่เลือก');
       }
@@ -642,11 +658,46 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     setSlotMeta({ reason: 'ok' });
   }, [branchId, serviceId, date, selectedResourceId]);
 
+  // Days the calendar may show for this branch. A stale response (the customer
+  // switched branch meanwhile) is dropped.
+  useEffect(() => {
+    if (!branchId) return;
+    let cancelled = false;
+    setDayRules(null);
+    setDayRulesFailed(false);
+    void (async () => {
+      try {
+        const res = await fetch(`/api/public/shop/${encodeURIComponent(shopKey)}/bookable-days?branch_id=${encodeURIComponent(branchId)}`, { cache: 'no-store' });
+        const json = await res.json();
+        if (cancelled) return;
+        if (!res.ok || !json.data) return setDayRulesFailed(true);
+        const rules: BookableDayRules = {
+          today: String(json.data.today),
+          maxDate: json.data.max_date ?? null,
+          openWeekdays: json.data.open_weekdays ?? [],
+          holidays: json.data.holidays ?? [],
+        };
+        setDayRules(rules);
+        setTodayIso(rules.today);
+        // Never leave a day selected that the calendar does not show.
+        setDate((prev) => (isDayBookable(prev, rules) ? prev : firstBookableDay(rules) ?? ''));
+      } catch {
+        if (!cancelled) setDayRulesFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shopKey, branchId]);
+
   useEffect(() => {
     if (step !== 2 || !canLoadSlots) return;
+    // Wait for the calendar rules: until then `date` may still be a day the
+    // branch is closed, and its "ปิดทำการ" notice would flash on screen.
+    if (!dayRules && !dayRulesFailed) return;
     void loadSlots();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, branchId, serviceId, date]);
+  }, [step, branchId, serviceId, date, dayRules, dayRulesFailed]);
 
   // Restore an unfinished payment after a reload. Anything older than the TTL is
   // dropped rather than shown, since the invoice has almost certainly lapsed.
@@ -779,6 +830,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       // Booked from another device meanwhile — pull the list so the warning
       // under the date picker matches what the server just refused.
       if (json.code === DAILY_LIMIT_CODE) void loadMe();
+      // The branch's booking window moved (or the page sat open overnight) —
+      // reload so the date picker's maximum matches the server.
+      if (json.code === BOOKING_WINDOW_CODE) void loadSlots();
       return push(json.error ?? 'จองคิวไม่สำเร็จ', 'error');
     }
     setQueueNo(json.data.queue_number);
@@ -855,6 +909,8 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   }
 
   const selectedBranch = useMemo(() => branches.find((b) => b.id === branchId), [branches, branchId]);
+  // /slots carries the freshest value; /meta covers the time before the first load.
+  const maxBookingDate = slotMeta.max_date ?? selectedBranch?.max_booking_date ?? '';
   const selectedService = useMemo(() => services.find((s) => s.id === serviceId), [services, serviceId]);
   // Branch first, then service: a yoga teacher linked to "คลาสโยคะ" must not
   // appear when the customer picked "พิลาทิส". Unlinked resources always show.
@@ -965,6 +1021,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const shellProps = { shopName: shop?.name, branchName: selectedBranch?.branch_name };
   // Full slots are excluded so a day with one open slot left still compares
   // against the open ones, not against zero.
+  // Only slots that can be booked are drawn: a full or already-started slot
+  // is dropped instead of greyed out, so nothing on screen is a dead end.
+  const openSlots = slots.filter((s) => s.is_past !== true && s.remaining_capacity > 0);
   const maxSlotCapacity = slots.reduce((max, s) => (!s.is_past && s.remaining_capacity > 0 ? Math.max(max, s.remaining_capacity) : max), 0);
 
   if (queueNo) {
@@ -1268,6 +1327,8 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       <Alert severity="info" icon={<EventBusyRoundedIcon fontSize="inherit" />}>วันหยุด</Alert>
     ) : slotMeta.reason === 'closed' ? (
       <Alert severity="info" icon={<EventBusyRoundedIcon fontSize="inherit" />}>ปิดทำการ</Alert>
+    ) : slotMeta.reason === 'beyond_window' ? (
+      <Alert severity="info" icon={<EventBusyRoundedIcon fontSize="inherit" />}>{slotMeta.hint || 'ยังไม่เปิดจองวันที่เลือก'}</Alert>
     ) : slotMeta.reason === 'full' ? (
       <Alert severity="warning">{slotMeta.hint || 'คิวเต็ม'}</Alert>
     ) : null;
@@ -1437,47 +1498,58 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                     </MenuItem>
                   ))}
                 </TextField>
-                <TextField
-                  label="วันที่"
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  fullWidth
-                  slotProps={{
-                    inputLabel: { shrink: true },
-                    input: { startAdornment: <InputAdornment position="start"><CalendarMonthRoundedIcon fontSize="small" /></InputAdornment> },
-                    // Bangkok "today" from the server; the server refuses past days anyway.
-                    htmlInput: { min: todayIso || undefined },
-                  }}
-                />
+                {dayRulesFailed ? (
+                  // Calendar rules unavailable — fall back to the device's own
+                  // picker so the customer can still book; the server checks the day.
+                  <TextField
+                    label="วันที่"
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    fullWidth
+                    slotProps={{
+                      inputLabel: { shrink: true },
+                      input: { startAdornment: <InputAdornment position="start"><CalendarMonthRoundedIcon fontSize="small" /></InputAdornment> },
+                      htmlInput: { min: todayIso || undefined, max: maxBookingDate || undefined },
+                    }}
+                  />
+                ) : !dayRules ? (
+                  <LiffSkeleton rows={3} />
+                ) : firstBookableDay(dayRules) === null ? (
+                  <Alert severity="info" icon={<EventBusyRoundedIcon fontSize="inherit" />}>สาขานี้ยังไม่เปิดให้จองในขณะนี้</Alert>
+                ) : (
+                  <Stack spacing={0.5}>
+                    <LiffLabel>เลือกวันที่</LiffLabel>
+                    <LiffDateCalendar value={date} rules={dayRules} onChange={setDate} />
+                    {maxBookingDate ? (
+                      <Typography variant="caption" color="text.secondary">
+                        จองล่วงหน้าได้ถึง {formatDateDMY(maxBookingDate)}
+                      </Typography>
+                    ) : null}
+                  </Stack>
+                )}
                 <Button variant="outlined" size="large" fullWidth onClick={() => void loadSlots()} disabled={!canLoadSlots || loading}>
                   {loading ? 'กำลังโหลด...' : 'ดูเวลาว่าง'}
                 </Button>
               </LiffSection>
 
               <Stack spacing={1}>
-                <LiffLabel>เวลาว่าง · {formatDateDMY(date)}</LiffLabel>
+                <LiffLabel>{date ? `เวลาว่าง · ${formatDateDMY(date)}` : 'เวลาว่าง'}</LiffLabel>
                 {slotAlert}
                 {slotHint ? <Typography variant="caption" sx={{ color: 'warning.dark' }}>{slotHint}</Typography> : null}
                 {loading ? <LiffSkeleton rows={2} /> : null}
-                {!loading && slots.length > 0 ? (
+                {!loading && openSlots.length > 0 ? (
                   <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
-                    {slots.map((s) => {
+                    {openSlots.map((s) => {
                       const t = s.slot_time.slice(0, 5);
                       // "เหลือ N" only marks slots that are scarcer than the rest of the
                       // day — a shop with capacity 1 everywhere would otherwise label every slot.
-                      const past = s.is_past === true;
-                      const full = s.remaining_capacity <= 0;
-                      const scarce = !past && !full && s.remaining_capacity < maxSlotCapacity;
+                      const scarce = s.remaining_capacity < maxSlotCapacity;
                       return (
                         <SlotButton
                           key={s.slot_time}
                           label={t}
                           selected={selectedTime === t}
-                          disabled={past || full}
-                          disabledReason={past ? 'past' : full ? 'full' : undefined}
-                          booked={s.booked_count}
-                          capacity={s.capacity}
                           remaining={scarce ? s.remaining_capacity : undefined}
                           onClick={() => setSelectedTime(t)}
                         />

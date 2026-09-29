@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { BANK_CODES, PAYMENT_METHODS } from '@/types/db';
 import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 import { RESOURCE_TYPES } from '@/lib/booking/resource-types';
+import { ADVANCE_WINDOW_RE } from '@/lib/booking/booking-window';
 import { RESOURCE_IMAGE_MAX } from '@/lib/storage/shop-assets';
 
 /** A stored photo URL. Ownership (own shop-assets prefix) is checked in the route. */
@@ -23,6 +24,22 @@ export const branchSchema = z.object({
   active: z.coerce.boolean().default(true),
   /** Venue map shown to customers so they can see where each court / room sits. */
   layout_image_url: optionalImageUrlSchema,
+  /** Rolling advance-booking limit (`1w`, `3m`); '' / null = unlimited. See booking-window.ts. */
+  booking_advance_window: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
+    z.string().trim().regex(ADVANCE_WINDOW_RE).optional().nullable(),
+  ),
+  /** Fixed last bookable date `YYYY-MM-DD`; '' / null = no fixed end. */
+  booking_open_until: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
+    z
+      .string()
+      .trim()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .refine((v) => !Number.isNaN(new Date(`${v}T00:00:00Z`).getTime()))
+      .optional()
+      .nullable(),
+  ),
 });
 
 export const serviceSchema = z.object({

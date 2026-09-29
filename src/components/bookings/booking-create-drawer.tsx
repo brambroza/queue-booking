@@ -23,6 +23,7 @@ import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import type { Branch, LineUser, Resource, Service } from './booking-types';
 import { filterResourcesForService } from '@/lib/booking/resource-service-link';
+import { resolveMaxBookingDate } from '@/lib/booking/booking-window';
 
 export type CreateDraft = {
   branch_id: string;
@@ -98,6 +99,11 @@ export function BookingCreateDrawer({
     // Reset after the slide-out so the form does not flash empty while closing.
     setTimeout(resetAll, 200);
   }
+
+  // Staff follow the branch's advance-booking window too; the server refuses
+  // a later day, this only stops the picker from offering it.
+  const today = getTodayISOInBangkok();
+  const maxDate = resolveMaxBookingDate(today, branches.find((b) => b.id === draft.branch_id)) ?? undefined;
 
   // Resources linked to specific services only show up for those services.
   const resourceOptions = filterResourcesForService(
@@ -206,7 +212,7 @@ export function BookingCreateDrawer({
         {activeStep === 1 ? (
           <Stack spacing={2}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField id="create-date" type="date" required fullWidth size="small" label={t('date', 'วันที่')} value={draft.booking_date} onChange={set('booking_date')} slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: getTodayISOInBangkok() } }} />
+              <TextField id="create-date" type="date" required fullWidth size="small" label={t('date', 'วันที่')} value={draft.booking_date} onChange={set('booking_date')} helperText={maxDate ? `${t('book_until', 'จองล่วงหน้าได้ถึง')} ${formatDateDMY(maxDate)}` : undefined} slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: today, max: maxDate } }} />
               <TextField id="create-time" type="time" required fullWidth size="small" label={t('time_start', 'เวลาเริ่ม')} value={draft.start_time} onChange={set('start_time')} slotProps={{ inputLabel: { shrink: true } }} />
             </Stack>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>

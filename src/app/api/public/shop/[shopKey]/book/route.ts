@@ -18,6 +18,13 @@ import { detectOmisePlatform, isBankAppMethod } from '@/lib/payments/mobile-bank
 import { resolveInitialBookingStatus } from '@/lib/booking/status-flow';
 import { isSlotPast, SLOT_PAST_CODE, SLOT_PAST_MESSAGE } from '@/lib/booking/slot-time';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
+import {
+  BOOKING_WINDOW_CODE,
+  bookingWindowMessage,
+  getBranchBookingWindow,
+  isBeyondBookingWindow,
+  resolveMaxBookingDate,
+} from '@/lib/booking/booking-window';
 import { isOneBookingPerDay } from '@/lib/booking/display-settings';
 import { DAILY_LIMIT_CODE, DAILY_LIMIT_FREE_STATUSES, dailyLimitMessage, isDailyLimitDbError } from '@/lib/booking/daily-limit';
 import { SLOT_FULL_CODE, countSlotBookings, isSlotFull, isSlotFullDbError, slotFullMessage } from '@/lib/booking/slot-capacity';
@@ -88,8 +95,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
 
   // The LIFF greys these out, but a grid left open past the hour (or a forged
   // request) still reaches here. Same rule as /slots, same Bangkok clock.
-  if (isSlotPast({ date: payload.booking_date, time: payload.start_time }, toBangkokStamp(new Date()))) {
+  const now = toBangkokStamp(new Date());
+  if (isSlotPast({ date: payload.booking_date, time: payload.start_time }, now)) {
     return NextResponse.json({ error: SLOT_PAST_MESSAGE, code: SLOT_PAST_CODE }, { status: 400 });
+  }
+
+  // The LIFF date picker stops at the branch's last bookable date, but a
+  // forged request does not. Same helper as /slots.
+  const maxDate = resolveMaxBookingDate(now.date, await getBranchBookingWindow(admin, shop.id, payload.branch_id));
+  if (maxDate && isBeyondBookingWindow(payload.booking_date, maxDate)) {
+    return NextResponse.json({ error: bookingWindowMessage(maxDate), code: BOOKING_WINDOW_CODE }, { status: 400 });
   }
 
   const bounds = monthBounds(payload.booking_date);

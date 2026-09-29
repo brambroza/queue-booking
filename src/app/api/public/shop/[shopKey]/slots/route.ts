@@ -4,6 +4,7 @@ import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import { DATE_PAST_HINT, DAY_OVER_HINT, isSlotPast } from '@/lib/booking/slot-time';
 import { weekdayOf } from '@/lib/dashboard/date-range';
+import { bookingWindowMessage, getBranchBookingWindow, isBeyondBookingWindow, resolveMaxBookingDate } from '@/lib/booking/booking-window';
 
 export async function GET(req: Request, { params }: { params: Promise<{ shopKey: string }> }) {
   const { shopKey } = await params;
@@ -31,6 +32,28 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
     weekday = weekdayOf(date);
   } catch {
     return NextResponse.json({ error: 'Invalid date' }, { status: 400 });
+  }
+
+  // Server clock in Bangkok, never the customer's device: a slot that already
+  // started is greyed out here and refused again by /book with the same rule.
+  const now = toBangkokStamp(new Date());
+
+  // Past the branch's advance-booking window nothing is offered at all, so the
+  // slot lookup is skipped. /book refuses the same dates with the same helper.
+  const maxDate = resolveMaxBookingDate(now.date, await getBranchBookingWindow(admin, shop.id, branchId));
+  if (maxDate && isBeyondBookingWindow(date, maxDate)) {
+    return NextResponse.json({
+      data: [],
+      meta: {
+        reason: 'beyond_window',
+        hint: bookingWindowMessage(maxDate),
+        open_slots: 0,
+        today: now.date,
+        max_date: maxDate,
+        has_working_hours: true,
+        is_holiday: false,
+      },
+    });
   }
 
   const [{ data: holidayRows }, { data: whRows }, { data: anyWhRows }] = await Promise.all([
@@ -74,10 +97,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-  // Server clock in Bangkok, never the customer's device: a slot that already
-  // started is greyed out here and refused again by /book with the same rule.
-  const now = toBangkokStamp(new Date());
-  const slots = ((data ?? []) as Array<{ slot_time: string; capacity: number; booked_count: number; remaining_capacity: number }>).map(
+  const slots =((data ?? []) as Array<{ slot_time: string; capacity: number; booked_count: number; remaining_capacity: number }>).map(
     (s) => ({ ...s, is_past: isSlotPast({ date, time: s.slot_time }, now) })
   );
   const openSlots = slots.filter((s) => !s.is_past && s.remaining_capacity > 0).length;
@@ -116,6 +136,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
       open_slots: openSlots,
       /** Bangkok date, so the LIFF date picker's minimum agrees with the server. */
       today: now.date,
+      /** Last bookable date of this branch (inclusive); null = unlimited. */
+      max_date: maxDate,
       has_working_hours: hasWorkingHours,
       is_holiday: isHoliday,
     },
