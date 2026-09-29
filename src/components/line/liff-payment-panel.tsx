@@ -3,7 +3,7 @@
 import { ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Box, Button, CircularProgress, Divider, Stack, TextField, Typography } from '@mui/material';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import PhotoCameraRoundedIcon from '@mui/icons-material/PhotoCameraRounded';
+import UploadRoundedIcon from '@mui/icons-material/UploadRounded';
 import { compressImage } from '@/lib/utils/image-compress';
 import { KeyValueList, LiffLabel, LiffSection, LiffSkeleton } from '@/components/line/liff-ui';
 import { BankGrid, type BankGridBank } from '@/components/line/bank-grid';
@@ -459,7 +459,6 @@ export function LiffPaymentPanel({
         ref={fileRef}
         type="file"
         accept="image/jpeg,image/png,image/webp"
-        capture="environment"
         hidden
         onChange={onFileChange}
         disabled={uploading}
@@ -469,7 +468,7 @@ export function LiffPaymentPanel({
         size="large"
         fullWidth
         disabled={uploading}
-        startIcon={uploading ? <CircularProgress size={16} color="inherit" /> : <PhotoCameraRoundedIcon />}
+        startIcon={uploading ? <CircularProgress size={16} color="inherit" /> : <UploadRoundedIcon />}
         onClick={() => fileRef.current?.click()}
       >
         {uploading ? 'กำลังอัปโหลด...' : 'เลือกรูปสลิป'}
