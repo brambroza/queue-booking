@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { useCases } from '@/components/public/content';
 import { blogPosts } from '@/components/public/blog-content';
+import { blogPostsEn } from '@/components/public/blog-content-en';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = process.env.NEXT_PUBLIC_APP_URL || 'https://queuebooking.com';
@@ -47,13 +48,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   const blogPages: MetadataRoute.Sitemap = blogPosts.map((p) => ({
     url: `${base}/blog/${p.slug}`,
-    lastModified: new Date(`${p.publishedAt || defaultDate}T00:00:00+07:00`),
+    lastModified: new Date(`${p.updatedAt || p.publishedAt || defaultDate}T00:00:00+07:00`),
     changeFrequency: 'monthly',
     priority: 0.72,
   }));
-  const blogPagesEn: MetadataRoute.Sitemap = blogPosts.map((p) => ({
+  // Built from the English list, not the Thai one: not every Thai post has a
+  // translation, and listing a missing one submits a 404 to Search Console.
+  const blogPagesEn: MetadataRoute.Sitemap = blogPostsEn.map((p) => ({
     url: `${base}/en/blog/${p.slug}`,
-    lastModified: new Date(`${p.publishedAt || defaultDate}T00:00:00+07:00`),
+    lastModified: new Date(`${p.updatedAt || p.publishedAt || defaultDate}T00:00:00+07:00`),
     changeFrequency: 'monthly',
     priority: 0.68,
   }));
