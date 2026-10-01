@@ -27,7 +27,7 @@ import {
 } from '@/lib/booking/booking-window';
 import { isOneBookingPerDay } from '@/lib/booking/display-settings';
 import { DAILY_LIMIT_CODE, DAILY_LIMIT_FREE_STATUSES, dailyLimitMessage, isDailyLimitDbError } from '@/lib/booking/daily-limit';
-import { SLOT_FULL_CODE, countSlotBookings, isSlotFull, isSlotFullDbError, slotFullMessage } from '@/lib/booking/slot-capacity';
+import { SLOT_FULL_CODE, countSlotBookings, fetchSlotCapacity, isSlotFull, isSlotFullDbError, slotFullMessage } from '@/lib/booking/slot-capacity';
 
 const bookSchema = z
   .object({
@@ -316,24 +316,30 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     }
   }
 
-  // Slot capacity (services.capacity_per_slot). A booking tied to a resource is
-  // governed by the resource check above instead. The DB trigger from
-  // 202609290001 closes the race between this count and the insert below.
+  // Slot capacity (services.capacity_per_slot, overridden per time range by
+  // service_capacity_rules). A booking tied to a resource is governed by the
+  // resource check above instead. The DB trigger from 202609290001 /
+  // 202610010001 closes the race between this count and the insert below.
   if (!assignedResource) {
     let bookedCount: number;
+    let capacity: number;
     try {
-      bookedCount = await countSlotBookings(admin, {
+      const slotKey = {
         shopId: shop.id,
         branchId: payload.branch_id,
         serviceId: payload.service_id,
         date: payload.booking_date,
         startTime: payload.start_time,
-      });
+      };
+      [capacity, bookedCount] = await Promise.all([
+        fetchSlotCapacity(admin, slotKey, service.capacity_per_slot),
+        countSlotBookings(admin, slotKey),
+      ]);
     } catch (countErr) {
       console.error('[public/book]', countErr instanceof Error ? countErr.message : countErr);
       return NextResponse.json({ error: 'ขออภัย ระบบไม่สามารถรับการจองได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง' }, { status: 500 });
     }
-    if (isSlotFull(bookedCount, service.capacity_per_slot)) {
+    if (isSlotFull(bookedCount, capacity)) {
       return NextResponse.json({ error: slotFullMessage(payload.start_time), code: SLOT_FULL_CODE }, { status: 409 });
     }
   }

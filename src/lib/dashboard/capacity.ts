@@ -13,7 +13,9 @@ import { weekdayOf } from './date-range';
  *
  * Seats per slot come from `services.capacity_per_slot` — the value customers
  * book against — summed over the active services (see `seatsPerSlot`), because
- * each service holds its own seats in a slot. `working_hours.capacity_per_slot`
+ * each service holds its own seats in a slot. A `service_capacity_rules` row
+ * overrides that value for its time range (see `seatsResolver`, same precedence
+ * as the `resolve_slot_capacity` database function). `working_hours.capacity_per_slot`
  * is deprecated and not read.
  *
  * It stays an estimate: a service booked against resources (stylists, tables)
@@ -32,9 +34,28 @@ export type WorkingHoursRow = {
 };
 
 export type ServiceCapacityRow = {
+  id?: string;
   capacity_per_slot: number | null;
   active?: boolean | null;
 };
+
+/** One `service_capacity_rules` row, as the dashboard reads it. */
+export type CapacityRuleRow = {
+  service_id: string;
+  /** null = every branch. */
+  branch_id: string | null;
+  /** 0 = Sunday … 6 = Saturday; null = every weekday. */
+  weekday: number | null;
+  /** `HH:MM[:SS]`, inclusive. */
+  time_from: string;
+  /** `HH:MM[:SS]`, exclusive. */
+  time_to: string;
+  capacity: number;
+  active?: boolean | null;
+};
+
+/** Seats one branch offers in the slot starting at `minutesOfDay` on `weekday`. */
+export type SeatsResolver = (branchId: string, weekday: number, minutesOfDay: number) => number;
 
 /**
  * Seats one branch offers in a single slot: the sum of `capacity_per_slot` over
@@ -50,6 +71,69 @@ export function seatsPerSlot(services: ServiceCapacityRow[]): number {
     total += Number.isFinite(seats) && seats >= 1 ? Math.floor(seats) : 1;
   }
   return total;
+}
+
+/** A capacity value as the booking flow reads it: missing or invalid = 1. */
+function normalizeSeats(value: number | null | undefined): number {
+  const seats = Number(value ?? 1);
+  return Number.isFinite(seats) && seats >= 1 ? Math.floor(seats) : 1;
+}
+
+/**
+ * Seats one service offers in one slot, honouring its time-range rules.
+ *
+ * Mirrors `resolve_slot_capacity`: the most specific active rule covering the
+ * slot wins (branch + weekday, then branch, then weekday, then shop-wide), and
+ * with none the service default applies. `time_to` is exclusive.
+ *
+ * @param service - The service (its `id` is matched against `rules`).
+ * @param rules - Rules of the shop; rows of other services are ignored.
+ * @param branchId - Branch the slot belongs to.
+ * @param weekday - 0 = Sunday … 6 = Saturday.
+ * @param minutesOfDay - Slot start, minutes since midnight.
+ */
+export function resolveServiceSeats(
+  service: ServiceCapacityRow,
+  rules: CapacityRuleRow[],
+  branchId: string,
+  weekday: number,
+  minutesOfDay: number,
+): number {
+  let best: CapacityRuleRow | null = null;
+  let bestRank = -1;
+  for (const r of rules) {
+    if (service.id === undefined || r.service_id !== service.id || r.active === false) continue;
+    if (r.branch_id !== null && r.branch_id !== branchId) continue;
+    if (r.weekday !== null && r.weekday !== weekday) continue;
+    if (minutesOfDay < timeToMinutes(r.time_from) || minutesOfDay >= timeToMinutes(r.time_to)) continue;
+    const rank = (r.branch_id !== null ? 2 : 0) + (r.weekday !== null ? 1 : 0);
+    if (rank > bestRank || (rank === bestRank && best && timeToMinutes(r.time_from) < timeToMinutes(best.time_from))) {
+      best = r;
+      bestRank = rank;
+    }
+  }
+  return normalizeSeats(best ? best.capacity : service.capacity_per_slot);
+}
+
+/**
+ * Build the per-slot seats function the `CapacityModel` uses: the sum over the
+ * active services of `resolveServiceSeats`. With no rules it equals
+ * `seatsPerSlot(services)` at every time.
+ *
+ * @param services - Services of the shop (inactive ones are ignored).
+ * @param rules - Active `service_capacity_rules` rows of the shop.
+ */
+export function seatsResolver(services: ServiceCapacityRow[], rules: CapacityRuleRow[]): SeatsResolver {
+  const active = services.filter((s) => s.active !== false);
+  if (rules.length === 0) {
+    const constant = seatsPerSlot(active);
+    return () => constant;
+  }
+  return (branchId, weekday, minutesOfDay) => {
+    let total = 0;
+    for (const s of active) total += resolveServiceSeats(s, rules, branchId, weekday, minutesOfDay);
+    return total;
+  };
 }
 
 export type HolidayRow = {
@@ -68,21 +152,24 @@ export function timeToMinutes(value: string): number {
  * Per-hour capacity for one working-hours row (hour → seats).
  *
  * @param row - Working-hours row.
- * @param perSlotSeats - Seats in one slot, from `seatsPerSlot`.
+ * @param perSlotSeats - Seats in one slot: a constant from `seatsPerSlot`, or a
+ *   function of the slot start (minutes since midnight) when time-range rules apply.
  */
-export function hourlyCapacityForRow(row: WorkingHoursRow, perSlotSeats: number): Map<number, number> {
+export function hourlyCapacityForRow(row: WorkingHoursRow, perSlotSeats: number | ((minutesOfDay: number) => number)): Map<number, number> {
   const out = new Map<number, number>();
   const interval = Math.max(5, row.slot_interval_minutes || 30);
-  const perSlot = Math.max(0, Math.floor(perSlotSeats) || 0);
+  const seatsAt = typeof perSlotSeats === 'function' ? perSlotSeats : () => perSlotSeats;
   const open = timeToMinutes(row.open_time);
   const close = timeToMinutes(row.close_time);
   const breakStart = row.break_start ? timeToMinutes(row.break_start) : null;
   const breakEnd = row.break_end ? timeToMinutes(row.break_end) : null;
-  if (close <= open || perSlot === 0) return out;
+  if (close <= open) return out;
 
   for (let t = open; t + interval <= close; t += interval) {
     const inBreak = breakStart !== null && breakEnd !== null && t < breakEnd && t + interval > breakStart;
     if (inBreak) continue;
+    const perSlot = Math.max(0, Math.floor(seatsAt(t)) || 0);
+    if (perSlot === 0) continue;
     const hour = Math.floor(t / 60);
     out.set(hour, (out.get(hour) ?? 0) + perSlot);
   }
@@ -91,7 +178,7 @@ export function hourlyCapacityForRow(row: WorkingHoursRow, perSlotSeats: number)
 
 export class CapacityModel {
   private readonly branchIds: string[];
-  private readonly perSlotSeats: number;
+  private readonly seatsAt: SeatsResolver;
   private readonly byBranchWeekday = new Map<string, WorkingHoursRow[]>();
   private readonly shopWideByWeekday = new Map<number, WorkingHoursRow[]>();
   private readonly holidayAll = new Set<string>();
@@ -102,11 +189,12 @@ export class CapacityModel {
    * @param branchIds Branches in scope; capacity is summed across them.
    * @param workingHours Active working-hours rows for the shop (any branch).
    * @param holidays Holiday rows for the shop covering the dates that will be queried.
-   * @param perSlotSeats Seats one branch offers in a single slot, from `seatsPerSlot`.
+   * @param perSlotSeats Seats one branch offers in a single slot: a constant from
+   *   `seatsPerSlot`, or a `SeatsResolver` from `seatsResolver` when time-range rules apply.
    */
-  constructor(branchIds: string[], workingHours: WorkingHoursRow[], holidays: HolidayRow[], perSlotSeats: number) {
+  constructor(branchIds: string[], workingHours: WorkingHoursRow[], holidays: HolidayRow[], perSlotSeats: number | SeatsResolver) {
     this.branchIds = Array.from(new Set(branchIds));
-    this.perSlotSeats = perSlotSeats;
+    this.seatsAt = typeof perSlotSeats === 'function' ? perSlotSeats : () => perSlotSeats;
     for (const row of workingHours) {
       if (row.active === false) continue;
       if (row.branch_id) {
@@ -148,7 +236,9 @@ export class CapacityModel {
     if (cached) return cached;
     const merged = new Map<number, number>();
     for (const row of this.rowsFor(branchId, weekday)) {
-      for (const [hour, seats] of hourlyCapacityForRow(row, this.perSlotSeats)) merged.set(hour, (merged.get(hour) ?? 0) + seats);
+      for (const [hour, seats] of hourlyCapacityForRow(row, (minutes) => this.seatsAt(branchId, weekday, minutes))) {
+        merged.set(hour, (merged.get(hour) ?? 0) + seats);
+      }
     }
     this.hourCache.set(key, merged);
     return merged;

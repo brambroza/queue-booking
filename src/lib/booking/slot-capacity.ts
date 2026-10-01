@@ -2,17 +2,20 @@
  * Slot capacity rule, shared by the public `/book` route, the portal
  * `/api/bookings` route and the clients that react to a refusal.
  *
- * Capacity is set in one place: `services.capacity_per_slot`. It is counted per
- * shop + branch + service + date + start time, the same reading as the
- * `get_slot_availability` RPC the LIFF grid is drawn from. Cancelled / no-show
- * bookings free their seat; completed ones do not.
+ * Capacity defaults to `services.capacity_per_slot` and may be overridden per
+ * time range by `service_capacity_rules` (migration 202610010001). The database
+ * function `resolve_slot_capacity` is the one place that precedence lives, and
+ * `fetchSlotCapacity` below reads it. Bookings are counted per shop + branch +
+ * service + date + start time, the same reading as the `get_slot_availability`
+ * RPC the LIFF grid is drawn from. Cancelled / no-show bookings free their
+ * seat; completed ones do not.
  *
  * A booking tied to a resource (stylist, table, court) is governed by the
  * resource overlap guard instead and never goes through this rule.
  *
  * The authoritative check runs server-side (app count + DB trigger
- * `enforce_slot_capacity`, migration 202609290001). Staff may overbook from the
- * portal after confirming; customers may not.
+ * `enforce_slot_capacity`, migrations 202609290001 / 202610010001). Staff may
+ * overbook from the portal after confirming; customers may not.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -91,6 +94,52 @@ export function slotFullStaffMessage(time: string | null | undefined, bookedCoun
  */
 export function isSlotFullDbError(message: string | null | undefined): boolean {
   return typeof message === 'string' && message.includes(SLOT_FULL_CODE);
+}
+
+/**
+ * Capacity of one slot, honouring time-range rules.
+ *
+ * Calls the `resolve_slot_capacity` database function. When that call fails —
+ * most likely because migration 202610010001 has not been applied yet — the
+ * service default is used instead, so a booking never fails only because the
+ * rules feature is missing. A failure is logged once per process.
+ *
+ * @param client - Supabase client already allowed to read this shop's data.
+ * @param slot - Slot to resolve (`excludeBookingId` is ignored).
+ * @param serviceDefault - `services.capacity_per_slot` of the slot's service.
+ */
+export async function fetchSlotCapacity(
+  client: SupabaseClient,
+  slot: Omit<SlotKey, 'excludeBookingId'>,
+  serviceDefault: number | null | undefined,
+): Promise<number> {
+  const fallback = normalizeCapacity(serviceDefault);
+  try {
+    const { data, error } = await client.rpc('resolve_slot_capacity', {
+      p_shop_id: slot.shopId,
+      p_service_id: slot.serviceId,
+      p_branch_id: slot.branchId,
+      p_date: slot.date,
+      p_slot_time: normalizeSlotTime(slot.startTime),
+    });
+    if (error) throw new Error(error.message);
+    const resolved = Number(data);
+    return Number.isFinite(resolved) && resolved >= 1 ? Math.floor(resolved) : fallback;
+  } catch (err) {
+    if (!resolverWarned) {
+      resolverWarned = true;
+      console.warn('[slot-capacity] resolve_slot_capacity unavailable, using services.capacity_per_slot:', err instanceof Error ? err.message : err);
+    }
+    return fallback;
+  }
+}
+
+let resolverWarned = false;
+
+/** Same reading as `isSlotFull`: a missing or invalid value is 1, never unlimited. */
+function normalizeCapacity(capacity: number | null | undefined): number {
+  const seats = Number(capacity);
+  return Number.isFinite(seats) && seats >= 1 ? Math.floor(seats) : 1;
 }
 
 /**

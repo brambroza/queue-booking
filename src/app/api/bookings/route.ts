@@ -19,7 +19,7 @@ import { safeNotifyBookingChange } from '@/lib/line/notify-booking-change';
 import { safeNotifyBookingStatus } from '@/lib/line/notify-booking-status';
 import { shouldNotifyCancellation } from '@/lib/booking/status-meta';
 import { isApprovalTransition, isCallTransition } from '@/lib/booking/status-flow';
-import { SLOT_FULL_CODE, countSlotBookings, isSlotFull, occupiesSlot, slotFullStaffMessage } from '@/lib/booking/slot-capacity';
+import { SLOT_FULL_CODE, countSlotBookings, fetchSlotCapacity, isSlotFull, occupiesSlot, slotFullStaffMessage } from '@/lib/booking/slot-capacity';
 import {
   BOOKING_WINDOW_CODE,
   bookingWindowMessage,
@@ -263,19 +263,22 @@ export async function POST(req: Request) {
       }
     }
 
-    // Slot capacity (services.capacity_per_slot). Staff may overbook on purpose,
-    // so a full slot is refused once and the portal re-sends with
-    // `allow_overbook` after they confirm. Resource bookings are governed by the
-    // resource check above.
+    // Slot capacity (services.capacity_per_slot, overridden per time range by
+    // service_capacity_rules). Staff may overbook on purpose, so a full slot is
+    // refused once and the portal re-sends with `allow_overbook` after they
+    // confirm. Resource bookings are governed by the resource check above.
     if (!assignedResource && !payload.allow_overbook && occupiesSlot(payload.status)) {
-      const capacity = Number(service?.capacity_per_slot ?? 1);
-      const bookedCount = await countSlotBookings(supabase, {
+      const slotKey = {
         shopId: profile.shop_id,
         branchId: payload.branch_id,
         serviceId: payload.service_id,
         date: payload.booking_date,
         startTime: payload.start_time,
-      });
+      };
+      const [capacity, bookedCount] = await Promise.all([
+        fetchSlotCapacity(supabase, slotKey, service?.capacity_per_slot),
+        countSlotBookings(supabase, slotKey),
+      ]);
       if (isSlotFull(bookedCount, capacity)) {
         return NextResponse.json(
           { error: slotFullStaffMessage(payload.start_time, bookedCount, capacity), code: SLOT_FULL_CODE },
@@ -523,15 +526,17 @@ export async function PATCH(req: Request) {
 
       // Moving into a full slot needs the same confirmation as creating one there.
       if (slotChanged && !nextResourceId && body.allow_overbook !== true && before.service_id && occupiesSlot(before.status)) {
-        const capacity = Number(svc?.capacity_per_slot ?? 1);
-        const bookedCount = await countSlotBookings(supabase, {
+        const slotKey = {
           shopId: profile.shop_id,
           branchId: String(before.branch_id),
           serviceId: String(before.service_id),
           date: newDate,
           startTime: newTime,
-          excludeBookingId: id,
-        });
+        };
+        const [capacity, bookedCount] = await Promise.all([
+          fetchSlotCapacity(supabase, slotKey, svc?.capacity_per_slot),
+          countSlotBookings(supabase, { ...slotKey, excludeBookingId: id }),
+        ]);
         if (isSlotFull(bookedCount, capacity)) {
           return NextResponse.json(
             { error: slotFullStaffMessage(newTime, bookedCount, capacity), code: SLOT_FULL_CODE },

@@ -57,6 +57,32 @@ export const serviceSchema = z.object({
   image_url: optionalImageUrlSchema,
 });
 
+/** `HH:MM` or `HH:MM:SS`, 24-hour. */
+const timeOfDaySchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, 'Invalid time');
+
+/**
+ * One time range of the day in which a service accepts a different number of
+ * queues per slot than `services.capacity_per_slot`.
+ */
+export const capacityRuleSchema = z
+  .object({
+    /** null = every branch of the shop. */
+    branch_id: z.string().uuid().nullable().default(null),
+    /** 0 = Sunday … 6 = Saturday; null = every weekday. */
+    weekday: z.coerce.number().int().min(0).max(6).nullable().default(null),
+    time_from: timeOfDaySchema,
+    /** Exclusive. */
+    time_to: timeOfDaySchema,
+    capacity: z.coerce.number().int().min(1),
+    active: z.coerce.boolean().default(true),
+  })
+  .refine((r) => r.time_from < r.time_to, { message: 'time_from must be before time_to', path: ['time_to'] });
+
+/** Replace-all payload of `PUT /api/services/[id]/capacity-rules`. */
+export const capacityRulesPayloadSchema = z.object({
+  rules: z.array(capacityRuleSchema).max(50),
+});
+
 export const workingHourSchema = z.object({
   branch_id: z.string().uuid(),
   weekday: z.coerce.number().int().min(0).max(6),

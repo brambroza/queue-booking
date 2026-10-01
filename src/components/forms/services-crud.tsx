@@ -2,6 +2,10 @@
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Alert,
   Box,
   Button,
   Card,
@@ -29,6 +33,8 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import PaymentsRoundedIcon from '@mui/icons-material/PaymentsRounded';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import { CAPACITY_RULE_WEEKDAYS } from '@/lib/booking/capacity-rules';
 import { useToast } from '@/components/ui/toast';
 import { ImageUploader } from '@/components/forms/image-uploader';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -40,6 +46,24 @@ import { ResponsiveTable } from '@/components/ui/responsive-table';
 import { MobileRecordCard } from '@/components/ui/mobile-record-card';
 
 type Service = Record<string, unknown>;
+type Branch = { id: string; branch_name: string };
+/** One row of the time-range capacity editor; strings because they bind to inputs. */
+type CapacityRuleDraft = {
+  key: string;
+  /** '' = every branch. */
+  branch_id: string;
+  /** '' = every weekday, else '0'..'6'. */
+  weekday: string;
+  time_from: string;
+  time_to: string;
+  capacity: string;
+};
+type CapacityRuleRow = { id: string; branch_id: string | null; weekday: number | null; time_from: string; time_to: string; capacity: number; active: boolean };
+
+/** Fresh editor row: 13:00–18:00, same seats as the service default. */
+function newRuleDraft(capacity: string): CapacityRuleDraft {
+  return { key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, branch_id: '', weekday: '', time_from: '13:00', time_to: '18:00', capacity };
+}
 type Template = {
   id: string;
   business_category: string;
@@ -116,6 +140,12 @@ export function ServicesCrud() {
   const [minDuration, setMinDuration] = useState('90');
   const [maxDuration, setMaxDuration] = useState('180');
   const [capacity, setCapacity] = useState('1');
+  /** Time-range overrides of `capacity`; edited only for an existing service. */
+  const [capacityRules, setCapacityRules] = useState<CapacityRuleDraft[]>([]);
+  const [capacityRulesDirty, setCapacityRulesDirty] = useState(false);
+  const [capacityRulesLoading, setCapacityRulesLoading] = useState(false);
+  const [capacityRulesError, setCapacityRulesError] = useState<string | null>(null);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [price, setPrice] = useState('0');
   const [active, setActive] = useState(true);
   /** Cover photo shown on the LIFF service card; '' = none. */
@@ -208,17 +238,20 @@ export function ServicesCrud() {
   const pagedRows = useMemo(() => rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage), [rows, page, rowsPerPage]);
 
   async function load() {
-    const [resServices, resTemplates, resDisplay] = await Promise.all([
+    const [resServices, resTemplates, resDisplay, resBranches] = await Promise.all([
       fetch('/api/services', { cache: 'no-store' }),
       fetch('/api/service-templates', { cache: 'no-store' }),
       fetch('/api/shop-display-settings', { cache: 'no-store' }),
+      fetch('/api/branches?page_size=100', { cache: 'no-store' }),
     ]);
-    const [s, t, d] = await Promise.all([resServices.json(), resTemplates.json(), resDisplay.json()]);
+    const [s, t, d, b] = await Promise.all([resServices.json(), resTemplates.json(), resDisplay.json(), resBranches.json()]);
     // The display flag is secondary — a failure here must not hide the services.
     if (resDisplay.ok) {
       setShowDuration(d.data?.show_service_duration !== false);
       setOneBookingPerDay(d.data?.one_booking_per_day === true);
     }
+    // Branches only feed the time-range capacity editor; without them it offers "ทุกสาขา" alone.
+    if (resBranches.ok) setBranches(((b.data ?? []) as Array<Record<string, unknown>>).map((x) => ({ id: String(x.id), branch_name: String(x.branch_name ?? '') })));
     if (!resServices.ok) return push(s.error ?? 'โหลด services ไม่สำเร็จ', 'error');
     if (!resTemplates.ok) return push(t.error ?? 'โหลด templates ไม่สำเร็จ', 'error');
     setRows(s.data ?? []);
@@ -277,11 +310,84 @@ export function ServicesCrud() {
     setMinDuration('90');
     setMaxDuration('180');
     setCapacity('1');
+    setCapacityRules([]);
+    setCapacityRulesDirty(false);
+    setCapacityRulesError(null);
     setPrice('0');
     setActive(true);
     setImageUrl('');
     setRequiresApproval(false);
     setAllowWalkIn(false);
+  }
+
+  /** Load the time-range rules of one service into the editor. */
+  async function loadCapacityRules(serviceId: string) {
+    setCapacityRulesLoading(true);
+    setCapacityRulesError(null);
+    try {
+      const res = await fetch(`/api/services/${serviceId}/capacity-rules`, { cache: 'no-store' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'โหลดช่วงเวลาไม่สำเร็จ');
+      setCapacityRules(
+        ((json.data ?? []) as CapacityRuleRow[]).filter((r) => r.active !== false).map((r) => ({
+          key: r.id,
+          branch_id: r.branch_id ?? '',
+          weekday: r.weekday === null ? '' : String(r.weekday),
+          time_from: r.time_from.slice(0, 5),
+          time_to: r.time_to.slice(0, 5),
+          capacity: String(r.capacity),
+        })),
+      );
+      setCapacityRulesDirty(false);
+    } catch (err) {
+      setCapacityRulesError(err instanceof Error ? err.message : 'โหลดช่วงเวลาไม่สำเร็จ');
+    } finally {
+      setCapacityRulesLoading(false);
+    }
+  }
+
+  function updateCapacityRule(key: string, patch: Partial<CapacityRuleDraft>) {
+    setCapacityRules((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+    setCapacityRulesDirty(true);
+  }
+
+  function removeCapacityRule(key: string) {
+    setCapacityRules((prev) => prev.filter((r) => r.key !== key));
+    setCapacityRulesDirty(true);
+  }
+
+  function addCapacityRule() {
+    setCapacityRules((prev) => [...prev, newRuleDraft(capacity)]);
+    setCapacityRulesDirty(true);
+  }
+
+  /**
+   * Persist the editor rows for the service being edited. Returns an error
+   * message, or null on success. Rows with an empty field are rejected here so
+   * the server never sees a half-filled rule.
+   */
+  async function saveCapacityRules(serviceId: string): Promise<string | null> {
+    for (const r of capacityRules) {
+      if (!r.time_from || !r.time_to || !r.capacity) return 'กรุณากรอกช่วงเวลาและจำนวนคิวให้ครบทุกแถว';
+      if (r.time_from >= r.time_to) return `ช่วงเวลา ${r.time_from}-${r.time_to} ไม่ถูกต้อง เวลาเริ่มต้องน้อยกว่าเวลาสิ้นสุด`;
+    }
+    const res = await fetch(`/api/services/${serviceId}/capacity-rules`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        rules: capacityRules.map((r) => ({
+          branch_id: r.branch_id || null,
+          weekday: r.weekday === '' ? null : Number(r.weekday),
+          time_from: r.time_from,
+          time_to: r.time_to,
+          capacity: Number(r.capacity) || 1,
+          active: true,
+        })),
+      }),
+    });
+    const json = await res.json();
+    if (!res.ok) return json.error ?? 'บันทึกช่วงเวลาไม่สำเร็จ';
+    return null;
   }
 
   function openCreate() {
@@ -304,7 +410,10 @@ export function ServicesCrud() {
     setImageUrl(typeof row.image_url === 'string' ? row.image_url : '');
     setRequiresApproval(Boolean(row.requires_approval));
     setAllowWalkIn(Boolean(row.allow_walk_in));
+    setCapacityRules([]);
+    setCapacityRulesDirty(false);
     setDrawerOpen(true);
+    void loadCapacityRules(String(row.id));
   }
 
   function applyTemplate(t: Template) {
@@ -354,10 +463,27 @@ export function ServicesCrud() {
       body: JSON.stringify(payload),
     });
     const json = await res.json();
-    setSaving(false);
     const paywall = readPaywallDetail(res, json);
-    if (paywall) return openPaywall(paywall);
-    if (!res.ok) return push(json.error ?? (editingId ? 'แก้ไขบริการไม่สำเร็จ' : 'เพิ่มบริการไม่สำเร็จ'), 'error');
+    if (paywall) {
+      setSaving(false);
+      return openPaywall(paywall);
+    }
+    if (!res.ok) {
+      setSaving(false);
+      return push(json.error ?? (editingId ? 'แก้ไขบริการไม่สำเร็จ' : 'เพิ่มบริการไม่สำเร็จ'), 'error');
+    }
+    // Time-range rules are a second request; the service itself is already
+    // saved, so a failure here keeps the drawer open with the rows intact.
+    if (editingId && capacityRulesDirty) {
+      const ruleError = await saveCapacityRules(editingId);
+      if (ruleError) {
+        setSaving(false);
+        setCapacityRulesError(ruleError);
+        await load();
+        return push(`บันทึกบริการแล้ว แต่ช่วงเวลาไม่สำเร็จ: ${ruleError}`, 'error');
+      }
+    }
+    setSaving(false);
     push(editingId ? 'แก้ไขบริการสำเร็จ' : 'เพิ่มบริการสำเร็จ');
     resetForm();
     setDrawerOpen(false);
@@ -621,7 +747,69 @@ export function ServicesCrud() {
                 <Grid size={{ xs: 12, sm: 6 }}><TextField label="Max Duration" type="number" value={maxDuration} onChange={(e: ChangeEvent<HTMLInputElement>) => setMaxDuration(e.target.value)} fullWidth size="small" /></Grid>
               </>
             ) : null}
-            <Grid size={{ xs: 12, sm: 6 }}><TextField label="จำนวนคิวต่อรอบ" type="number" value={capacity} onChange={(e: ChangeEvent<HTMLInputElement>) => setCapacity(e.target.value)} fullWidth size="small" helperText="จำนวนคิวสูงสุดที่รับได้ในเวลาเดียวกันของบริการนี้ ตั้งค่าที่นี่ที่เดียว" slotProps={{ htmlInput: { min: 1 } }} /></Grid>
+            <Grid size={{ xs: 12, sm: 6 }}><TextField label="จำนวนคิวต่อรอบ" type="number" value={capacity} onChange={(e: ChangeEvent<HTMLInputElement>) => setCapacity(e.target.value)} fullWidth size="small" helperText="ค่าเริ่มต้นของทุกรอบ ปรับให้ต่างกันตามช่วงเวลาได้ด้านล่าง" slotProps={{ htmlInput: { min: 1 } }} /></Grid>
+
+            {editingId ? (
+              <Grid size={12}>
+                <Accordion defaultExpanded={capacityRules.length > 0} disableGutters variant="outlined" sx={{ '&:before': { display: 'none' } }}>
+                  <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Typography variant="subtitle2">กำหนดจำนวนคิวต่างกันตามช่วงเวลา</Typography>
+                      {capacityRules.length > 0 ? <Chip size="small" label={`${capacityRules.length} ช่วง`} /> : <Chip size="small" variant="outlined" label="ไม่บังคับ" />}
+                    </Stack>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Stack spacing={1.5}>
+                      <Typography variant="body2" color="text.secondary">
+                        เช่น เช้ารับ 2 คิว บ่ายรับ 3 คิว ช่วงที่ไม่ได้กำหนดใช้ค่าเริ่มต้นด้านบน เวลาสิ้นสุดไม่รวมรอบนั้น (13:00-18:00 รวมรอบ 17:30 ไม่รวม 18:00)
+                      </Typography>
+                      {capacityRulesError ? <Alert severity="error" onClose={() => setCapacityRulesError(null)}>{capacityRulesError}</Alert> : null}
+                      {capacityRulesLoading ? <Typography variant="body2" color="text.secondary">กำลังโหลด...</Typography> : null}
+                      {!capacityRulesLoading && capacityRules.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary">ยังไม่มีช่วงเวลา ทุกรอบรับ {capacity || 1} คิว</Typography>
+                      ) : null}
+                      {capacityRules.map((r) => (
+                        <Grid container spacing={1} key={r.key} alignItems="center">
+                          <Grid size={{ xs: 6, sm: 3 }}>
+                            <FormControl fullWidth size="small">
+                              <InputLabel>สาขา</InputLabel>
+                              <Select value={r.branch_id} label="สาขา" onChange={(e: SelectChangeEvent) => updateCapacityRule(r.key, { branch_id: String(e.target.value) })}>
+                                <MenuItem value="">ทุกสาขา</MenuItem>
+                                {branches.map((b) => <MenuItem key={b.id} value={b.id}>{b.branch_name}</MenuItem>)}
+                              </Select>
+                            </FormControl>
+                          </Grid>
+                          <Grid size={{ xs: 6, sm: 2 }}>
+                            <FormControl fullWidth size="small">
+                              <InputLabel>วัน</InputLabel>
+                              <Select value={r.weekday} label="วัน" onChange={(e: SelectChangeEvent) => updateCapacityRule(r.key, { weekday: String(e.target.value) })}>
+                                <MenuItem value="">ทุกวัน</MenuItem>
+                                {[1, 2, 3, 4, 5, 6, 0].map((d) => <MenuItem key={d} value={String(d)}>{CAPACITY_RULE_WEEKDAYS[d]}</MenuItem>)}
+                              </Select>
+                            </FormControl>
+                          </Grid>
+                          <Grid size={{ xs: 5, sm: 2 }}>
+                            <TextField label="จาก" type="time" value={r.time_from} onChange={(e: ChangeEvent<HTMLInputElement>) => updateCapacityRule(r.key, { time_from: e.target.value })} fullWidth size="small" slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 300 } }} />
+                          </Grid>
+                          <Grid size={{ xs: 5, sm: 2 }}>
+                            <TextField label="ถึง" type="time" value={r.time_to} onChange={(e: ChangeEvent<HTMLInputElement>) => updateCapacityRule(r.key, { time_to: e.target.value })} fullWidth size="small" slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 300 } }} />
+                          </Grid>
+                          <Grid size={{ xs: 8, sm: 2 }}>
+                            <TextField label="คิว/รอบ" type="number" value={r.capacity} onChange={(e: ChangeEvent<HTMLInputElement>) => updateCapacityRule(r.key, { capacity: e.target.value })} fullWidth size="small" slotProps={{ htmlInput: { min: 1 } }} />
+                          </Grid>
+                          <Grid size={{ xs: 4, sm: 1 }} sx={{ textAlign: 'right' }}>
+                            <IconButton aria-label="ลบช่วงเวลา" onClick={() => removeCapacityRule(r.key)} size="small"><DeleteOutlineIcon fontSize="small" /></IconButton>
+                          </Grid>
+                        </Grid>
+                      ))}
+                      <Box>
+                        <Button startIcon={<AddRoundedIcon />} size="small" variant="outlined" onClick={addCapacityRule} disabled={capacityRulesLoading}>เพิ่มช่วงเวลา</Button>
+                      </Box>
+                    </Stack>
+                  </AccordionDetails>
+                </Accordion>
+              </Grid>
+            ) : null}
 
             <Grid size={{ xs: 12, sm: 6 }}><FormControlLabel control={<Switch checked={active} onChange={(e: ChangeEvent<HTMLInputElement>) => setActive(e.target.checked)} />} label="Active" /></Grid>
             <Grid size={{ xs: 12, sm: 6 }}><FormControlLabel control={<Switch checked={requiresApproval} onChange={(e: ChangeEvent<HTMLInputElement>) => setRequiresApproval(e.target.checked)} />} label="Require Staff Confirm" /></Grid>

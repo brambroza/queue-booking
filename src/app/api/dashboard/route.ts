@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { applyBranchScope, applyNullableBranchScope } from '@/lib/auth/branch-scope';
 import { getNowHourInBangkok, getTodayISOInBangkok } from '@/lib/utils/date-format';
-import { CapacityModel, seatsPerSlot, type HolidayRow, type WorkingHoursRow } from '@/lib/dashboard/capacity';
+import { CapacityModel, seatsResolver, type CapacityRuleRow, type HolidayRow, type WorkingHoursRow } from '@/lib/dashboard/capacity';
 import { addDays, eachDay, resolveRange, startOfWeekMonday, weekdayOf } from '@/lib/dashboard/date-range';
 import { buildInsights, pct, type HourCell, type WeekdayHourStat, type WeekdayStat } from '@/lib/dashboard/insights';
 import { compareStatus, statusOccupiesSlot } from '@/lib/booking/status-meta';
@@ -129,7 +129,7 @@ export async function GET(req: Request) {
 
     const recentOffset = (query.recent_page - 1) * query.recent_limit;
 
-    const [branchesRes, servicesRes, lightRes, recentRes, whRes, holRes, shopRes] = await Promise.all([
+    const [branchesRes, servicesRes, lightRes, recentRes, whRes, holRes, shopRes, rulesRes] = await Promise.all([
       applyBranchScope(
         supabase.from('branches').select('id,branch_name').eq('shop_id', targetShopId).eq('is_deleted', false),
         branchScope,
@@ -192,6 +192,15 @@ export async function GET(req: Request) {
         requestedBranchId,
       ),
       supabase.from('shops').select('id,demo_mode_enabled,demo_business_type,line_setup_completed,shop_key').eq('id', targetShopId).maybeSingle(),
+      // Time-range capacity overrides. The table arrives with migration
+      // 202610010001; until it exists the query errors and the estimate falls
+      // back to the service defaults, which is what it showed before.
+      supabase
+        .from('service_capacity_rules')
+        .select('service_id,branch_id,weekday,time_from,time_to,capacity,active')
+        .eq('shop_id', targetShopId)
+        .eq('is_deleted', false)
+        .eq('active', true),
     ]);
 
     const firstError = branchesRes.error ?? servicesRes.error ?? lightRes.error ?? recentRes.error ?? whRes.error ?? holRes.error;
@@ -200,8 +209,10 @@ export async function GET(req: Request) {
     const branches = (branchesRes.data ?? []) as Array<{ id: string; branch_name: string }>;
     const services = (servicesRes.data ?? []) as Array<{ id: string; service_name: string; capacity_per_slot: number | null; active: boolean | null }>;
     const rows = lightRes.data;
-    // Same value customers book against — slot capacity is set per service.
-    const perSlotSeats = seatsPerSlot(services);
+    // Same value customers book against — slot capacity is set per service,
+    // overridden per time range by service_capacity_rules.
+    const capacityRules = rulesRes.error ? [] : ((rulesRes.data ?? []) as CapacityRuleRow[]);
+    const perSlotSeats = seatsResolver(services, capacityRules);
     const model = new CapacityModel(
       branches.map((b) => b.id),
       (whRes.data ?? []) as WorkingHoursRow[],
