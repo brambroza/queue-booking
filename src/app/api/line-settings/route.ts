@@ -4,6 +4,7 @@ import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { writeAuditLog } from '@/lib/audit/activity-log';
 import { isValidLiffId, normalizeLiffId } from '@/lib/line/liff-id';
 import { isBookingEchoEnabled } from '@/lib/line/booking-echo';
+import { isFallbackReplyEnabled } from '@/lib/line/fallback-reply';
 import { getReminderSettings, REMINDER_PRESETS } from '@/lib/line/booking-reminder';
 
 const PatchSchema = z.object({
@@ -13,6 +14,7 @@ const PatchSchema = z.object({
   liff_id_login_shop: z.string().trim().max(200).optional().nullable(),
   auto_reply_enabled: z.boolean().optional(),
   booking_echo_enabled: z.boolean().optional(),
+  fallback_reply_enabled: z.boolean().optional(),
   reminder_enabled: z.boolean().optional(),
   // Only the portal presets are accepted; the DB range is wider on purpose.
   reminder_minutes: z
@@ -32,12 +34,19 @@ export async function GET() {
       .single();
     if (error) throw error;
     // Read separately so a not-yet-migrated column cannot blank the whole page.
-    const [bookingEchoEnabled, reminder] = await Promise.all([
+    const [bookingEchoEnabled, fallbackReplyEnabled, reminder] = await Promise.all([
       isBookingEchoEnabled(supabase, profile.shop_id as string),
+      isFallbackReplyEnabled(supabase, profile.shop_id as string),
       getReminderSettings(supabase, profile.shop_id as string),
     ]);
     return NextResponse.json({
-      data: { ...data, booking_echo_enabled: bookingEchoEnabled, reminder_enabled: reminder.enabled, reminder_minutes: reminder.minutes },
+      data: {
+        ...data,
+        booking_echo_enabled: bookingEchoEnabled,
+        fallback_reply_enabled: fallbackReplyEnabled,
+        reminder_enabled: reminder.enabled,
+        reminder_minutes: reminder.minutes,
+      },
     });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });
@@ -97,6 +106,25 @@ export async function PATCH(req: Request) {
       else bookingEchoEnabled = body.booking_echo_enabled;
     }
 
+    // Same isolation for the fallback-reply column (migration 202610020001).
+    // Unlike the others, a failure is reported back (after the rest is saved
+    // and audited): this switch changes what customers see, so a silent no-op
+    // would leave the shop believing the menu is off when it is not.
+    let fallbackReplyEnabled: boolean | null = null;
+    let fallbackReplyFailed = false;
+    if (body.fallback_reply_enabled !== undefined) {
+      const { error: fallbackError } = await supabase
+        .from('shops')
+        .update({ fallback_reply_enabled: body.fallback_reply_enabled, updated_by: user.id })
+        .eq('id', profile.shop_id);
+      if (fallbackError) {
+        console.error('[line_settings_fallback_reply_failed]', fallbackError.message);
+        fallbackReplyFailed = true;
+      } else {
+        fallbackReplyEnabled = body.fallback_reply_enabled;
+      }
+    }
+
     // Same isolation for the reminder columns (migration 202609120004).
     let reminderAfter: { enabled: boolean; minutes: number } | null = null;
     if (body.reminder_enabled !== undefined || body.reminder_minutes !== undefined) {
@@ -128,6 +156,7 @@ export async function PATCH(req: Request) {
           liff_id_login_shop: liffIdLoginShop || null,
           auto_reply_enabled: Boolean(body.auto_reply_enabled),
           booking_echo_enabled: bookingEchoEnabled,
+          fallback_reply_enabled: fallbackReplyEnabled,
           reminder_enabled: reminderAfter?.enabled ?? null,
           reminder_minutes: reminderAfter?.minutes ?? null,
           has_line_channel_access_token: Boolean(body.line_channel_access_token),
@@ -135,6 +164,13 @@ export async function PATCH(req: Request) {
         },
       },
     });
+
+    if (fallbackReplyFailed) {
+      return NextResponse.json(
+        { error: 'บันทึกค่าอื่นแล้ว แต่ตั้งค่าการตอบเมื่อบอทไม่เข้าใจไม่สำเร็จ กรุณาแจ้งผู้ดูแลระบบ' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ data: true });
   } catch (e) {

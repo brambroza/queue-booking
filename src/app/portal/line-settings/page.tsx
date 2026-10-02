@@ -20,6 +20,7 @@ export default function LineSettingsPage() {
     liff_id_login_shop: '',
     auto_reply_enabled: true,
     booking_echo_enabled: true,
+    fallback_reply_enabled: true,
     reminder_enabled: false,
     reminder_minutes: REMINDER_MINUTES_DEFAULT as number,
     shop_key: '',
@@ -39,6 +40,7 @@ export default function LineSettingsPage() {
         liff_id_login_shop: json.data.liff_id_login_shop ?? '',
         auto_reply_enabled: Boolean(json.data.auto_reply_enabled),
         booking_echo_enabled: json.data.booking_echo_enabled !== false,
+        fallback_reply_enabled: json.data.fallback_reply_enabled !== false,
         reminder_enabled: json.data.reminder_enabled === true,
         reminder_minutes: Number(json.data.reminder_minutes) || REMINDER_MINUTES_DEFAULT,
         shop_key: json.data.shop_key ?? '',
@@ -128,10 +130,28 @@ export default function LineSettingsPage() {
           <label className="text-xs font-medium text-slate-600">LIFF Member/Login ID (`liff_id_login_shop`)</label>
           <input className="input" placeholder="เช่น 200xxxxxxx-HIJKLMN" value={form.liff_id_login_shop} onChange={(e) => setForm((s) => ({ ...s, liff_id_login_shop: e.target.value }))} />
         </div>
-        <label className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
-          <input type="checkbox" checked={form.auto_reply_enabled} onChange={(e) => setForm((s) => ({ ...s, auto_reply_enabled: e.target.checked }))} />
-          เปิด Auto Reply
-        </label>
+        <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={form.auto_reply_enabled} onChange={(e) => setForm((s) => ({ ...s, auto_reply_enabled: e.target.checked }))} />
+            เปิด Auto Reply
+          </label>
+          <label className={`mt-2 flex items-start gap-2 pl-6 ${form.auto_reply_enabled ? '' : 'opacity-50'}`}>
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={form.fallback_reply_enabled}
+              disabled={!form.auto_reply_enabled}
+              onChange={(e) => setForm((s) => ({ ...s, fallback_reply_enabled: e.target.checked }))}
+            />
+            <span>
+              ตอบเมนูเมื่อบอทไม่เข้าใจข้อความ
+              <span className="mt-0.5 block text-xs text-slate-500">
+                ลูกค้าพิมพ์ข้อความที่บอทไม่รู้จัก บอทจะตอบ &quot;ต้องการทำรายการใดคะ?&quot; พร้อมปุ่มลัด
+                ปิดไว้ถ้าร้านตอบแชทเองใน LINE OA Chat — ข้อความลูกค้ายังเข้ากล่องแชทตามปกติ
+              </span>
+            </span>
+          </label>
+        </div>
         <label className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
           <input
             type="checkbox"

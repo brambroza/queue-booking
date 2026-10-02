@@ -14,6 +14,7 @@ import {
 } from '@/lib/line/messages';
 import { resolveCustomerLiffUrl } from '@/lib/line/liff-url';
 import { isBookingEcho } from '@/lib/line/booking-echo';
+import { isFallbackReplyEnabled } from '@/lib/line/fallback-reply';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import type { LineWebhookBody, LineWebhookEvent } from '@/lib/line/types';
 import { env } from '@/lib/utils/env';
@@ -229,6 +230,10 @@ async function handleTextEvent(
     await replyMessage(token, replyToken, [{ type: 'text', text: 'รับเรื่องแล้วค่ะ เจ้าหน้าที่จะติดต่อกลับโดยเร็วที่สุด' }]);
     return;
   }
+
+  // Unrecognised text: the shop may prefer to answer by hand in LINE OA Chat.
+  // The message is already logged above, so the chat inbox still shows it.
+  if (!(await isFallbackReplyEnabled(admin, shop.id))) return;
 
   await replyMessage(token, replyToken, [fallbackMessage()]);
 }
