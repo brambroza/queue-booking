@@ -58,12 +58,18 @@ export default function LineSettingsPage() {
     const { reminder_minutes, ...rest } = form;
     // Send the lead time only when it is a preset; the API rejects anything else.
     const payload = (REMINDER_PRESETS as readonly number[]).includes(reminder_minutes) ? { ...rest, reminder_minutes } : rest;
-    const res = await fetch('/api/line-settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const json = await res.json();
+    let res: Response;
+    let json: { error?: string };
+    try {
+      res = await fetch('/api/line-settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      json = await res.json().catch(() => ({}));
+    } catch {
+      return push('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง', 'error');
+    }
     if (!res.ok) return push(json.error ?? 'บันทึกไม่สำเร็จ', 'error');
     push('บันทึกตั้งค่า LINE แล้ว');
     void testConnection();
@@ -74,7 +80,7 @@ export default function LineSettingsPage() {
     setTesting(true);
     try {
       const res = await fetch('/api/line-settings/test', { method: 'POST' });
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         push(json.error ?? 'ทดสอบการเชื่อมต่อไม่สำเร็จ', 'error');
         return;
@@ -83,7 +89,11 @@ export default function LineSettingsPage() {
       if (json.data.ok) {
         track('line_connected');
         push('เชื่อมต่อ LINE ครบถ้วนแล้ว');
+      } else {
+        push('ตั้งค่า LINE ยังไม่ครบ ดูรายการตรวจสอบด้านล่าง', 'warning');
       }
+    } catch {
+      push('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง', 'error');
     } finally {
       setTesting(false);
     }

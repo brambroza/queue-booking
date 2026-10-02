@@ -54,17 +54,24 @@ export function QueueBoardClient() {
   useEffect(() => { void load(); }, [load]);
 
   async function setStatus(b: Booking, status: BookingStatus) {
-    const res = await fetch('/api/bookings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: b.id, status }),
-    });
+    let res: Response;
+    try {
+      res = await fetch('/api/bookings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: b.id, status }),
+      });
+    } catch {
+      return push('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง', 'error');
+    }
     const json = (await res.json().catch(() => ({}))) as PatchResponse;
     if (!res.ok) return push(json.error ?? 'เปลี่ยนสถานะไม่สำเร็จ', 'error');
     if (status === 'called') {
       if (json.data?.line_notified) push('เรียกคิวแล้ว และแจ้งลูกค้าทาง LINE');
-      else if (b.line_user_id) push('เรียกคิวแล้ว แต่ส่ง LINE ไม่สำเร็จ — กรุณาเรียกลูกค้าเอง', 'error');
-      else push('เรียกคิวแล้ว (คิวไม่ได้ผูก LINE กรุณาเรียกลูกค้าเอง)');
+      else if (b.line_user_id) push('เรียกคิวแล้ว แต่ส่ง LINE ไม่สำเร็จ — กรุณาเรียกลูกค้าเอง', 'warning');
+      else push('เรียกคิวแล้ว (คิวไม่ได้ผูก LINE กรุณาเรียกลูกค้าเอง)', 'info');
+    } else {
+      push('อัปเดตสถานะแล้ว');
     }
     await load();
   }

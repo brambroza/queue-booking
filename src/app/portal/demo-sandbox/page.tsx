@@ -133,7 +133,10 @@ export default function DemoSandboxPage() {
     const json = await res.json();
     setSaving(false);
     if (!res.ok) return push(json.error ?? 'ดำเนินการไม่สำเร็จ', 'error');
-    if (action === 'call_next' && json.data?.called) push(`เรียกคิว ${json.data.queue_number} แล้ว`);
+    if (action === 'call_next') {
+      if (json.data?.called) push(`เรียกคิว ${json.data.queue_number} แล้ว`);
+      else push('ไม่มีคิวรอเรียก', 'info');
+    }
     if (action === 'create_booking') push('สร้าง Booking ตัวอย่างแล้ว');
     if (action === 'send_mock') push('ส่งข้อความ mock แล้ว');
     await load();

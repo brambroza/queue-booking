@@ -32,8 +32,15 @@ export default function NotificationsPage() {
     if (category) params.set('category', category);
     if (priority) params.set('priority', priority);
     if (unreadOnly) params.set('unread_only', 'true');
-    const res = await fetch(`/api/notifications?${params.toString()}`, { cache: 'no-store' });
-    const json = await res.json();
+    let res: Response;
+    let json: { error?: string; data?: TNotificationItem[]; pagination?: { total?: number } };
+    try {
+      res = await fetch(`/api/notifications?${params.toString()}`, { cache: 'no-store' });
+      json = await res.json().catch(() => ({}));
+    } catch {
+      setLoading(false);
+      return push('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง', 'error');
+    }
     setLoading(false);
     if (!res.ok) return push(json.error ?? 'โหลด notifications ไม่สำเร็จ', 'error');
     setTotal(json.pagination?.total ?? 0);
@@ -50,39 +57,26 @@ export default function NotificationsPage() {
     void load(true);
   }, [load]);
 
-  async function markRead(id: string) {
-    const res = await fetch('/api/notifications', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'mark_read', id }),
-    });
-    const json = await res.json();
-    if (!res.ok) return push(json.error ?? 'mark read ไม่สำเร็จ', 'error');
-    await load(true);
+  /** PATCH a notification action; toast the result (success only when a message is given). */
+  async function patchAction(body: Record<string, string>, errorMessage: string, successMessage?: string) {
+    try {
+      const res = await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) return push(json.error ?? errorMessage, 'error');
+      if (successMessage) push(successMessage);
+      await load(true);
+    } catch {
+      push('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง', 'error');
+    }
   }
 
-  async function archive(id: string) {
-    const res = await fetch('/api/notifications', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'archive', id }),
-    });
-    const json = await res.json();
-    if (!res.ok) return push(json.error ?? 'archive ไม่สำเร็จ', 'error');
-    await load(true);
-  }
-
-  async function markAllRead() {
-    const res = await fetch('/api/notifications', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'mark_all_read' }),
-    });
-    const json = await res.json();
-    if (!res.ok) return push(json.error ?? 'mark all read ไม่สำเร็จ', 'error');
-    push('อ่านทั้งหมดแล้ว');
-    await load(true);
-  }
+  const markRead = (id: string) => patchAction({ action: 'mark_read', id }, 'mark read ไม่สำเร็จ');
+  const archive = (id: string) => patchAction({ action: 'archive', id }, 'archive ไม่สำเร็จ', 'เก็บการแจ้งเตือนแล้ว');
+  const markAllRead = () => patchAction({ action: 'mark_all_read' }, 'mark all read ไม่สำเร็จ', 'อ่านทั้งหมดแล้ว');
 
   async function createDevNotification() {
     const res = await fetch('/api/notifications', {

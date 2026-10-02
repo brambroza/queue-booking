@@ -50,14 +50,14 @@ export function ChatInboxClient() {
 
   const loadUsers = useCallback(async () => {
     const res = await fetch('/api/chat-inbox', { cache: 'no-store' });
-    const json = await res.json();
+    const json = await res.json().catch(() => ({}));
     if (!res.ok) return push(json.error ?? 'โหลด inbox ไม่สำเร็จ', 'error');
     setUsers(json.data.users ?? []);
   }, [push]);
 
   async function loadMessages(lineUserPk: string) {
     const res = await fetch(`/api/chat-inbox?line_user_id=${lineUserPk}`, { cache: 'no-store' });
-    const json = await res.json();
+    const json = await res.json().catch(() => ({}));
     if (!res.ok) return push(json.error ?? 'โหลดข้อความไม่สำเร็จ', 'error');
     setMessages(json.data.messages ?? []);
   }
@@ -92,7 +92,7 @@ export function ChatInboxClient() {
     if (hasFile && file) form.set('file', file);
 
     const res = await fetch('/api/chat-inbox', { method: 'POST', body: form });
-    const json = await res.json();
+    const json = await res.json().catch(() => ({}));
     if (!res.ok) return push(json.error ?? 'ส่งข้อความไม่สำเร็จ', 'error');
 
     setText('');

@@ -110,7 +110,7 @@ export function BookingsCrud() {
     (async () => {
       try {
         const res = await fetch(`/api/bookings?${queryString}`, { cache: 'no-store', signal: controller.signal });
-        const j = (await res.json()) as { data?: BookingRow[]; pagination?: { total: number }; error?: string };
+        const j = (await res.json().catch(() => ({}))) as { data?: BookingRow[]; pagination?: { total: number }; error?: string };
         if (!res.ok) throw new Error(j.error ?? t('load_failed', 'โหลดรายการคิวไม่สำเร็จ'));
         setRows(j.data ?? []);
         setTotal(j.pagination?.total ?? 0);

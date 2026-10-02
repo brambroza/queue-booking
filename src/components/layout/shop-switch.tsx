@@ -5,6 +5,7 @@ import BusinessRoundedIcon from '@mui/icons-material/BusinessRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import { Box, Button, CircularProgress, Divider, ListItemText, Menu, MenuItem, Skeleton, TextField, Typography } from '@mui/material';
 import { useI18n } from '@/components/i18n/i18n-provider';
+import { useToast } from '@/components/ui/toast';
 
 type ShopOption = { id: string; name: string | null; shop_key: string | null };
 
@@ -24,6 +25,7 @@ const SEARCH_THRESHOLD = 6;
  */
 export function ShopSwitch({ activeShopId }: { activeShopId: string | null }) {
   const { t } = useI18n();
+  const { push } = useToast();
   const [shops, setShops] = useState<ShopOption[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(activeShopId);
   const [loading, setLoading] = useState(true);
@@ -75,11 +77,14 @@ export function ShopSwitch({ activeShopId }: { activeShopId: string | null }) {
         body: shopId ? JSON.stringify({ shop_id: shopId }) : undefined,
       });
       if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        push(json.error ?? t('menu.shop_switch_failed', 'เปลี่ยนร้านไม่สำเร็จ'), 'error');
         setBusy(false);
         return;
       }
       window.location.assign(window.location.pathname);
     } catch {
+      push(t('menu.shop_switch_network', 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง'), 'error');
       setBusy(false);
     }
   };

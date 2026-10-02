@@ -39,7 +39,7 @@ export function TopbarUserMenu({ initialName, email, appVersion }: Props) {
     if (!open) return;
     void (async () => {
       const res = await fetch('/api/me-profile', { cache: 'no-store' });
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) return;
       setName(json.data?.full_name ?? initialName ?? '');
       setPhone(json.data?.phone ?? '');
@@ -53,8 +53,13 @@ export function TopbarUserMenu({ initialName, email, appVersion }: Props) {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ full_name: name.trim(), phone: phone.trim() || null }),
-    });
-    const json = await res.json();
+    }).catch(() => null);
+    if (!res) {
+      setSaving(false);
+      push('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง', 'error');
+      return;
+    }
+    const json = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) return push(json.error ?? 'บันทึกโปรไฟล์ไม่สำเร็จ', 'error');
     push('บันทึกโปรไฟล์แล้ว');

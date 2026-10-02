@@ -84,7 +84,7 @@ export function SalesInbox() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status }),
     });
-    const json = await res.json();
+    const json = await res.json().catch(() => ({}));
     if (!res.ok) return push(json.error ?? 'อัปเดตสถานะไม่สำเร็จ', 'error');
     push('อัปเดตสถานะแล้ว');
     void load();

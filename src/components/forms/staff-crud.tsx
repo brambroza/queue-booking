@@ -61,7 +61,7 @@ export function StaffCrud() {
     const params = new URLSearchParams();
     if (q.trim()) params.set('q', q.trim());
     const res = await fetch(`/api/staff?${params.toString()}`, { cache: 'no-store' });
-    const json = await res.json();
+    const json = await res.json().catch(() => ({}));
     if (!res.ok) return push(json.error ?? t('load_failed', 'โหลดรายชื่อพนักงานไม่สำเร็จ'), 'error');
     setRows(json.data ?? []);
     setUsers(json.refs?.users ?? []);
@@ -119,8 +119,13 @@ export function StaffCrud() {
         active: form.active,
         branch_ids: form.branch_ids,
       }),
-    });
-    const json = await res.json();
+    }).catch(() => null);
+    if (!res) {
+      setSaving(false);
+      push('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง', 'error');
+      return;
+    }
+    const json = await res.json().catch(() => ({}));
     setSaving(false);
 
     const paywall = readPaywallDetail(res, json);
@@ -153,7 +158,7 @@ export function StaffCrud() {
     });
     if (!ok) return;
     const res = await fetch(`/api/staff?id=${row.id}`, { method: 'DELETE' });
-    const json = await res.json();
+    const json = await res.json().catch(() => ({}));
     if (!res.ok) return push(json.error ?? t('delete_failed', 'ลบไม่สำเร็จ'), 'error');
     push(t('deleted', 'ลบพนักงานแล้ว'));
     void load();

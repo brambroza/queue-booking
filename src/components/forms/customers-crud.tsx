@@ -106,8 +106,13 @@ export function CustomersCrud() {
         note: form.note || null,
         line_user_id: form.line_user_id || null,
       }),
-    });
-    const json = await res.json();
+    }).catch(() => null);
+    if (!res) {
+      setSaving(false);
+      push('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง', 'error');
+      return;
+    }
+    const json = await res.json().catch(() => ({}));
     setSaving(false);
 
     if (!res.ok) {
@@ -134,7 +139,7 @@ export function CustomersCrud() {
     });
     if (!ok) return;
     const res = await fetch(`/api/customers?id=${row.id}`, { method: 'DELETE' });
-    const json = await res.json();
+    const json = await res.json().catch(() => ({}));
     if (!res.ok) return push(json.error ?? 'ลบไม่สำเร็จ', 'error');
     push('ลบลูกค้าแล้ว');
     void load();

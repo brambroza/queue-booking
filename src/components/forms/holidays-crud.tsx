@@ -101,8 +101,13 @@ export function HolidaysCrud() {
       method: draft.id ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(draft.id ? { id: draft.id, ...payload } : payload),
-    });
-    const json = await res.json();
+    }).catch(() => null);
+    if (!res) {
+      setSaving(false);
+      push('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง', 'error');
+      return;
+    }
+    const json = await res.json().catch(() => ({}));
     setSaving(false);
 
     if (!res.ok) return push(json.error ?? 'บันทึกไม่สำเร็จ', 'error');
@@ -126,7 +131,7 @@ export function HolidaysCrud() {
     });
     if (!ok) return;
     const res = await fetch(`/api/holidays?id=${row.id}`, { method: 'DELETE' });
-    const json = await res.json();
+    const json = await res.json().catch(() => ({}));
     if (!res.ok) return push(json.error ?? 'ลบไม่สำเร็จ', 'error');
     push('ลบวันหยุดแล้ว');
     void load();

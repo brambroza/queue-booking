@@ -56,12 +56,17 @@ export function SimpleCrud({
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(endpoint, { cache: 'no-store' });
-    const json = await res.json();
+    const res = await fetch(endpoint, { cache: 'no-store' }).catch(() => null);
+    if (!res) {
+      setLoading(false);
+      push('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง', 'error');
+      return;
+    }
+    const json = await res.json().catch(() => ({}));
     setRows(json.data ?? []);
     setPage(1);
     setLoading(false);
-  }, [endpoint]);
+  }, [endpoint, push]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -108,8 +113,13 @@ export function SimpleCrud({
       method: editingId ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-    });
-    const json = await res.json();
+    }).catch(() => null);
+    if (!res) {
+      setSaving(false);
+      push('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง', 'error');
+      return;
+    }
+    const json = await res.json().catch(() => ({}));
     setSaving(false);
 
     const paywall = readPaywallDetail(res, json);
@@ -134,7 +144,8 @@ export function SimpleCrud({
   async function onDelete(id: string) {
     const res = await fetch(`${endpoint}?id=${id}`, { method: 'DELETE' });
     if (!res.ok) {
-      push('ลบไม่สำเร็จ', 'error');
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      push(json.error ?? 'ลบไม่สำเร็จ', 'error');
       return;
     }
     push('ลบสำเร็จ');

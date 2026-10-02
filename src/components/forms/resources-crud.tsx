@@ -173,7 +173,7 @@ export function ResourcesCrud() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    const json = await res.json();
+    const json = await res.json().catch(() => ({}));
     const paywall = readPaywallDetail(res, json);
     if (paywall) return openPaywall(paywall);
     if (!res.ok) return push(json.error ?? 'บันทึก resource ไม่สำเร็จ', 'error');
@@ -211,7 +211,7 @@ export function ResourcesCrud() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    const json = await res.json();
+    const json = await res.json().catch(() => ({}));
     if (!res.ok) return push(json.error ?? 'สร้าง resource แบบกลุ่มไม่สำเร็จ', 'error');
     push(`สร้างทรัพยากรแล้ว ${json.data?.created ?? 0} รายการ`);
     setBulkOpen(false);
@@ -222,7 +222,7 @@ export function ResourcesCrud() {
 
   async function removeRow(id: string) {
     const res = await fetch(`/api/resources?id=${id}`, { method: 'DELETE' });
-    const json = await res.json();
+    const json = await res.json().catch(() => ({}));
     if (!res.ok) return push(json.error ?? 'ลบไม่สำเร็จ', 'error');
     push('ลบทรัพยากรแล้ว');
     await load();
