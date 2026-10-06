@@ -4,7 +4,7 @@ export const registerSchema = z.object({
   company_name: z.string().min(2),
   shop_name: z.string().min(2),
   owner_name: z.string().min(2),
-  phone: z.string().min(8),
+  phone: z.string().regex(/^\d{10}$/),
   email: z.string().email(),
   password: z.string().min(8),
   plan_name: z.string().trim().optional().default(''),

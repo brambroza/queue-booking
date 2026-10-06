@@ -17,6 +17,9 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { RESOURCE_TYPES, resourceTypeIcon, resourceTypeLabel, type ResourceType } from '@/lib/booking/resource-types';
 import { ImageUploader } from '@/components/forms/image-uploader';
 import { RESOURCE_IMAGE_MAX } from '@/lib/storage/shop-assets';
+import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
+import BoltRoundedIcon from '@mui/icons-material/BoltRounded';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
 
 type Branch = { id: string; branch_name: string };
 type Service = { id: string; service_name: string; active?: boolean };
@@ -260,7 +263,10 @@ export function ResourcesCrud() {
             <option value="true">active</option>
             <option value="false">inactive</option>
           </select>
-          <button className="btn-outline col-span-2 min-h-[44px] md:col-span-1 md:min-h-0" onClick={() => void load()}>ค้นหา</button>
+          <button className="btn-outline col-span-2 inline-flex min-h-[44px] items-center gap-1.5 md:col-span-1 md:min-h-0" onClick={() => void load()}>
+            <SearchRoundedIcon fontSize="small" />
+            ค้นหา
+          </button>
         </div>
       </div>
 
@@ -271,8 +277,14 @@ export function ResourcesCrud() {
           <p className="text-xs text-slate-500 sm:hidden">{rows.length} รายการ</p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex">
-          <button className="btn-outline min-h-[44px] sm:min-h-0" onClick={() => setBulkOpen(true)}>เพิ่มด่วน</button>
-          <button className="btn-primary min-h-[44px] sm:min-h-0" onClick={openCreateDrawer}>เพิ่ม</button>
+          <button className="btn-outline inline-flex min-h-[44px] items-center gap-1.5 sm:min-h-0" onClick={() => setBulkOpen(true)}>
+            <BoltRoundedIcon fontSize="small" />
+            เพิ่มด่วน
+          </button>
+          <button className="btn-primary inline-flex min-h-[44px] items-center gap-1.5 sm:min-h-0" onClick={openCreateDrawer}>
+            <AddRoundedIcon fontSize="small" />
+            เพิ่ม
+          </button>
         </div>
       </div>
 

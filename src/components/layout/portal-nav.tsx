@@ -38,6 +38,8 @@ import AppsRoundedIcon from '@mui/icons-material/AppsRounded';
 import AutoAwesomeMosaicRoundedIcon from '@mui/icons-material/AutoAwesomeMosaicRounded';
 import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
 import SlideshowRoundedIcon from '@mui/icons-material/SlideshowRounded';
+import RestaurantMenuRoundedIcon from '@mui/icons-material/RestaurantMenuRounded';
+import RoomServiceRoundedIcon from '@mui/icons-material/RoomServiceRounded';
 import MarkEmailUnreadRoundedIcon from '@mui/icons-material/MarkEmailUnreadRounded';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@/components/i18n/i18n-provider';
@@ -73,6 +75,8 @@ const groups: NavGroup[] = [
       { labelKey: 'menu.branches', fallback: 'สาขา', href: '/portal/branches', icon: <StoreRoundedIcon fontSize="small" />, shopWideOnly: true },
       { labelKey: 'menu.services', fallback: 'บริการ', href: '/portal/services', icon: <DesignServicesRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.resources', fallback: 'ทรัพยากร', href: '/portal/resources', icon: <TableRestaurantRoundedIcon fontSize="small" /> },
+      { labelKey: 'menu.fnb_menu', fallback: 'เมนูอาหาร', href: '/portal/fnb-menu', icon: <RestaurantMenuRoundedIcon fontSize="small" />, shopWideOnly: true },
+      { labelKey: 'menu.fnb_orders', fallback: 'ออเดอร์อาหาร', href: '/portal/fnb-orders', icon: <RoomServiceRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.working_hours', fallback: 'เวลาทำการ', href: '/portal/working-hours', icon: <ScheduleRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.holidays', fallback: 'วันหยุด', href: '/portal/holidays', icon: <EventBusyRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.staff', fallback: 'พนักงาน', href: '/portal/staff', icon: <GroupRoundedIcon fontSize="small" />, shopWideOnly: true },

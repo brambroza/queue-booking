@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { buildSetupStatus, isLineConnected } from '@/lib/onboarding/status';
 
 /**
  * Reports which setup steps a shop has completed, so the portal can show an
@@ -37,23 +38,19 @@ export async function GET() {
         .maybeSingle(),
     ]);
 
-    const lineConnected = Boolean(
-      shop?.line_channel_access_token && shop?.line_channel_secret && shop?.liff_id
-    );
-
-    const steps = [
-      { key: 'branch', done: branches > 0 },
-      { key: 'service', done: services > 0 },
-      { key: 'working_hours', done: workingHours > 0 },
-      { key: 'line', done: lineConnected },
-      { key: 'first_booking', done: bookings > 0 },
-    ];
+    const status = buildSetupStatus({
+      branches,
+      services,
+      workingHours,
+      lineConnected: isLineConnected(shop),
+      bookings,
+    });
 
     return NextResponse.json({
       data: {
-        steps,
-        completed: steps.filter((s) => s.done).length,
-        total: steps.length,
+        steps: status.steps,
+        completed: status.completed,
+        total: status.total,
         shop_key: shop?.shop_key ?? null,
       },
     });

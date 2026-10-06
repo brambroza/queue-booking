@@ -16,6 +16,8 @@ export default function nextConfig(phase: string): NextConfig {
     outputFileTracingIncludes: {
       '/opengraph-image': ['./public/fonts/*.ttf'],
       '/twitter-image': ['./public/fonts/*.ttf'],
+      // Read at request time to attach to the onboarding email; not imported, so tracing would skip it.
+      '/api/admin/shop-subscriptions/send-email': ['./public/docs/line-setup-guide.pdf'],
     },
 
     poweredByHeader: false,

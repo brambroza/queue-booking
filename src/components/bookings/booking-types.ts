@@ -1,6 +1,7 @@
 import type { PaymentMethod, PaymentStatus } from '@/types/db';
 import type { StatusPaletteKey } from '@/lib/booking/status-meta';
 import { customerLabel } from '@/lib/booking/customer-label';
+import { displayThaiPhone } from '@/lib/utils/thai-phone';
 
 /** One row of `/api/bookings` as rendered by the portal list. */
 export type BookingRow = {
@@ -157,7 +158,7 @@ export function customerName(b: BookingRow): string {
 
 /** Customer phone or empty string. */
 export function customerPhone(b: BookingRow): string {
-  return b.customers?.phone ?? '';
+  return displayThaiPhone(b.customers?.phone);
 }
 
 /** `HH:MM` from a DB `time` value. */

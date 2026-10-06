@@ -79,8 +79,8 @@ export async function GET(req: Request) {
 
     const lineUserIds = (data ?? []).map((r) => r.line_user_id).filter(Boolean) as string[];
     const { data: lineUsers } = lineUserIds.length
-      ? await supabase.from('line_users').select('id,line_user_id,display_name').in('id', lineUserIds)
-      : { data: [] as Array<{ id: string; line_user_id: string; display_name: string | null }> };
+      ? await supabase.from('line_users').select('id,line_user_id,display_name,picture_url').in('id', lineUserIds)
+      : { data: [] as Array<{ id: string; line_user_id: string; display_name: string | null; picture_url: string | null }> };
 
     const lineMap = new Map((lineUsers ?? []).map((x) => [x.id, x]));
 

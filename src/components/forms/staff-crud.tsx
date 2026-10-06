@@ -10,6 +10,11 @@ import { MobileRecordCard } from '@/components/ui/mobile-record-card';
 import { Chip } from '@mui/material';
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
 import { useTranslation } from '@/lib/i18n/useTranslation';
+import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import { ActionIconGroup } from '@/components/ui/action-icon-group';
 
 type RefUser = { id: string; full_name: string | null; email: string | null; phone: string | null };
 type RefBranch = { id: string; branch_name: string };
@@ -180,8 +185,14 @@ export function StaffCrud() {
         {/* Phones: search full width, then two equal 44px buttons. sm+: one row (unchanged). */}
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <input className="input w-full sm:w-56" placeholder={t('search_placeholder', 'ค้นหาชื่อพนักงาน')} value={q} onChange={(e) => setQ(e.target.value)} />
-          <button className="btn-outline min-h-[44px] flex-1 sm:min-h-0 sm:flex-none" onClick={() => void load()}>{t('search', 'ค้นหา')}</button>
-          <button className="btn-primary min-h-[44px] flex-1 sm:min-h-0 sm:flex-none" onClick={openAdd}>{t('add', 'เพิ่มพนักงาน')}</button>
+          <button className="btn-outline inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 sm:min-h-0 sm:flex-none" onClick={() => void load()}>
+            <SearchRoundedIcon fontSize="small" />
+            {t('search', 'ค้นหา')}
+          </button>
+          <button className="btn-primary inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 sm:min-h-0 sm:flex-none" onClick={openAdd}>
+            <AddRoundedIcon fontSize="small" />
+            {t('add', 'เพิ่มพนักงาน')}
+          </button>
         </div>
       </div>
 
@@ -235,9 +246,13 @@ export function StaffCrud() {
                   <td className="px-3 py-2">{user?.email ?? user?.full_name ?? r.user_id}</td>
                   <td className="px-3 py-2">{r.branches.map((b) => b.branch_name).join(', ') || '-'}</td>
                   <td className="px-3 py-2">{r.active ? t('active', 'ใช้งานอยู่') : t('inactive', 'ปิดใช้งาน')}</td>
-                  <td className="px-3 py-2 flex gap-2">
-                    <button className="btn-outline" onClick={() => openEdit(r)}>{t('edit', 'แก้ไข')}</button>
-                    <button className="btn-outline" onClick={() => void onDelete(r)}>{t('delete', 'ลบ')}</button>
+                  <td className="px-3 py-2">
+                    <ActionIconGroup
+                      actions={[
+                        { key: 'edit', icon: <EditOutlinedIcon fontSize="small" />, labelKey: 'common.edit', fallbackLabel: t('edit', 'แก้ไข'), onClick: () => openEdit(r) },
+                        { key: 'delete', icon: <DeleteOutlineIcon fontSize="small" />, labelKey: 'common.delete', fallbackLabel: t('delete', 'ลบ'), color: 'error', onClick: () => void onDelete(r) },
+                      ]}
+                    />
                   </td>
                 </tr>
               );

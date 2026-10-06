@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>คู่มือตั้งค่า LINE OA สำหรับ QueueBooking</title>
+<style>
+@font-face{font-family:'Kanit';font-weight:400;src:url('../../public/fonts/Kanit-Regular.ttf')}
+@font-face{font-family:'Kanit';font-weight:700;src:url('../../public/fonts/Kanit-Bold.ttf')}
+/* Layout: cover page, then an A4 flow of numbered setup steps; each step = number, action, "ได้อะไรกลับมา", "เอาไปใส่ที่ไหนใน Portal". */
+:root{
+  --ink:#14211a; --muted:#5b6b62; --line:#dbe5de; --paper:#ffffff; --tint:#f1f7f3;
+  --brand:#0e9f5a; --brand-deep:#0a6b3d; --brand-soft:#e4f5ec;
+  --amber:#a15c07; --amber-soft:#fdf1dc; --blue:#1b5aa6; --blue-soft:#e6effa; --red:#b3261e; --red-soft:#fdecea;
+}
+@page{size:A4;margin:16mm 16mm 18mm}
+*{box-sizing:border-box}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{margin:0;font-family:'Kanit','Sarabun','Noto Sans Thai',sans-serif;font-weight:400;color:var(--ink);font-size:11pt;line-height:1.5}
+h1,h2,h3{margin:0;font-weight:700;line-height:1.25}
+p{margin:0}
+code,.mono{font-family:ui-monospace,Menlo,monospace;font-size:9.5pt}
+.page{page-break-after:always}
+.page:last-child{page-break-after:auto}
+
+/* cover */
+.cover{height:262mm;display:flex;flex-direction:column;justify-content:space-between;padding:0}
+.cover .top{background:var(--brand-deep);color:#fff;border-radius:18px;padding:34px 34px 38px;position:relative;overflow:hidden}
+.cover .top::after{content:"";position:absolute;right:-60px;bottom:-90px;width:260px;height:260px;border-radius:50%;background:var(--brand);opacity:.45}
+.brand{font-size:12pt;letter-spacing:.04em;opacity:.9}
+.cover h1{font-size:30pt;margin-top:34px;max-width:420px;position:relative;z-index:1}
+.cover .sub{margin-top:12px;font-size:12.5pt;opacity:.92;max-width:430px;position:relative;z-index:1}
+.chips{display:flex;gap:8px;margin-top:22px;position:relative;z-index:1;flex-wrap:wrap}
+.chips span{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:3px 14px;font-size:10.5pt}
+.need h2{font-size:15pt;margin-bottom:10px}
+.need ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:8px 14px}
+.need li{display:flex;gap:12px;align-items:center;background:var(--tint);border-radius:10px;padding:9px 12px}
+.need li b{flex:none;width:26px;height:26px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:10.5pt}
+.map{border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.map h2{font-size:13.5pt;margin-bottom:4px}
+.map p.s{color:var(--muted);font-size:10.5pt;margin-bottom:10px}
+.map table{width:100%;border-collapse:collapse;font-size:10.5pt}
+.map td{padding:6px 8px;border-top:1px solid var(--line);vertical-align:top}
+.map td:first-child{width:28px;color:var(--brand-deep);font-weight:700}
+.map td:nth-child(2){font-weight:700;width:150px}
+.map td:last-child{color:var(--muted)}
+.foot{display:flex;justify-content:space-between;color:var(--muted);font-size:9.5pt;border-top:1px solid var(--line);padding-top:8px}
+
+/* steps */
+.step{break-inside:avoid;margin:0 0 11px;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.step>header{display:flex;gap:12px;align-items:center;background:var(--brand-soft);padding:10px 16px}
+.step>header .n{flex:none;width:30px;height:30px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-weight:700}
+.step>header h2{font-size:13.5pt}
+.step>header .where{margin-left:auto;font-size:9.5pt;color:var(--brand-deep);border:1px solid var(--brand);border-radius:999px;padding:1px 10px;white-space:nowrap}
+.step .body{padding:10px 16px 12px;display:flex;flex-direction:column;gap:7px}
+.step ol.acts{margin:0;padding-left:20px}
+.step ol.acts li{margin:2px 0}
+.url{background:var(--blue-soft);color:var(--blue);border-radius:8px;padding:6px 10px;display:inline-block;word-break:break-all}
+.get,.put,.warn{border-radius:10px;padding:8px 12px;font-size:10.5pt}
+.get{background:var(--tint);border:1px solid var(--line)}
+.get b,.put b{display:block;font-size:9.5pt;letter-spacing:.03em;margin-bottom:2px}
+.get b{color:var(--brand-deep)}
+.put{background:var(--blue-soft)}
+.put b{color:var(--blue)}
+.warn{background:var(--amber-soft);color:#6b3e03}
+table.t{width:100%;border-collapse:collapse;font-size:10.5pt;table-layout:fixed}
+table.t td.mono{font-size:8.5pt;overflow-wrap:anywhere}
+table.t th{background:var(--ink);color:#fff;text-align:left;padding:6px 10px;font-weight:700}
+table.t td{padding:6px 10px;border:1px solid var(--line);vertical-align:top}
+table.t td:first-child{font-weight:700;background:var(--tint);width:24%}
+
+/* wrap-up */
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{border:1px solid var(--line);border-radius:12px;padding:12px 14px;break-inside:avoid}
+.card h3{font-size:12pt;margin-bottom:6px}
+.card.bad{border-left:5px solid var(--red);background:var(--red-soft)}
+.card ul{margin:0;padding-left:18px}
+.check{list-style:none;padding:0!important;display:grid;grid-template-columns:1fr 1fr;gap:6px 14px}
+.check li{display:flex;gap:9px;align-items:center}
+.check li::before{content:"";flex:none;width:15px;height:15px;border:2px solid var(--brand);border-radius:4px}
+.contact{background:var(--brand-deep);color:#fff;border-radius:14px;padding:16px 20px;margin-top:14px;break-inside:avoid}
+.contact h2{font-size:14pt;margin-bottom:6px}
+.contact div{display:flex;gap:18px;flex-wrap:wrap}
+.contact p{opacity:.95}
+.sec-title{font-size:15pt;margin:2px 0 12px;color:var(--brand-deep)}
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<section class="page cover">
+  <div>
+    <div class="top">
+      <div class="brand">QueueBooking · ระบบจองคิวผ่าน LINE OA</div>
+      <h1>คู่มือตั้งค่า LINE OA ให้ร้านพร้อมรับจอง</h1>
+      <p class="sub">ทำตามทีละขั้น ใช้เวลาประมาณ 30–45 นาที ครบทุกอย่างตั้งแต่เปิด Messaging API จนถึงรับคิวแรก</p>
+      <div class="chips"><span>LINE OA</span><span>Messaging API</span><span>LIFF</span><span>Rich Menu</span></div>
+    </div>
+
+    <div class="need" style="margin-top:22px">
+      <h2>สิ่งที่ต้องเตรียม</h2>
+      <ol>
+        <li><b>1</b>บัญชี LINE ของเจ้าของร้าน</li>
+        <li><b>2</b>LINE Official Account (OA) ของร้าน</li>
+        <li><b>3</b>บัญชี LINE Developers (ใช้บัญชี LINE เดียวกัน)</li>
+        <li><b>4</b>บัญชี QueueBooking ที่สมัครไว้แล้ว</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="map">
+    <h2>ในระบบมี 5 ขั้นตอนให้ตั้งค่า</h2>
+    <p class="s">เปิดดูความคืบหน้าได้ที่หน้า “แดชบอร์ด” ใน Portal คู่มือเล่มนี้ครอบคลุมขั้นที่ 4 ซึ่งเป็นขั้นที่ต้องทำนอกระบบ</p>
+    <table>
+      <tr><td>1</td><td>สร้างสาขา</td><td>อย่างน้อย 1 สาขา เพื่อให้ลูกค้าเลือกจองได้</td></tr>
+      <tr><td>2</td><td>เพิ่มบริการ</td><td>บริการที่จองได้ และระยะเวลาของแต่ละบริการ</td></tr>
+      <tr><td>3</td><td>ตั้งเวลาทำการ</td><td>ไม่ตั้งเวลา ระบบจะแสดงว่าร้านปิดและลูกค้าจองไม่ได้</td></tr>
+      <tr><td>4</td><td>เชื่อมต่อ LINE OA</td><td>ทำตามคู่มือนี้ ขั้นที่ 1–7 (ต้องมี Token, Secret และ LIFF ID ครบ)</td></tr>
+      <tr><td>5</td><td>รับคิวแรก</td><td>ลองจองผ่าน LINE ด้วยตัวเอง แล้วดูคิวใน Portal</td></tr>
+    </table>
+  </div>
+  <div class="foot"><span>QueueBooking by GO Along Co., Ltd.</span><span>queuebooking.com</span></div>
+</section>
+
+<!-- ============ STEPS (flow across pages; each step stays whole) ============ -->
+<section>
+  <h2 class="sec-title">เชื่อมต่อ LINE OA กับ QueueBooking</h2>
+
+  <article class="step">
+    <header><span class="n">1</span><h2>สร้าง LINE Official Account</h2><span class="where">LINE OA Manager</span></header>
+    <div class="body">
+      <div><span class="url">https://manager.line.biz/</span></div>
+      <ol class="acts">
+        <li>เข้าสู่ระบบด้วยบัญชี LINE</li>
+        <li>กด “สร้างบัญชีทางการ” แล้วกรอกชื่อร้าน ประเภทธุรกิจ อีเมล และเบอร์โทร</li>
+        <li>สร้างบัญชีให้เสร็จ</li>
+      </ol>
+      <div class="get"><b>ได้อะไรกลับมา</b>LINE OA ID เช่น @myshop</div>
+      <div class="warn">มี LINE OA อยู่แล้ว ข้ามขั้นนี้ได้เลย</div>
+    </div>
+  </article>
+
+  <article class="step">
+    <header><span class="n">2</span><h2>เปิด Messaging API</h2><span class="where">LINE OA Manager</span></header>
+    <div class="body">
+      <ol class="acts">
+        <li>เลือก OA ของร้าน แล้วไปที่ Settings → Messaging API</li>
+        <li>กด “Enable Messaging API”</li>
+        <li>ตั้งชื่อ Provider เป็นชื่อร้าน แล้วกดยืนยัน</li>
+      </ol>
+      <div class="get"><b>ได้อะไรกลับมา</b>Channel ID, Channel Secret และ Messaging API Channel ใหม่</div>
+    </div>
+  </article>
+
+  <article class="step">
+    <header><span class="n">3</span><h2>คัดลอก Channel Secret และออก Channel Access Token</h2><span class="where">LINE Developers Console</span></header>
+    <div class="body">
+      <div><span class="url">https://developers.line.biz/console/</span></div>
+      <ol class="acts">
+        <li>เลือก Provider ของร้าน แล้วเลือก Messaging API Channel ที่สร้างไว้</li>
+        <li>แท็บ Basic settings: คัดลอก <b>Channel secret</b></li>
+        <li>แท็บ Messaging API: เลื่อนลงที่ “Channel access token (long-lived)” กด <b>Issue</b> แล้วคัดลอก</li>
+      </ol>
+      <div class="put"><b>นำไปใส่ใน Portal</b>ตั้งค่า LINE → Channel Access Token และ Channel Secret แล้วกดบันทึก</div>
+      <div class="warn">Token และ Secret คือรหัสผ่านของ OA ห้ามส่งต่อหรือโพสต์ในกลุ่ม</div>
+    </div>
+  </article>
+
+  <article class="step">
+    <header><span class="n">4</span><h2>ตั้งค่า Webhook</h2><span class="where">Portal + LINE Developers</span></header>
+    <div class="body">
+      <ol class="acts">
+        <li>ใน Portal เปิด ตั้งค่า LINE แล้วคัดลอก <b>Webhook URL</b> ของร้าน</li>
+        <li>กลับไปที่ LINE Developers Console → Messaging API → Webhook settings</li>
+        <li>วาง URL เปิด <b>Use webhook</b> เป็น ON แล้วกด <b>Verify</b></li>
+      </ol>
+      <div><span class="url">https://queuebooking.com/api/line/webhook/{shopKey}</span></div>
+      <div class="get"><b>ผลที่ถูกต้อง</b>กด Verify แล้วขึ้น Success</div>
+    </div>
+  </article>
+
+<!-- ============ STEPS 5-7 ============ -->
+  <article class="step">
+    <header><span class="n">5</span><h2>ตั้งค่าการตอบกลับใน OA Manager</h2><span class="where">LINE OA Manager</span></header>
+    <div class="body">
+      <p>ไปที่ Settings → Response settings แล้วตั้งค่าตามนี้ เพื่อให้ระบบเป็นตัวตอบแชทหลัก</p>
+      <table class="t">
+        <tr><th>หัวข้อ</th><th>ตั้งเป็น</th></tr>
+        <tr><td>Chat</td><td>ON</td></tr>
+        <tr><td>Webhook</td><td>ON</td></tr>
+        <tr><td>Auto-reply messages</td><td>OFF</td></tr>
+        <tr><td>Greeting messages</td><td>ON</td></tr>
+      </table>
+    </div>
+  </article>
+
+  <article class="step">
+    <header><span class="n">6</span><h2>สร้าง LIFF App 2 ตัว</h2><span class="where">LINE Developers Console</span></header>
+    <div class="body">
+      <p>เข้า Messaging API Channel เดิม → แท็บ LIFF → กด <b>Add</b> สร้างทีละตัวตามตาราง</p>
+      <table class="t">
+        <tr><th>ตั้งค่า</th><th>ตัวที่ 1: จองคิว</th><th>ตัวที่ 2: สมาชิก / คิวของฉัน</th></tr>
+        <tr><td>LIFF app name</td><td>Booking App</td><td>Member App</td></tr>
+        <tr><td>Size</td><td>Full</td><td>Full</td></tr>
+        <tr><td>Endpoint URL</td><td class="mono">https://queuebooking.com/liff/{shopKey}</td><td class="mono">https://queuebooking.com/liff/{shopKey}/member</td></tr>
+        <tr><td>Scopes</td><td>profile, openid</td><td>profile, openid</td></tr>
+        <tr><td>Bot link feature</td><td>ON</td><td>ON</td></tr>
+      </table>
+      <div class="put"><b>นำไปใส่ใน Portal</b>ตั้งค่า LINE → LIFF ID (ตัวที่ 1) และ LIFF ID สมาชิก (ตัวที่ 2) แล้วกดบันทึก</div>
+      <div class="warn">{shopKey} ของร้านดูได้ที่หน้า ตั้งค่า LINE ใน Portal Endpoint ต้องขึ้นต้นด้วย https เท่านั้น</div>
+    </div>
+  </article>
+
+  <article class="step">
+    <header><span class="n">7</span><h2>สร้างและเผยแพร่ Rich Menu</h2><span class="where">Portal</span></header>
+    <div class="body">
+      <ol class="acts">
+        <li>ใน Portal เปิดเมนู <b>สร้าง Rich Menu</b></li>
+        <li>เลือกประเภทธุรกิจและแบบเมนู ระบบจัดปุ่ม ไอคอน และข้อความภาษาไทยให้</li>
+        <li>กด <b>บันทึกรูปลงระบบ</b> แล้วกด <b>เผยแพร่ไป LINE</b></li>
+      </ol>
+      <div class="get"><b>ผลที่ได้</b>เมนูจองคิว เช็คคิวของฉัน ติดต่อร้าน ขึ้นที่ด้านล่างแชท LINE OA ของร้าน</div>
+      <div class="warn">ต้องใส่ LIFF ID ให้เรียบร้อยก่อน ระบบจึงจะเผยแพร่ได้ Rich Menu ที่เผยแพร่จากระบบจะไม่แสดงใน LINE OA Manager ให้จัดการจากหน้า Portal</div>
+    </div>
+  </article>
+
+<!-- ============ TEST + HELP ============ -->
+  <article class="step">
+    <header><span class="n">8</span><h2>ทดสอบจองคิวด้วยตัวเอง</h2><span class="where">LINE + Portal</span></header>
+    <div class="body">
+      <ol class="acts">
+        <li>เพิ่ม LINE OA ของร้านเป็นเพื่อน แล้วกดเมนู “จองคิว”</li>
+        <li>เลือกสาขา บริการ วันและเวลา แล้วยืนยันการจอง</li>
+        <li>เปิดหน้า “การจอง” ใน Portal เพื่อดูคิวที่เข้ามา และลองกด “เรียกคิว”</li>
+      </ol>
+      <div class="get"><b>เสร็จครบ 5 ขั้นตอน</b>เมื่อมีคิวแรกเข้าระบบ ทีมงาน QueueBooking จะตรวจและเปิดระบบให้รับคิวจากลูกค้าจริง</div>
+    </div>
+  </article>
+
+  <h2 class="sec-title" style="margin-top:6px">ติดปัญหา? ลองตรวจตามนี้</h2>
+  <div class="cols">
+    <div class="card bad"><h3>Verify Webhook ไม่ผ่าน</h3><ul><li>URL ขึ้นต้นด้วย https</li><li>คัดลอก URL จาก Portal ครบทั้งบรรทัด</li><li>บันทึก Token และ Secret ใน Portal แล้ว</li></ul></div>
+    <div class="card bad"><h3>Bot ไม่ตอบแชท</h3><ul><li>Use webhook เป็น ON</li><li>Auto-reply messages เป็น OFF</li><li>Channel Access Token ถูกต้อง ไม่หมดอายุ</li></ul></div>
+    <div class="card bad"><h3>LIFF เปิดไม่ได้</h3><ul><li>Endpoint URL ตรงกับร้านและเป็น https</li><li>LIFF ID ที่ใส่ใน Portal ถูกตัว (จอง / สมาชิก)</li><li>เปิดผ่านแอป LINE ไม่ใช่เบราว์เซอร์</li></ul></div>
+    <div class="card bad"><h3>กดปุ่ม Rich Menu แล้วไม่เปิด</h3><ul><li>ใส่ LIFF ID แล้วและเผยแพร่ใหม่</li><li>ปิดแชทแล้วเปิดใหม่เพื่อโหลดเมนูล่าสุด</li></ul></div>
+  </div>
+
+  <h2 class="sec-title" style="margin-top:18px">เช็กลิสต์ก่อนรับลูกค้าจริง</h2>
+  <ul class="card check" style="list-style:none;margin:0">
+    <li>สร้าง LINE OA</li><li>ใส่ LIFF ID ทั้ง 2 ตัว</li>
+    <li>เปิด Messaging API</li><li>เผยแพร่ Rich Menu</li>
+    <li>ใส่ Channel Secret / Token</li><li>ทดสอบจองคิวผ่าน LINE</li>
+    <li>ตั้งค่า Webhook และ Verify ผ่าน</li><li>ทดสอบเรียกคิว และแจ้งเตือน LINE</li>
+  </ul>
+
+  <div class="contact">
+    <h2>ให้ทีมงานช่วยตั้งค่าได้</h2>
+    <div>
+      <p>LINE: @queuebooking</p>
+      <p>โทร: 085-608-3298</p>
+      <p>อีเมล: amnart.gl@gmail.com</p>
+    </div>
+  </div>
+  <div class="foot" style="margin-top:12px"><span>QueueBooking by GO Along Co., Ltd.</span><span>queuebooking.com</span></div>
+</section>
+</body>
+</html>

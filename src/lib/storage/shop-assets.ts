@@ -13,7 +13,7 @@ export const SHOP_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 /** Photos per resource; mirrored by the DB check in migration 202609210001. */
 export const RESOURCE_IMAGE_MAX = 5;
 
-export const SHOP_IMAGE_KINDS = ['resources', 'services', 'branches'] as const;
+export const SHOP_IMAGE_KINDS = ['resources', 'services', 'branches', 'menu'] as const;
 export type ShopImageKind = (typeof SHOP_IMAGE_KINDS)[number];
 
 const PUBLIC_OBJECT_PREFIX = `/storage/v1/object/public/${SHOP_ASSETS_BUCKET}/`;

@@ -112,6 +112,10 @@ src/
 | `/api/line-settings` | LINE OA configuration |
 | `/api/settings` | Shop settings |
 | `/api/shop-display-settings` | Customer-facing flags on `shops`: `show_service_duration`, `one_booking_per_day` (GET both; PATCH keys optional) |
+| `/api/fnb-settings` | F&B ordering switch (`shops.fnb_enabled`); turning ON needs Professional+ (`assertFnbPlan`, 402 `feature_locked`), OFF always allowed |
+| `/api/fnb-menu` | F&B menu CRUD (writes plan-gated; "sold out" toggle `is_available` allowed on any plan) |
+| `/api/fnb-orders` | Staff order board: GET open/all, PATCH status new→preparing→served/cancelled + LINE push to customer |
+| `/api/fnb-requests` | Staff board for customer "call staff" / "check bill" requests: GET open+acknowledged, PATCH status open→acknowledged→closed (acknowledge pushes LINE to the customer) |
 | `/api/shop-profile` | Shop profile |
 | `/api/shop-payment-settings` | Omise + bank transfer settings |
 | `/api/shop-payment-settings/deeplink` | Bank deeplink (SCB/KBank) credentials per shop + `/test` connection check |
@@ -140,6 +144,11 @@ src/
 | `/api/public/shop/[shopKey]/payment/slip` | Slip upload |
 | `/api/public/shop/[shopKey]/payment/deeplink` | Re-issue bank deeplink for a booking |
 | `/api/public/shop/[shopKey]/payment/deeplink-return` | Status for bank-app return page (HMAC `?t=` only) |
+| `/api/public/shop/[shopKey]/fnb/menu` | Public menu (`enabled:false` + empty when plan < Professional or switch off) |
+| `/api/public/shop/[shopKey]/fnb/order` | LIFF order for an on-site booking (checked_in+, booking day only; prices always from DB) |
+| `/api/public/shop/[shopKey]/fnb/my-orders` | Caller's orders for one booking (POST: identity token in body) |
+| `/api/public/shop/[shopKey]/fnb/request` | LIFF "เรียกพนักงาน" / "ขอเช็คบิล" (one open request per booking+type, unique index; bill stores an estimate snapshot) |
+| `/api/public/shop/[shopKey]/fnb/bill` | Read-only bill estimate for the caller's own booking (bay fee unless paid online + non-cancelled food) |
 | `/api/public/shop/[shopKey]/display` | Queue display data |
 | `/api/public/shop/[shopKey]/me` | LIFF user profile |
 | `/api/public/shop/[shopKey]/member-context` | Member context |
@@ -148,7 +157,8 @@ src/
 ### Admin (`super_admin` only)
 | Route | Resource |
 |---|---|
-| `/api/admin/shop-subscriptions` | Manage shop plans |
+| `/api/admin/shop-subscriptions` | Manage shop plans; GET also returns `setup` (5-step progress per shop, `src/lib/onboarding/status.ts`, same rules as the dashboard checklist) and `email_log` (last onboarding email per shop) |
+| `/api/admin/shop-subscriptions/send-email` | Send an onboarding email to the shop owner: `kind=setup_guide` (LINE OA setup nudge + PDF `public/docs/line-setup-guide.pdf`, source `docs/guides/line-setup-guide.html`) or `kind=go_live` (needs 5/5 steps; closes demo mode via `disableDemoMode` then sends). 409 `line_already_connected` / `recently_sent` need `force`; every send is audit-logged `onboarding_email_sent` |
 | `/api/admin/active-shop` | Acting shop for super_admin (GET list + current, POST select, DELETE clear) — stored in httpOnly cookie `portal_admin_shop_id`, applied by `requireAuthContext` |
 | `/api/shop-subscription/current` | Current plan status |
 

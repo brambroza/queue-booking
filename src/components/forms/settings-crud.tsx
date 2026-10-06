@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { LogoDropzone } from '@/components/forms/logo-dropzone';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import { PlanCard } from '@/components/subscription/plan-card';
@@ -220,27 +221,14 @@ export function SettingsCrud() {
 
             <div className="md:col-span-2">
               <span className="mb-2 block text-sm text-slate-600">โลโก้ร้าน</span>
-              <div className="flex flex-wrap items-center gap-3">
-                {shop.logo_url && !removeLogo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={shop.logo_url} alt="Shop logo" className="h-16 w-16 rounded-xl border border-slate-200 object-cover" />
-                ) : (
-                  <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-dashed border-slate-300 text-xs text-slate-400">No Logo</div>
-                )}
-                <input
-                  className="input max-w-sm"
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                  onChange={(e) => setShopLogoFile(e.target.files?.[0] ?? null)}
-                />
-                {shop.logo_url ? (
-                  <label className="inline-flex items-center gap-2 text-sm text-slate-600">
-                    <input type="checkbox" checked={removeLogo} onChange={(e) => setRemoveLogo(e.target.checked)} />
-                    ลบโลโก้ปัจจุบัน
-                  </label>
-                ) : null}
-              </div>
-              {shopLogoFile ? <p className="mt-2 text-xs text-slate-500">ไฟล์ใหม่: {shopLogoFile.name}</p> : null}
+              <LogoDropzone
+                currentUrl={shop.logo_url}
+                file={shopLogoFile}
+                removed={removeLogo}
+                onFileChange={setShopLogoFile}
+                onRemovedChange={setRemoveLogo}
+                disabled={shopSaving}
+              />
             </div>
           </div>
         )}

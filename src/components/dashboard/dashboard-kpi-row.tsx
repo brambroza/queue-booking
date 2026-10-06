@@ -54,7 +54,8 @@ export function DashboardKpiRow({ data }: { data: DashboardData }) {
 
   return (
     <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)', lg: `repeat(${columns},1fr)` } }}>
-      <DashboardCard label={t('bookings_total', 'คิวทั้งหมด')} value={kpi.booked} tone="primary" icon={<EventNoteRoundedIcon />} hint={`${deltaText(kpi.booked, kpi.prev.booked)} ${prevLabel}`} />
+      {/* Every status, same count as /portal/bookings; `booked` (seats in use) feeds the utilization card instead. */}
+      <DashboardCard label={t('bookings_total', 'คิวทั้งหมด')} value={kpi.total} tone="primary" icon={<EventNoteRoundedIcon />} hint={`${deltaText(kpi.total, kpi.prev.total)} ${prevLabel}`} />
       <DashboardCard
         label={t('utilization', 'ความหนาแน่น')}
         value={`${kpi.utilization_pct}%`}

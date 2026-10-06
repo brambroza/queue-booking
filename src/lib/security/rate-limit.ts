@@ -6,6 +6,8 @@ export const RATE_LIMITS = {
   book: { windowSeconds: 600, max: 20 },
   liffProfile: { windowSeconds: 60, max: 60 },
   liffAction: { windowSeconds: 600, max: 30 },
+  /** F&B sheet polls order status while open, so it needs headroom a one-off action does not. */
+  fnbRead: { windowSeconds: 600, max: 120 },
   register: { windowSeconds: 3600, max: 5 },
   contactLead: { windowSeconds: 3600, max: 5 },
 } as const;

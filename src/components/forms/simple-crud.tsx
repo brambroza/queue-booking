@@ -7,6 +7,8 @@ import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import { formatDateDMY } from '@/lib/utils/date-format';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import TagRoundedIcon from '@mui/icons-material/TagRounded';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
@@ -166,11 +168,12 @@ export function SimpleCrud({
     if (ok) await onDelete(String(row.id));
   }
 
-  /** Cell text for the phone card: times trimmed to HH:MM, checkboxes as ใช่/ไม่. */
+  /** Cell text: times trimmed to HH:MM, dates as DD/MM/YYYY, checkboxes as ใช่/ไม่. */
   function cellText(c: Column, row: Record<string, unknown>) {
     if (c.type === 'checkbox') return row[c.key] ? 'ใช่' : 'ไม่';
     if (c.type === 'image') return row[c.key] ? 'มีรูป' : '-';
     if (c.type === 'time') return String(row[c.key] ?? '-').slice(0, 5);
+    if (c.type === 'date') return formatDateDMY(row[c.key] as string | null | undefined);
     if (c.type === 'select') {
       const value = String(row[c.key] ?? '');
       return c.options?.find((o) => o.value === value)?.label ?? (value || '-');
@@ -186,7 +189,10 @@ export function SimpleCrud({
           <h3 className="text-sm font-semibold text-slate-700">รายการ{title}</h3>
           <p className="text-xs text-slate-500 sm:hidden">{rows.length} รายการ</p>
         </div>
-        <button className="btn-primary min-h-[44px] sm:min-h-0" onClick={openCreate}>เพิ่ม{title}</button>
+        <button className="btn-primary inline-flex min-h-[44px] items-center gap-1.5 sm:min-h-0" onClick={openCreate}>
+          <AddRoundedIcon fontSize="small" />
+          เพิ่ม{title}
+        </button>
       </div>
 
       <div className="card overflow-hidden">
@@ -252,7 +258,7 @@ export function SimpleCrud({
               <tbody>
                 {pagedRows.map((row) => (
                   <tr key={String(row.id)} className="border-t border-slate-100">
-                    {columns.map((c) => <td key={c.key} className="px-3 py-2">{c.type === 'image' || c.type === 'select' ? cellText(c, row) : String(row[c.key] ?? '-')}</td>)}
+                    {columns.map((c) => <td key={c.key} className="px-3 py-2">{c.type === 'image' || c.type === 'select' || c.type === 'date' ? cellText(c, row) : String(row[c.key] ?? '-')}</td>)}
                     <td className="px-3 py-2">
                       <ActionIconGroup
                         actions={[

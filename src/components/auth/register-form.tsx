@@ -4,6 +4,7 @@ import { FormEvent, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '@/components/ui/toast';
 import { getStoredUtm, track } from '@/lib/analytics/track';
+import { formatThaiPhone, isCompleteThaiPhone, normalizeThaiPhoneDigits } from '@/lib/utils/thai-phone';
 
 /** Values must match service_templates.business_category so seeding finds templates. */
 const BUSINESS_CATEGORIES = [
@@ -26,13 +27,18 @@ export function RegisterForm() {
   const searchParams = useSearchParams();
   const { push } = useToast();
   const [loading, setLoading] = useState(false);
+  const [phone, setPhone] = useState('');
   const selectedPlan = searchParams.get('plan') ?? '';
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!isCompleteThaiPhone(phone)) {
+      push('กรุณากรอกเบอร์โทร 10 หลัก', 'error');
+      return;
+    }
     setLoading(true);
     const formData = new FormData(e.currentTarget);
-    const payload = { ...Object.fromEntries(formData.entries()), utm: getStoredUtm() };
+    const payload = { ...Object.fromEntries(formData.entries()), phone: normalizeThaiPhoneDigits(phone), utm: getStoredUtm() };
     track('signup_started', { plan: selectedPlan || 'starter' });
 
     const res = await fetch('/api/auth/register', {
@@ -61,7 +67,18 @@ export function RegisterForm() {
       <input className="input" name="company_name" placeholder="ชื่อบริษัท" required />
       <input className="input" name="shop_name" placeholder="ชื่อร้าน" required />
       <input className="input" name="owner_name" placeholder="ชื่อเจ้าของ" required />
-      <input className="input" name="phone" placeholder="เบอร์โทร" required />
+      <input
+        className="input"
+        name="phone"
+        type="tel"
+        inputMode="numeric"
+        autoComplete="tel"
+        maxLength={12}
+        placeholder="เบอร์โทร เช่น 085-608-3298"
+        value={formatThaiPhone(phone)}
+        onChange={(e) => setPhone(normalizeThaiPhoneDigits(e.target.value))}
+        required
+      />
       <input className="input" type="email" name="email" placeholder="Email" required />
       <input className="input" type="password" name="password" placeholder="Password" required />
       <select className="input" name="business_category" defaultValue="">

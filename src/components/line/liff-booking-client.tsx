@@ -17,6 +17,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import { formatThaiPhone, isCompleteThaiPhone, normalizeThaiPhoneDigits } from '@/lib/utils/thai-phone';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
 import CampaignRoundedIcon from '@mui/icons-material/CampaignRounded';
@@ -37,6 +38,8 @@ import { resourceHistoryBadge, sortResourcesByHistory, summarizeResourceHistory 
 import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 import { buildBookingEchoText } from '@/lib/line/booking-echo';
 import { CUSTOMER_CANCELLABLE_STATUSES, checkInEligibility } from '@/lib/booking/status-flow';
+import { FNB_ORDERABLE_BOOKING_STATUSES } from '@/lib/fnb/schemas';
+import { LiffFnbOrderSheet } from '@/components/line/liff-fnb-order-sheet';
 import { DAILY_LIMIT_CODE, dailyLimitMessage, findSameDayBooking } from '@/lib/booking/daily-limit';
 import { BOOKING_WINDOW_CODE } from '@/lib/booking/booking-window';
 import { firstBookableDay, isDayBookable, type BookableDayRules } from '@/lib/booking/bookable-days';
@@ -117,6 +120,8 @@ type ShopMeta = {
   show_service_duration?: boolean;
   /** On when the shop allows each customer one booking per day (any service). */
   one_booking_per_day?: boolean;
+  /** On when the shop lets checked-in customers order food and drinks (plan + owner switch). */
+  fnb_enabled?: boolean;
 };
 type MyBooking = {
   id: string;
@@ -395,6 +400,8 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   /** Bangkok date from the server; the check-in button only shows on the booking day. */
   const [todayIso, setTodayIso] = useState('');
   const [checkingIn, setCheckingIn] = useState('');
+  /** Booking whose food-order sheet is open; '' = closed. */
+  const [orderingFor, setOrderingFor] = useState('');
   const [liffOpenUrl, setLiffOpenUrl] = useState('');
   const [resolvedLiffId, setResolvedLiffId] = useState('');
   const [shopMetaError, setShopMetaError] = useState('');
@@ -416,7 +423,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
 
   const canLoadSlots = branchId && serviceId && date;
   const canBook =
-    memberReady && !sameDayBooking && branchId && serviceId && date && selectedTime && customerName.trim().length >= 1 && customerPhone.trim().length >= 8;
+    memberReady && !sameDayBooking && branchId && serviceId && date && selectedTime && customerName.trim().length >= 1 && isCompleteThaiPhone(customerPhone);
 
   /**
    * Why step 1 cannot be left yet, or '' when it can. A silently dead button
@@ -432,8 +439,8 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         ? 'กำลังตรวจสอบสมาชิกของร้าน กรุณารอสักครู่'
         : !customerName.trim()
           ? 'กรุณากรอกชื่อผู้จอง'
-          : customerPhone.trim().length < 8
-            ? 'กรุณากรอกเบอร์โทรให้ครบ'
+          : !isCompleteThaiPhone(customerPhone)
+            ? 'กรุณากรอกเบอร์โทร 10 หลัก'
             : '';
   const nextBlocked = memberStatus !== 'ready' || Boolean(nextBlockedReason);
 
@@ -490,7 +497,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       setCustomerName((prev) => (!isUpdate && prev.trim() ? prev : json.data.customer.full_name));
     }
     if (json.data?.customer?.phone) {
-      setCustomerPhone((prev) => (!isUpdate && prev.trim() ? prev : json.data.customer.phone));
+      setCustomerPhone((prev) => (!isUpdate && prev.trim() ? prev : normalizeThaiPhoneDigits(json.data.customer.phone ?? '')));
     }
     if (typeof json.data?.customer?.nickname === 'string' || isUpdate) {
       setCustomerNickname((prev) => (!isUpdate && prev.trim() ? prev : json.data?.customer?.nickname ?? ''));
@@ -1169,12 +1176,13 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const phoneField = (
     <TextField
       label="เบอร์โทร"
-      value={customerPhone}
-      onChange={(e) => setCustomerPhone(e.target.value)}
+      value={formatThaiPhone(customerPhone)}
+      onChange={(e) => setCustomerPhone(normalizeThaiPhoneDigits(e.target.value))}
+      placeholder="085-608-3298"
       autoComplete="tel"
       fullWidth
       slotProps={{
-        htmlInput: { inputMode: 'tel' },
+        htmlInput: { inputMode: 'numeric', maxLength: 12 },
         input: { startAdornment: <InputAdornment position="start"><PhoneRoundedIcon fontSize="small" /></InputAdornment> },
       }}
     />
@@ -1233,6 +1241,8 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     // Same rule as the API: only on the booking day and while still waiting.
     const canCheckIn = Boolean(todayIso) && checkInEligibility({ status: b.status, booking_date: b.booking_date }, todayIso).ok;
     const isCalled = b.status === 'called';
+    // Same rule as the API: on site today and the shop has F&B on.
+    const canOrderFood = Boolean(shop?.fnb_enabled) && Boolean(todayIso) && b.booking_date === todayIso && FNB_ORDERABLE_BOOKING_STATUSES.includes(b.status);
     return (
       <Box
         key={b.id}
@@ -1284,8 +1294,13 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         {b.payment_method === 'bank_transfer' && b.payment_status === 'awaiting_verification' ? (
           <Alert severity="warning" sx={{ mt: 1.25 }}>รอร้านตรวจสอบสลิป — ร้านจะแจ้งผลผ่าน LINE</Alert>
         ) : null}
-        {canResumeSlip || canResumeDeeplink || canCancel || canCheckIn ? (
+        {canResumeSlip || canResumeDeeplink || canCancel || canCheckIn || canOrderFood ? (
           <Stack spacing={1} sx={{ mt: 1.25 }}>
+            {canOrderFood ? (
+              <Button variant="contained" color="warning" fullWidth onClick={() => setOrderingFor(b.id)}>
+                สั่งอาหาร / เครื่องดื่ม
+              </Button>
+            ) : null}
             {canCheckIn ? (
               <Button
                 variant="contained"
@@ -1729,6 +1744,17 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         title={`ผัง${selectedBranch?.branch_name ? ` • ${selectedBranch.branch_name}` : ''}`}
         images={selectedBranch?.layout_image_url ? [selectedBranch.layout_image_url] : []}
       />
+      {orderingFor && lineUserId ? (
+        <LiffFnbOrderSheet
+          open
+          onClose={() => setOrderingFor('')}
+          shopKey={shopKey}
+          bookingId={orderingFor}
+          placeLabel={upcoming.find((x) => x.id === orderingFor)?.resource_name || upcoming.find((x) => x.id === orderingFor)?.queue_number || 'ที่นั่งของคุณ'}
+          lineUserId={lineUserId}
+          getIdToken={currentIdToken}
+        />
+      ) : null}
     </LiffShell>
   );
 }

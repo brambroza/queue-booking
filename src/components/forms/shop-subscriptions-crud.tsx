@@ -2,10 +2,14 @@
 
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import ForwardToInboxRoundedIcon from '@mui/icons-material/ForwardToInboxRounded';
+import MarkEmailReadRoundedIcon from '@mui/icons-material/MarkEmailReadRounded';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
+import { SETUP_STEP_LABEL_TH, type SetupStatus } from '@/lib/onboarding/status';
 
 /** Plan code every shop falls back to. Mirrors FREE_PLAN_CODE in src/lib/subscription/enforcement.ts */
 const FREE_PLAN_CODE = 'starter';
@@ -41,6 +45,8 @@ type Shop = {
   shop_key: string;
   phone?: string | null;
   email?: string | null;
+  /** true = still in the sandbox (trial); false/absent = running for real. */
+  demo_mode_enabled?: boolean | null;
   companies?: { name?: string; owner_name?: string | null; phone?: string | null; email?: string | null } | null;
 };
 
@@ -55,6 +61,56 @@ type OwnerContact = {
   email_confirmed_at?: string | null;
   account_created_at?: string | null;
 };
+
+type EmailKind = 'setup_guide' | 'go_live';
+type EmailLog = Partial<Record<EmailKind, string>>;
+
+/** A repeat of the same email inside this window asks for an extra tick, matching the server. */
+const RECENT_SEND_MS = 10 * 60 * 1000;
+
+/** Setup progress and trial/live mode of one shop, as shown in the list. */
+function SetupCell({ setup, demo, sent }: { setup: SetupStatus | undefined; demo: boolean; sent?: EmailLog }) {
+  const missing = setup ? setup.steps.filter((st) => !st.done).map((st) => SETUP_STEP_LABEL_TH[st.key]) : [];
+  const complete = Boolean(setup) && missing.length === 0;
+  return (
+    <div className="text-xs leading-relaxed whitespace-nowrap">
+      <Badge label={demo ? 'โหมดทดลอง' : 'เริ่มใช้งานจริง'} tone={demo ? 'warn' : 'ok'} />
+      {setup ? (
+        <>
+          <div className="mt-1.5 flex items-center gap-1.5" title={setup.steps.map((st) => `${st.done ? '✓' : '○'} ${SETUP_STEP_LABEL_TH[st.key]}`).join('\n')}>
+            <span className="inline-flex gap-0.5" role="img" aria-label={`ตั้งค่าแล้ว ${setup.completed} จาก ${setup.total} ขั้นตอน`}>
+              {setup.steps.map((st) => (
+                <span
+                  key={st.key}
+                  className="h-1.5 w-4 rounded-full"
+                  style={{ background: st.done ? 'var(--brand)' : 'var(--line)' }}
+                />
+              ))}
+            </span>
+            <span style={{ color: complete ? TONE_COLOR.ok : 'var(--text)' }}>
+              {setup.completed}/{setup.total}
+            </span>
+          </div>
+          <div style={{ color: complete ? TONE_COLOR.ok : 'var(--muted)' }}>{complete ? 'ตั้งค่าครบ' : `ยังขาด: ${missing.join(', ')}`}</div>
+        </>
+      ) : (
+        <div className="mt-1" style={{ color: 'var(--muted)' }}>
+          ไม่มีข้อมูลการตั้งค่า
+        </div>
+      )}
+      {sent?.setup_guide ? (
+        <div className="mt-1" style={{ color: 'var(--muted)' }} title={formatDateTime(sent.setup_guide)}>
+          ส่งคู่มือตั้งค่าแล้ว {formatDate(sent.setup_guide)}
+        </div>
+      ) : null}
+      {sent?.go_live ? (
+        <div style={{ color: 'var(--muted)' }} title={formatDateTime(sent.go_live)}>
+          แจ้งพร้อมใช้งานแล้ว {formatDate(sent.go_live)}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 /** A shop with no owner login for this long is a churn signal, not just a quiet week. */
 const DORMANT_DAYS = 30;
@@ -506,10 +562,14 @@ function Field({ label, hint, className, children }: { label: string; hint?: str
 
 export function ShopSubscriptionsCrud() {
   const { push } = useToast();
+  const confirm = useConfirm();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
   const [subs, setSubs] = useState<Sub[]>([]);
   const [owners, setOwners] = useState<OwnerContact[]>([]);
+  const [setupByShop, setSetupByShop] = useState<Record<string, SetupStatus>>({});
+  const [emailLog, setEmailLog] = useState<Record<string, EmailLog>>({});
+  const [sendingKey, setSendingKey] = useState('');
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(20);
@@ -550,9 +610,10 @@ export function ShopSubscriptionsCrud() {
           state: resolveRowState(sub, starterLimits),
           contact: resolveContact(shop, owner),
           account: resolveAccountState(owner),
+          setup: setupByShop[shop.id] as SetupStatus | undefined,
         };
       }),
-    [shops, subMap, ownerMap, starterLimits],
+    [shops, subMap, ownerMap, starterLimits, setupByShop],
   );
 
   const paged = useMemo(() => rows.slice((page - 1) * rowsPerPage, page * rowsPerPage), [rows, page, rowsPerPage]);
@@ -567,8 +628,12 @@ export function ShopSubscriptionsCrud() {
     let unverified = 0;
     let neverSignedIn = 0;
     let dormant = 0;
+    let trial = 0;
+    let live = 0;
 
-    rows.forEach(({ state, contact, account }) => {
+    rows.forEach(({ state, contact, account, shop }) => {
+      if (shop.demo_mode_enabled) trial += 1;
+      else live += 1;
       if (!contact.phone && !contact.email) noContact += 1;
       if (account.known && !account.verified) unverified += 1;
       if (account.neverSignedIn) neverSignedIn += 1;
@@ -592,6 +657,8 @@ export function ShopSubscriptionsCrud() {
       unverified,
       neverSignedIn,
       dormant,
+      trial,
+      live,
     };
   }, [rows]);
 
@@ -612,6 +679,56 @@ export function ShopSubscriptionsCrud() {
     });
   }, [usage, draft]);
 
+  /**
+   * Sends one of the two onboarding emails to the shop owner after a confirm.
+   * Warnings the server would also raise (LINE already connected, sent a moment
+   * ago) become an acknowledge tick here, and the send then goes with `force`.
+   */
+  async function sendOnboardingEmail(shop: Shop, kind: EmailKind, setup: SetupStatus | undefined, demo: boolean) {
+    const lineDone = Boolean(setup?.steps.find((st) => st.key === 'line')?.done);
+    const lastSent = emailLog[shop.id]?.[kind];
+    const sentJustNow = lastSent ? Date.now() - new Date(lastSent).getTime() < RECENT_SEND_MS : false;
+    const warnings: string[] = [];
+    if (kind === 'setup_guide' && lineDone) warnings.push('ร้านนี้เชื่อมต่อ LINE OA แล้ว แต่อีเมลนี้เขียนว่า "ยังไม่ได้ตั้งค่า"');
+    if (sentJustNow) warnings.push('เพิ่งส่งอีเมลนี้ไปเมื่อไม่กี่นาทีที่ผ่านมา');
+
+    const key = `${shop.id}:${kind}`;
+    const ok = await confirm({
+      tone: 'primary',
+      title: kind === 'setup_guide' ? 'ส่งอีเมลแนะนำการตั้งค่า LINE OA?' : 'ส่งอีเมลแจ้งว่าร้านพร้อมใช้งาน?',
+      description:
+        kind === 'setup_guide'
+          ? 'ส่งถึงอีเมลเจ้าของร้านพร้อมไฟล์แนบคู่มือตั้งค่า LINE OA (PDF)'
+          : demo
+            ? 'ระบบจะปิดโหมดทดลองของร้านนี้ให้ก่อน แล้วส่งอีเมลแจ้งเจ้าของร้านว่าพร้อมรับคิวจริง'
+            : 'ส่งอีเมลแจ้งเจ้าของร้านว่าระบบพร้อมรับคิวจากลูกค้าจริง',
+      context: { primary: shop.name, secondary: kind === 'go_live' ? 'ตั้งค่าครบ 5 ขั้นตอนแล้ว' : undefined },
+      caution: warnings.length > 0 ? warnings.join(' / ') : undefined,
+      acknowledge: warnings.length > 0 ? 'ยืนยันว่าต้องการส่ง' : undefined,
+      confirmLabel: 'ส่งอีเมล',
+      onConfirm: async () => {
+        setSendingKey(key);
+        try {
+          const res = await fetch('/api/admin/shop-subscriptions/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ shop_id: shop.id, kind, force: warnings.length > 0 }),
+          });
+          const json = await res.json();
+          if (!res.ok) {
+            if (json.demo_closed) await load();
+            throw new Error(json.error ?? 'ส่งอีเมลไม่สำเร็จ');
+          }
+          push(`ส่งอีเมลถึง ${json.data?.to ?? 'เจ้าของร้าน'} แล้ว${json.data?.demo_closed ? ' และปิดโหมดทดลองให้ร้านแล้ว' : ''}`);
+          await load();
+        } finally {
+          setSendingKey('');
+        }
+      },
+    });
+    return ok;
+  }
+
   async function load() {
     setLoading(true);
     try {
@@ -625,6 +742,8 @@ export function ShopSubscriptionsCrud() {
       setShops(json.data?.shops ?? []);
       setSubs(json.data?.subscriptions ?? []);
       setOwners(json.data?.owners ?? []);
+      setSetupByShop(json.data?.setup ?? {});
+      setEmailLog(json.data?.email_log ?? {});
     } finally {
       setLoading(false);
     }
@@ -730,6 +849,12 @@ export function ShopSubscriptionsCrud() {
             </span>
           ))}
           <span>
+            โหมดทดลอง <strong style={{ color: summary.trial > 0 ? TONE_COLOR.warn : 'var(--text)' }}>{summary.trial}</strong>
+          </span>
+          <span>
+            ใช้งานจริง <strong style={{ color: 'var(--text)' }}>{summary.live}</strong>
+          </span>
+          <span>
             ใกล้หมดอายุ ≤{EXPIRING_SOON_DAYS} วัน{' '}
             <strong style={{ color: summary.expiringSoon > 0 ? TONE_COLOR.warn : 'var(--text)' }}>{summary.expiringSoon}</strong>
           </span>
@@ -774,13 +899,14 @@ export function ShopSubscriptionsCrud() {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px] text-sm">
+            <table className="w-full min-w-[1250px] text-sm">
               <thead>
                 <tr style={{ color: 'var(--muted)' }}>
                   <th className="px-2 py-2 text-left">ร้านค้า</th>
                   <th className="px-2 py-2 text-left">บริษัท</th>
                   <th className="px-2 py-2 text-left">ติดต่อ</th>
                   <th className="px-2 py-2 text-left">เข้าใช้ล่าสุด / ยืนยันบัญชี</th>
+                  <th className="px-2 py-2 text-left">โหมด / การตั้งค่า</th>
                   <th className="px-2 py-2 text-left">แพ็กเกจ</th>
                   <th className="px-2 py-2 text-left">สิทธิ์ที่มีผลจริง</th>
                   <th className="px-2 py-2 text-left">หมดอายุ</th>
@@ -790,7 +916,7 @@ export function ShopSubscriptionsCrud() {
                 </tr>
               </thead>
               <tbody>
-                {paged.map(({ shop, sub, state, contact, account }) => {
+                {paged.map(({ shop, sub, state, contact, account, setup }) => {
                   const badge = statusBadge(state);
                   return (
                     <tr key={shop.id} className="border-t align-top" style={{ borderColor: 'var(--line)' }}>
@@ -808,6 +934,9 @@ export function ShopSubscriptionsCrud() {
                       </td>
                       <td className="px-2 py-2">
                         <AccountCell account={account} />
+                      </td>
+                      <td className="px-2 py-2">
+                        <SetupCell setup={setup} demo={Boolean(shop.demo_mode_enabled)} sent={emailLog[shop.id]} />
                       </td>
                       <td className="px-2 py-2 whitespace-nowrap">
                         <div style={{ color: 'var(--text)' }}>{state.planName ?? (state.hasSub ? state.planCode : 'ยังไม่กำหนด')}</div>
@@ -867,6 +996,22 @@ export function ShopSubscriptionsCrud() {
                               labelKey: 'common.edit',
                               fallbackLabel: 'Edit',
                               onClick: () => openEdit(shop),
+                            },
+                            {
+                              key: 'email-setup-guide',
+                              icon: <ForwardToInboxRoundedIcon fontSize="small" />,
+                              fallbackLabel: 'ส่งอีเมลแนะนำตั้งค่า LINE OA (แนบคู่มือ)',
+                              loading: sendingKey === `${shop.id}:setup_guide`,
+                              disabled: Boolean(sendingKey),
+                              onClick: () => void sendOnboardingEmail(shop, 'setup_guide', setup, Boolean(shop.demo_mode_enabled)),
+                            },
+                            {
+                              key: 'email-go-live',
+                              icon: <MarkEmailReadRoundedIcon fontSize="small" />,
+                              fallbackLabel: setup && setup.completed >= setup.total ? 'ส่งอีเมลร้านพร้อมใช้งาน (และปิดโหมดทดลอง)' : 'ส่งอีเมลร้านพร้อมใช้งาน (ต้องตั้งค่าครบ 5 ขั้นก่อน)',
+                              loading: sendingKey === `${shop.id}:go_live`,
+                              disabled: Boolean(sendingKey) || !setup || setup.completed < setup.total,
+                              onClick: () => void sendOnboardingEmail(shop, 'go_live', setup, Boolean(shop.demo_mode_enabled)),
                             },
                           ]}
                         />

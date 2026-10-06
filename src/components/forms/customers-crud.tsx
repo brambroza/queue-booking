@@ -1,13 +1,18 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import { MobileCardList } from '@/components/ui/responsive-table';
+import { ActionIconGroup } from '@/components/ui/action-icon-group';
 import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 
-type LineUser = { id: string; line_user_id: string; display_name: string | null };
+type LineUser = { id: string; line_user_id: string; display_name: string | null; picture_url?: string | null };
 type CustomerRow = {
   id: string;
   full_name: string;
@@ -17,6 +22,36 @@ type CustomerRow = {
   line_user_id: string | null;
   line_user: LineUser | null;
 };
+
+/**
+ * Round avatar: the customer's LINE profile picture, or the first letter of their name when
+ * they have no LINE link / no picture (or the image fails to load).
+ */
+function CustomerAvatar({ row, size = 36 }: { row: CustomerRow; size?: number }) {
+  const [failed, setFailed] = useState(false);
+  const url = row.line_user?.picture_url;
+  const dimension = { width: size, height: size };
+  if (url && !failed) {
+    return (
+      // LINE CDN images, plain <img> like the chat inbox (no next/image remotePatterns configured).
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={url}
+        alt={row.line_user?.display_name ?? row.full_name}
+        style={dimension}
+        className="shrink-0 rounded-full object-cover"
+        referrerPolicy="no-referrer"
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <span style={dimension} className="flex shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-600" aria-hidden>
+      {(row.nickname || row.full_name || 'U').trim().slice(0, 1).toUpperCase()}
+    </span>
+  );
+}
 
 type FormState = {
   id: string | null;
@@ -44,31 +79,66 @@ export function CustomersCrud() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [q, setQ] = useState('');
+  const [debouncedQ, setDebouncedQ] = useState('');
   const [form, setForm] = useState<FormState>(initialForm);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  // Real count from the API: the list is paged on the server, `rows` only holds the current page.
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   const editing = Boolean(form.id);
-  const pagedRows = rows.slice((page - 1) * rowsPerPage, page * rowsPerPage);
 
-  async function load() {
-    const params = new URLSearchParams();
-    if (q.trim()) params.set('q', q.trim());
-    const [customersRes, lineUsersRes] = await Promise.all([
-      fetch(`/api/customers?${params.toString()}`, { cache: 'no-store' }),
-      fetch('/api/chat-inbox', { cache: 'no-store' }),
-    ]);
+  const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
-    const [customersJson, lineUsersJson] = await Promise.all([customersRes.json(), lineUsersRes.json()]);
+  // Search is typed continuously; wait for a pause before hitting the API.
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQ(q.trim()), 300);
+    return () => clearTimeout(id);
+  }, [q]);
 
-    if (!customersRes.ok) return push(customersJson.error ?? 'โหลดลูกค้าไม่สำเร็จ', 'error');
-    if (!lineUsersRes.ok) return push(lineUsersJson.error ?? 'โหลด line users ไม่สำเร็จ', 'error');
+  // A new search or page size always starts from page 1.
+  useEffect(() => { setPage(1); }, [debouncedQ, rowsPerPage]);
 
-    setRows(customersJson.data ?? []);
-    setLineUsers(lineUsersJson.data?.users ?? []);
-  }
+  useEffect(() => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setLoading(true);
+    (async () => {
+      try {
+        const params = new URLSearchParams({ page: String(page), page_size: String(rowsPerPage) });
+        if (debouncedQ) params.set('q', debouncedQ);
+        const res = await fetch(`/api/customers?${params.toString()}`, { cache: 'no-store', signal: controller.signal });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) return push(json.error ?? 'โหลดลูกค้าไม่สำเร็จ', 'error');
+        const count = Number(json.pagination?.total ?? 0);
+        // Deleted the last row of the last page: step back instead of showing an empty page.
+        if ((json.data ?? []).length === 0 && count > 0 && page > 1) return setPage(Math.max(1, Math.ceil(count / rowsPerPage)));
+        setRows(json.data ?? []);
+        setTotal(count);
+      } catch (e) {
+        if (controller.signal.aborted) return;
+        push(e instanceof Error ? e.message : 'โหลดลูกค้าไม่สำเร็จ', 'error');
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    })();
+    return () => controller.abort();
+  }, [page, rowsPerPage, debouncedQ, reloadKey, push]);
 
-  useEffect(() => { void load(); }, []);
+  // LINE users for the link dropdown in the form; independent of the list paging.
+  useEffect(() => {
+    (async () => {
+      const res = await fetch('/api/chat-inbox?page_size=100', { cache: 'no-store' }).catch(() => null);
+      if (!res) return;
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) return push(json.error ?? 'โหลด line users ไม่สำเร็จ', 'error');
+      setLineUsers(json.data?.users ?? []);
+    })();
+  }, [push]);
 
   function openAdd() {
     setForm(initialForm);
@@ -123,7 +193,7 @@ export function CustomersCrud() {
     push(editing ? 'อัปเดตข้อมูลลูกค้าแล้ว' : 'เพิ่มลูกค้าแล้ว');
     setDrawerOpen(false);
     setForm(initialForm);
-    void load();
+    reload();
   }
 
   async function onDelete(row: CustomerRow) {
@@ -142,8 +212,18 @@ export function CustomersCrud() {
     const json = await res.json().catch(() => ({}));
     if (!res.ok) return push(json.error ?? 'ลบไม่สำเร็จ', 'error');
     push('ลบลูกค้าแล้ว');
-    void load();
+    reload();
   }
+
+  /** Icon-only edit / delete (tooltip + aria-label); delete still asks through the confirm dialog. */
+  const renderActions = (row: CustomerRow) => (
+    <ActionIconGroup
+      actions={[
+        { key: 'edit', icon: <EditOutlinedIcon fontSize="small" />, labelKey: 'common.edit', fallbackLabel: 'Edit', onClick: () => openEdit(row) },
+        { key: 'delete', icon: <DeleteOutlineIcon fontSize="small" />, labelKey: 'common.delete', fallbackLabel: 'Delete', color: 'error', onClick: () => void onDelete(row) },
+      ]}
+    />
+  );
 
   return (
     <div className="space-y-4">
@@ -151,28 +231,34 @@ export function CustomersCrud() {
         <h3 className="text-sm font-semibold text-slate-700">รายการลูกค้า</h3>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <input className="input w-full sm:w-56" placeholder="ค้นหาชื่อ/ชื่อเล่น/เบอร์" value={q} onChange={(e) => setQ(e.target.value)} />
-          <button className="btn-outline" onClick={() => void load()}>Search</button>
-          <button className="btn-primary" onClick={openAdd}>เพิ่ม</button>
+          <button className="btn-outline inline-flex items-center gap-1.5" onClick={reload} disabled={loading}>
+            <SearchRoundedIcon fontSize="small" />
+            ค้นหา
+          </button>
+          <button className="btn-primary inline-flex items-center gap-1.5" onClick={openAdd}>
+            <AddRoundedIcon fontSize="small" />
+            เพิ่ม
+          </button>
         </div>
       </div>
 
       <div className="card">
         {/* Phones: one card per customer. */}
         <MobileCardList
-          rows={pagedRows}
+          rows={rows}
           rowKey={(r) => r.id}
           columns={[
-            { key: 'name', label: 'Name', card: 'title', render: (r) => (r.nickname ? `${r.full_name} (${r.nickname})` : r.full_name) },
+            { key: 'name', label: 'Name', card: 'title', render: (r) => (
+              <span className="flex items-center gap-2">
+                <CustomerAvatar row={r} size={32} />
+                <span>{r.nickname ? `${r.full_name} (${r.nickname})` : r.full_name}</span>
+              </span>
+            ) },
             { key: 'phone', label: 'Phone', card: 'subtitle', render: (r) => r.phone },
             { key: 'line', label: 'LINE User', render: (r) => r.line_user?.display_name || r.line_user?.line_user_id || '-' },
             { key: 'note', label: 'Note', render: (r) => r.note || '-' },
           ]}
-          actions={(r) => (
-            <>
-              <button className="btn-outline" onClick={() => openEdit(r)}>Edit</button>
-              <button className="btn-outline" onClick={() => void onDelete(r)}>Delete</button>
-            </>
-          )}
+          actions={(r) => renderActions(r)}
           emptyState={<p className="px-3 py-4 text-sm text-slate-500">ยังไม่มีลูกค้า</p>}
           sx={{ display: { xs: 'flex', sm: 'none' } }}
         />
@@ -190,30 +276,32 @@ export function CustomersCrud() {
           </thead>
           <tbody>
             {rows.length === 0 ? (
-              <tr><td className="px-3 py-4 text-slate-500" colSpan={6}>ยังไม่มีลูกค้า</td></tr>
-            ) : pagedRows.map((r) => (
+              <tr><td className="px-3 py-4 text-slate-500" colSpan={6}>{loading ? 'กำลังโหลด…' : debouncedQ ? 'ไม่พบลูกค้าที่ค้นหา' : 'ยังไม่มีลูกค้า'}</td></tr>
+            ) : rows.map((r) => (
               <tr key={r.id} className="border-t border-slate-100">
-                <td className="px-3 py-2">{r.full_name}</td>
+                <td className="px-3 py-2">
+                  <span className="flex items-center gap-2.5">
+                    <CustomerAvatar row={r} />
+                    <span>{r.full_name}</span>
+                  </span>
+                </td>
                 <td className="px-3 py-2">{r.nickname || <span className="text-slate-400">-</span>}</td>
                 <td className="px-3 py-2">{r.phone}</td>
                 <td className="px-3 py-2">{r.line_user?.display_name || r.line_user?.line_user_id || '-'}</td>
                 <td className="px-3 py-2">{r.note || '-'}</td>
-                <td className="px-3 py-2 flex gap-2">
-                  <button className="btn-outline" onClick={() => openEdit(r)}>Edit</button>
-                  <button className="btn-outline" onClick={() => void onDelete(r)}>Delete</button>
-                </td>
+                <td className="px-3 py-2">{renderActions(r)}</td>
               </tr>
             ))}
           </tbody>
         </table>
         </div>
-        {rows.length > 0 ? (
+        {total > 0 ? (
           <TablePaginationControls
             page={page}
             rowsPerPage={rowsPerPage}
-            total={rows.length}
+            total={total}
             onPageChange={setPage}
-            onRowsPerPageChange={(v) => { setRowsPerPage(v); setPage(1); }}
+            onRowsPerPageChange={setRowsPerPage}
           />
         ) : null}
       </div>

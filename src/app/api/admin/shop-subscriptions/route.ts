@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { writeAuditLog } from '@/lib/audit/activity-log';
+import { isLineConnected, loadSetupStatuses, type SetupStatus } from '@/lib/onboarding/status';
 
 const updateSchema = z.object({
   shop_id: z.string().uuid(),
@@ -121,6 +122,57 @@ async function fetchOwnerContacts(admin: ReturnType<typeof createAdminClient>): 
   }
 }
 
+/**
+ * Setup progress (the dashboard's five-step checklist) per shop, as a plain
+ * object keyed by shop id. LINE credentials are read only to derive a boolean:
+ * the tokens themselves must never reach the list response. Failure degrades to
+ * an empty object so the plan list still loads.
+ */
+async function fetchSetupStatuses(admin: ReturnType<typeof createAdminClient>, shopIds: string[]): Promise<Record<string, SetupStatus>> {
+  try {
+    if (shopIds.length === 0) return {};
+    const { data: lineRows, error } = await admin
+      .from('shops')
+      .select('id,line_channel_access_token,line_channel_secret,liff_id')
+      .in('id', shopIds);
+    if (error) throw error;
+    const statuses = await loadSetupStatuses(
+      admin,
+      (lineRows ?? []).map((r) => ({ id: String(r.id), lineConnected: isLineConnected(r) })),
+    );
+    return Object.fromEntries(statuses);
+  } catch (e) {
+    console.error('[admin/shop-subscriptions] setup status failed', e instanceof Error ? e.message : e);
+    return {};
+  }
+}
+
+/** When each onboarding email last went out, per shop, read from the audit log. */
+async function fetchEmailLog(admin: ReturnType<typeof createAdminClient>): Promise<Record<string, Partial<Record<'setup_guide' | 'go_live', string>>>> {
+  try {
+    const { data, error } = await admin
+      .from('activity_logs')
+      .select('shop_id,payload,created_at')
+      .eq('action', 'onboarding_email_sent')
+      .order('created_at', { ascending: false })
+      .limit(1000);
+    if (error) throw error;
+    const out: Record<string, Partial<Record<'setup_guide' | 'go_live', string>>> = {};
+    for (const row of data ?? []) {
+      const shopId = row.shop_id as string | null;
+      const kind = (row.payload as { kind?: string } | null)?.kind;
+      if (!shopId || (kind !== 'setup_guide' && kind !== 'go_live')) continue;
+      out[shopId] ??= {};
+      // Rows arrive newest first, so the first one seen per kind is the latest.
+      out[shopId][kind] ??= String(row.created_at);
+    }
+    return out;
+  } catch (e) {
+    console.error('[admin/shop-subscriptions] email log failed', e instanceof Error ? e.message : e);
+    return {};
+  }
+}
+
 export async function GET() {
   try {
     await requireAuthContext({ roles: ['super_admin'] });
@@ -130,7 +182,7 @@ export async function GET() {
       admin.from('subscription_plans').select('*').eq('active', true).order('name'),
       admin
         .from('shops')
-        .select('id,name,shop_key,phone,email,company_id,companies(name,owner_name,phone,email)')
+        .select('id,name,shop_key,phone,email,company_id,demo_mode_enabled,companies(name,owner_name,phone,email)')
         .eq('is_deleted', false)
         .order('created_at', { ascending: true }),
       admin
@@ -144,7 +196,9 @@ export async function GET() {
     if (shopsError) throw shopsError;
     if (subsError) throw subsError;
 
-    return NextResponse.json({ data: { plans: plans ?? [], shops: shops ?? [], subscriptions: subs ?? [], owners } });
+    const [setup, emailLog] = await Promise.all([fetchSetupStatuses(admin, (shops ?? []).map((s) => String(s.id))), fetchEmailLog(admin)]);
+
+    return NextResponse.json({ data: { plans: plans ?? [], shops: shops ?? [], subscriptions: subs ?? [], owners, setup, email_log: emailLog } });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });
   }

@@ -1006,6 +1006,37 @@ export async function updateDemoChecklist(input: {
   if (error) throw error;
 }
 
+/**
+ * Leaves trial mode without touching any data: clears the demo flags on the
+ * shop and its company and writes the audit row. Demo-tagged rows stay as they
+ * are — unlike `convertDemoToReal`, nothing is archived or deleted, which is
+ * why it is the safe choice when a shop's setup steps were met by sample data.
+ *
+ * @param input.userId - Acting user, for the audit log and `updated_by`.
+ */
+export async function disableDemoMode(input: { companyId: string; shopId: string; userId?: string | null }) {
+  const admin = createAdminClient();
+  const { error: shopError } = await admin
+    .from('shops')
+    .update({ demo_mode_enabled: false, is_demo: false, updated_by: input.userId ?? null })
+    .eq('id', input.shopId);
+  if (shopError) throw shopError;
+  const { error: companyError } = await admin
+    .from('companies')
+    .update({ is_demo: false, updated_by: input.userId ?? null })
+    .eq('id', input.companyId);
+  if (companyError) throw companyError;
+
+  await writeAuditLog({
+    companyId: input.companyId,
+    shopId: input.shopId,
+    userId: input.userId ?? null,
+    action: 'demo_mode_disabled',
+    targetTable: 'shops',
+    targetId: input.shopId,
+  });
+}
+
 export async function convertDemoToReal(input: {
   companyId: string;
   shopId: string;

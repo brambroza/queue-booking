@@ -7,6 +7,7 @@ import TodayRoundedIcon from '@mui/icons-material/TodayRounded';
 import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
 import MeetingRoomRoundedIcon from '@mui/icons-material/MeetingRoomRounded';
 import { useToast } from '@/components/ui/toast';
+import { useTranslation } from '@/lib/i18n/useTranslation';
 import { useBranchScope } from '@/components/layout/branch-scope-provider';
 import { formatDateDMY } from '@/lib/utils/date-format';
 import { customerLabel } from '@/lib/booking/customer-label';
@@ -81,6 +82,8 @@ function buildMonthGrid(baseMonth: Date): DayCell[] {
 
 export function CalendarClient() {
   const { push } = useToast();
+  // Same `status` dictionary as StatusChip, so every status reads in the shop's language.
+  const { t: tStatus } = useTranslation('status');
   const today = new Date();
   const [view, setView] = useState<'month' | 'resource'>('month');
   /** Which kind of resource gets one lane per row in the timeline view. */
@@ -235,7 +238,7 @@ export function CalendarClient() {
             <div className="mt-3 space-y-2">
               {selectedRows.length === 0 ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">ไม่มีคิวในวันที่เลือก</div> : selectedRows.map((r) => (
                 <div key={r.id} className={`rounded-xl border p-3 text-xs ${statusClass(String(r.status))}`}>
-                  <div className="flex items-center justify-between gap-2"><p className="font-semibold text-slate-900">{r.queue_number}</p><span className="rounded-full border border-current/20 px-2 py-0.5">{r.status}</span></div>
+                  <div className="flex items-center justify-between gap-2"><p className="font-semibold text-slate-900">{r.queue_number}</p><span className="rounded-full border border-current/20 px-2 py-0.5">{tStatus(String(r.status), String(r.status))}</span></div>
                   <p className="mt-1 text-slate-700">{hhmm(r.start_time)} • {customerLabel(r.customers)}</p>
                   <p className="text-slate-600">{r.branches?.branch_name ?? '-'} • {r.services?.service_name ?? '-'}</p>
                 </div>

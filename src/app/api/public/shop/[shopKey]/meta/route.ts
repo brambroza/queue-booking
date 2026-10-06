@@ -6,6 +6,7 @@ import { isBookingEchoEnabled } from '@/lib/line/booking-echo';
 import { isOneBookingPerDay, isServiceDurationVisible } from '@/lib/booking/display-settings';
 import { getShopBookingWindows, resolveMaxBookingDate } from '@/lib/booking/booking-window';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
+import { getFnbAccess } from '@/lib/subscription/features';
 
 export async function GET(_: Request, { params }: { params: Promise<{ shopKey: string }> }) {
   const { shopKey } = await params;
@@ -27,6 +28,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ shopKey: s
     showServiceDuration,
     oneBookingPerDay,
     bookingWindows,
+    fnbAccess,
   ] = await Promise.all([
     admin.from('branches').select('id,branch_name,layout_image_url').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
     admin.from('services').select('id,service_name,duration_minutes,price,image_url').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
@@ -44,6 +46,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ shopKey: s
     // Read apart from the branch select above so the page still loads on a
     // database where migration 202609290002 has not run.
     getShopBookingWindows(admin, shop.id),
+    // Plan AND owner switch; false on any failure so the booking page never breaks.
+    getFnbAccess(admin, shop.id).catch(() => ({ enabled: false })),
   ]);
 
   // Resolved here with the server's Bangkok date, so the LIFF date picker's
@@ -63,6 +67,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ shopKey: s
         booking_echo_enabled: bookingEchoEnabled,
         show_service_duration: showServiceDuration,
         one_booking_per_day: oneBookingPerDay,
+        fnb_enabled: fnbAccess.enabled,
       },
       branches: branchesWithWindow,
       services: services ?? [],

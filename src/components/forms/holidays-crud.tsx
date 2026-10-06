@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
 import { formatDateDMY } from '@/lib/utils/date-format';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
 
 type Branch = { id: string; branch_name: string };
 type Holiday = {
@@ -145,7 +146,10 @@ export function HolidaysCrud() {
           <h3 className="text-sm font-semibold text-slate-700">จัดการวันหยุด</h3>
           <p className="text-xs text-slate-500 sm:hidden">{rows.length} รายการ</p>
         </div>
-        <button className="btn-primary min-h-[44px] sm:min-h-0" onClick={openCreate}>เพิ่มวันหยุด</button>
+        <button className="btn-primary inline-flex min-h-[44px] items-center gap-1.5 sm:min-h-0" onClick={openCreate}>
+          <AddRoundedIcon fontSize="small" />
+          เพิ่มวันหยุด
+        </button>
       </div>
 
       <div className="card p-4">
