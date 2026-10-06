@@ -11,6 +11,7 @@ import { useBranchScope } from '@/components/layout/branch-scope-provider';
 import { track } from '@/lib/analytics/track';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { getTodayISOInBangkok } from '@/lib/utils/date-format';
+import { DEFAULT_BOOKING_SORT } from '@/lib/booking/list-sort';
 import { resourceTypeLabel } from '@/lib/booking/resource-types';
 import { SLOT_FULL_CODE } from '@/lib/booking/slot-capacity';
 import { BookingsFilterBar, dateForRange, type BookingsFilter } from '@/components/bookings/bookings-filter-bar';
@@ -25,7 +26,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** Initial filter: `?date=YYYY-MM-DD` deep-links from the dashboard into one day. */
 function initialFilter(): BookingsFilter {
   const today = getTodayISOInBangkok();
-  const base: BookingsFilter = { range: 'today', date: today, status: '', resource: '', search: '' };
+  const base: BookingsFilter = { range: 'today', date: today, status: '', resource: '', search: '', sort: DEFAULT_BOOKING_SORT };
   if (typeof window === 'undefined') return base;
   const d = new URLSearchParams(window.location.search).get('date') ?? '';
   if (!ISO_DATE.test(d)) return base;
@@ -94,11 +95,13 @@ export function BookingsCrud() {
     if (filter.status) params.set('status', filter.status);
     if (filter.resource) params.set('resource_id', filter.resource);
     if (debouncedSearch) params.set('q', debouncedSearch);
+    params.set('sort', filter.sort.key);
+    params.set('dir', filter.sort.dir);
     return params.toString();
-  }, [withBranch, page, pageSize, queryDate, filter.status, filter.resource, debouncedSearch]);
+  }, [withBranch, page, pageSize, queryDate, filter.status, filter.resource, debouncedSearch, filter.sort]);
 
   // Any filter change goes back to page 1.
-  useEffect(() => { setPage(1); }, [queryDate, filter.status, filter.resource, debouncedSearch, branchId, pageSize]);
+  useEffect(() => { setPage(1); }, [queryDate, filter.status, filter.resource, debouncedSearch, branchId, pageSize, filter.sort]);
 
   useEffect(() => {
     if (filter.range === 'custom' && !ISO_DATE.test(filter.date)) return;
@@ -330,6 +333,8 @@ export function BookingsCrud() {
         loading={loading}
         busy={saving}
         resourceLabel={resourceLabel}
+        sort={filter.sort}
+        onSortChange={(sort) => setFilter((f) => ({ ...f, sort }))}
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
         onStatus={(b, s) => void updateStatus(b, s)}

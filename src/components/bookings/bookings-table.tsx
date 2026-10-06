@@ -20,6 +20,7 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  TableSortLabel,
   Typography,
 } from '@mui/material';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
@@ -43,6 +44,7 @@ import NotificationsActiveRoundedIcon from '@mui/icons-material/NotificationsAct
 import ThumbUpAltRoundedIcon from '@mui/icons-material/ThumbUpAltRounded';
 import HowToRegRoundedIcon from '@mui/icons-material/HowToRegRounded';
 import { StatusChip } from '@/components/shared/status-chip';
+import { toggleBookingSort, type BookingSort, type BookingSortKey } from '@/lib/booking/list-sort';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
@@ -311,6 +313,8 @@ export function BookingsTable({
   loading,
   busy,
   resourceLabel,
+  sort,
+  onSortChange,
   onPageChange,
   onPageSizeChange,
   onStatus,
@@ -326,6 +330,9 @@ export function BookingsTable({
   /** True while a row mutation is in flight; disables row actions. */
   busy: boolean;
   resourceLabel: string;
+  /** Current server-side order; header cells for queue and date/time toggle it. */
+  sort: BookingSort;
+  onSortChange: (next: BookingSort) => void;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
   onStatus: (b: BookingRow, status: string) => void;
@@ -334,6 +341,16 @@ export function BookingsTable({
   onCreate: () => void;
 }) {
   const { t } = useTranslation('bookings');
+
+  const sortHeader = (key: BookingSortKey, label: string) => (
+    <TableSortLabel
+      active={sort.key === key}
+      direction={sort.key === key ? sort.dir : 'asc'}
+      onClick={() => onSortChange(toggleBookingSort(sort, key))}
+    >
+      {label}
+    </TableSortLabel>
+  );
 
   return (
     <Card>
@@ -370,8 +387,8 @@ export function BookingsTable({
           <Table size="small" sx={{ minWidth: 760 }}>
             <TableHead>
               <TableRow>
-                <TableCell>{t('col_queue', 'คิว')}</TableCell>
-                <TableCell>{t('col_datetime', 'วันที่ · เวลา')}</TableCell>
+                <TableCell sortDirection={sort.key === 'queue' ? sort.dir : false}>{sortHeader('queue', t('col_queue', 'คิว'))}</TableCell>
+                <TableCell sortDirection={sort.key === 'datetime' ? sort.dir : false}>{sortHeader('datetime', t('col_datetime', 'วันที่ · เวลา'))}</TableCell>
                 <TableCell>{t('col_customer', 'ลูกค้า')}</TableCell>
                 <TableCell>{t('col_service', 'บริการ / สาขา')}</TableCell>
                 <TableCell>{resourceLabel}</TableCell>

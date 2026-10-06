@@ -28,6 +28,7 @@ import {
   resolveMaxBookingDate,
 } from '@/lib/booking/booking-window';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
+import { bookingOrderColumns, parseBookingSort } from '@/lib/booking/list-sort';
 
 /** Minimal shape needed to call a Postgres function — works for both the session and admin clients. */
 type RpcClient = { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown }> };
@@ -68,6 +69,8 @@ export async function GET(req: Request) {
     const q = searchParams.get('q');
     const page = toInt(searchParams.get('page'), 1);
     const pageSize = Math.min(toInt(searchParams.get('page_size'), 20), 100);
+    // `sort=datetime|queue` + `dir=asc|desc`; unknown values fall back to date/time ascending.
+    const sort = parseBookingSort(searchParams.get('sort'), searchParams.get('dir'));
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
@@ -75,9 +78,8 @@ export async function GET(req: Request) {
       .from('bookings')
       .select('*, branches(branch_name), services(service_name), customers(full_name,nickname,phone)', { count: 'exact' })
       .eq('shop_id', profile.shop_id)
-      .eq('is_deleted', false)
-      .order('booking_date', { ascending: true })
-      .order('start_time', { ascending: true });
+      .eq('is_deleted', false);
+    for (const { column, ascending } of bookingOrderColumns(sort)) query = query.order(column, { ascending });
 
     if (date) query = query.eq('booking_date', date);
     if (status) query = query.eq('status', status);

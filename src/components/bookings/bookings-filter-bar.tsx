@@ -20,6 +20,7 @@ import { StatusChip } from '@/components/shared/status-chip';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { getTodayISOInBangkok } from '@/lib/utils/date-format';
 import { FILTER_STATUSES, addDays, type Resource } from './booking-types';
+import { bookingSortFromValue, bookingSortToValue, type BookingSort } from '@/lib/booking/list-sort';
 
 export type DateRangeKind = 'today' | 'tomorrow' | 'all' | 'custom';
 
@@ -32,6 +33,8 @@ export type BookingsFilter = {
   /** '' = every resource, 'none' = unassigned, otherwise a resource id. */
   resource: string;
   search: string;
+  /** Server-side order of the list; the table header (sm+) and the phone select both edit it. */
+  sort: BookingSort;
 };
 
 /**
@@ -143,6 +146,22 @@ export function BookingsFilterBar({
               ))}
             </TextField>
           ) : null}
+
+          {/* Phones have no table header to click, so the sort lives here. */}
+          <TextField
+            id="bookings-sort"
+            select
+            size="small"
+            value={bookingSortToValue(value.sort)}
+            onChange={(e) => onChange({ ...value, sort: bookingSortFromValue(e.target.value) })}
+            sx={{ ...fieldSx, display: { xs: 'inline-flex', sm: 'none' } }}
+            aria-label={t('sort_label', 'เรียงลำดับ')}
+          >
+            <MenuItem value="datetime_asc">{t('sort_datetime_asc', 'วันเวลา ใกล้สุดก่อน')}</MenuItem>
+            <MenuItem value="datetime_desc">{t('sort_datetime_desc', 'วันเวลา ล่าสุดก่อน')}</MenuItem>
+            <MenuItem value="queue_asc">{t('sort_queue_asc', 'เลขคิว น้อยไปมาก')}</MenuItem>
+            <MenuItem value="queue_desc">{t('sort_queue_desc', 'เลขคิว มากไปน้อย')}</MenuItem>
+          </TextField>
 
           <TextField
             id="bookings-search"
