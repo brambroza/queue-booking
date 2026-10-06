@@ -20,3 +20,19 @@ export function normalizeLiffId(input?: string | null): string {
 export function isValidLiffId(value: string): boolean {
   return /^\d{8,12}-[A-Za-z0-9]{4,20}$/.test(value);
 }
+
+/**
+ * The LINE Login channel that owns a LIFF app, read from the LIFF ID itself.
+ *
+ * A LIFF ID is `<channel id>-<random>`, so `1234567890-abcdefgh` belongs to
+ * channel `1234567890`. That is the channel an ID token from this LIFF app is
+ * issued for, which makes the shop's own LIFF ID enough to verify tokens: no
+ * separate per-shop setting or platform-wide env var is needed.
+ *
+ * @param liffId - A LIFF ID or a pasted LIFF URL; anything else yields null.
+ * @returns The numeric channel id, or null when the value is not a valid LIFF ID.
+ */
+export function channelIdFromLiffId(liffId?: string | null): string | null {
+  const id = normalizeLiffId(liffId);
+  return isValidLiffId(id) ? id.split('-')[0] : null;
+}

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { resolveLoginChannelId, verifyLiffIdToken } from './verify-id-token';
+import { resolveLoginChannelIds, verifyLiffIdToken } from './verify-id-token';
 
 export type LiffIdentityResult =
   | { ok: true; lineUserId: string; verified: boolean }
@@ -48,21 +48,36 @@ export async function resolveLiffCaller(
   const claimed = (claimedLineUserId ?? '').trim();
   const required = isLiffTokenRequired();
 
-  const { data: shopAuth } = await admin
+  let { data: shopAuth, error: shopAuthError } = await admin
     .from('shops')
-    .select('line_login_channel_id')
+    .select('line_login_channel_id,liff_id,liff_id_login_shop')
     .eq('id', shopId)
     .maybeSingle();
-  const channelId = resolveLoginChannelId((shopAuth as { line_login_channel_id?: string | null } | null)?.line_login_channel_id ?? null);
+  if (shopAuthError) {
+    // `line_login_channel_id` ships in migration 202608230001; without it the LIFF ids are still enough.
+    ({ data: shopAuth } = await admin.from('shops').select('liff_id,liff_id_login_shop').eq('id', shopId).maybeSingle());
+  }
+  const channelIds = resolveLoginChannelIds(shopAuth as Parameters<typeof resolveLoginChannelIds>[0]);
 
-  if (channelId && idToken) {
-    const sub = await verifyLiffIdToken(idToken, channelId);
+  if (channelIds.length > 0 && idToken) {
+    let sub: string | null = null;
+    for (const channelId of channelIds) {
+      sub = await verifyLiffIdToken(idToken, channelId);
+      if (sub) break;
+    }
     if (sub && (!claimed || claimed === sub)) return { ok: true, lineUserId: sub, verified: true };
+    // Distinguishes "LINE rejected the token" (usually a wrong LINE Login channel id)
+    // from "token is fine but belongs to another user" in the server log.
+    console.error(
+      sub
+        ? `[liff-identity] token sub does not match the claimed line_user_id for shop ${shopId}`
+        : `[liff-identity] LINE rejected the ID token for shop ${shopId} (tried channels ${channelIds.join(', ')}) — check that one of them owns the LIFF app`,
+    );
     return { ok: false, status: 401, error: AUTH_FAILED };
   }
 
   if (required) {
-    if (!channelId) console.error('[liff-identity] no LINE Login channel id for shop', shopId, '— refusing (set LINE_LOGIN_CHANNEL_ID)');
+    if (channelIds.length === 0) console.error('[liff-identity] no LINE Login channel id for shop', shopId, '— refusing (save the shop\'s LIFF ID in LINE settings, or set LINE_LOGIN_CHANNEL_ID)');
     return { ok: false, status: 401, error: AUTH_FAILED };
   }
 

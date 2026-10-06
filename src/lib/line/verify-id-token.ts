@@ -25,6 +25,33 @@ export async function verifyLiffIdToken(idToken: string, channelId: string): Pro
   }
 }
 
+import { channelIdFromLiffId } from './liff-id';
+
+/**
+ * Every LINE Login channel id worth trying when verifying a token for a shop,
+ * most specific first, without duplicates:
+ * 1. the id saved on the shop (`shops.line_login_channel_id`),
+ * 2. the channels that own the shop's own LIFF apps (read from the LIFF IDs),
+ * 3. the platform-wide `LINE_LOGIN_CHANNEL_ID` for single-channel deployments.
+ *
+ * Deriving from the LIFF IDs means a shop that has finished LINE setup verifies
+ * out of the box. A token is only accepted when LINE confirms it was issued to
+ * one of these channels, so another shop's or an attacker's channel never matches.
+ */
+export function resolveLoginChannelIds(shop?: {
+  line_login_channel_id?: string | null;
+  liff_id?: string | null;
+  liff_id_login_shop?: string | null;
+} | null): string[] {
+  const ids = [
+    shop?.line_login_channel_id?.trim(),
+    channelIdFromLiffId(shop?.liff_id_login_shop),
+    channelIdFromLiffId(shop?.liff_id),
+    process.env.LINE_LOGIN_CHANNEL_ID?.trim(),
+  ];
+  return Array.from(new Set(ids.filter((v): v is string => Boolean(v))));
+}
+
 /**
  * Resolve the LINE Login channel id used to verify tokens for a shop.
  * Falls back to the platform-wide env var so single-channel deployments work.

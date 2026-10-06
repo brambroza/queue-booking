@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Avatar,
@@ -402,6 +402,8 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const [checkingIn, setCheckingIn] = useState('');
   /** Booking whose food-order sheet is open; '' = closed. */
   const [orderingFor, setOrderingFor] = useState('');
+  /** Why the last `/me` call failed, so the member-check error can say it instead of a generic line. */
+  const meErrorRef = useRef('');
   const [liffOpenUrl, setLiffOpenUrl] = useState('');
   const [resolvedLiffId, setResolvedLiffId] = useState('');
   const [shopMetaError, setShopMetaError] = useState('');
@@ -483,12 +485,14 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         mode: opts?.mode ?? 'view',
       }),
     });
-    const json = await res.json();
+    const json = await res.json().catch(() => ({}));
     setAccountLoading(false);
     if (!res.ok) {
+      meErrorRef.current = `${json.error ?? 'โหลดข้อมูลสมาชิกไม่สำเร็จ'} (รหัส ${res.status})`;
       push(json.error ?? 'โหลดข้อมูลสมาชิกไม่สำเร็จ', 'error');
       return null;
     }
+    meErrorRef.current = '';
     // A plain view must never overwrite what the customer is typing — this runs
     // after booking and on the account tab, so a late response would otherwise
     // clobber the form. On an explicit save the server's copy is the truth.
@@ -599,7 +603,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         const me = await loadMe({ profile });
         if (!me) {
           setMemberStatus('error');
-          setMemberError('ตรวจสอบสมาชิกไม่สำเร็จ');
+          setMemberError(meErrorRef.current ? `ตรวจสอบสมาชิกไม่สำเร็จ: ${meErrorRef.current}` : 'ตรวจสอบสมาชิกไม่สำเร็จ');
           return;
         }
 
@@ -1178,7 +1182,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       label="เบอร์โทร"
       value={formatThaiPhone(customerPhone)}
       onChange={(e) => setCustomerPhone(normalizeThaiPhoneDigits(e.target.value))}
-      placeholder="085-608-3298"
+      placeholder="xxx-xxx-xxxxx"
       autoComplete="tel"
       fullWidth
       slotProps={{
