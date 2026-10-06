@@ -48,15 +48,15 @@ export async function resolveLiffCaller(
   const claimed = (claimedLineUserId ?? '').trim();
   const required = isLiffTokenRequired();
 
-  let { data: shopAuth, error: shopAuthError } = await admin
+  const full = await admin
     .from('shops')
     .select('line_login_channel_id,liff_id,liff_id_login_shop')
     .eq('id', shopId)
     .maybeSingle();
-  if (shopAuthError) {
-    // `line_login_channel_id` ships in migration 202608230001; without it the LIFF ids are still enough.
-    ({ data: shopAuth } = await admin.from('shops').select('liff_id,liff_id_login_shop').eq('id', shopId).maybeSingle());
-  }
+  // `line_login_channel_id` ships in migration 202608230001; without it the LIFF ids are still enough.
+  const shopAuth = full.error
+    ? (await admin.from('shops').select('liff_id,liff_id_login_shop').eq('id', shopId).maybeSingle()).data
+    : full.data;
   const channelIds = resolveLoginChannelIds(shopAuth as Parameters<typeof resolveLoginChannelIds>[0]);
 
   if (channelIds.length > 0 && idToken) {

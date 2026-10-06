@@ -67,8 +67,8 @@ describe('bookingCancelPromptFlex', () => {
 describe('bookingSelfCancelledFlex', () => {
   it('names the queue and date in altText and offers rebooking when a LIFF url exists', () => {
     const flex = bookingSelfCancelledFlex({ shopName: 'ร้านดี', queueNumber: 'A012', date: '25 ก.ย.', time: '10:30', liffUrl: 'https://liff.line.me/x?tab=booking' });
-    expect((flex as FlexLike).altText).toContain('A012');
-    expect((flex as FlexLike).altText).toContain('25 ก.ย.');
+    expect((flex as unknown as FlexLike).altText).toContain('A012');
+    expect((flex as unknown as FlexLike).altText).toContain('25 ก.ย.');
     expect(footerActions(flex).map((a) => a.label)).toEqual(['จองคิวใหม่', 'ติดต่อเจ้าหน้าที่']);
   });
 
