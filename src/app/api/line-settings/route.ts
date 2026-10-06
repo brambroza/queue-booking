@@ -24,6 +24,28 @@ const PatchSchema = z.object({
     .optional(),
 });
 
+/** Marker prefix of a masked secret hint, e.g. "••••abcd". */
+const MASK_PREFIX = '••••';
+
+/**
+ * Show only the last 4 characters of a stored secret.
+ *
+ * @param value - Stored secret or null.
+ * @returns Masked hint, or null when nothing is stored.
+ */
+function maskSecret(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return `${MASK_PREFIX}${value.slice(-4)}`;
+}
+
+/**
+ * True when the client did not send a new secret: field omitted, or the
+ * masked hint from GET sent back unchanged.
+ */
+function isMaskedOrUnchanged(value: string | null | undefined): boolean {
+  return value === undefined || (typeof value === 'string' && value.startsWith(MASK_PREFIX));
+}
+
 export async function GET() {
   try {
     const { supabase, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
@@ -39,9 +61,19 @@ export async function GET() {
       isFallbackReplyEnabled(supabase, profile.shop_id as string),
       getReminderSettings(supabase, profile.shop_id as string),
     ]);
+    // Secrets never leave the server in full: the form shows a hint and sends
+    // a new value only when the owner types one.
+    const { line_channel_access_token: token, line_channel_secret: secret, ...rest } = data as Record<string, unknown> & {
+      line_channel_access_token?: string | null;
+      line_channel_secret?: string | null;
+    };
     return NextResponse.json({
       data: {
-        ...data,
+        ...rest,
+        line_channel_access_token: maskSecret(token),
+        line_channel_secret: maskSecret(secret),
+        line_channel_access_token_set: Boolean(token),
+        line_channel_secret_set: Boolean(secret),
         booking_echo_enabled: bookingEchoEnabled,
         fallback_reply_enabled: fallbackReplyEnabled,
         reminder_enabled: reminder.enabled,
@@ -81,11 +113,20 @@ export async function PATCH(req: Request) {
       .eq('id', profile.shop_id)
       .maybeSingle();
 
+    // A masked hint (or an omitted field) means "keep what is stored"; an
+    // explicit empty string clears it.
+    const tokenPatch = isMaskedOrUnchanged(body.line_channel_access_token)
+      ? {}
+      : { line_channel_access_token: body.line_channel_access_token || null };
+    const secretPatch = isMaskedOrUnchanged(body.line_channel_secret)
+      ? {}
+      : { line_channel_secret: body.line_channel_secret || null };
+
     const { error } = await supabase
       .from('shops')
       .update({
-        line_channel_access_token: body.line_channel_access_token ?? null,
-        line_channel_secret: body.line_channel_secret ?? null,
+        ...tokenPatch,
+        ...secretPatch,
         liff_id: liffId || null,
         liff_id_login_shop: liffIdLoginShop || null,
         auto_reply_enabled: Boolean(body.auto_reply_enabled),
@@ -159,8 +200,12 @@ export async function PATCH(req: Request) {
           fallback_reply_enabled: fallbackReplyEnabled,
           reminder_enabled: reminderAfter?.enabled ?? null,
           reminder_minutes: reminderAfter?.minutes ?? null,
-          has_line_channel_access_token: Boolean(body.line_channel_access_token),
-          has_line_channel_secret: Boolean(body.line_channel_secret),
+          has_line_channel_access_token: 'line_channel_access_token' in tokenPatch
+            ? Boolean(tokenPatch.line_channel_access_token)
+            : Boolean(beforeShop?.line_channel_access_token),
+          has_line_channel_secret: 'line_channel_secret' in secretPatch
+            ? Boolean(secretPatch.line_channel_secret)
+            : Boolean(beforeShop?.line_channel_secret),
         },
       },
     });

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { escapeLike } from '@/lib/utils/postgrest';
 
 export type ResolvedShop = {
   id: string;
@@ -25,11 +26,16 @@ export async function resolveShopByKeyOrId(admin: SupabaseClient, shopRef: strin
   const byKey = await admin.from('shops').select(baseSelect).eq('shop_key', ref).eq('is_deleted', false).maybeSingle();
   if (byKey.data) return byKey.data as ResolvedShop;
 
+  // Shop keys are short slugs; anything else cannot match and must not reach
+  // the case-insensitive lookup below as a LIKE pattern.
+  if (ref.length > 100) return null;
+
   // Fallback: handle shop_key case mismatch from external links/rich menu.
+  // Wildcards are escaped so "%" cannot resolve to an arbitrary shop.
   const byKeyInsensitive = await admin
     .from('shops')
     .select(baseSelect)
-    .ilike('shop_key', ref)
+    .ilike('shop_key', escapeLike(ref))
     .eq('is_deleted', false)
     .limit(1);
   if (byKeyInsensitive.data?.[0]) return byKeyInsensitive.data[0] as ResolvedShop;

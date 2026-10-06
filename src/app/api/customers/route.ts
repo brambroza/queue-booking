@@ -4,6 +4,7 @@ import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { applyBranchScope, type BranchScope } from '@/lib/auth/branch-scope';
 import { writeAuditLog } from '@/lib/audit/activity-log';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { escapePostgrestSearch } from '@/lib/utils/postgrest';
 import { NICKNAME_MAX, nicknamePatch, normalizeNicknameInput } from '@/lib/booking/customer-label';
 
 const customerSchema = z.object({
@@ -67,8 +68,9 @@ export async function GET(req: Request) {
 
     if (allowedCustomerIds) query = query.in('id', allowedCustomerIds);
 
-    if (q) {
-      query = query.or(`full_name.ilike.%${q}%,nickname.ilike.%${q}%,phone.ilike.%${q}%,note.ilike.%${q}%`);
+    const safeQ = escapePostgrestSearch(q);
+    if (safeQ) {
+      query = query.or(`full_name.ilike.%${safeQ}%,nickname.ilike.%${safeQ}%,phone.ilike.%${safeQ}%,note.ilike.%${safeQ}%`);
     }
 
     const from = (page - 1) * pageSize;

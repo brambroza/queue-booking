@@ -17,6 +17,7 @@ import {
 } from '@/lib/demo/sandbox';
 import { SLIP_ALLOWED_MIME, SLIP_MAX_BYTES } from '@/lib/storage/buckets';
 import { writeAuditLog } from '@/lib/audit/activity-log';
+import { sniffImageMime } from '@/lib/utils/image-sniff';
 
 const actionSchema = z.object({
   action: z.enum(['create', 'reset', 'disable', 'create_booking', 'call_next', 'send_mock', 'convert_to_real', 'update_checklist', 'demo_pay_qr', 'demo_payment_target']),
@@ -107,11 +108,14 @@ export async function POST(req: Request) {
       if (!(file instanceof File)) {
         return NextResponse.json({ error: 'ไม่พบไฟล์สลิป' }, { status: 400 });
       }
-      if (!(SLIP_ALLOWED_MIME as readonly string[]).includes(file.type)) {
-        return NextResponse.json({ error: 'รองรับเฉพาะไฟล์ JPG, PNG หรือ WebP' }, { status: 400 });
-      }
       if (file.size > SLIP_MAX_BYTES) {
         return NextResponse.json({ error: 'ไฟล์สลิปใหญ่เกินไป' }, { status: 400 });
+      }
+      // Trust the bytes, not the client-declared type.
+      const bytes = await file.arrayBuffer();
+      const mime = sniffImageMime(new Uint8Array(bytes));
+      if (!mime || !(SLIP_ALLOWED_MIME as readonly string[]).includes(mime)) {
+        return NextResponse.json({ error: 'รองรับเฉพาะไฟล์ JPG, PNG หรือ WebP' }, { status: 400 });
       }
 
       const slipTenant = await resolveTenant(user.id, profile);
@@ -119,7 +123,7 @@ export async function POST(req: Request) {
         companyId: slipTenant.companyId,
         shopId: slipTenant.shopId,
         userId: user.id,
-        file: { bytes: await file.arrayBuffer(), mimeType: file.type },
+        file: { bytes, mimeType: mime },
       });
       return NextResponse.json({ data: result });
     }

@@ -48,9 +48,15 @@ type BookingRow = {
   branches: { branch_name?: string } | null;
 };
 
+/**
+ * Quote a CSV cell. Text starting with = + - @ (or tab / CR) is prefixed with
+ * an apostrophe so Excel / Sheets treat it as text, not a formula — customer
+ * names and notes are typed by the public.
+ */
 function csvEscape(v: unknown): string {
-  const s = String(v ?? '');
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  let s = String(v ?? '');
+  if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }
 

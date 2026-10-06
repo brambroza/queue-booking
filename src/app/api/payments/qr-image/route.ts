@@ -1,6 +1,23 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveOmiseSecretKey } from '@/lib/payments/omise';
 import { Resvg } from '@resvg/resvg-js';
+import { verifyBookingToken } from '@/lib/payments/tokens';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * True when a URL is an https Omise host, the only place the shop key may be sent.
+ *
+ * @param raw - Stored Omise `download_uri`.
+ */
+function isOmiseHost(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'https:' && (url.hostname === 'omise.co' || url.hostname.endsWith('.omise.co'));
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Public proxy — ดึง QR image จาก Omise แล้วแปลง SVG → PNG ก่อนส่งกลับ
@@ -10,8 +27,12 @@ import { Resvg } from '@resvg/resvg-js';
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const bookingId = searchParams.get('booking_id');
-  if (!bookingId) {
-    return new Response('Missing booking_id', { status: 400 });
+  if (!bookingId || !UUID_RE.test(bookingId)) {
+    return new Response('Not found', { status: 404 });
+  }
+  // Same HMAC as the PromptPay proxy: a booking id alone must not unlock the QR.
+  if (!verifyBookingToken(bookingId, searchParams.get('t'))) {
+    return new Response('Not found', { status: 404 });
   }
 
   const admin = createAdminClient();
@@ -21,13 +42,16 @@ export async function GET(req: Request) {
     .eq('id', bookingId)
     .maybeSingle();
 
-  if (!booking?.omise_charge_id) {
+  // One flat 404 for every failure so the route is not an oracle for booking ids.
+  if (!booking?.omise_charge_id || booking.payment_status !== 'pending_payment') {
     return new Response('Not found', { status: 404 });
   }
 
   const downloadUri = booking.omise_qr_image_url;
-  if (!downloadUri) {
-    return new Response('QR not available', { status: 404 });
+  // The shop's Omise secret goes in the Authorization header below, so the
+  // target must be Omise and nothing else.
+  if (!downloadUri || !isOmiseHost(downloadUri)) {
+    return new Response('Not found', { status: 404 });
   }
 
   const shop = booking.shops as unknown as { omise_secret_key?: string | null } | null;
@@ -64,7 +88,8 @@ export async function GET(req: Request) {
     status: 200,
     headers: {
       'Content-Type': 'image/png',
-      'Cache-Control': 'public, max-age=3600',
+      // Per-customer artefact: never from a shared cache.
+      'Cache-Control': 'private, max-age=900',
     },
   });
 }

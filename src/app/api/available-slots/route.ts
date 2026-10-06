@@ -19,6 +19,16 @@ export async function GET(req: Request) {
     if (!branchId || !serviceId || !date) {
       return NextResponse.json({ error: 'Missing branch_id, service_id or date' }, { status: 400 });
     }
+    const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (
+      !UUID.test(branchId) ||
+      !UUID.test(serviceId) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+      (resourceId && !UUID.test(resourceId)) ||
+      (partySize && !/^\d{1,3}$/.test(partySize))
+    ) {
+      return NextResponse.json({ error: 'Invalid params' }, { status: 400 });
+    }
     assertBranchAllowed(branchScope, branchId);
 
     // Staff follow the branch's advance-booking window too: no slots past it.

@@ -8,6 +8,13 @@ import { FREE_PLAN_CODE } from '@/lib/subscription/enforcement';
 import { createUpgradeRequest } from '@/lib/subscription/upgrade-request';
 import { env } from '@/lib/utils/env';
 import { normalizeBusinessType } from '@/lib/line/rich-menu/business-types';
+import { clientIp, hitRateLimit, tooManyRequests } from '@/lib/security/rate-limit';
+
+/** Generic failure for every later step: DB messages stay in the server log. */
+function registerFailed(step: string, detail?: string) {
+  console.error(`[register] ${step} failed`, detail);
+  return NextResponse.json({ error: 'สมัครไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' }, { status: 500 });
+}
 
 export async function POST(req: Request) {
   try {
@@ -19,6 +26,8 @@ export async function POST(req: Request) {
     }
 
     const admin = createAdminClient();
+    if (!(await hitRateLimit(admin, 'register', clientIp(req)))) return tooManyRequests();
+
     const { company_name, shop_name, owner_name, phone, email, password, plan_name, business_category, utm } = parsed.data;
 
   const { data: authData, error: authError } = await admin.auth.signUp({
@@ -31,7 +40,11 @@ export async function POST(req: Request) {
   });
 
   if (authError || !authData.user) {
-    return NextResponse.json({ error: authError?.message ?? 'Auth create user failed' }, { status: 400 });
+    console.error('[register] signUp failed', authError?.message);
+    // Supabase's own messages (weak password, rate limit) are safe and useful;
+    // anything else becomes a generic message.
+    const safe = authError?.message && /password|already|rate limit|invalid email/i.test(authError.message);
+    return NextResponse.json({ error: safe ? authError!.message : 'สมัครไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' }, { status: 400 });
   }
 
   const userId = authData.user.id;
@@ -42,9 +55,7 @@ export async function POST(req: Request) {
     .select('id')
     .single();
 
-  if (companyError || !company) {
-    return NextResponse.json({ error: companyError?.message ?? 'Create company failed' }, { status: 400 });
-  }
+  if (companyError || !company) return registerFailed('company', companyError?.message);
 
   let shopKey = generateShopKey();
   for (let i = 0; i < 4; i++) {
@@ -69,9 +80,7 @@ export async function POST(req: Request) {
     .select('id')
     .single();
 
-  if (shopError || !shop) {
-    return NextResponse.json({ error: shopError?.message ?? 'Create shop failed' }, { status: 400 });
-  }
+  if (shopError || !shop) return registerFailed('shop', shopError?.message);
 
   const { error: profileError } = await admin.from('users_profile').insert({
     id: userId,
@@ -85,14 +94,10 @@ export async function POST(req: Request) {
     updated_by: userId,
   });
 
-  if (profileError) {
-    return NextResponse.json({ error: profileError.message }, { status: 400 });
-  }
+  if (profileError) return registerFailed('profile', profileError.message);
 
   const { data: roleRow, error: roleError } = await admin.from('roles').select('id').eq('code', 'shop_owner').single();
-  if (roleError || !roleRow) {
-    return NextResponse.json({ error: 'Role shop_owner not found in seed data' }, { status: 500 });
-  }
+  if (roleError || !roleRow) return registerFailed('role lookup', roleError?.message ?? 'shop_owner role missing');
 
   const { error: userRoleError } = await admin.from('user_roles').insert({
     user_id: userId,
@@ -103,9 +108,7 @@ export async function POST(req: Request) {
     updated_by: userId,
   });
 
-  if (userRoleError) {
-    return NextResponse.json({ error: userRoleError.message }, { status: 400 });
-  }
+  if (userRoleError) return registerFailed('user role', userRoleError.message);
 
   // Everyone starts on the free-forever plan. The plan picked on the pricing
   // page is interest, not entitlement — granting it here handed away paid tiers
@@ -133,9 +136,7 @@ export async function POST(req: Request) {
 
   // A shop with no subscription row is a shop nobody can bill and nobody can
   // support, so this is a hard failure rather than a console warning.
-  if (subscriptionError) {
-    return NextResponse.json({ error: subscriptionError.message }, { status: 400 });
-  }
+  if (subscriptionError) return registerFailed('subscription', subscriptionError.message);
 
   // A shop with no branch, no service and no working hours cannot take a single
   // booking, which is where every previous signup stalled. Seed it now so the
@@ -192,8 +193,8 @@ export async function POST(req: Request) {
       message: 'สมัครสำเร็จ กรุณาตรวจสอบอีเมลและยืนยันบัญชีก่อนเข้าสู่ระบบ',
     });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Unexpected server error';
-    const status = message.includes('SUPABASE_SERVICE_ROLE_KEY') || message.includes('NEXT_PUBLIC_SUPABASE_URL') ? 500 : 400;
-    return NextResponse.json({ error: message }, { status });
+    // Never echo internal errors (env names, SQL) to an anonymous caller.
+    console.error('[register] unexpected error:', e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: 'สมัครไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' }, { status: 500 });
   }
 }

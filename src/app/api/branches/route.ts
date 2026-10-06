@@ -7,6 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 import { subscriptionErrorResponse } from '@/lib/subscription/response';
 import { writeAuditLog } from '@/lib/audit/activity-log';
+import { escapePostgrestSearch } from '@/lib/utils/postgrest';
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
@@ -33,7 +34,8 @@ export async function GET(req: Request) {
     // be narrowed to what the caller may access. Scope lives on `id` here, not `branch_id`.
     query = applyBranchScope(query, branchScope, null, 'id');
 
-    if (q) query = query.or(`branch_name.ilike.%${q}%,address.ilike.%${q}%`);
+    const safeQ = escapePostgrestSearch(q);
+    if (safeQ) query = query.or(`branch_name.ilike.%${safeQ}%,address.ilike.%${safeQ}%`);
     if (active === 'true' || active === 'false') query = query.eq('active', active === 'true');
 
     const from = (page - 1) * pageSize;

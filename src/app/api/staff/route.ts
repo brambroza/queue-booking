@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 import { subscriptionErrorResponse } from '@/lib/subscription/response';
 import { writeAuditLog } from '@/lib/audit/activity-log';
+import { escapePostgrestSearch } from '@/lib/utils/postgrest';
 
 /** Roles a shop owner may hand out from the staff screen. Never shop_owner or super_admin. */
 const ASSIGNABLE_ROLES = ['branch_manager', 'staff'] as const;
@@ -155,7 +156,8 @@ export async function GET(req: Request) {
       .order('created_at', { ascending: false });
 
     if (visibleStaffIds) query = query.in('id', visibleStaffIds);
-    if (q) query = query.ilike('display_name', `%${q}%`);
+    const safeQ = escapePostgrestSearch(q);
+    if (safeQ) query = query.ilike('display_name', `%${safeQ}%`);
 
     const from = (page - 1) * pageSize;
     const { data: staffs, error, count } = await query.range(from, from + pageSize - 1);
@@ -290,18 +292,19 @@ export async function PATCH(req: Request) {
   try {
     const { supabase, user, profile } = await requireAuthContext({ roles: [...STAFF_ADMIN_ROLES] });
     const body = await req.json();
-    const id = body.id as string;
-    if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+    const id = typeof body?.id === 'string' ? body.id : '';
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
 
     const parsed = staffSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues }, { status: 400 });
 
     const payload = parsed.data;
 
+    // `user_id` is fixed at creation: re-pointing a staff row at another auth
+    // account would hand that account this staff member's branch access.
     const { error } = await supabase
       .from('staff')
       .update({
-        ...(payload.user_id ? { user_id: payload.user_id } : {}),
         display_name: payload.display_name,
         active: payload.active,
         updated_by: user.id,

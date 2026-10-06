@@ -28,20 +28,24 @@ import {
 import { isOneBookingPerDay } from '@/lib/booking/display-settings';
 import { DAILY_LIMIT_CODE, DAILY_LIMIT_FREE_STATUSES, dailyLimitMessage, isDailyLimitDbError } from '@/lib/booking/daily-limit';
 import { SLOT_FULL_CODE, countSlotBookings, fetchSlotCapacity, isSlotFull, isSlotFullDbError, slotFullMessage } from '@/lib/booking/slot-capacity';
+import { resolveLiffCaller } from '@/lib/line/liff-identity';
+import { clientIp, hitRateLimit, tooManyRequests } from '@/lib/security/rate-limit';
 
 const bookSchema = z
   .object({
     branch_id: z.string().uuid(),
     service_id: z.string().uuid(),
-    booking_date: z.string(),
-    start_time: z.string(),
+    booking_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    start_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/),
     // A LINE display name can legitimately be a single character, so length is
     // only there to reject blank names.
-    customer_name: z.string().trim().min(1),
-    customer_phone: z.string().min(8),
+    customer_name: z.string().trim().min(1).max(120),
+    customer_phone: z.string().trim().min(8).max(20).regex(/^[0-9+\-\s()]+$/),
     /** Optional ชื่อเล่น saved on the customer profile; omitted = keep the stored one. */
     nickname: z.string().max(NICKNAME_MAX).optional(),
-    line_user_id: z.string().optional(),
+    line_user_id: z.string().max(64).optional(),
+    /** LIFF ID token; required with `line_user_id` when tokens are enforced. */
+    id_token: z.string().max(4096).optional(),
     party_size: z.coerce.number().int().min(1).max(200).optional(),
     resource_id: z.string().uuid().optional(),
     payment_method: z.enum(PAYMENT_METHODS).optional(),
@@ -82,16 +86,26 @@ function invalidFieldMessage(path: PropertyKey | undefined) {
 
 export async function POST(req: Request, { params }: { params: Promise<{ shopKey: string }> }) {
   const { shopKey } = await params;
-  const parsed = bookSchema.safeParse(await req.json());
+  const parsed = bookSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: invalidFieldMessage(parsed.error.issues[0]?.path[0]) }, { status: 400 });
   }
 
   const admin = createAdminClient();
+  if (!(await hitRateLimit(admin, 'book', clientIp(req)))) return tooManyRequests();
+
   const shop = await resolveShopByKeyOrId(admin, shopKey);
   if (!shop) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
 
-  const payload = parsed.data;
+  // A LINE identity ties the booking to a customer's history and receives
+  // LINE pushes, so it must be proven. A booking without one is still allowed.
+  let verifiedLineUserId: string | null = null;
+  if (parsed.data.line_user_id || parsed.data.id_token) {
+    const caller = await resolveLiffCaller(admin, shop.id, parsed.data.line_user_id, parsed.data.id_token);
+    if (!caller.ok) return NextResponse.json({ error: caller.error }, { status: caller.status });
+    verifiedLineUserId = caller.lineUserId;
+  }
+  const payload = { ...parsed.data, line_user_id: verifiedLineUserId ?? undefined };
 
   // The LIFF greys these out, but a grid left open past the hour (or a forged
   // request) still reaches here. Same rule as /slots, same Bangkok clock.
@@ -200,19 +214,45 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       .eq('id', customerId)
       .eq('shop_id', shop.id);
   } else {
-    const { data: customer, error: customerError } = await admin
+    // A phone number is not proof of identity. An existing customer row with
+    // this phone is reused, but its name and LINE link are never overwritten
+    // from an unauthenticated booking — only an unlinked row may gain the
+    // caller's (verified) LINE id.
+    const { data: byPhone } = await admin
       .from('customers')
-      .upsert({
-        company_id: shop.company_id,
-        shop_id: shop.id,
-        line_user_id: lineUserPk,
-        full_name: payload.customer_name,
-        phone: payload.customer_phone,
-        ...nicknamePatch,
-      }, { onConflict: 'shop_id,phone' })
-      .select('id')
-      .single();
-    if (customerError || !customer) return NextResponse.json({ error: customerError?.message ?? 'Customer upsert failed' }, { status: 400 });
+      .select('id,line_user_id')
+      .eq('shop_id', shop.id)
+      .eq('phone', payload.customer_phone)
+      .eq('is_deleted', false)
+      .maybeSingle();
+
+    let customer: { id: string } | null = null;
+    let customerError: { message: string } | null = null;
+    if (byPhone) {
+      customer = { id: byPhone.id as string };
+      if (lineUserPk && !byPhone.line_user_id) {
+        await admin.from('customers').update({ line_user_id: lineUserPk }).eq('id', byPhone.id).eq('shop_id', shop.id);
+      }
+    } else {
+      const inserted = await admin
+        .from('customers')
+        .insert({
+          company_id: shop.company_id,
+          shop_id: shop.id,
+          line_user_id: lineUserPk,
+          full_name: payload.customer_name,
+          phone: payload.customer_phone,
+          ...nicknamePatch,
+        })
+        .select('id')
+        .single();
+      customer = inserted.data as { id: string } | null;
+      customerError = inserted.error;
+    }
+    if (customerError || !customer) {
+      console.error('[public/book] customer upsert failed', customerError?.message);
+      return NextResponse.json({ error: 'ขออภัย ระบบไม่สามารถรับการจองได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง' }, { status: 400 });
+    }
     customerId = customer.id;
   }
 
@@ -374,7 +414,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   if (error && isSlotFullDbError(error.message)) {
     return NextResponse.json({ error: slotFullMessage(payload.start_time), code: SLOT_FULL_CODE }, { status: 409 });
   }
-  if (error || !booking) return NextResponse.json({ error: error?.message ?? 'Create booking failed' }, { status: 400 });
+  if (error || !booking) {
+    console.error('[public/book] insert failed', error?.message);
+    return NextResponse.json({ error: 'ขออภัย ระบบไม่สามารถรับการจองได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง' }, { status: 400 });
+  }
   const queueNumber = String(booking.queue_number);
 
   await admin.from('booking_logs').insert({

@@ -394,8 +394,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   const { admin, shop } = await getShopAndConfig(shopKey);
   if (!shop) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
 
-  const channelSecret = shop.line_channel_secret || process.env.LINE_CHANNEL_SECRET || '';
-  const channelToken = shop.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+  // Multi-tenant: each shop's webhook must be signed with that shop's own
+  // channel secret. A platform-wide fallback would let one channel's secret
+  // sign events for every shop that has not configured its own.
+  const channelSecret = shop.line_channel_secret || '';
+  const channelToken = shop.line_channel_access_token || '';
 
   if (!channelSecret || !channelToken) {
     return NextResponse.json({ error: 'LINE channel config missing' }, { status: 400 });
@@ -405,7 +408,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
   }
 
-  const body = JSON.parse(rawBody) as LineWebhookBody;
+  let body: LineWebhookBody;
+  try {
+    body = JSON.parse(rawBody) as LineWebhookBody;
+  } catch {
+    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+  }
 
   const events = body.events ?? [];
   const webhookShop: WebhookShop = {

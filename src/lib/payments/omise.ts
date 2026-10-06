@@ -1,5 +1,6 @@
 import type { BankCode } from '@/types/db';
 import { sourceTypeFor, type OmisePlatformType } from './mobile-banking/banks';
+import { paymentSecretBox } from '@/lib/crypto/secret-box';
 
 const OMISE_API = 'https://api.omise.co';
 
@@ -106,7 +107,7 @@ export async function createMobileBankingCharge(opts: {
 
 /** Retrieve a charge from Omise API (used for webhook verification). */
 export async function retrieveCharge(chargeId: string, secretKey: string): Promise<OmiseCharge> {
-  const res = await fetch(`${OMISE_API}/charges/${chargeId}`, {
+  const res = await fetch(`${OMISE_API}/charges/${encodeURIComponent(chargeId)}`, {
     headers: { Authorization: authHeader(secretKey) },
   });
   const json = (await res.json()) as OmiseCharge & { code?: string; message?: string };
@@ -116,9 +117,39 @@ export async function retrieveCharge(chargeId: string, secretKey: string): Promi
   return json;
 }
 
+/** Prefix of a value sealed by `paymentSecretBox` (`v1.<iv>.<tag>.<data>`). */
+const SEALED_PREFIX = 'v1.';
+
+/**
+ * Seal an Omise secret key for storage in `shops.omise_secret_key`.
+ *
+ * @param plain - Raw `skey_...` value typed by the shop owner.
+ */
+export function sealOmiseSecretKey(plain: string): string {
+  return paymentSecretBox().seal(plain);
+}
+
+/**
+ * Read a stored Omise key: sealed values are opened, legacy plain-text rows
+ * (written before encryption) are returned as-is so nothing breaks mid-migration.
+ *
+ * @param stored - Raw column value.
+ * @returns The usable key, or '' when it cannot be opened.
+ */
+export function openOmiseSecretKey(stored?: string | null): string {
+  if (!stored) return '';
+  if (!stored.startsWith(SEALED_PREFIX)) return stored;
+  try {
+    return paymentSecretBox().open(stored);
+  } catch {
+    console.error('[omise] stored secret key could not be decrypted — check PAYMENT_CREDENTIALS_KEY');
+    return '';
+  }
+}
+
 /** Resolve which Omise secret key to use: shop-level first, fallback to env. */
 export function resolveOmiseSecretKey(shopKey?: string | null): string {
-  return shopKey || process.env.OMISE_SECRET_KEY || '';
+  return openOmiseSecretKey(shopKey) || process.env.OMISE_SECRET_KEY || '';
 }
 
 /** Return true if the provided key is a test key. */

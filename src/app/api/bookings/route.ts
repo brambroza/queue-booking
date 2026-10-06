@@ -28,6 +28,7 @@ import {
   resolveMaxBookingDate,
 } from '@/lib/booking/booking-window';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
+import { escapePostgrestSearch } from '@/lib/utils/postgrest';
 import { bookingOrderColumns, parseBookingSort } from '@/lib/booking/list-sort';
 
 /** Minimal shape needed to call a Postgres function — works for both the session and admin clients. */
@@ -86,7 +87,8 @@ export async function GET(req: Request) {
     query = applyBranchScope(query, branchScope, branchId);
     if (serviceId) query = query.eq('service_id', serviceId);
     if (resourceId) query = resourceId === 'none' ? query.is('resource_id', null) : query.eq('resource_id', resourceId);
-    if (q) query = query.or(`queue_number.ilike.%${q}%,note.ilike.%${q}%`);
+    const safeQ = escapePostgrestSearch(q);
+    if (safeQ) query = query.or(`queue_number.ilike.%${safeQ}%,note.ilike.%${safeQ}%`);
 
     const { data, error, count } = await query.range(from, to);
     if (error) throw error;

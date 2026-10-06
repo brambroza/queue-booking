@@ -52,7 +52,23 @@ interface PaymentState {
 type LiffWindowApi = {
   isInClient?: () => boolean;
   openWindow?: (params: { url: string; external?: boolean }) => void;
+  getIDToken?: () => string | null;
 };
+
+/**
+ * Current LIFF ID token, read live from the SDK so a long-open panel keeps
+ * sending a token the server can still verify. Falls back to the prop.
+ *
+ * @param fallback - Token captured at LIFF init.
+ */
+function freshIdToken(fallback?: string): string | undefined {
+  try {
+    const liff = (window as Window & { liff?: LiffWindowApi }).liff;
+    return liff?.getIDToken?.() || fallback || undefined;
+  } catch {
+    return fallback || undefined;
+  }
+}
 
 /** Client-side ceiling before compression — anything larger is a mistake, not a slip. */
 const MAX_RAW_BYTES = 12 * 1024 * 1024;
@@ -143,7 +159,7 @@ export function LiffPaymentPanel({
       const res = await fetch(`/api/public/shop/${shopKey}/payment/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ line_user_id: lineUserId, booking_id: bookingId, id_token: idToken || undefined }),
+        body: JSON.stringify({ line_user_id: lineUserId, booking_id: bookingId, id_token: freshIdToken(idToken) }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? 'โหลดข้อมูลการชำระเงินไม่สำเร็จ');
@@ -197,7 +213,8 @@ export function LiffPaymentPanel({
       const body = new FormData();
       body.append('line_user_id', lineUserId);
       body.append('booking_id', bookingId);
-      if (idToken) body.append('id_token', idToken);
+      const token = freshIdToken(idToken);
+      if (token) body.append('id_token', token);
       body.append('file', compressed);
       if (amountClaimed) body.append('amount_claimed', amountClaimed);
       if (transferredAt) body.append('transferred_at', new Date(transferredAt).toISOString());
@@ -221,9 +238,10 @@ export function LiffPaymentPanel({
     setError('');
     try {
       const endpoint = isOmiseMobile ? 'mobile-banking' : 'deeplink';
+      const token = freshIdToken(idToken);
       const body = isOmiseMobile
-        ? { line_user_id: lineUserId, booking_id: bookingId, id_token: idToken || undefined, bank: provider }
-        : { line_user_id: lineUserId, booking_id: bookingId, id_token: idToken || undefined, bank_provider: provider };
+        ? { line_user_id: lineUserId, booking_id: bookingId, id_token: token, bank: provider }
+        : { line_user_id: lineUserId, booking_id: bookingId, id_token: token, bank_provider: provider };
       const res = await fetch(`/api/public/shop/${shopKey}/payment/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

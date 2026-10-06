@@ -103,14 +103,9 @@ export async function requireAuthContext(opts?: { roles?: AppRole[] }) {
   }
 
   if (opts?.roles?.length && !ensureRole(roles, opts.roles)) {
-    // Fallback for legacy accounts: if profile is tied to a shop,
-    // treat as shop_owner when user_roles is missing.
-    if (profile.shop_id && !roles.includes('shop_owner')) {
-      roles.push('shop_owner');
-    }
-
-    // Backward-compatible fallback: allow shop creator as shop_owner
-    // even when user_roles data is missing/incomplete.
+    // Security: a `users_profile.shop_id` alone never grants a role. The old
+    // "profile tied to a shop ⇒ shop_owner" fallback turned any profile row
+    // into owner rights for that shop. Only the shop creator is recovered here.
     if (opts.roles.includes('shop_owner') && profile.shop_id) {
       const { data: shop, error: shopError } = await supabase
         .from('shops')
@@ -118,7 +113,7 @@ export async function requireAuthContext(opts?: { roles?: AppRole[] }) {
         .eq('id', profile.shop_id)
         .single();
 
-      if (!shopError && shop?.created_by === user.id) {
+      if (!shopError && shop?.created_by === user.id && !roles.includes('shop_owner')) {
         roles.push('shop_owner');
       }
     }
@@ -184,7 +179,8 @@ export async function requireAuthContext(opts?: { roles?: AppRole[] }) {
   }
 
     if (!ensureRole(roles, opts.roles)) {
-      throw new AuthError(`Forbidden (roles=${roles.join(',') || 'none'})`, 403);
+      // Never echo the caller's roles back: it maps the permission model for an attacker.
+      throw new AuthError('Forbidden', 403);
     }
   }
 

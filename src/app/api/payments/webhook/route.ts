@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'crypto';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { confirmOmiseCharge, omiseReceiptRef } from '@/lib/payments/omise-confirm';
@@ -24,12 +25,19 @@ interface OmiseWebhookEvent {
  */
 export async function POST(req: Request) {
   // Omise does not sign its webhooks, so a shared secret in the URL is the
-  // cheapest way to stop this endpoint being an open oracle. Optional, so
-  // existing deployments keep working until they add it to their webhook URL.
+  // only proof the call came from our Omise webhook config. Required in
+  // production; tolerated as unset only in local development.
   const expectedSecret = process.env.OMISE_WEBHOOK_SECRET ?? '';
+  if (!expectedSecret && process.env.NODE_ENV === 'production') {
+    console.error('[omise webhook] OMISE_WEBHOOK_SECRET is not set — refusing');
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (expectedSecret) {
-    const given = new URL(req.url).searchParams.get('key') ?? '';
-    if (given !== expectedSecret) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const given = Buffer.from(new URL(req.url).searchParams.get('key') ?? '');
+    const expected = Buffer.from(expectedSecret);
+    if (given.length !== expected.length || !timingSafeEqual(given, expected)) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
   }
 
   let event: OmiseWebhookEvent;

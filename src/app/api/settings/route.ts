@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { writeAuditLog } from '@/lib/audit/activity-log';
+import { escapePostgrestSearch } from '@/lib/utils/postgrest';
 
 const settingSchema = z.object({
   key: z.string().min(2),
@@ -30,7 +31,8 @@ export async function GET(req: Request) {
       .neq('key', 'google_calendar_oauth')
       .order('created_at', { ascending: false });
 
-    if (q) query = query.ilike('key', `%${q}%`);
+    const safeQ = escapePostgrestSearch(q);
+    if (safeQ) query = query.ilike('key', `%${safeQ}%`);
 
     const from = (page - 1) * pageSize;
     const { data, error, count } = await query.range(from, from + pageSize - 1);

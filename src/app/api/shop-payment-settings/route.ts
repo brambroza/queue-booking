@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { normalizePromptPayTarget } from '@/lib/payments/promptpay';
+import { openOmiseSecretKey, sealOmiseSecretKey } from '@/lib/payments/omise';
 
 const patchSchema = z.object({
   qr_payment_enabled: z.boolean().optional(),
@@ -31,10 +32,9 @@ export async function GET(_req: Request) {
 
     if (error) throw error;
 
-    // Mask secret key in response — show only last 4 chars
-    const masked = data?.omise_secret_key
-      ? `skey_...${data.omise_secret_key.slice(-4)}`
-      : null;
+    // Mask secret key in response — show only last 4 chars of the decrypted key.
+    const plainKey = openOmiseSecretKey(data?.omise_secret_key);
+    const masked = plainKey ? `skey_...${plainKey.slice(-4)}` : null;
 
     return NextResponse.json({
       data: {
@@ -76,7 +76,12 @@ export async function PATCH(req: Request) {
     if (d.omise_public_key !== undefined) updates.omise_public_key = d.omise_public_key || null;
     // Only update secret key if a full key is provided (not the masked hint)
     if (d.omise_secret_key && !d.omise_secret_key.includes('...')) {
-      updates.omise_secret_key = d.omise_secret_key;
+      const key = d.omise_secret_key.trim();
+      if (!/^skey_(test_)?[A-Za-z0-9]+$/.test(key)) {
+        return NextResponse.json({ error: 'Omise Secret Key ไม่ถูกต้อง (ต้องขึ้นต้นด้วย skey_)' }, { status: 400 });
+      }
+      // Stored encrypted (AES-256-GCM via PAYMENT_CREDENTIALS_KEY), never in plain text.
+      updates.omise_secret_key = sealOmiseSecretKey(key);
     }
 
     if (d.transfer_payment_enabled !== undefined) updates.transfer_payment_enabled = d.transfer_payment_enabled;

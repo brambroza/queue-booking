@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
-import { resolveLoginChannelId, verifyLiffIdToken } from '@/lib/line/verify-id-token';
+import { resolveLiffCaller } from '@/lib/line/liff-identity';
 
 export interface ResolvedBookingOwner {
   shop: { id: string; company_id: string; name: string | null; shop_key: string };
@@ -23,13 +23,11 @@ export interface ResolvedBookingOwner {
 export type OwnerLookupFailure = { error: string; status: number };
 
 /**
- * Resolve shop → LINE user → booking, asserting that the caller owns the booking.
+ * Resolve shop → verified LINE user → booking, asserting that the caller owns the booking.
  *
- * This mirrors how cancel-booking and /me already authenticate: the caller is
- * trusted on the strength of a claimed line_user_id. That is weaker than a real
- * token — see the LIFF ID-token work — so every lookup here is additionally
- * scoped by shop_id and line_user_id, and tenant ids are taken from the resolved
- * rows rather than from the request body.
+ * Identity comes from `resolveLiffCaller` (verified LIFF ID token). Every lookup
+ * is scoped by shop_id and line_user_id, and tenant ids are taken from the
+ * resolved rows rather than from the request body.
  */
 export async function resolveBookingForLineUser(
   admin: SupabaseClient,
@@ -41,27 +39,16 @@ export async function resolveBookingForLineUser(
   const shop = await resolveShopByKeyOrId(admin, shopKey);
   if (!shop) return { error: 'Shop not found', status: 404 };
 
-  // When the shop has a LINE Login channel configured, the claimed id must be
-  // backed by a token LINE actually issued. Shops without one keep the older,
-  // weaker behaviour rather than breaking.
-  const { data: shopAuth } = await admin
-    .from('shops')
-    .select('line_login_channel_id')
-    .eq('id', shop.id)
-    .maybeSingle();
-  const channelId = resolveLoginChannelId(shopAuth?.line_login_channel_id ?? null);
-  if (channelId) {
-    const verifiedSub = idToken ? await verifyLiffIdToken(idToken, channelId) : null;
-    if (verifiedSub !== lineUserId) {
-      return { error: 'ยืนยันตัวตนไม่สำเร็จ กรุณาเปิดหน้านี้ผ่าน LINE อีกครั้ง', status: 401 };
-    }
-  }
+  // The caller's LINE identity comes from a verified LIFF ID token, never from
+  // the body alone (see resolveLiffCaller for the rollout flag).
+  const caller = await resolveLiffCaller(admin, shop.id, lineUserId, idToken);
+  if (!caller.ok) return { error: caller.error, status: caller.status };
 
   const { data: lineUser } = await admin
     .from('line_users')
     .select('id')
     .eq('shop_id', shop.id)
-    .eq('line_user_id', lineUserId)
+    .eq('line_user_id', caller.lineUserId)
     .eq('is_deleted', false)
     .maybeSingle();
   if (!lineUser) return { error: 'Line user not found', status: 404 };

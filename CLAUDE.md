@@ -238,10 +238,17 @@ import { xxx } from '../../lib/...';  // ผิด
 ## Security Rules
 
 - ทุก API route ต้องผ่าน `requireAuthContext` (ยกเว้น `/api/public/*` และ `/api/line/webhook/*`)
-- ห้าม leak error detail ใน response body
-- ต้อง verify LINE signature ใน webhook (`src/lib/line/signature.ts`)
+- ห้าม leak error detail ใน response body (public route: ข้อความไทยทั่วไป + `console.error` ฝั่ง server)
+- ต้อง verify LINE signature ใน webhook (`src/lib/line/signature.ts`, constant-time) ด้วย secret **ของร้าน** เท่านั้น — ไม่ fallback env
 - ห้าม query ข้าม tenant (`company_id`/`shop_id` บังคับ)
 - ต้อง validate Zod schema ก่อน process ทุก route
+- **ตัวตนลูกค้า LIFF** = `resolveLiffCaller` (`src/lib/line/liff-identity.ts`) ตรวจ LIFF ID token กับ LINE แล้วใช้ `sub` — ห้ามเชื่อ `line_user_id` ใน body ตรง ๆ. client ส่ง `id_token` (`liff.getIDToken()`) ทุก call. prod บังคับเสมอ (`LIFF_ID_TOKEN_REQUIRED=false` = ทางหนีชั่วคราวเท่านั้น)
+- route public ใหม่ต้องมี `hitRateLimit` (`src/lib/security/rate-limit.ts`, ตาราง `rate_limits`)
+- ข้อความค้นหาที่ใส่ใน `.or()` / `.ilike()` ต้องผ่าน `escapePostgrestSearch` / `escapeLike` (`src/lib/utils/postgrest.ts`)
+- secret ไม่ส่งกลับ client เต็ม ๆ (mask 4 ตัวท้าย); Omise key เก็บแบบ sealed (`sealOmiseSecretKey`)
+- ลิงก์ชำระเงิน public ต้องมี HMAC `t` (`signBookingToken`); prod ไม่มี `PAYMENT_LINK_SECRET` = 404 ทุกลิงก์; Omise webhook prod ต้องมี `OMISE_WEBHOOK_SECRET`
+- `users_profile.shop_id/company_id` และ `user_roles` เขียนได้เฉพาะ service role (migration `202610020002`); `requireAuthContext` ไม่ให้ role จาก `users_profile.shop_id` อีกแล้ว
+- CSV export ต้องกัน formula injection (`csvEscape` ใน `/api/reports`); HTML email ต้อง `escapeHtml`
 
 ---
 

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { buildDetailTable, sendSalesEmail } from '@/lib/notifications/sales-email';
+import { clientIp, hitRateLimit, tooManyRequests } from '@/lib/security/rate-limit';
 
 const updateSchema = z.object({
   id: z.string().uuid(),
@@ -27,7 +28,8 @@ const MSG_SUBMIT_FAILED = 'ส่งข้อมูลไม่สำเร็�
 /** Emails the lead to sales. Never throws; returns whether delivery succeeded. */
 async function notifySales(lead: z.infer<typeof schema>, note?: string): Promise<boolean> {
   return sendSalesEmail({
-    subject: `Contact Lead: ${lead.name} (${lead.company_name || lead.business_type})`,
+    // Strip CR/LF so a visitor cannot inject extra mail headers through the subject.
+    subject: `Contact Lead: ${lead.name} (${lead.company_name || lead.business_type})`.replace(/[\r\n]+/g, ' ').slice(0, 200),
     html: buildDetailTable('New Contact Lead', [
       ['Name', lead.name],
       ['Company', lead.company_name],
@@ -59,6 +61,7 @@ export async function POST(req: Request) {
 
     const lead = parsed.data;
     const admin = createAdminClient();
+    if (!(await hitRateLimit(admin, 'contactLead', clientIp(req)))) return tooManyRequests();
     const { error } = await admin.from('contact_leads').insert({
       name: lead.name,
       company_name: lead.company_name ?? null,

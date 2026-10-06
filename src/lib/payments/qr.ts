@@ -1,10 +1,16 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createPromptPayCharge } from './omise';
+import { signBookingToken } from './tokens';
 import type { ShopPaymentConfig } from './settings';
 
+/**
+ * Public URL LINE fetches for the Omise QR image. Carries the booking HMAC so
+ * the proxy cannot be used with a guessed or leaked booking id alone.
+ */
 function buildQrProxyUrl(bookingId: string) {
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/+$/, '');
-  return `${base}/api/payments/qr-image?booking_id=${bookingId}`;
+  const params = new URLSearchParams({ booking_id: bookingId, t: signBookingToken(bookingId) });
+  return `${base}/api/payments/qr-image?${params.toString()}`;
 }
 
 export interface QrPaymentResult {

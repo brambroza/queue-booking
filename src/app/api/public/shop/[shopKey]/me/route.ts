@@ -5,13 +5,17 @@ import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { NICKNAME_MAX, normalizeNicknameInput } from '@/lib/booking/customer-label';
 import { CUSTOMER_ACTIVE_STATUSES } from '@/lib/booking/status-flow';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
+import { resolveLiffCaller } from '@/lib/line/liff-identity';
+import { clientIp, hitRateLimit, tooManyRequests } from '@/lib/security/rate-limit';
 
 const bodySchema = z.object({
-  line_user_id: z.string().min(1),
-  display_name: z.string().optional(),
-  picture_url: z.string().optional(),
-  full_name: z.string().optional(),
-  phone: z.string().optional(),
+  line_user_id: z.string().min(1).max(64).optional(),
+  /** LIFF ID token; the verified `sub` is the caller's identity. */
+  id_token: z.string().max(4096).optional(),
+  display_name: z.string().max(120).nullish(),
+  picture_url: z.string().max(500).nullish().transform((v) => (v && /^https:\/\//i.test(v) ? v : null)),
+  full_name: z.string().max(120).optional(),
+  phone: z.string().max(30).optional(),
   /** Omitted = keep the stored nickname; '' = clear it. */
   nickname: z.string().max(NICKNAME_MAX).optional(),
   mode: z.enum(['view', 'update']).default('view'),
@@ -21,29 +25,39 @@ const CUSTOMER_SELECT = 'id,full_name,nickname,phone,line_user_id';
 
 export async function POST(req: Request, { params }: { params: Promise<{ shopKey: string }> }) {
   const { shopKey } = await params;
-  const parsed = bodySchema.safeParse(await req.json());
+  const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
 
   const admin = createAdminClient();
+  if (!(await hitRateLimit(admin, 'liffProfile', clientIp(req)))) return tooManyRequests();
+
   const shop = await resolveShopByKeyOrId(admin, shopKey);
   if (!shop) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
 
   const payload = parsed.data;
+  // This route returns the customer's phone and booking history, so the
+  // caller must prove the LINE identity with a verified LIFF ID token.
+  const caller = await resolveLiffCaller(admin, shop.id, payload.line_user_id, payload.id_token);
+  if (!caller.ok) return NextResponse.json({ error: caller.error }, { status: caller.status });
+
   const { data: lineUser, error: lineUserError } = await admin
     .from('line_users')
     .upsert(
       {
         company_id: shop.company_id,
         shop_id: shop.id,
-        line_user_id: payload.line_user_id,
+        line_user_id: caller.lineUserId,
         display_name: payload.display_name ?? null,
-        picture_url: payload.picture_url ?? null,
+        picture_url: payload.picture_url || null,
       },
       { onConflict: 'shop_id,line_user_id' },
     )
     .select('id,line_user_id,display_name,picture_url')
     .single();
-  if (lineUserError || !lineUser) return NextResponse.json({ error: lineUserError?.message ?? 'Line user upsert failed' }, { status: 400 });
+  if (lineUserError || !lineUser) {
+    console.error('[public/me] line user upsert failed', lineUserError?.message);
+    return NextResponse.json({ error: 'โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่' }, { status: 500 });
+  }
 
   let customerId: string | null = null;
   const { data: existingCustomers } = await admin
@@ -100,7 +114,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       .select(CUSTOMER_SELECT)
       .single();
     if (customerCreateError || !created) {
-      return NextResponse.json({ error: customerCreateError?.message ?? 'Customer create failed' }, { status: 400 });
+      console.error('[public/me] customer create failed', customerCreateError?.message);
+      return NextResponse.json({ error: 'บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่' }, { status: 400 });
     }
     customer = created;
     customerId = created.id;

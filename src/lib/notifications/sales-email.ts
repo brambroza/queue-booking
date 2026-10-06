@@ -6,15 +6,27 @@ type SalesEmail = {
 };
 
 /**
- * Last-resort recipient, kept only so notifications do not silently vanish when
- * the env is unset. TODO: set SALES_NOTIFY_EMAIL to a company mailbox and drop
- * this — a personal address reads as pre-revenue to a prospect who sees it.
+ * Where inbound sales signals land when no per-message recipient is given.
+ * Configured only through env (SALES_NOTIFY_EMAIL / SIGNUP_NOTIFY_EMAIL) — no
+ * address is hardcoded in source. Empty string = nowhere to send.
  */
-const FALLBACK_NOTIFY_EMAIL = 'amnart.gl@gmail.com';
-
-/** Where inbound sales signals land when no per-message recipient is given. */
 export function resolveSalesRecipient(explicit?: string): string {
-  return explicit ?? process.env.SALES_NOTIFY_EMAIL ?? process.env.SIGNUP_NOTIFY_EMAIL ?? FALLBACK_NOTIFY_EMAIL;
+  return explicit ?? process.env.SALES_NOTIFY_EMAIL ?? process.env.SIGNUP_NOTIFY_EMAIL ?? '';
+}
+
+/**
+ * Escape text for safe insertion into HTML email bodies. Visitor-supplied
+ * fields (name, message) must never be able to inject markup or links.
+ *
+ * @param value - Untrusted text.
+ */
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function resolveRecipient(explicit?: string): string {
@@ -30,7 +42,7 @@ async function sendViaSmtp(email: SalesEmail): Promise<boolean> {
   const from = process.env.SMTP_FROM_EMAIL ?? user;
   const to = resolveRecipient(email.to);
 
-  if (!user || !pass || !from) return false;
+  if (!user || !pass || !from || !to) return false;
 
   const nodemailer = await import('nodemailer');
   const transporter = nodemailer.default.createTransport({ host, port, secure, auth: { user, pass } });
@@ -54,7 +66,7 @@ async function sendViaResend(email: SalesEmail): Promise<boolean> {
   const from = process.env.RESEND_FROM_EMAIL ?? RESEND_DEFAULT_FROM;
   const to = resolveRecipient(email.to);
 
-  if (!apiKey) return false;
+  if (!apiKey || !to) return false;
 
   let res = await postResend(apiKey, from, to, email);
 
@@ -104,13 +116,13 @@ export function buildDetailTable(title: string, rows: Array<[string, string | nu
     .filter(([, value]) => value !== null && value !== undefined && value !== '')
     .map(
       ([label, value]) =>
-        `<tr><td style="padding:4px 10px 4px 0"><b>${label}</b></td><td>${String(value)}</td></tr>`
+        `<tr><td style="padding:4px 10px 4px 0"><b>${escapeHtml(label)}</b></td><td style="white-space:pre-wrap">${escapeHtml(String(value))}</td></tr>`
     )
     .join('');
 
   return `
   <div style="font-family:Arial,sans-serif;line-height:1.5;color:#0f172a">
-    <h2 style="margin:0 0 12px">${title}</h2>
+    <h2 style="margin:0 0 12px">${escapeHtml(title)}</h2>
     <table style="border-collapse:collapse">${cells}</table>
   </div>
   `;

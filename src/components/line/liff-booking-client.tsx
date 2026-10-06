@@ -438,6 +438,20 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const nextBlocked = memberStatus !== 'ready' || Boolean(nextBlockedReason);
 
   /**
+   * The LIFF ID token the server verifies to know who is calling. Read live
+   * from the SDK (it refreshes the cached token) and fall back to the copy
+   * taken at init. '' outside LINE.
+   */
+  function currentIdToken(): string {
+    try {
+      const liff = (window as Window & { liff?: LiffApi }).liff;
+      return liff?.getIDToken?.() || liffIdToken || '';
+    } catch {
+      return liffIdToken || '';
+    }
+  }
+
+  /**
    * Fetch (or save) the customer's record and queues. `profile` lets the LIFF
    * init call this straight after `liff.getProfile()`, before the ids have
    * landed in state — otherwise the call reads the ids from state.
@@ -452,6 +466,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         line_user_id: userId,
+        id_token: currentIdToken() || undefined,
         display_name: (opts?.profile?.displayName ?? displayName) || undefined,
         picture_url: (opts?.profile?.pictureUrl ?? pictureUrl) || undefined,
         full_name: customerName || undefined,
@@ -814,6 +829,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         customer_phone: customerPhone,
         nickname: customerNickname.trim() || undefined,
         line_user_id: lineUserId || undefined,
+        id_token: lineUserId ? currentIdToken() || undefined : undefined,
         payment_method: chosenMethod || undefined,
         bank_provider: isBankAppMethod(chosenMethod) && chosenBank ? chosenBank : undefined,
       }),
@@ -961,7 +977,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     const res = await fetch(`/api/public/shop/${shopKey}/cancel-booking`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ line_user_id: lineUserId, booking_id: bookingId }),
+      body: JSON.stringify({ line_user_id: lineUserId, id_token: currentIdToken() || undefined, booking_id: bookingId }),
     });
     const json = await res.json();
     if (!res.ok) return push(json.error ?? 'ยกเลิกคิวไม่สำเร็จ', 'error');
@@ -974,7 +990,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     const res = await fetch(`/api/public/shop/${shopKey}/acknowledge-booking`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ line_user_id: lineUserId, booking_id: bookingId }),
+      body: JSON.stringify({ line_user_id: lineUserId, id_token: currentIdToken() || undefined, booking_id: bookingId }),
     });
     const json = await res.json();
     if (!res.ok) return push(json.error ?? 'บันทึกไม่สำเร็จ', 'error');
@@ -990,7 +1006,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       const res = await fetch(`/api/public/shop/${shopKey}/check-in`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ line_user_id: lineUserId, booking_id: bookingId }),
+        body: JSON.stringify({ line_user_id: lineUserId, id_token: currentIdToken() || undefined, booking_id: bookingId }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) return push(json.error ?? 'เช็คอินไม่สำเร็จ', 'error');

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { escapePostgrestSearch } from '@/lib/utils/postgrest';
 
 const upsertSchema = z.object({
   id: z.string().uuid().optional(),
@@ -37,7 +38,8 @@ export async function GET(req: Request) {
 
     if (language) query = query.eq('language_code', language);
     if (namespace) query = query.eq('translation_namespaces.code', namespace);
-    if (q) query = query.or(`translation_key.ilike.%${q}%,translation_value.ilike.%${q}%`);
+    const safeQ = escapePostgrestSearch(q);
+    if (safeQ) query = query.or(`translation_key.ilike.%${safeQ}%,translation_value.ilike.%${safeQ}%`);
     if (active === 'true' || active === 'false') query = query.eq('active', active === 'true');
 
     const from = (page - 1) * pageSize;

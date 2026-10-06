@@ -19,6 +19,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
   if (!branchId || !serviceId || !date) {
     return NextResponse.json({ error: 'Missing params' }, { status: 400 });
   }
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (
+    !UUID.test(branchId) ||
+    !UUID.test(serviceId) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+    (resourceId && !UUID.test(resourceId)) ||
+    (partySize && !/^\d{1,3}$/.test(partySize)) ||
+    (resourceType && resourceType.length > 40)
+  ) {
+    return NextResponse.json({ error: 'Invalid params' }, { status: 400 });
+  }
 
   const admin = createAdminClient();
   const shop = await resolveShopByKeyOrId(admin, shopKey);

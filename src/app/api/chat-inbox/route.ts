@@ -1,8 +1,30 @@
 import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { escapePostgrestSearch } from '@/lib/utils/postgrest';
+import { sniffImageMime } from '@/lib/utils/image-sniff';
 
 const MEDIA_BUCKET = 'chat-media';
+/** Public bucket: keep uploads small and limited to inert media types. */
+const MEDIA_MAX_BYTES = 20 * 1024 * 1024;
+const VIDEO_MIME = new Set(['video/mp4', 'video/quicktime']);
+const FILE_MIME = new Set(['application/pdf']);
+
+/**
+ * Decide the content type to store for an upload, trusting bytes over the
+ * client-declared type. Anything that could render as active content in a
+ * browser (HTML, SVG, JS) is refused.
+ *
+ * @returns The safe MIME type, or null when the upload is not allowed.
+ */
+function safeMediaMime(bytes: Uint8Array, declared: string): string | null {
+  const image = sniffImageMime(bytes);
+  if (image) return image;
+  const head = Buffer.from(bytes.subarray(0, 12));
+  if (FILE_MIME.has(declared) && head.subarray(0, 5).toString('latin1') === '%PDF-') return 'application/pdf';
+  if (VIDEO_MIME.has(declared) && head.subarray(4, 8).toString('latin1') === 'ftyp') return declared;
+  return null;
+}
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
@@ -41,7 +63,8 @@ export async function GET(req: Request) {
       .eq('is_deleted', false)
       .order('updated_at', { ascending: false });
 
-    if (q) usersQuery = usersQuery.or(`display_name.ilike.%${q}%,line_user_id.ilike.%${q}%`);
+    const safeQ = escapePostgrestSearch(q);
+    if (safeQ) usersQuery = usersQuery.or(`display_name.ilike.%${safeQ}%,line_user_id.ilike.%${safeQ}%`);
 
     const from = (page - 1) * pageSize;
     const { data: usersRaw, error: usersError, count } = await usersQuery.range(from, from + pageSize - 1);
@@ -128,6 +151,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing sticker_package_id or sticker_id' }, { status: 400 });
     }
 
+    if (lineUserId.length > 64 || (message?.length ?? 0) > 5000) {
+      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    }
+
     const admin = createAdminClient();
     const { data: shop, error: shopError } = await admin.from('shops').select('line_channel_access_token').eq('id', profile.shop_id).single();
 
@@ -135,23 +162,36 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'LINE token not configured' }, { status: 400 });
     }
 
+    // Only message people who have actually talked to this shop's OA.
+    const { data: recipient } = await admin
+      .from('line_users')
+      .select('id')
+      .eq('shop_id', profile.shop_id)
+      .eq('line_user_id', lineUserId)
+      .eq('is_deleted', false)
+      .maybeSingle();
+    if (!recipient) return NextResponse.json({ error: 'Recipient not found' }, { status: 404 });
+
     let payloadForDb: Record<string, unknown> | null = null;
     let linePayloadMessage: Array<Record<string, unknown>>;
 
     if (mediaFile) {
-      await ensureBucket(admin);
-      const kind = mediaFile.type.startsWith('image/')
-        ? 'image'
-        : mediaFile.type.startsWith('video/')
-          ? 'video'
-          : 'file';
-
-      const ext = mediaFile.name.includes('.') ? mediaFile.name.split('.').pop() : 'bin';
-      const path = `${profile.shop_id}/${Date.now()}-${safeFileName(mediaFile.name || `file.${ext ?? 'bin'}`)}`;
+      if (mediaFile.size > MEDIA_MAX_BYTES) {
+        return NextResponse.json({ error: 'ไฟล์ใหญ่เกิน 20MB' }, { status: 400 });
+      }
       const bytes = Buffer.from(await mediaFile.arrayBuffer());
+      const mime = safeMediaMime(new Uint8Array(bytes), mediaFile.type);
+      if (!mime) {
+        return NextResponse.json({ error: 'รองรับเฉพาะรูป วิดีโอ MP4/MOV หรือ PDF' }, { status: 400 });
+      }
+
+      await ensureBucket(admin);
+      const kind = mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : 'file';
+
+      const path = `${profile.shop_id}/${Date.now()}-${safeFileName(mediaFile.name || 'file').slice(0, 80)}`;
       const { error: uploadError } = await admin.storage.from(MEDIA_BUCKET).upload(path, bytes, {
         upsert: false,
-        contentType: mediaFile.type || 'application/octet-stream',
+        contentType: mime,
       });
       if (uploadError) throw uploadError;
 
