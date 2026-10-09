@@ -116,7 +116,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const reason = reject_reason as string;
     const { error: slipError } = await admin
       .from('payment_slips')
-      .update({ status: 'rejected', reject_reason: reason, reviewed_by: user.id, reviewed_at: now, updated_by: user.id })
+      .update({ status: 'rejected', reject_reason: reason, reviewed_by: user.id, reviewed_at: now, updated_by: user.id, next_recheck_at: null })
       .eq('id', slip.id)
       .eq('status', 'pending');
     if (slipError) throw slipError;

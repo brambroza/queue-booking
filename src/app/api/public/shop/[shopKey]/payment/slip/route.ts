@@ -177,6 +177,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     slipId: slip.id,
     bookingId: booking.id,
     shopId: shop.id,
+    companyId: shop.company_id,
     imageBytes: bytes,
     expectedAmountTHB: amount,
     amountClaimedTHB: claimedTHB,

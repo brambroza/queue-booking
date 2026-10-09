@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { PageShell } from '@/components/ui/page-shell';
 import { useToast } from '@/components/ui/toast';
 import { DeeplinkProviderCard, type DeeplinkProviderView } from '@/components/portal/deeplink-provider-card';
+import { SlipVerifyCard, type SlipVerifyView } from '@/components/portal/slip-verify-card';
 
 interface PaymentSettings {
   qr_payment_enabled: boolean;
@@ -49,6 +50,18 @@ export default function PaymentSettingsPage() {
   const [linkSecretConfigured, setLinkSecretConfigured] = useState(true);
   // Server-side flag: mobile banking's return page needs PAYMENT_LINK_SECRET.
   const [mobileBankingAvailable, setMobileBankingAvailable] = useState(true);
+
+  const [slipVerify, setSlipVerify] = useState<SlipVerifyView | null>(null);
+
+  const loadSlipVerify = useCallback(async () => {
+    const res = await fetch('/api/shop-payment-settings/slip-verify').catch(() => null);
+    const json = res ? await res.json().catch(() => ({})) : {};
+    // A missing table (migration not applied yet) hides the card instead of breaking the page.
+    if (!res || !res.ok || !json.data) { setSlipVerify(null); return; }
+    setSlipVerify(json.data as SlipVerifyView);
+  }, []);
+
+  useEffect(() => { void loadSlipVerify(); }, [loadSlipVerify]);
 
   const loadDeeplink = useCallback(async () => {
     const res = await fetch('/api/shop-payment-settings/deeplink');
@@ -356,6 +369,13 @@ export default function PaymentSettingsPage() {
           </button>
         </div>
       </form>
+
+      {/* ─── Card 2b: automatic slip verification (saved separately) ─────── */}
+      {slipVerify && (
+        <div className="mt-8 max-w-2xl">
+          <SlipVerifyCard view={slipVerify} onSaved={() => void loadSlipVerify()} />
+        </div>
+      )}
 
       {/* ─── Card 3+: bank deeplink (one card per bank, saved separately) ── */}
       {deeplinkProviders.length > 0 && (

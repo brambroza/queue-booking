@@ -1,0 +1,57 @@
+<!--
+  Supabase Auth → Email Templates → "Confirm signup"
+  Paste the whole file as the template body.
+
+  The app's /verify-email page asks for the OTP code (length = the project's
+  "Email OTP Length" setting, 8 here), so the template must include {{ .Token }} — the stock template only carries {{ .ConfirmationURL }},
+  which left customers with a link and no code to type. Both paths are kept:
+  the code for the page they already have open, the button for everyone else.
+  Subject suggestion: "รหัสยืนยันอีเมล QueueBooking: {{ .Token }}"
+-->
+<div style="background:#f0fdf4;padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #bbf7d0;">
+
+    <div style="background:#16a34a;padding:28px 32px;text-align:center;">
+      <div style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:-0.4px;">Queue<span style="color:#bbf7d0;">Booking</span></div>
+      <div style="color:#bbf7d0;font-size:12px;margin-top:3px;">queuebooking.com</div>
+    </div>
+
+    <div style="padding:36px 32px;">
+      <p style="font-size:20px;font-weight:600;color:#14532d;text-align:center;margin:0 0 10px;">ยืนยันอีเมลของคุณ</p>
+      <p style="font-size:14px;color:#475569;line-height:1.7;text-align:center;margin:0 0 20px;">ขอบคุณที่สมัครใช้งาน <strong style="color:#14532d;">QueueBooking</strong><br>กรอกรหัสนี้ในหน้ายืนยันอีเมล</p>
+
+      <div style="text-align:center;margin:0 0 8px;">
+        <div style="display:inline-block;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 28px;">
+          <div style="font-size:11px;color:#6b7280;letter-spacing:1px;margin-bottom:4px;">รหัสยืนยัน</div>
+          <div style="font-size:32px;font-weight:700;color:#14532d;letter-spacing:8px;font-family:Menlo,Consolas,monospace;">{{ .Token }}</div>
+        </div>
+      </div>
+      <p style="font-size:12px;color:#6b7280;text-align:center;margin:0 0 26px;">รหัสใช้ได้ 1 ชั่วโมง และใช้ได้ครั้งเดียว</p>
+
+      <p style="font-size:13px;color:#475569;line-height:1.7;text-align:center;margin:0 0 14px;">ถ้าปิดหน้ายืนยันไปแล้ว กดปุ่มนี้แทนได้ แล้วเข้าสู่ระบบด้วยอีเมลและรหัสผ่านที่ตั้งไว้</p>
+      <div style="text-align:center;">
+        <a href="{{ .ConfirmationURL }}"
+           style="display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;padding:13px 36px;border-radius:8px;font-size:15px;font-weight:600;">
+          ยืนยันอีเมลด้วยลิงก์
+        </a>
+      </div>
+
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:28px 0;">
+
+      <p style="font-size:12px;color:#94a3b8;text-align:center;margin:0 0 7px;">หากปุ่มด้านบนใช้ไม่ได้ คัดลอกลิงก์นี้ไปวางในเบราว์เซอร์</p>
+      <p style="font-size:11px;color:#16a34a;text-align:center;word-break:break-all;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:9px 14px;margin:0;">
+        {{ .ConfirmationURL }}
+      </p>
+    </div>
+
+    <div style="background:#f8fafc;padding:20px 32px;border-top:1px solid #e4e4e7;text-align:center;">
+      <p style="font-size:11px;color:#94a3b8;line-height:1.7;margin:0;">
+        อีเมลนี้ถูกส่งโดยอัตโนมัติ กรุณาอย่าตอบกลับ<br>
+        หากคุณไม่ได้สมัครใช้งาน กรุณาละเว้นอีเมลนี้<br><br>
+        <a href="https://queuebooking.com" style="color:#16a34a;text-decoration:none;">queuebooking.com</a> ·
+        <a href="https://queuebooking.com/privacy" style="color:#16a34a;text-decoration:none;">นโยบายความเป็นส่วนตัว</a>
+      </p>
+    </div>
+
+  </div>
+</div>

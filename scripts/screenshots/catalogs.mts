@@ -7,7 +7,7 @@
  */
 import type { ShopCatalog } from './fixtures.mts';
 
-export type BusinessKey = 'barber' | 'clinic' | 'restaurant' | 'buffet' | 'meeting-room' | 'badminton' | 'tennis' | 'bb-gun';
+export type BusinessKey = 'barber' | 'clinic' | 'restaurant' | 'buffet' | 'meeting-room' | 'badminton' | 'tennis' | 'bb-gun' | 'golf';
 
 export type SampleService = { id: string; service_name: string; duration_minutes: number; price: number; image_url: null };
 
@@ -246,6 +246,25 @@ export const BUSINESSES: BusinessCatalog[] = [
       { name: 'สนาม CQB', capacity: 12, zone: 'Indoor' },
     ],
   ),
+  business(
+    9,
+    'golf',
+    'สวิงเลานจ์ กอล์ฟซิมูเลเตอร์',
+    'สาขาทองหล่อ',
+    'midnight',
+    'court',
+    [
+      ['เช่าเบย์ 1 ชั่วโมง', 60, 600],
+      ['เช่าเบย์ 2 ชั่วโมง', 120, 1100],
+      ['เรียนกับโปร 1 ชั่วโมง', 60, 1500],
+    ],
+    [
+      { name: 'เบย์ 1', capacity: 4, zone: 'Lounge' },
+      { name: 'เบย์ 2', capacity: 4, zone: 'Lounge' },
+      { name: 'เบย์ 3', capacity: 6, zone: 'Private' },
+      { name: 'เบย์ 4', capacity: 6, zone: 'Private' },
+    ],
+  ),
 ];
 
 /**
@@ -255,6 +274,17 @@ export const BUSINESSES: BusinessCatalog[] = [
  */
 export function findBusiness(key: string): BusinessCatalog | undefined {
   return BUSINESSES.find((b) => b.key === key);
+}
+
+/**
+ * Calendar rules for the LIFF date picker: every weekday open, no holidays,
+ * no advance-booking cap. Without this stub the real endpoint sees the sample
+ * branch id, finds no working hours and the page says the branch is closed.
+ * @param today Today as YYYY-MM-DD (Bangkok).
+ * @returns Body in the shape `/bookable-days` returns.
+ */
+export function sampleBookableDays(today: string): unknown {
+  return { data: { today, max_date: null, open_weekdays: [0, 1, 2, 3, 4, 5, 6], holidays: [] } };
 }
 
 /**

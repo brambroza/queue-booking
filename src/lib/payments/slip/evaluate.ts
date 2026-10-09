@@ -9,6 +9,7 @@
  */
 import type { SlipQrParseResult } from './slip-qr';
 import type { SlipProviderResult } from './provider';
+import type { SlipProviderErrorCode, SlipProviderSource } from './providers/types';
 
 export type SlipCheckKey =
   | 'qr_found'
@@ -22,7 +23,8 @@ export type SlipCheckKey =
   | 'bank_found'
   | 'bank_amount'
   | 'bank_receiver'
-  | 'bank_time';
+  | 'bank_time'
+  | 'bank_duplicate';
 
 export type SlipCheckStatus = 'pass' | 'fail' | 'warn' | 'skip';
 
@@ -42,6 +44,9 @@ export interface SlipCheck {
  */
 export type SlipAutoCheckStatus = 'verified' | 'plausible' | 'suspicious' | 'unreadable' | 'error';
 
+/** Why a later automatic recheck could change the answer. */
+export type SlipRetryReason = 'pending' | 'unavailable';
+
 export interface SlipEvaluation {
   status: SlipAutoCheckStatus;
   autoApprove: boolean;
@@ -49,11 +54,15 @@ export interface SlipEvaluation {
   /** Amount confirmed by the bank, when there is one. */
   verifiedAmountTHB: number | null;
   providerId: string | null;
+  /** Whose key answered, when a provider was consulted. */
+  source: SlipProviderSource | null;
+  /** Set when the bank-side answer was inconclusive for a reason time can fix. */
+  retryReason: SlipRetryReason | null;
 }
 
 export type SlipProviderOutcome =
-  | { id: string; result: SlipProviderResult }
-  | { id: string; error: string };
+  | { id: string; source?: SlipProviderSource; result: SlipProviderResult }
+  | { id: string; source?: SlipProviderSource; error: 'provider_unavailable'; code?: SlipProviderErrorCode };
 
 export interface SlipEvaluationInput {
   /** Text decoded from the image, or null when no QR was readable. */
@@ -96,21 +105,41 @@ export function maskedAccountMatches(masked: string, full: string): boolean {
   return tail.length >= 4 && fullDigits.endsWith(tail);
 }
 
-function evaluateProvider(input: SlipEvaluationInput, checks: SlipCheck[]): { confirmed: boolean; amount: number | null } {
+const PROVIDER_ERROR_DETAIL: Partial<Record<SlipProviderErrorCode, string>> = {
+  quota_exceeded: 'โควต้าตรวจสลิปอัตโนมัติหมด — กรุณาตรวจด้วยตนเอง หรือเติมโควต้าแล้วระบบจะตรวจซ้ำให้',
+  invalid_api_key: 'API key ของระบบตรวจสลิปไม่ถูกต้อง — ตรวจการตั้งค่าที่หน้า Payment Settings',
+};
+
+interface ProviderVerdict {
+  confirmed: boolean;
+  amount: number | null;
+  /** Bank confirmed everything but something still needs a human (vendor-side duplicate flag). */
+  held: boolean;
+  retryReason: SlipRetryReason | null;
+}
+
+function evaluateProvider(input: SlipEvaluationInput, checks: SlipCheck[]): ProviderVerdict {
+  const none: ProviderVerdict = { confirmed: false, amount: null, held: false, retryReason: null };
   const outcome = input.provider;
   if (!outcome) {
     checks.push({ key: 'bank_found', status: 'skip', detail: 'ยังไม่ได้เชื่อมต่อระบบยืนยันกับธนาคาร — ยอดเงินและผู้รับยังไม่ถูกยืนยัน' });
-    return { confirmed: false, amount: null };
+    return none;
   }
   if ('error' in outcome) {
-    checks.push({ key: 'bank_found', status: 'warn', detail: 'ติดต่อระบบยืนยันกับธนาคารไม่สำเร็จ' });
-    return { confirmed: false, amount: null };
+    const detail = (outcome.code && PROVIDER_ERROR_DETAIL[outcome.code]) || 'ติดต่อระบบยืนยันกับธนาคารไม่สำเร็จ — ระบบจะลองตรวจซ้ำอัตโนมัติ';
+    checks.push({ key: 'bank_found', status: 'warn', detail });
+    // A wrong key will not fix itself; everything else might.
+    return { ...none, retryReason: outcome.code === 'invalid_api_key' ? null : 'unavailable' };
   }
 
   const bank = outcome.result;
+  if (bank.pending) {
+    checks.push({ key: 'bank_found', status: 'warn', detail: 'ธนาคารกำลังประมวลผลรายการ — ระบบจะตรวจซ้ำอัตโนมัติ' });
+    return { ...none, retryReason: 'pending' };
+  }
   if (!bank.found) {
     checks.push({ key: 'bank_found', status: 'fail', detail: 'ธนาคารไม่พบรายการโอนตามเลขอ้างอิงนี้' });
-    return { confirmed: false, amount: null };
+    return none;
   }
   checks.push({ key: 'bank_found', status: 'pass', detail: 'ธนาคารยืนยันว่ามีรายการโอนนี้จริง' });
 
@@ -121,9 +150,10 @@ function evaluateProvider(input: SlipEvaluationInput, checks: SlipCheck[]): { co
     detail: amountOk ? 'ยอดโอนตรงกับยอดที่ต้องชำระ' : `ยอดโอนจริง ${bank.amountTHB ?? '-'} บาท ไม่ตรงกับยอดที่ต้องชำระ`,
   });
 
-  const receiverOk = Boolean(
-    bank.receiverAccount && input.receiverTargets.some((target) => maskedAccountMatches(bank.receiverAccount as string, target)),
-  );
+  // A PromptPay transfer reports the shop's phone / tax id as a proxy, a bank
+  // transfer reports the account number; either one naming this shop is enough.
+  const receiverIds = [bank.receiverAccount, bank.receiverProxy].filter((v): v is string => Boolean(v));
+  const receiverOk = receiverIds.some((id) => input.receiverTargets.some((target) => maskedAccountMatches(id, target)));
   checks.push({
     key: 'bank_receiver',
     status: receiverOk ? 'pass' : 'fail',
@@ -142,13 +172,24 @@ function evaluateProvider(input: SlipEvaluationInput, checks: SlipCheck[]): { co
     detail: timeOk ? 'เวลาโอนอยู่ในช่วงของการจองนี้' : 'เวลาโอนไม่อยู่ในช่วงของการจองนี้ (อาจเป็นสลิปเก่า)',
   });
 
-  return { confirmed: amountOk && receiverOk && timeOk, amount: bank.amountTHB };
+  let held = false;
+  if (bank.duplicate === true) {
+    checks.push({ key: 'bank_duplicate', status: 'warn', detail: 'ผู้ให้บริการตรวจสลิปแจ้งว่าเคยเห็นสลิปนี้มาก่อน — ให้คนตรวจก่อนอนุมัติ' });
+    held = true;
+  }
+
+  return { confirmed: amountOk && receiverOk && timeOk, amount: bank.amountTHB, held, retryReason: null };
 }
 
 /** Run every check and reduce them to one status plus the auto-approve decision. */
 export function evaluateSlip(input: SlipEvaluationInput): SlipEvaluation {
   const checks: SlipCheck[] = [];
-  const base = { verifiedAmountTHB: null, providerId: input.provider?.id ?? null };
+  const base = {
+    verifiedAmountTHB: null,
+    providerId: input.provider?.id ?? null,
+    source: input.provider?.source ?? null,
+    retryReason: null,
+  };
 
   if (!input.qrPayload) {
     checks.push({ key: 'qr_found', status: 'warn', detail: 'อ่าน QR บนสลิปไม่ได้ (รูปไม่ชัด ถูกครอบ หรือสลิปไม่มี QR)' });
@@ -209,7 +250,9 @@ export function evaluateSlip(input: SlipEvaluationInput): SlipEvaluation {
 
   // A claimed-amount typo does not block: the bank's answer outranks it. A late
   // upload does — the slot may already have been released, so a human decides.
-  if (bank.confirmed) return { status: 'verified', autoApprove: !late, checks, ...base, verifiedAmountTHB: bank.amount };
+  if (bank.confirmed) {
+    return { status: 'verified', autoApprove: !late && !bank.held, checks, ...base, verifiedAmountTHB: bank.amount };
+  }
 
-  return { status: 'plausible', autoApprove: false, checks, ...base };
+  return { status: 'plausible', autoApprove: false, checks, ...base, retryReason: bank.retryReason };
 }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { signSlipUrls } from '@/lib/storage/buckets';
+import { resolveSlipProviderSource } from '@/lib/payments/slip/providers/settings';
 
 const VALID_STATUSES = new Set(['pending', 'approved', 'rejected', 'superseded']);
 
@@ -14,7 +15,7 @@ const VALID_STATUSES = new Set(['pending', 'approved', 'rejected', 'superseded']
  */
 export async function GET(req: Request) {
   try {
-    const { supabase, profile } = await requireAuthContext({
+    const { supabase, profile, roles } = await requireAuthContext({
       roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'],
     });
 
@@ -28,7 +29,7 @@ export async function GET(req: Request) {
     let query = supabase
       .from('payment_slips')
       .select(
-        'id,booking_id,storage_path,status,amount_claimed,transferred_at,reject_reason,reviewed_at,created_at,mime_type,file_size,sending_bank_code,trans_ref,auto_check_status,auto_check_result,auto_approved,verified_amount,bookings(queue_number,booking_date,start_time,payment_amount,payment_status,customers(full_name,nickname,phone))',
+        'id,booking_id,storage_path,status,amount_claimed,transferred_at,reject_reason,reviewed_at,created_at,mime_type,file_size,sending_bank_code,trans_ref,auto_check_status,auto_check_result,auto_approved,verified_amount,provider_recheck_count,next_recheck_at,bookings(queue_number,booking_date,start_time,payment_amount,payment_status,customers(full_name,nickname,phone))',
         { count: 'exact' },
       )
       .eq('shop_id', profile.shop_id)
@@ -47,13 +48,25 @@ export async function GET(req: Request) {
     // thing that would leak an image across tenants if it ever did not.
     const paths = rows.map((r) => r.storage_path as string).filter(Boolean);
     const admin = createAdminClient();
-    const signed = await signSlipUrls(admin, paths);
+    const [signed, slipVerify] = await Promise.all([
+      signSlipUrls(admin, paths),
+      resolveSlipProviderSource(admin, profile.shop_id).catch(() => null),
+    ]);
+    const canConfigure = roles.includes('super_admin') || roles.includes('shop_owner');
 
     return NextResponse.json({
       data: rows.map((r) => ({ ...r, image_url: signed[r.storage_path as string] ?? null })),
       count: count ?? 0,
       page,
       page_size: pageSize,
+      meta: {
+        // Lets the inbox explain *why* a slip stopped at "plausible" and where to fix it.
+        slip_verify: {
+          source: slipVerify?.source ?? 'none',
+          plan_locked: slipVerify?.source === 'none' && slipVerify.reason === 'plan_locked',
+          can_configure: canConfigure,
+        },
+      },
     });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });

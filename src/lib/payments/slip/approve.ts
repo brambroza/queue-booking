@@ -57,6 +57,7 @@ export async function approveSlip(admin: SupabaseClient, opts: ApproveSlipOption
       reviewed_by: opts.reviewerId,
       reviewed_at: now,
       updated_by: opts.reviewerId,
+      next_recheck_at: null,
       ...(isAuto ? { auto_approved: true } : {}),
     })
     .eq('id', opts.slipId)

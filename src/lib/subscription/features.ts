@@ -1,8 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSubscriptionState } from '@/lib/subscription/enforcement';
 
-/** Plans that include F&B ordering. Starter does not; a lapsed paid plan falls back to starter. */
-const FNB_PLAN_CODES: ReadonlySet<string> = new Set(['professional', 'business', 'enterprise']);
+/** Plans that include the paid add-on features. Starter does not; a lapsed paid plan falls back to starter. */
+const PAID_FEATURE_PLAN_CODES: ReadonlySet<string> = new Set(['professional', 'business', 'enterprise']);
+
+/** Plan-gated features, as the paywall dialog names them. */
+export type GatedFeature = 'fnb' | 'slip_verify';
 
 /**
  * Whether a plan code includes F&B ordering (Professional and above).
@@ -10,7 +13,17 @@ const FNB_PLAN_CODES: ReadonlySet<string> = new Set(['professional', 'business',
  * @param planCode - Effective plan code from `getSubscriptionState`.
  */
 export function planAllowsFnb(planCode: string | null | undefined): boolean {
-  return Boolean(planCode && FNB_PLAN_CODES.has(planCode));
+  return Boolean(planCode && PAID_FEATURE_PLAN_CODES.has(planCode));
+}
+
+/**
+ * Whether a plan code includes the platform's slip verification key
+ * (Professional and above). A shop's own vendor key is never plan-gated.
+ *
+ * @param planCode - Effective plan code from `getSubscriptionState`.
+ */
+export function planAllowsSlipVerify(planCode: string | null | undefined): boolean {
+  return Boolean(planCode && PAID_FEATURE_PLAN_CODES.has(planCode));
 }
 
 /**
@@ -21,7 +34,11 @@ export class SubscriptionFeatureLockedError extends Error {
   readonly kind = 'feature_locked';
   readonly status = 402;
 
-  constructor(readonly featureLabel: string, readonly planCode: string | null) {
+  constructor(
+    readonly featureLabel: string,
+    readonly planCode: string | null,
+    readonly feature: GatedFeature = 'fnb',
+  ) {
     super(`${featureLabel}ใช้ได้ตั้งแต่แพ็กเกจ Professional ขึ้นไป`);
     this.name = 'SubscriptionFeatureLockedError';
   }
@@ -30,7 +47,7 @@ export class SubscriptionFeatureLockedError extends Error {
   toJSON() {
     return {
       kind: this.kind,
-      feature: 'fnb',
+      feature: this.feature,
       feature_label: this.featureLabel,
       plan_code: this.planCode,
       message: this.message,
@@ -80,4 +97,20 @@ export async function assertFnbPlan(client: SupabaseClient, shopId: string): Pro
   const access = await getFnbAccess(client, shopId);
   if (!access.planAllowed) throw new SubscriptionFeatureLockedError('สั่งอาหารเครื่องดื่มผ่าน LINE', access.planCode);
   return access;
+}
+
+export type SlipVerifyAccess = {
+  /** The shop's plan includes the platform slip-verification key. */
+  planAllowed: boolean;
+  planCode: string | null;
+};
+
+/**
+ * Resolves whether the platform slip-verification key may serve a shop.
+ *
+ * @param shopId - Shop to check.
+ */
+export async function getSlipVerifyAccess(shopId: string): Promise<SlipVerifyAccess> {
+  const sub = await getSubscriptionState(shopId);
+  return { planAllowed: sub.active && planAllowsSlipVerify(sub.planCode), planCode: sub.planCode };
 }

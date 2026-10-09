@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useToast } from '@/components/ui/toast';
+import { useUpgrade } from '@/components/subscription/upgrade-provider';
 import { EmptyState } from '@/components/ui/empty-state';
 import { formatDateDMY } from '@/lib/utils/date-format';
 import { customerLabel } from '@/lib/booking/customer-label';
@@ -21,9 +23,25 @@ type SlipRow = {
   sending_bank_code: string | null;
   trans_ref: string | null;
   auto_check_status: SlipAutoCheckStatus | null;
-  auto_check_result: { checks?: SlipCheck[]; provider?: string | null } | null;
+  auto_check_result: {
+    checks?: SlipCheck[];
+    provider?: string | null;
+    source?: 'shop' | 'platform' | null;
+    bank?: {
+      amountTHB?: number | null;
+      senderName?: string | null;
+      senderBank?: string | null;
+      receiverName?: string | null;
+      receiverAccount?: string | null;
+      receiverProxy?: string | null;
+      transferredAt?: string | null;
+    } | null;
+    attempt?: number;
+  } | null;
   auto_approved: boolean | null;
   verified_amount: number | null;
+  provider_recheck_count?: number | null;
+  next_recheck_at?: string | null;
   bookings?: {
     queue_number?: string;
     booking_date?: string;
@@ -33,6 +51,13 @@ type SlipRow = {
     customers?: { full_name?: string | null; nickname?: string | null; phone?: string | null } | null;
   } | null;
 };
+
+type SlipVerifyMeta = { source: 'shop' | 'platform' | 'none'; plan_locked: boolean; can_configure: boolean };
+
+/** Vendor id → name, kept client-side so the inbox does not import the server registry. */
+const PROVIDER_NAME: Record<string, string> = { easyslip: 'EasySlip' };
+const SOURCE_LABEL: Record<'shop' | 'platform', string> = { shop: 'key ของร้าน', platform: 'ระบบกลาง' };
+const MAX_RECHECKS = 5;
 
 const TABS: Array<{ key: SlipStatus; label: string }> = [
   { key: 'pending', label: 'รอตรวจสอบ' },
@@ -58,10 +83,15 @@ const CHECK_ICON: Record<SlipCheck['status'], { icon: string; className: string 
   skip: { icon: '–', className: 'text-slate-400' },
 };
 
-function AutoCheckBadge({ status }: { status: SlipAutoCheckStatus | null }) {
+function AutoCheckBadge({ status, recheckPending }: { status: SlipAutoCheckStatus | null; recheckPending?: boolean }) {
   if (!status) return <span className="text-xs text-slate-400">-</span>;
   const badge = AUTO_CHECK_BADGE[status];
-  return <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}>{badge.label}</span>;
+  return (
+    <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}>
+      {badge.label}
+      {recheckPending && <span title="ระบบจะตรวจซ้ำอัตโนมัติ"> ⟳</span>}
+    </span>
+  );
 }
 
 function formatTHB(amount: number | null | undefined) {
@@ -82,8 +112,10 @@ function formatDateTime(value: string | null | undefined) {
  */
 export function PaymentVerificationInbox({ initialBookingId }: { initialBookingId?: string }) {
   const { push } = useToast();
+  const { openUpgrade } = useUpgrade();
   const [tab, setTab] = useState<SlipStatus>('pending');
   const [rows, setRows] = useState<SlipRow[]>([]);
+  const [verifyMeta, setVerifyMeta] = useState<SlipVerifyMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<SlipRow | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -99,6 +131,7 @@ export function PaymentVerificationInbox({ initialBookingId }: { initialBookingI
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? 'โหลดข้อมูลไม่สำเร็จ');
       setRows((json.data ?? []) as SlipRow[]);
+      if (json.meta?.slip_verify) setVerifyMeta(json.meta.slip_verify as SlipVerifyMeta);
     } catch (e) {
       push(e instanceof Error ? e.message : 'โหลดข้อมูลไม่สำเร็จ', 'error');
     } finally {
@@ -193,7 +226,7 @@ export function PaymentVerificationInbox({ initialBookingId }: { initialBookingI
                     <td className={`px-3 py-2 text-right ${mismatch ? 'font-semibold text-rose-600' : 'text-slate-700'}`}>
                       {r.amount_claimed ? formatTHB(r.amount_claimed) : '-'}
                     </td>
-                    <td className="px-3 py-2"><AutoCheckBadge status={r.auto_check_status} /></td>
+                    <td className="px-3 py-2"><AutoCheckBadge status={r.auto_check_status} recheckPending={Boolean(r.next_recheck_at) && r.status === 'pending'} /></td>
                     <td className="px-3 py-2 text-xs text-slate-500">{formatDateTime(r.created_at)}</td>
                     <td className="px-3 py-2">
                       {r.image_url ? (
@@ -247,10 +280,44 @@ export function PaymentVerificationInbox({ initialBookingId }: { initialBookingI
               <div className="mt-3 rounded-xl border border-slate-200 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-semibold text-slate-700">ผลตรวจอัตโนมัติ</p>
-                  <AutoCheckBadge status={selected.auto_check_status} />
+                  <AutoCheckBadge status={selected.auto_check_status} recheckPending={Boolean(selected.next_recheck_at) && selected.status === 'pending'} />
                 </div>
                 {selected.trans_ref && (
                   <p className="mt-1 break-all text-xs text-slate-500">เลขอ้างอิง {selected.trans_ref}</p>
+                )}
+                {selected.auto_check_result?.provider && (
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    ตรวจโดย {PROVIDER_NAME[selected.auto_check_result.provider] ?? selected.auto_check_result.provider}
+                    {selected.auto_check_result.source ? ` · ${SOURCE_LABEL[selected.auto_check_result.source]}` : ''}
+                  </p>
+                )}
+                {selected.auto_check_result?.bank && (
+                  <dl className="mt-2 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-2 text-xs">
+                    <div>
+                      <dt className="text-slate-500">ยอดที่ธนาคารยืนยัน</dt>
+                      <dd className={`font-semibold ${Number(selected.verified_amount ?? selected.auto_check_result.bank.amountTHB ?? 0) === expected ? 'text-slate-900' : 'text-rose-600'}`}>
+                        {formatTHB(selected.verified_amount ?? selected.auto_check_result.bank.amountTHB)} บาท
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">เวลาโอนจริง</dt>
+                      <dd className="text-slate-700">{formatDateTime(selected.auto_check_result.bank.transferredAt)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">ผู้โอน</dt>
+                      <dd className="text-slate-700">
+                        {selected.auto_check_result.bank.senderName ?? '-'}
+                        {selected.auto_check_result.bank.senderBank ? ` (${selected.auto_check_result.bank.senderBank})` : ''}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">ผู้รับ</dt>
+                      <dd className="text-slate-700">
+                        {selected.auto_check_result.bank.receiverName ?? '-'}
+                        <span className="block text-slate-500">{selected.auto_check_result.bank.receiverProxy ?? selected.auto_check_result.bank.receiverAccount ?? ''}</span>
+                      </dd>
+                    </div>
+                  </dl>
                 )}
                 <ul className="mt-2 space-y-1">
                   {(selected.auto_check_result?.checks ?? []).map((check) => (
@@ -260,9 +327,36 @@ export function PaymentVerificationInbox({ initialBookingId }: { initialBookingI
                     </li>
                   ))}
                 </ul>
+                {selected.next_recheck_at && selected.status === 'pending' && (
+                  <p className="mt-2 text-xs text-sky-700">
+                    ⟳ ระบบจะตรวจซ้ำอัตโนมัติ (ครั้งที่ {Math.min((selected.auto_check_result?.attempt ?? 1) + 1, MAX_RECHECKS + 1)}/{MAX_RECHECKS + 1}) เวลา {formatDateTime(selected.next_recheck_at)}
+                  </p>
+                )}
                 {selected.auto_check_status === 'plausible' && (
                   <p className="mt-2 text-xs text-slate-500">
                     QR บนสลิปบอกได้แค่ธนาคารและเลขอ้างอิง — กรุณาตรวจยอดเงินและบัญชีผู้รับจากรูป หรือเช็กยอดเข้าในแอปธนาคารก่อนอนุมัติ
+                  </p>
+                )}
+                {selected.auto_check_status === 'plausible' && !selected.auto_check_result?.provider && verifyMeta?.source === 'none' && (
+                  <p className="mt-2 text-xs text-slate-600">
+                    {verifyMeta.plan_locked ? (
+                      <>
+                        เปิดตรวจสลิปอัตโนมัติกับธนาคารได้ตั้งแต่แพ็กเกจ Professional —{' '}
+                        <button type="button" className="font-medium text-blue-600 underline" onClick={() => openUpgrade('portal')}>ดูแพ็กเกจ</button>
+                        {verifyMeta.can_configure && (
+                          <>
+                            {' '}หรือ <Link href="/portal/payment-settings#slip-verify" className="font-medium text-blue-600 underline">ใส่ API key ของร้านเอง</Link>
+                          </>
+                        )}
+                      </>
+                    ) : verifyMeta.can_configure ? (
+                      <>
+                        <Link href="/portal/payment-settings#slip-verify" className="font-medium text-blue-600 underline">เปิดใช้ตรวจสลิปอัตโนมัติ</Link>
+                        {' '}เพื่อให้ระบบยืนยันยอดกับธนาคารและอนุมัติให้เอง
+                      </>
+                    ) : (
+                      <>ยังไม่ได้เปิดตรวจสลิปอัตโนมัติ — แจ้งเจ้าของร้านเพื่อเปิดใช้ที่หน้า Payment Settings</>
+                    )}
                   </p>
                 )}
                 {selected.auto_approved && (

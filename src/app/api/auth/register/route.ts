@@ -9,6 +9,7 @@ import { createUpgradeRequest } from '@/lib/subscription/upgrade-request';
 import { env } from '@/lib/utils/env';
 import { normalizeBusinessType } from '@/lib/line/rich-menu/business-types';
 import { clientIp, hitRateLimit, tooManyRequests } from '@/lib/security/rate-limit';
+import { EXISTING_EMAIL_MESSAGE, isExistingEmailSignUp } from '@/lib/auth/signup-result';
 
 /** Generic failure for every later step: DB messages stay in the server log. */
 function registerFailed(step: string, detail?: string) {
@@ -45,6 +46,14 @@ export async function POST(req: Request) {
     // anything else becomes a generic message.
     const safe = authError?.message && /password|already|rate limit|invalid email/i.test(authError.message);
     return NextResponse.json({ error: safe ? authError!.message : 'สมัครไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' }, { status: 400 });
+  }
+
+  // A known email gets a fake user back (random id, no identities, nothing stored).
+  // Stop here: creating a company and a shop for that id leaves an owner-less
+  // tenant behind and then fails on users_profile's FK to auth.users.
+  if (isExistingEmailSignUp(authData.user)) {
+    console.warn('[register] email already registered');
+    return NextResponse.json({ error: EXISTING_EMAIL_MESSAGE }, { status: 400 });
   }
 
   const userId = authData.user.id;

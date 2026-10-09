@@ -119,6 +119,8 @@ src/
 | `/api/shop-profile` | Shop profile |
 | `/api/shop-payment-settings` | Omise + bank transfer settings |
 | `/api/shop-payment-settings/deeplink` | Bank deeplink (SCB/KBank) credentials per shop + `/test` connection check |
+| `/api/shop-payment-settings/slip-verify` | Slip verification vendor key per shop (GET source `shop\|platform\|none` + `plan_locked`; PATCH `enabled` / `credentials.apiKey`, sealed) + `/test` (vendor quota call, rate-limited `slipVerifyTest`) |
+| `/api/cron/slip-recheck` | pg_cron every 5 min (`Bearer CRON_SECRET`): re-runs the bank-side check on pending slips with `next_recheck_at` due, auto-approves when verified |
 | `/api/payments/webhook` | Omise webhook (shared secret `?key=`) |
 | `/api/payments/bank/[provider]/webhook/[shopKey]` | Bank deeplink confirmation (per-shop secret `?key=`, verified by inquiry) |
 | `/api/me-profile` | Current user profile |
@@ -432,7 +434,13 @@ pending | pending_approval | confirmed | checked_in | waiting ─(ลูกค�
 
 On upload (`/api/public/shop/[shopKey]/payment/slip`) the server runs `autoVerifySlip` (`src/lib/payments/slip/`) on the stored bytes — never throws, never fails the upload:
 - `decode-image.ts` (sharp + jsQR, server-only) → `slip-qr.ts` parses the BoT slip mini-QR (EMVCo TLV: tag 00 = api id `000001` + sending bank + `transRef`, tag 51 `TH`, tag 91 CRC-16/CCITT-FALSE, reuses `crc16ccitt` from `promptpay.ts`)
-- The slip QR carries **no amount / receiver / time** — those need a bank-side source. `provider.ts` is that seam (`resolveSlipProvider` returns `null` today; adapter + per-shop key via `secret-box` is a TODO — do not guess vendor field names)
+- The slip QR carries **no amount / receiver / time** — those need a bank-side source. `provider.ts` is that seam: `resolveSlipProvider` → `providers/settings.ts` picks the key (**shop's own key** in `shop_slip_verify_providers`, any plan → **platform key** `EASYSLIP_API_KEY` for Professional+ (`planAllowsSlipVerify`) → none) and binds the adapter from `providers/registry.ts`. `evaluate.ts` / `approve.ts` never import an adapter
+- Adapters: `providers/easyslip.ts` (EasySlip API v2, `POST /verify/bank` with `{ payload, checkDuplicate: false }`, `GET /info` for the test button — the only file with vendor field names, `VERIFY` markers on the PromptPay proxy shape). Only the decoded QR payload is sent, never the image. `checkDuplicate` stays off: the cross-tenant DB check is the authority and the vendor flag would false-positive on every recheck. Kill switch `SLIP_VERIFY_EASYSLIP_ENABLED` stops both key sources. Adding a vendor = new adapter + registry entry + widen the table CHECK; a direct bank adapter (KBank/SCB) slots in the same way once GoAlong signs with a bank
+- `SlipProviderResult.pending` (bank still posting, e.g. Bangkok Bank) → `bank_found` warn, status `plausible`, **never** `suspicious`. Receiver match accepts `receiverAccount` **or** `receiverProxy` (PromptPay transfers report the shop's phone/tax id as a proxy). Vendor `duplicate: true` → `verified` but `autoApprove: false` (`bank_duplicate` warn)
+- Recheck: `verifySlipPayload` (shared by upload and cron, uses stored `qr_payload`) sets `payment_slips.provider_recheck_count` / `next_recheck_at` from `recheck.ts` (`shouldRecheck`, backoff 5/10/15/30/60 min, max 5; retried: vendor down, quota out, `pending`, plus one grace look for a bank "not found" on attempt 0). Cron route approves via the same `approveSlip`; `uploadedAt` = original `created_at` so the "late" rule is not judged by cron time. Demo bookings skip the vendor
+- `quota_exceeded` / `invalid_api_key` → staff notification `slip_provider_problem` once per shop per Bangkok day (`notify-provider.ts`, deduped by querying `notifications`); invalid key is not retried
+- Portal: card `slip-verify-card.tsx` on `/portal/payment-settings#slip-verify`; inbox shows provider + source, bank-confirmed amount/sender/receiver/time, recheck schedule, and a setup/upgrade hint when `meta.slip_verify.source === 'none'`
+- Migrations `202610090001_slip_verify_provider.sql` (table + `payment_slips.provider_recheck_count/next_recheck_at` — **must run before deploy**, approve/reject/GET write or select them) and `202610090002_slip_recheck_cron.sql` (pg_cron job `slip-recheck`, same Vault secrets as booking reminders)
 - `evaluate.ts` (pure, vitest) → `auto_check_status`: `verified` (bank confirmed amount+receiver+time) | `plausible` (valid unseen QR, amount NOT confirmed) | `suspicious` (bad CRC / duplicate `transRef` / bank mismatch) | `unreadable` | `error`
 - **Auto-approve only on `verified`** and not past `payment_expires_at`. Local checks alone never mark a booking paid (QR + CRC are forgeable). No auto-reject — every doubt goes to the manual queue
 - Duplicate lookup is cross-tenant by design (service role, boolean only); rejected/superseded slips release their `transRef`
@@ -458,6 +466,8 @@ Omise Mobile Banking: toggle `shops.mobile_banking_enabled` (migration `20260916
 | `LIFF_ID` | LINE | LIFF App ID |
 | `RESEND_API_KEY` | Email | Signup notification |
 | `SMTP_*` | Email | Gmail SMTP fallback |
+| `SLIP_VERIFY_PROVIDER` / `EASYSLIP_API_KEY` | Slip | Platform slip-verification key (Professional+); shops may use their own instead |
+| `SLIP_VERIFY_EASYSLIP_ENABLED` | Slip | Kill switch for the EasySlip adapter (default on) |
 
 ---
 

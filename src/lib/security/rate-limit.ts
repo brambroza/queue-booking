@@ -10,6 +10,8 @@ export const RATE_LIMITS = {
   fnbRead: { windowSeconds: 600, max: 120 },
   register: { windowSeconds: 3600, max: 5 },
   contactLead: { windowSeconds: 3600, max: 5 },
+  /** Owner "test connection" for the slip verification key — each hit is a vendor call. */
+  slipVerifyTest: { windowSeconds: 600, max: 5 },
 } as const;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

@@ -10,10 +10,16 @@ const goodQr: SlipQrParseResult = {
 
 const bankOk: SlipProviderResult = {
   found: true,
+  pending: false,
   amountTHB: 500,
   receiverAccount: 'xxx-x-x5678-x',
+  receiverProxy: null,
   receiverName: 'ร้านทดสอบ',
+  senderName: 'ลูกค้า ทดสอบ',
+  senderBank: 'KBANK',
   transferredAt: '2026-09-19T03:05:00.000Z',
+  duplicate: null,
+  raw: null,
 };
 
 function input(overrides: Partial<SlipEvaluationInput> = {}): SlipEvaluationInput {
@@ -132,6 +138,47 @@ describe('evaluateSlip — with a bank-side provider', () => {
   it('still refuses a duplicate even if the bank confirms it', () => {
     const result = evaluateSlip(input({ duplicate: true, provider: provider() }));
     expect(result.autoApprove).toBe(false);
+  });
+
+  it('holds a bank-pending answer as plausible and asks for a recheck', () => {
+    const result = evaluateSlip(input({ provider: provider({ found: false, pending: true }) }));
+    expect(result.status).toBe('plausible');
+    expect(statusOf(result, 'bank_found')).toBe('warn');
+    expect(result.retryReason).toBe('pending');
+    expect(result.autoApprove).toBe(false);
+  });
+
+  it('accepts the shop PromptPay proxy as the receiver', () => {
+    const result = evaluateSlip(input({ provider: provider({ receiverAccount: null, receiverProxy: 'xxx-xxx-5678' }) }));
+    expect(statusOf(result, 'bank_receiver')).toBe('pass');
+    expect(result.status).toBe('verified');
+  });
+
+  it('asks for a recheck when the vendor was unavailable or out of quota', () => {
+    const down = evaluateSlip(input({ provider: { id: 'test', error: 'provider_unavailable', code: 'timeout' } }));
+    expect(down.retryReason).toBe('unavailable');
+    const quota = evaluateSlip(input({ provider: { id: 'test', error: 'provider_unavailable', code: 'quota_exceeded' } }));
+    expect(quota.retryReason).toBe('unavailable');
+    expect(quota.checks.find((c) => c.key === 'bank_found')?.detail).toContain('โควต้า');
+  });
+
+  it('does not ask for a recheck on an invalid key', () => {
+    const result = evaluateSlip(input({ provider: { id: 'test', error: 'provider_unavailable', code: 'invalid_api_key' } }));
+    expect(result.status).toBe('plausible');
+    expect(result.retryReason).toBeNull();
+    expect(result.checks.find((c) => c.key === 'bank_found')?.detail).toContain('API key');
+  });
+
+  it('holds a verified slip the vendor flags as seen before', () => {
+    const result = evaluateSlip(input({ provider: provider({ duplicate: true }) }));
+    expect(result.status).toBe('verified');
+    expect(result.autoApprove).toBe(false);
+    expect(statusOf(result, 'bank_duplicate')).toBe('warn');
+  });
+
+  it('records whose key answered', () => {
+    const result = evaluateSlip(input({ provider: { id: 'test', source: 'platform', result: bankOk } }));
+    expect(result.source).toBe('platform');
   });
 });
 

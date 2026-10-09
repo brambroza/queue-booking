@@ -55,3 +55,24 @@ navigation (tabs, option cards, "next"); never a button that saves.
 
 Open it and check: no real names or phone numbers, no loading state, light mode,
 Kanit font rendered.
+
+## Setup-guide screenshots (`guide-*`)
+
+The shots named `guide-*` feed `docs/guides/line-setup-guide.html` (built into
+`public/docs/line-setup-guide.pdf` by `docs/guides/build.sh`, which is also the file
+attached to the "setup guide" onboarding email). They write to
+`public/images/product/guide/` and use three per-shot options:
+
+- `dir` — sub-folder under `public/images/product/`.
+- `routes` — JSON served for read endpoints, so a page shows a state the demo shop is
+  not in (the dashboard checklist at 3 of 5). Writes stay blocked.
+- `showBaseUrlAs` — text swap of `SCREENSHOT_BASE_URL` for the public origin, so webhook
+  and LIFF URLs captured from localhost read as `https://queuebooking.com`.
+
+LINE OA Manager / Developers Console screens cannot be captured here; the list of
+hand-made captures the guide expects is in `docs/guides/line-screenshots-needed.md`.
+
+```bash
+npm run screenshots -- guide-dashboard-checklist guide-branches guide-services guide-working-hours guide-line-settings guide-line-setup
+./docs/guides/build.sh
+```

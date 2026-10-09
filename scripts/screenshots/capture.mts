@@ -18,7 +18,7 @@ import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium, type Browser, type BrowserContext, type Page, type Route } from 'playwright';
 import sharp from 'sharp';
-import { BUSINESSES, findBusiness, sampleSlots, type BusinessCatalog } from './catalogs.mts';
+import { BUSINESSES, findBusiness, sampleBookableDays, sampleSlots, type BusinessCatalog } from './catalogs.mts';
 import {
   bangkokToday,
   meFixture,
@@ -91,8 +91,15 @@ async function fulfillJson(route: Route, body: unknown): Promise<void> {
  * @param env Validated environment.
  * @param catalog Catalog the sample data is built from.
  * @param sample Business catalog served in place of the demo shop's own, if any.
+ * @param routes Fixed JSON bodies for read endpoints the shot wants in a given state.
  */
-async function guardApi(context: BrowserContext, env: Env, catalog: ShopCatalog, sample?: BusinessCatalog): Promise<void> {
+async function guardApi(
+  context: BrowserContext,
+  env: Env,
+  catalog: ShopCatalog,
+  sample?: BusinessCatalog,
+  routes?: Record<string, unknown>,
+): Promise<void> {
   const today = bangkokToday();
   const listBody = (rows: unknown[]) => ({ data: rows, pagination: { page: 1, page_size: rows.length, total: rows.length } });
   await context.route(`${env.SCREENSHOT_BASE_URL}/api/**`, async (route) => {
@@ -108,6 +115,7 @@ async function guardApi(context: BrowserContext, env: Env, catalog: ShopCatalog,
       console.warn(`  blocked ${request.method()} ${url.pathname}`);
       return route.abort();
     }
+    if (routes && url.pathname in routes) return fulfillJson(route, routes[url.pathname]);
 
     if (sample) {
       if (/^\/api\/public\/shop\/[^/]+\/meta$/.test(url.pathname)) {
@@ -123,6 +131,7 @@ async function guardApi(context: BrowserContext, env: Env, catalog: ShopCatalog,
           },
         });
       }
+      if (/^\/api\/public\/shop\/[^/]+\/bookable-days$/.test(url.pathname)) return fulfillJson(route, sampleBookableDays(today));
       if (/^\/api\/public\/shop\/[^/]+\/slots$/.test(url.pathname)) return fulfillJson(route, sampleSlots(query.get('date') ?? today));
       if (url.pathname === '/api/branches') return fulfillJson(route, listBody(sample.branches));
       if (url.pathname === '/api/services') return fulfillJson(route, listBody(sample.services));
@@ -292,7 +301,7 @@ async function capture(
   sample?: BusinessCatalog,
 ): Promise<{ file: string; bytes: number }> {
   const context = await newContext(browser, shot, shot.kind === 'portal' ? statePath : undefined);
-  await guardApi(context, env, sample ?? (await loadCatalog(context, env)), sample);
+  await guardApi(context, env, sample ?? (await loadCatalog(context, env)), sample, shot.routes);
   if (shot.kind === 'liff') await stubLiff(context);
 
   try {
@@ -316,14 +325,30 @@ async function capture(
 
     // The display's floating controls fade out after three idle seconds.
     if (shot.kind === 'display') await page.waitForTimeout(DISPLAY_CONTROLS_MS);
+    // Text-only swap of the dev origin for the public one; inputs keep their values.
+    if (shot.showBaseUrlAs) {
+      await page.evaluate(
+        ([from, to]) => {
+          const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            if (node.nodeValue?.includes(from)) node.nodeValue = node.nodeValue.split(from).join(to);
+          }
+        },
+        [env.SCREENSHOT_BASE_URL, shot.showBaseUrlAs] as const,
+      );
+    }
     // Moving to the next LIFF step scrolls the page; start every capture from the top.
     await page.evaluate(() => window.scrollTo(0, 0));
+    if (shot.scrollToText) {
+      // Show the part of a long page the shot is about (e.g. the slot grid under the calendar).
+      await page.getByText(shot.scrollToText, { exact: false }).first().evaluate((el) => el.scrollIntoView({ block: 'start' }));
+    }
     await page.waitForTimeout(200);
     // Business sets crop the portal shell away: its shop name and notification
     // count are server-rendered from the demo shop and cannot be replaced.
     const clip = sample && shot.clipSelector ? await clipTo(page, shot.clipSelector, shot.viewport.height) : undefined;
     const png = await page.screenshot({ fullPage: clip ? false : (shot.fullPage ?? false), clip, type: 'png' });
-    const dir = sample ? path.join(OUTPUT_DIR, sample.key) : OUTPUT_DIR;
+    const dir = path.join(OUTPUT_DIR, sample?.key ?? shot.dir ?? '');
     await mkdir(dir, { recursive: true });
     const file = path.join(dir, `${shot.name}.webp`);
     const info = await sharp(png)
@@ -346,7 +371,8 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const flag = args.indexOf('--business');
   const businessArg = flag >= 0 ? args[flag + 1] : undefined;
-  const requested = args.filter((arg, i) => i !== flag && i !== flag + 1);
+  // Without --business, `flag` is -1 and the old filter dropped the first requested name.
+  const requested = flag >= 0 ? args.filter((_, i) => i !== flag && i !== flag + 1) : args;
 
   let businesses: Array<BusinessCatalog | undefined> = [undefined];
   if (flag >= 0) {
