@@ -45,15 +45,7 @@ import { BOOKING_WINDOW_CODE } from '@/lib/booking/booking-window';
 import { firstBookableDay, isDayBookable, type BookableDayRules } from '@/lib/booking/bookable-days';
 import { LiffDateCalendar } from '@/components/line/liff-date-calendar';
 import { SLOT_FULL_CODE } from '@/lib/booking/slot-capacity';
-import {
-  MULTI_SLOT_UNAVAILABLE_CODE,
-  bookingEndTime,
-  maxOpenSlotCount,
-  minSlotCount,
-  nextSlotSelection,
-  selectedSlotTimes,
-  slotUnitMinutes,
-} from '@/lib/booking/multi-slot';
+import { MAX_SLOTS_PER_ORDER, MULTI_PICK_INVALID_CODE, MULTI_SLOT_UNAVAILABLE_CODE, toggleSlotPick } from '@/lib/booking/multi-slot';
 import { LiffPaymentPanel, openBankDeeplink } from '@/components/line/liff-payment-panel';
 import {
   KeyValueList,
@@ -393,8 +385,11 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const [slotHint, setSlotHint] = useState('');
   const [slotMeta, setSlotMeta] = useState<SlotMeta>({ reason: 'ok' });
   const [selectedTime, setSelectedTime] = useState('');
-  /** Consecutive slots in this booking; >1 only for flexible services with a chosen resource. */
-  const [slotCount, setSlotCount] = useState(1);
+  /**
+   * Further start times picked with `selectedTime` (sorted, `selectedTime` is
+   * always the earliest). One queue per time; only when the shop allows it.
+   */
+  const [extraTimes, setExtraTimes] = useState<string[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerNickname, setCustomerNickname] = useState('');
@@ -665,6 +660,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     setSlotHint('');
     setSlotMeta({ reason: 'ok' });
     setSelectedTime('');
+    setExtraTimes([]);
     const params = new URLSearchParams({
       branch_id: branchId,
       service_id: serviceId, 
@@ -703,6 +699,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   useEffect(() => {
     setSlots([]);
     setSelectedTime('');
+    setExtraTimes([]);
     setSlotHint('');
     setSlotMeta({ reason: 'ok' });
   }, [branchId, serviceId, date, selectedResourceId]);
@@ -777,38 +774,20 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   }
 
   /**
-   * Most consecutive slots bookable from the selected time. Only a booking held
-   * by a chosen resource may span several slots — the grid is then that
-   * resource's own availability, so a run of open slots is really free.
+   * The customer may tap several free slots (one queue each, any times) when
+   * the shop turned on multi-slot booking — never with "one booking per day".
    */
-  const maxRunSlots = useMemo(() => {
-    const service = services.find((s) => s.id === serviceId);
-    if (!shop?.multi_slot_enabled || !service || !selectedResourceId || !selectedTime) return 1;
-    return maxOpenSlotCount(service, slots, selectedTime);
-  }, [shop?.multi_slot_enabled, services, serviceId, selectedResourceId, selectedTime, slots]);
-  /** Fewest slots a multi-slot booking must take (service `min_duration_minutes`). */
-  const minRunSlots = useMemo(() => {
-    const service = services.find((s) => s.id === serviceId);
-    return service ? minSlotCount(service) : 1;
-  }, [services, serviceId]);
-  const multiSlotEndTime = useMemo(() => {
-    const service = services.find((s) => s.id === serviceId);
-    if (!service || !selectedTime) return '';
-    return (bookingEndTime(selectedTime, slotUnitMinutes(service), slotCount) ?? '').slice(0, 5);
-  }, [services, serviceId, selectedTime, slotCount]);
-
-  // A new time, resource or grid starts again from one slot.
-  useEffect(() => {
-    setSlotCount(1);
-  }, [selectedTime, selectedResourceId, slots]);
+  const multiPickEnabled = Boolean(shop?.multi_slot_enabled && !shop?.one_booking_per_day);
+  /** Every picked start time, earliest first. */
+  const pickedTimes = useMemo(() => (selectedTime ? [selectedTime, ...extraTimes] : []), [selectedTime, extraTimes]);
 
   /** Price the customer would pay, used to decide whether to show the method picker. */
   const effectivePrice = useMemo(() => {
     const resourcePrice = Number(selectedResourceId ? resources.find((r) => r.id === selectedResourceId)?.unit_price ?? 0 : 0);
     const servicePrice = Number(services.find((s) => s.id === serviceId)?.price ?? 0);
-    // Price is per slot.
-    return (resourcePrice > 0 ? resourcePrice : servicePrice) * slotCount;
-  }, [selectedResourceId, resources, services, serviceId, slotCount]);
+    // Price is per queue; a multi-pick order pays for all of them at once.
+    return (resourcePrice > 0 ? resourcePrice : servicePrice) * Math.max(pickedTimes.length, 1);
+  }, [selectedResourceId, resources, services, serviceId, pickedTimes.length]);
 
   /** Bank apps behind the Omise Mobile Banking card; the first is the default when the card is chosen. */
   const mobileBanks = useMemo(() => shopPayment?.mobile_banking_banks ?? [], [shopPayment]);
@@ -886,7 +865,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         booking_date: date,
         start_time: `${selectedTime}:00`,
         resource_id: selectedResourceId || undefined,
-        slot_count: slotCount > 1 ? slotCount : undefined,
+        start_times: pickedTimes.length > 1 ? pickedTimes.map((t) => `${t}:00`) : undefined,
         customer_name: customerName,
         customer_phone: customerPhone,
         nickname: customerNickname.trim() || undefined,
@@ -912,10 +891,12 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       // reload so the date picker's maximum matches the server.
       if (json.code === BOOKING_WINDOW_CODE) void loadSlots();
       // A later slot of the run was taken meanwhile — redraw the grid.
-      if (json.code === MULTI_SLOT_UNAVAILABLE_CODE) void loadSlots();
+      if (json.code === MULTI_SLOT_UNAVAILABLE_CODE || json.code === MULTI_PICK_INVALID_CODE) void loadSlots();
       return push(json.error ?? 'จองคิวไม่สำเร็จ', 'error');
     }
-    setQueueNo(json.data.queue_number);
+    // A multi-pick order shows every queue number it created.
+    const createdQueues = Array.isArray(json.data?.bookings) ? (json.data.bookings as Array<{ queue_number: string }>) : [];
+    setQueueNo(createdQueues.length > 1 ? createdQueues.map((b) => b.queue_number).join(', ') : json.data.queue_number);
 
     const paymentMethod: string | null = json.data?.payment?.method ?? null;
     // The booking is saved even when Omise refused the charge (e.g. a bank the
@@ -992,32 +973,24 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   // /slots carries the freshest value; /meta covers the time before the first load.
   const maxBookingDate = slotMeta.max_date ?? selectedBranch?.max_booking_date ?? '';
   const selectedService = useMemo(() => services.find((s) => s.id === serviceId), [services, serviceId]);
-  const slotUnit = selectedService ? slotUnitMinutes(selectedService) : 0;
-  /** Every slot of the current pick, highlighted together in the grid. */
-  const pickedSlots = useMemo(
-    () => (selectedTime ? selectedSlotTimes({ start: selectedTime, count: slotCount }, slotUnit) : new Set<string>()),
-    [selectedTime, slotCount, slotUnit],
-  );
+  /** Every picked slot, highlighted together in the grid. */
+  const pickedSlots = useMemo(() => new Set(pickedTimes), [pickedTimes]);
 
   /**
-   * Tap on a grid slot. With multi-slot on, a later free slot in step with the
-   * start extends the pick to it (and a slot inside the pick shrinks it);
-   * anything else starts a new pick there. See `nextSlotSelection`.
+   * Tap on a grid slot. Normally picks that one slot. With multi-pick on, a
+   * tap adds the slot (any free time, up to MAX_SLOTS_PER_ORDER) or removes it
+   * when already picked; the earliest becomes `selectedTime`.
    */
   function onSlotTap(time: string) {
-    const next = nextSlotSelection(
-      selectedTime ? { start: selectedTime, count: slotCount } : null,
-      time,
-      slotUnit,
-      maxRunSlots,
-      minRunSlots,
-    );
-    if (next.start !== selectedTime) {
-      // The reset effect puts slotCount back to 1 for a new start.
-      setSelectedTime(next.start);
+    if (!multiPickEnabled) {
+      setSelectedTime(time);
+      setExtraTimes([]);
       return;
     }
-    setSlotCount(next.count);
+    const next = toggleSlotPick(pickedTimes, time, MAX_SLOTS_PER_ORDER);
+    if (next.limitHit) push(`เลือกได้สูงสุด ${MAX_SLOTS_PER_ORDER} ช่องต่อการจอง`, 'error');
+    setSelectedTime(next.picks[0] ?? '');
+    setExtraTimes(next.picks.slice(1));
   }
   // Branch first, then service: a yoga teacher linked to "คลาสโยคะ" must not
   // appear when the customer picked "พิลาทิส". Unlinked resources always show.
@@ -1135,7 +1108,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     const summaryRows = [
       { label: 'บริการ', value: selectedService?.service_name ?? '-' },
       { label: 'วันที่', value: formatDateDMY(date) },
-      { label: 'เวลา', value: slotCount > 1 && multiSlotEndTime ? `${selectedTime}–${multiSlotEndTime} น. (${slotCount} รอบ)` : `${selectedTime} น.` },
+      { label: 'เวลา', value: pickedTimes.length > 1 ? `${pickedTimes.join(', ')} น. (${pickedTimes.length} คิว)` : `${selectedTime} น.` },
       { label: 'สาขา', value: selectedBranch?.branch_name ?? '-' },
       ...(filteredResources.length > 0
         ? [{
@@ -1675,13 +1648,15 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                     })}
                   </Box>
                 ) : null}
-                {!loading && selectedTime && maxRunSlots > 1 ? (
+                {!loading && multiPickEnabled && slots.length > 0 ? (
                   <Alert severity="info" icon={false} sx={{ py: 0.5 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {selectedTime}–{multiSlotEndTime || '-'} น. · {slotCount} รอบ
-                    </Typography>
+                    {pickedTimes.length > 0 ? (
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        เลือกแล้ว {pickedTimes.length} ช่อง: {pickedTimes.join(', ')} น.
+                      </Typography>
+                    ) : null}
                     <Typography variant="caption" color="text.secondary">
-                      แตะช่องเวลาถัดไปเพื่อจองต่อเนื่อง (สูงสุด {maxRunSlots} รอบ{minRunSlots > 1 ? ` · ขั้นต่ำ ${minRunSlots} รอบเมื่อจองหลายรอบ` : ''}) · แตะช่องแรกเพื่อกลับเป็น 1 รอบ
+                      แตะเลือกได้หลายช่อง สูงสุด {MAX_SLOTS_PER_ORDER} ช่อง (ได้ 1 คิวต่อช่อง) · แตะช่องที่เลือกแล้วเพื่อเอาออก
                     </Typography>
                   </Alert>
                 ) : null}

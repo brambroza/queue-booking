@@ -4,13 +4,17 @@ import {
   bookingEndTime,
   bookingTimeLabel,
   consecutiveSlotsOpen,
+  effectiveEndMinutes,
   isExtendableStatus,
   isSlotCountAllowed,
   maxOpenSlotCount,
   maxSlotCount,
   minSlotCount,
   nextSlotSelection,
+  normalizePickedTimes,
+  picksOverlap,
   selectedSlotTimes,
+  toggleSlotPick,
   timeToMinutes,
 } from './multi-slot';
 
@@ -190,5 +194,42 @@ describe('selectedSlotTimes', () => {
   it('lists every slot of the pick', () => {
     expect([...selectedSlotTimes({ start: '18:00', count: 3 }, 60)]).toEqual(['18:00', '19:00', '20:00']);
     expect([...selectedSlotTimes(null, 60)]).toEqual([]);
+  });
+});
+
+describe('normalizePickedTimes', () => {
+  it('dedupes, sorts and drops bad times', () => {
+    expect(normalizePickedTimes(['14:00:00', '09:00', '14:00', 'x'])).toEqual(['09:00', '14:00']);
+  });
+});
+
+describe('toggleSlotPick', () => {
+  it('adds and keeps picks sorted', () => {
+    expect(toggleSlotPick(['14:00'], '09:00', 4)).toEqual({ picks: ['09:00', '14:00'], limitHit: false });
+  });
+
+  it('removes a picked slot', () => {
+    expect(toggleSlotPick(['09:00', '14:00'], '09:00', 4)).toEqual({ picks: ['14:00'], limitHit: false });
+  });
+
+  it('refuses past the limit', () => {
+    expect(toggleSlotPick(['09:00', '10:00'], '11:00', 2)).toEqual({ picks: ['09:00', '10:00'], limitHit: true });
+  });
+});
+
+describe('picksOverlap', () => {
+  it('flags picks closer than one booking length', () => {
+    expect(picksOverlap(['09:00', '09:30'], 60)).toBe(true);
+    expect(picksOverlap(['09:00', '10:00', '14:00'], 60)).toBe(false);
+  });
+});
+
+describe('effectiveEndMinutes', () => {
+  it('uses a valid stored end', () => {
+    expect(effectiveEndMinutes('18:00:00', '20:00:00', 60)).toBe(20 * 60);
+  });
+
+  it('ignores an end shifted 7 hours early by the old UTC bug', () => {
+    expect(effectiveEndMinutes('18:00:00', '12:00:00', 60)).toBe(19 * 60);
   });
 });

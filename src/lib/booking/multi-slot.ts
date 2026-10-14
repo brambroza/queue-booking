@@ -294,3 +294,73 @@ export function selectedSlotTimes(selection: SlotSelection | null, unitMinutes: 
   }
   return out;
 }
+
+/** Most separate slots a customer may pick in one LIFF booking (one queue per slot). */
+export const MAX_SLOTS_PER_ORDER = 4;
+
+/** `code` when the picked slots break a multi-pick rule (too many, same-day limit, overlap). */
+export const MULTI_PICK_INVALID_CODE = 'multi_pick_invalid';
+
+/**
+ * Normalise, de-duplicate and sort picked start times (`HH:MM`).
+ *
+ * @param times - Start times as sent by the client (`HH:MM` or `HH:MM:SS`).
+ */
+export function normalizePickedTimes(times: readonly string[]): string[] {
+  const out = new Set<string>();
+  for (const t of times) {
+    const m = timeToMinutes(t);
+    if (m !== null) out.add(minutesToTime(m).slice(0, 5));
+  }
+  return [...out].sort();
+}
+
+/**
+ * Tap on a grid slot when the shop lets customers pick several slots (one
+ * queue each, not necessarily next to each other): a picked slot is removed,
+ * a new one is added until `max`.
+ *
+ * @param picks - Currently picked start times.
+ * @param tapped - Tapped slot (`HH:MM`).
+ * @param max - Most slots allowed.
+ * @returns Sorted picks and whether the tap was refused because of `max`.
+ */
+export function toggleSlotPick(picks: readonly string[], tapped: string, max: number): { picks: string[]; limitHit: boolean } {
+  const current = normalizePickedTimes(picks);
+  const t = normalizePickedTimes([tapped])[0];
+  if (!t) return { picks: current, limitHit: false };
+  if (current.includes(t)) return { picks: current.filter((x) => x !== t), limitHit: false };
+  if (current.length >= max) return { picks: current, limitHit: true };
+  return { picks: normalizePickedTimes([...current, t]), limitHit: false };
+}
+
+/**
+ * Whether two of the customer's own picks would hold the same resource at the
+ * same time (slot length longer than the gap between them).
+ *
+ * @param times - Sorted picked start times.
+ * @param unitMinutes - Length of one booking.
+ */
+export function picksOverlap(times: readonly string[], unitMinutes: number): boolean {
+  const mins = normalizePickedTimes(times).map((t) => timeToMinutes(t) as number);
+  for (let i = 1; i < mins.length; i += 1) {
+    if (mins[i] - mins[i - 1] < unitMinutes) return true;
+  }
+  return false;
+}
+
+/**
+ * Effective end of an existing booking in minutes since midnight. Bookings
+ * created before 2026-10-14 may store an `end_time` 7 hours early (the old
+ * code read the server's UTC clock), which lands before the start — then the
+ * service duration is used instead.
+ *
+ * @param start - Booking start time.
+ * @param end - Stored end time (nullable).
+ * @param fallbackMinutes - Service duration.
+ */
+export function effectiveEndMinutes(start: string, end: string | null | undefined, fallbackMinutes: number): number | null {
+  const s = timeToMinutes(start);
+  if (s === null) return null;
+  return s + bookingDurationMinutes(start, end, fallbackMinutes);
+}

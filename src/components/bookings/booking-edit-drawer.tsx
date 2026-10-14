@@ -5,7 +5,7 @@ import { Box, Button, Card, CardContent, Divider, Drawer, IconButton, Stack, Typ
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
 import MoreTimeRoundedIcon from '@mui/icons-material/MoreTimeRounded';
-import { isExtendableStatus, minutesToTime, timeToMinutes } from '@/lib/booking/multi-slot';
+import { effectiveEndMinutes, isExtendableStatus, minutesToTime } from '@/lib/booking/multi-slot';
 import { StatusChip } from '@/components/shared/status-chip';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { formatDateDMY, formatDateTimeDMY } from '@/lib/utils/date-format';
@@ -24,13 +24,17 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 /**
- * New end time `minutes` after the current end, or null when it would pass midnight.
+ * New end time `minutes` after the booking's current end, or null when it
+ * would pass midnight. A stored end before the start (old UTC bug) counts as
+ * start + one slot.
  *
- * @param end - Current `end_time`.
+ * @param start - Booking `start_time`.
+ * @param end - Stored `end_time`.
+ * @param slotMinutes - Service duration.
  * @param minutes - Minutes to add.
  */
-function extendedEnd(end: string, minutes: number): string | null {
-  const e = timeToMinutes(end);
+function extendedEnd(start: string, end: string | null | undefined, slotMinutes: number, minutes: number): string | null {
+  const e = effectiveEndMinutes(start, end, slotMinutes);
   if (e === null || e + minutes >= 24 * 60) return null;
   return minutesToTime(e + minutes);
 }
@@ -71,7 +75,7 @@ export function BookingEditDrawer({
   const next = b ? NEXT_STATUSES[b.status] ?? [] : [];
   const ack = b ? changeAckState(b) : 'none';
   const extendSteps = Array.from(new Set([30, Number(slotMinutes) || 0].filter((m) => m >= 5))).sort((x, y) => x - y);
-  const canExtend = Boolean(b && onExtend && b.resource_id && b.end_time && isExtendableStatus(b.status));
+  const canExtend = Boolean(b && onExtend && b.resource_id && isExtendableStatus(b.status));
 
   return (
     <Drawer anchor="right" open={Boolean(b)} onClose={saving ? undefined : onClose} PaperProps={{ sx: { width: { xs: '100%', sm: 460 } } }}>
@@ -133,7 +137,7 @@ export function BookingEditDrawer({
               </Section>
             ) : null}
 
-            {canExtend && b.end_time ? (
+            {canExtend ? (
               <Section title={t('extend_time', 'ต่อเวลา')}>
                 <Stack spacing={1}>
                   <Typography variant="caption" color="text.secondary">
@@ -141,7 +145,7 @@ export function BookingEditDrawer({
                   </Typography>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     {extendSteps.map((m) => {
-                      const newEnd = extendedEnd(b.end_time ?? '', m);
+                      const newEnd = extendedEnd(b.start_time, b.end_time, Number(slotMinutes) || 30, m);
                       return (
                         <Button
                           key={m}

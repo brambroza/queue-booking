@@ -33,6 +33,10 @@ import {
   MULTI_SLOT_NEEDS_RESOURCE_MESSAGE,
   MULTI_SLOT_UNAVAILABLE_CODE,
   MAX_SLOTS_PER_BOOKING,
+  MAX_SLOTS_PER_ORDER,
+  MULTI_PICK_INVALID_CODE,
+  normalizePickedTimes,
+  picksOverlap,
   bookingEndTime,
   bookingTimeLabel,
   consecutiveSlotsOpen,
@@ -63,6 +67,15 @@ const bookSchema = z
     resource_id: z.string().uuid().optional(),
     /** Consecutive slots in one booking; >1 only for `flexible_duration` services with a resource. */
     slot_count: z.coerce.number().int().min(1).max(MAX_SLOTS_PER_BOOKING).optional(),
+    /**
+     * Every start time the customer picked (incl. `start_time`); one queue is
+     * created per time. Needs `shops.multi_slot_enabled`.
+     */
+    start_times: z
+      .array(z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/))
+      .min(1)
+      .max(MAX_SLOTS_PER_ORDER)
+      .optional(),
     payment_method: z.enum(PAYMENT_METHODS).optional(),
     /** Which bank app to open; required with `bank_deeplink` / `omise_mobile_banking`, ignored otherwise. */
     bank_provider: z.enum(BANK_CODES).optional(),
@@ -95,6 +108,7 @@ function invalidFieldMessage(path: PropertyKey | undefined) {
     payment_method: 'วิธีชำระเงิน',
     bank_provider: 'ธนาคารที่เลือก',
     slot_count: 'จำนวนรอบ',
+    start_times: 'เวลาที่เลือก',
   };
   const label = typeof path === 'string' ? labels[path] : undefined;
   return label ? `ข้อมูลไม่ถูกต้อง: ${label}` : 'ข้อมูลการจองไม่ครบถ้วน';
@@ -126,7 +140,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   // The LIFF greys these out, but a grid left open past the hour (or a forged
   // request) still reaches here. Same rule as /slots, same Bangkok clock.
   const now = toBangkokStamp(new Date());
-  if (isSlotPast({ date: payload.booking_date, time: payload.start_time }, now)) {
+  // One queue per picked time; the earliest is the "main" queue that carries
+  // the payment for all of them.
+  const pickedTimes = normalizePickedTimes([payload.start_time, ...(payload.start_times ?? [])]);
+  if (pickedTimes.length === 0) return NextResponse.json({ error: invalidFieldMessage('start_time') }, { status: 400 });
+  if (pickedTimes.length > MAX_SLOTS_PER_ORDER) {
+    return NextResponse.json({ error: `เลือกได้สูงสุด ${MAX_SLOTS_PER_ORDER} ช่องต่อการจอง`, code: MULTI_PICK_INVALID_CODE }, { status: 400 });
+  }
+  const multiPick = pickedTimes.length > 1;
+  if (pickedTimes.some((time) => isSlotPast({ date: payload.booking_date, time }, now))) {
     return NextResponse.json({ error: SLOT_PAST_MESSAGE, code: SLOT_PAST_CODE }, { status: 400 });
   }
 
@@ -156,7 +178,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   // plan error (or an unhandled 500) to an end customer on the LIFF screen —
   // tell them politely and alert the shop owner, who is the one who can act.
   try {
-    await assertFeatureQuota(shop.id, 'bookings', monthlyCount ?? 0);
+    // Each picked slot is its own booking, so the quota must have room for all.
+    await assertFeatureQuota(shop.id, 'bookings', (monthlyCount ?? 0) + pickedTimes.length - 1);
   } catch (quotaErr) {
     if (quotaErr instanceof SubscriptionQuotaError || quotaErr instanceof SubscriptionInactiveError) {
       await safeCreateNotification(admin, {
@@ -187,8 +210,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   }
 
   const slotCount = payload.slot_count ?? 1;
-  if (slotCount > 1 && !(await isMultiSlotEnabled(admin, shop.id))) {
-    return NextResponse.json({ error: 'ร้านนี้ยังไม่เปิดให้จองหลายรอบต่อเนื่อง', code: MULTI_SLOT_UNAVAILABLE_CODE }, { status: 400 });
+  if ((slotCount > 1 || multiPick) && !(await isMultiSlotEnabled(admin, shop.id))) {
+    return NextResponse.json({ error: 'ร้านนี้ยังไม่เปิดให้จองหลายช่องเวลา', code: MULTI_SLOT_UNAVAILABLE_CODE }, { status: 400 });
+  }
+  if (slotCount > 1 && multiPick) {
+    return NextResponse.json({ error: invalidFieldMessage('slot_count'), code: MULTI_PICK_INVALID_CODE }, { status: 400 });
   }
   if (!isSlotCountAllowed(service, slotCount)) {
     return NextResponse.json({ error: invalidFieldMessage('slot_count'), code: MULTI_SLOT_UNAVAILABLE_CODE }, { status: 400 });
@@ -284,6 +310,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   // clear message; the DB trigger from 202609220002 closes the race two taps
   // could open between this count and the insert below.
   if (await isOneBookingPerDay(admin, shop.id)) {
+    // Several picks are several queues on the same day — never allowed here.
+    if (multiPick) {
+      return NextResponse.json({ error: dailyLimitMessage(payload.booking_date), code: DAILY_LIMIT_CODE }, { status: 409 });
+    }
     const { count: sameDayCount, error: sameDayError } = await admin
       .from('bookings')
       .select('id', { count: 'exact', head: true })
@@ -304,147 +334,180 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   }
 
   const partySize = payload.party_size ?? null;
-  const startLabel = payload.start_time.length === 5 ? `${payload.start_time}:00` : payload.start_time;
-  const startAt = new Date(`${payload.booking_date}T${startLabel}+07:00`);
   const unitMin = slotUnitMinutes(service);
-  const endAt = new Date(startAt.getTime() + unitMin * slotCount * 60000);
-  // Same-day end as a Bangkok wall-clock time. A single slot keeps the old
-  // behaviour; a multi-slot run must not cross midnight.
-  const endTime = bookingEndTime(payload.start_time, unitMin, slotCount)
-    ?? (slotCount === 1 ? `${String(endAt.getHours()).padStart(2, '0')}:${String(endAt.getMinutes()).padStart(2, '0')}:00` : null);
-  if (!endTime) {
-    return NextResponse.json({ error: invalidFieldMessage('slot_count'), code: MULTI_SLOT_UNAVAILABLE_CODE }, { status: 400 });
-  }
 
-  let assignedResource: {
+  type AssignedResource = {
     resource_id: string;
     resource_name: string;
     resource_type: string | null;
     capacity: number;
     unit_price: number;
-  } | null = null;
-  if (payload.resource_id) {
-    const { data: selectedResource } = await admin
-      .from('booking_resources')
-      .select('id,resource_name,resource_type,capacity,unit_price,service_ids')
-      .eq('id', payload.resource_id)
-      .eq('shop_id', shop.id)
-      .eq('active', true)
-      .eq('is_deleted', false)
-      .maybeSingle();
-    if (selectedResource?.id) {
-      // A resource linked to specific services can only be booked for those.
-      if (!resourceServesService(selectedResource, payload.service_id)) {
-        return NextResponse.json(
-          { error: resourceServiceMismatchMessage(resourceTypeLabel(selectedResource.resource_type)) },
-          { status: 400 },
-        );
-      }
-      // The customer named a specific resource, so slot capacity is not enough —
-      // two people can pick the same trainer at the same time between renders.
-      const { data: isFree } = await admin.rpc('is_resource_available', {
-        p_shop_id: shop.id,
-        p_resource_id: selectedResource.id,
-        p_start: startAt.toISOString(),
-        p_end: endAt.toISOString(),
-      });
-      if (isFree === false) {
-        return NextResponse.json({ error: resourceBusyMessage(selectedResource.resource_type) }, { status: 409 });
-      }
-      assignedResource = {
-        resource_id: selectedResource.id as string,
-        resource_name: String(selectedResource.resource_name ?? '-'),
-        resource_type: (selectedResource.resource_type as string | null) ?? null,
-        capacity: Number(selectedResource.capacity ?? 1),
-        unit_price: Number(selectedResource.unit_price ?? 0),
-      };
+  };
+  type SlotPlan = { startTime: string; startAt: Date; endAt: Date; endTime: string; resource: AssignedResource | null };
+
+  /**
+   * Validate one start time the way a single booking always was: resource
+   * free (or a table found for the party), otherwise slot capacity left.
+   * `count` > 1 is the consecutive-slot booking of a flexible service.
+   */
+  async function planSlot(startTime: string, count: number): Promise<{ plan: SlotPlan } | { response: NextResponse }> {
+    const startLabel = startTime.length === 5 ? `${startTime}:00` : startTime;
+    const startAt = new Date(`${payload.booking_date}T${startLabel}+07:00`);
+    const endAt = new Date(startAt.getTime() + unitMin * count * 60000);
+    // Same-day end as a Bangkok wall-clock time. A single slot keeps the old
+    // behaviour; a multi-slot run must not cross midnight.
+    const endTime = bookingEndTime(startTime, unitMin, count)
+      ?? (count === 1 ? `${String(endAt.getHours()).padStart(2, '0')}:${String(endAt.getMinutes()).padStart(2, '0')}:00` : null);
+    if (!endTime) {
+      return { response: NextResponse.json({ error: invalidFieldMessage('slot_count'), code: MULTI_SLOT_UNAVAILABLE_CODE }, { status: 400 }) };
     }
-  } else if (partySize && partySize > 0) {
-    const { data: candidates } = await admin.rpc('find_available_resources', {
-      p_shop_id: shop.id,
-      p_branch_id: payload.branch_id,
-      p_resource_type: 'table',
-      p_party_size: partySize,
-      p_start_time: startAt.toISOString(),
-      p_end_time: endAt.toISOString(),
-    });
-    const top = candidates?.[0] as { resource_id?: string; resource_name?: string; capacity?: number } | undefined;
-    if (top?.resource_id) {
-      const { data: resourcePrice } = await admin
+
+    let resource: AssignedResource | null = null;
+    if (payload.resource_id) {
+      const { data: selectedResource } = await admin
         .from('booking_resources')
-        .select('unit_price')
-        .eq('id', top.resource_id)
-        .eq('shop_id', shop.id)
+        .select('id,resource_name,resource_type,capacity,unit_price,service_ids')
+        .eq('id', payload.resource_id)
+        .eq('shop_id', shop!.id)
+        .eq('active', true)
+        .eq('is_deleted', false)
         .maybeSingle();
-      assignedResource = {
-        resource_id: top.resource_id,
-        resource_name: top.resource_name ?? '-',
-        resource_type: 'table',
-        capacity: Number(top.capacity ?? 1),
-        unit_price: Number(resourcePrice?.unit_price ?? 0),
-      };
+      if (selectedResource?.id) {
+        // A resource linked to specific services can only be booked for those.
+        if (!resourceServesService(selectedResource, payload.service_id)) {
+          return {
+            response: NextResponse.json(
+              { error: resourceServiceMismatchMessage(resourceTypeLabel(selectedResource.resource_type)) },
+              { status: 400 },
+            ),
+          };
+        }
+        // The customer named a specific resource, so slot capacity is not enough —
+        // two people can pick the same trainer at the same time between renders.
+        const { data: isFree } = await admin.rpc('is_resource_available', {
+          p_shop_id: shop!.id,
+          p_resource_id: selectedResource.id,
+          p_start: startAt.toISOString(),
+          p_end: endAt.toISOString(),
+        });
+        if (isFree === false) {
+          const busy = resourceBusyMessage(selectedResource.resource_type);
+          return { response: NextResponse.json({ error: multiPick ? `${startTime.slice(0, 5)} — ${busy}` : busy }, { status: 409 }) };
+        }
+        resource = {
+          resource_id: selectedResource.id as string,
+          resource_name: String(selectedResource.resource_name ?? '-'),
+          resource_type: (selectedResource.resource_type as string | null) ?? null,
+          capacity: Number(selectedResource.capacity ?? 1),
+          unit_price: Number(selectedResource.unit_price ?? 0),
+        };
+      }
+    } else if (partySize && partySize > 0) {
+      const { data: candidates } = await admin.rpc('find_available_resources', {
+        p_shop_id: shop!.id,
+        p_branch_id: payload.branch_id,
+        p_resource_type: 'table',
+        p_party_size: partySize,
+        p_start_time: startAt.toISOString(),
+        p_end_time: endAt.toISOString(),
+      });
+      const top = candidates?.[0] as { resource_id?: string; resource_name?: string; capacity?: number } | undefined;
+      if (top?.resource_id) {
+        const { data: resourcePrice } = await admin
+          .from('booking_resources')
+          .select('unit_price')
+          .eq('id', top.resource_id)
+          .eq('shop_id', shop!.id)
+          .maybeSingle();
+        resource = {
+          resource_id: top.resource_id,
+          resource_name: top.resource_name ?? '-',
+          resource_type: 'table',
+          capacity: Number(top.capacity ?? 1),
+          unit_price: Number(resourcePrice?.unit_price ?? 0),
+        };
+      }
     }
+
+    // More than one consecutive slot is only safe when a resource holds the
+    // booking: the resource guard compares time ranges, slot capacity does not.
+    if (count > 1) {
+      if (!resource) {
+        return { response: NextResponse.json({ error: MULTI_SLOT_NEEDS_RESOURCE_MESSAGE, code: MULTI_SLOT_NEEDS_RESOURCE_CODE }, { status: 400 }) };
+      }
+      const { data: grid, error: gridError } = await admin.rpc('get_slot_availability', {
+        p_shop_id: shop!.id,
+        p_branch_id: payload.branch_id,
+        p_service_id: payload.service_id,
+        p_date: payload.booking_date,
+        p_resource_type: resource.resource_type,
+        p_party_size: partySize,
+        p_resource_id: resource.resource_id,
+      });
+      if (gridError) {
+        console.error('[public/book] multi-slot grid failed', gridError.message);
+        return { response: NextResponse.json({ error: 'ขออภัย ระบบไม่สามารถรับการจองได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง' }, { status: 500 }) };
+      }
+      const gridSlots: GridSlot[] = ((grid ?? []) as Array<{ slot_time: string; remaining_capacity: number }>).map((g) => ({
+        ...g,
+        is_past: isSlotPast({ date: payload.booking_date, time: g.slot_time }, now),
+      }));
+      if (!consecutiveSlotsOpen(gridSlots, startTime, unitMin, count)) {
+        return {
+          response: NextResponse.json(
+            { error: multiSlotUnavailableMessage(startTime, endTime), code: MULTI_SLOT_UNAVAILABLE_CODE },
+            { status: 409 },
+          ),
+        };
+      }
+    }
+
+    // Slot capacity (services.capacity_per_slot, overridden per time range by
+    // service_capacity_rules). A booking tied to a resource is governed by the
+    // resource check above instead. The DB trigger from 202609290001 /
+    // 202610010001 closes the race between this count and the insert below.
+    if (!resource) {
+      let bookedCount: number;
+      let capacity: number;
+      try {
+        const slotKey = {
+          shopId: shop!.id,
+          branchId: payload.branch_id,
+          serviceId: payload.service_id,
+          date: payload.booking_date,
+          startTime,
+        };
+        [capacity, bookedCount] = await Promise.all([
+          fetchSlotCapacity(admin, slotKey, service!.capacity_per_slot),
+          countSlotBookings(admin, slotKey),
+        ]);
+      } catch (countErr) {
+        console.error('[public/book]', countErr instanceof Error ? countErr.message : countErr);
+        return { response: NextResponse.json({ error: 'ขออภัย ระบบไม่สามารถรับการจองได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง' }, { status: 500 }) };
+      }
+      if (isSlotFull(bookedCount, capacity)) {
+        return { response: NextResponse.json({ error: slotFullMessage(startTime), code: SLOT_FULL_CODE }, { status: 409 }) };
+      }
+    }
+
+    return { plan: { startTime, startAt, endAt, endTime, resource } };
   }
 
-  // More than one slot is only safe when a resource holds the booking: the
-  // resource guard compares time ranges, plain slot capacity does not.
-  if (slotCount > 1) {
-    if (!assignedResource) {
-      return NextResponse.json({ error: MULTI_SLOT_NEEDS_RESOURCE_MESSAGE, code: MULTI_SLOT_NEEDS_RESOURCE_CODE }, { status: 400 });
-    }
-    // Every slot of the run must be offered by the grid (inside opening hours,
-    // outside the break, not past) and free for this resource.
-    const { data: grid, error: gridError } = await admin.rpc('get_slot_availability', {
-      p_shop_id: shop.id,
-      p_branch_id: payload.branch_id,
-      p_service_id: payload.service_id,
-      p_date: payload.booking_date,
-      p_resource_type: assignedResource.resource_type,
-      p_party_size: partySize,
-      p_resource_id: assignedResource.resource_id,
-    });
-    if (gridError) {
-      console.error('[public/book] multi-slot grid failed', gridError.message);
-      return NextResponse.json({ error: 'ขออภัย ระบบไม่สามารถรับการจองได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง' }, { status: 500 });
-    }
-    const gridSlots: GridSlot[] = ((grid ?? []) as Array<{ slot_time: string; remaining_capacity: number }>).map((s) => ({
-      ...s,
-      is_past: isSlotPast({ date: payload.booking_date, time: s.slot_time }, now),
-    }));
-    if (!consecutiveSlotsOpen(gridSlots, payload.start_time, unitMin, slotCount)) {
-      return NextResponse.json(
-        { error: multiSlotUnavailableMessage(payload.start_time, endTime), code: MULTI_SLOT_UNAVAILABLE_CODE },
-        { status: 409 },
-      );
-    }
+  // Check every picked time before writing anything, so a full later slot
+  // never leaves the customer with half an order.
+  const plans: SlotPlan[] = [];
+  for (const time of pickedTimes) {
+    const result = await planSlot(time, multiPick ? 1 : slotCount);
+    if ('response' in result) return result.response;
+    plans.push(result.plan);
   }
-
-  // Slot capacity (services.capacity_per_slot, overridden per time range by
-  // service_capacity_rules). A booking tied to a resource is governed by the
-  // resource check above instead. The DB trigger from 202609290001 /
-  // 202610010001 closes the race between this count and the insert below.
-  if (!assignedResource) {
-    let bookedCount: number;
-    let capacity: number;
-    try {
-      const slotKey = {
-        shopId: shop.id,
-        branchId: payload.branch_id,
-        serviceId: payload.service_id,
-        date: payload.booking_date,
-        startTime: payload.start_time,
-      };
-      [capacity, bookedCount] = await Promise.all([
-        fetchSlotCapacity(admin, slotKey, service.capacity_per_slot),
-        countSlotBookings(admin, slotKey),
-      ]);
-    } catch (countErr) {
-      console.error('[public/book]', countErr instanceof Error ? countErr.message : countErr);
-      return NextResponse.json({ error: 'ขออภัย ระบบไม่สามารถรับการจองได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง' }, { status: 500 });
-    }
-    if (isSlotFull(bookedCount, capacity)) {
-      return NextResponse.json({ error: slotFullMessage(payload.start_time), code: SLOT_FULL_CODE }, { status: 409 });
-    }
+  // Two of the customer's own picks on one resource must not overlap (a 60-min
+  // service picked at 09:00 and 09:30) — the checks above cannot see each other.
+  if (multiPick && plans.some((p) => p.resource) && picksOverlap(pickedTimes, unitMin)) {
+    return NextResponse.json(
+      { error: `ช่วงเวลาที่เลือกซ้อนกัน (บริการนี้ใช้เวลา ${unitMin} นาที) กรุณาเลือกเวลาที่ห่างกันอย่างน้อย ${unitMin} นาที`, code: MULTI_PICK_INVALID_CODE },
+      { status: 400 },
+    );
   }
 
   // A service that needs approval holds its slot as `pending_approval` until
@@ -452,54 +515,83 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   const initialStatus = resolveInitialBookingStatus(service);
   const pendingApproval = initialStatus === 'pending_approval';
 
-  const { data: booking, error } = await admin.from('bookings').insert({
-    company_id: shop.company_id,
-    shop_id: shop.id,
-    branch_id: payload.branch_id,
-    service_id: payload.service_id,
-    customer_id: customerId,
-    line_user_id: lineUserPk,
-    booking_date: payload.booking_date,
-    start_time: payload.start_time,
-    end_time: endTime,
-    // queue_number is issued by the assign_queue_number trigger (202609220001).
-    status: initialStatus,
-    party_size: partySize,
-    resource_id: assignedResource?.resource_id ?? null,
-    resource_name: assignedResource?.resource_name ?? null,
-    resource_capacity: assignedResource?.capacity ?? null,
-  }).select('id,queue_number').single();
- 
-  // The trigger caught a concurrent booking the count above missed.
-  if (error && isDailyLimitDbError(error.message)) {
-    return NextResponse.json({ error: dailyLimitMessage(payload.booking_date), code: DAILY_LIMIT_CODE }, { status: 409 });
-  }
-  if (error && isSlotFullDbError(error.message)) {
-    return NextResponse.json({ error: slotFullMessage(payload.start_time), code: SLOT_FULL_CODE }, { status: 409 });
-  }
-  if (error || !booking) {
-    console.error('[public/book] insert failed', error?.message);
-    return NextResponse.json({ error: 'ขออภัย ระบบไม่สามารถรับการจองได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง' }, { status: 400 });
-  }
-  const queueNumber = String(booking.queue_number);
-
-  await admin.from('booking_logs').insert({
-    company_id: shop.company_id,
-    shop_id: shop.id,
-    booking_id: booking.id,
-    action: 'create_via_liff',
-    description: `Created booking ${queueNumber}`,
-  });
-
-  if (assignedResource?.resource_id) {
-    await admin.from('booking_resource_assignments').insert({
+  const created: Array<{ id: string; queue_number: string; plan: SlotPlan }> = [];
+  for (const plan of plans) {
+    const { data: row, error } = await admin.from('bookings').insert({
       company_id: shop.company_id,
       shop_id: shop.id,
       branch_id: payload.branch_id,
-      booking_id: booking.id,
-      resource_id: assignedResource.resource_id,
+      service_id: payload.service_id,
+      customer_id: customerId,
+      line_user_id: lineUserPk,
+      booking_date: payload.booking_date,
+      start_time: plan.startTime,
+      end_time: plan.endTime,
+      // queue_number is issued by the assign_queue_number trigger (202609220001).
+      status: initialStatus,
+      party_size: partySize,
+      resource_id: plan.resource?.resource_id ?? null,
+      resource_name: plan.resource?.resource_name ?? null,
+      resource_capacity: plan.resource?.capacity ?? null,
+      // The extra queues of a multi-pick are paid through the main (first) one.
+      ...(created.length > 0 ? { note: `จองพร้อมคิว ${created[0].queue_number} (ชำระรวมที่คิวนั้น)` } : {}),
+    }).select('id,queue_number').single();
+
+    if (error || !row) {
+      // All or nothing: withdraw the queues of this order already written.
+      if (created.length > 0) {
+        await admin
+          .from('bookings')
+          .update({ status: 'cancelled', is_deleted: true })
+          .in('id', created.map((c) => c.id))
+          .eq('shop_id', shop.id);
+      }
+      // The trigger caught a concurrent booking the count above missed.
+      if (error && isDailyLimitDbError(error.message)) {
+        return NextResponse.json({ error: dailyLimitMessage(payload.booking_date), code: DAILY_LIMIT_CODE }, { status: 409 });
+      }
+      if (error && isSlotFullDbError(error.message)) {
+        return NextResponse.json({ error: slotFullMessage(plan.startTime), code: SLOT_FULL_CODE }, { status: 409 });
+      }
+      console.error('[public/book] insert failed', error?.message);
+      return NextResponse.json({ error: 'ขออภัย ระบบไม่สามารถรับการจองได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง' }, { status: 400 });
+    }
+    created.push({ id: row.id as string, queue_number: String(row.queue_number), plan });
+  }
+
+  const booking = { id: created[0].id, queue_number: created[0].queue_number };
+  const assignedResource = plans[0].resource;
+  const endTime = plans[0].endTime;
+  /** Time shown in messages: the range of a consecutive booking, or every picked time. */
+  const orderTimeLabel = multiPick
+    ? pickedTimes.join(', ')
+    : bookingTimeLabel(payload.start_time, endTime, slotCount);
+  const queueNumber = String(booking.queue_number);
+  /** Every queue number of this order, for staff messages. */
+  const orderQueueLabel = created.map((c) => c.queue_number).join(', ');
+
+  await admin.from('booking_logs').insert(
+    created.map((c) => ({
+      company_id: shop.company_id,
+      shop_id: shop.id,
+      booking_id: c.id,
+      action: 'create_via_liff',
+      description: multiPick ? `Created booking ${c.queue_number} (order ${orderQueueLabel})` : `Created booking ${c.queue_number}`,
+    })),
+  );
+
+  const assignments = created
+    .filter((c) => c.plan.resource?.resource_id)
+    .map((c) => ({
+      company_id: shop.company_id,
+      shop_id: shop.id,
+      branch_id: payload.branch_id,
+      booking_id: c.id,
+      resource_id: c.plan.resource!.resource_id,
       note: payload.resource_id ? 'manual_assign' : 'auto_assign_by_party_size',
-    });
+    }));
+  if (assignments.length > 0) {
+    await admin.from('booking_resource_assignments').insert(assignments);
   }
 
   try {
@@ -511,16 +603,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       type: 'booking_created',
       category: 'bookings',
       priority: pendingApproval ? 'high' : 'medium',
-      title: pendingApproval ? `${queueNumber} — คำขอจองใหม่ รออนุมัติ` : `New booking ${queueNumber}`,
+      title: pendingApproval ? `${orderQueueLabel} — คำขอจองใหม่ รออนุมัติ` : `New booking ${orderQueueLabel}`,
       message: pendingApproval
-        ? `ลูกค้าขอจอง ${payload.booking_date} ${bookingTimeLabel(payload.start_time, endTime, slotCount)} (${service.service_name}) กรุณากด "อนุมัติ" ในหน้าคิว`
-        : `Customer booked ${payload.booking_date} ${bookingTimeLabel(payload.start_time, endTime, slotCount)}`,
+        ? `ลูกค้าขอจอง ${payload.booking_date} ${orderTimeLabel} (${service.service_name}) กรุณากด "อนุมัติ" ในหน้าคิว`
+        : `Customer booked ${payload.booking_date} ${orderTimeLabel}`,
       relatedType: 'booking',
       relatedId: booking.id,
       actionUrl: '/portal/bookings',
       icon: pendingApproval ? 'PendingActions' : 'EventAvailable',
       color: pendingApproval ? '#d97706' : '#2e7d32',
-      metadata: { source: 'liff', queue_number: queueNumber, status: initialStatus },
+      metadata: { source: 'liff', queue_number: queueNumber, queue_numbers: created.map((c) => c.queue_number), status: initialStatus },
       createdBy: null,
     });
   } catch (e) {
@@ -536,7 +628,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     });
   }
 
-  await safeSyncBookingToGoogleCalendar(shop.id, booking.id);
+  for (const c of created) await safeSyncBookingToGoogleCalendar(shop.id, c.id);
 
   let linePushSent = false;
   let linePushError: string | null = null;
@@ -552,35 +644,32 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     const token = shopLine?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
     if (token) {
       const dateLabel = formatThaiDateLabel(payload.booking_date);
-      const timeLabel = bookingTimeLabel(payload.start_time, endTime, slotCount);
       const branchName = branch?.branch_name ?? '-';
       const serviceName = service?.service_name ?? '-';
       const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
       const liffUrl = appUrl ? `${appUrl}/liff/${encodeURIComponent(shop.shop_key)}` : undefined;
 
       try {
-        await pushMessage(token, payload.line_user_id, [
-          bookingConfirmFlex({
-            shopName: shop.name ?? 'Queue Booking',
-            queueNumber,
-            branch: branchName,
-            service: serviceName,
-            date: dateLabel,
-            time: timeLabel,
-            assignedTo: assignedResource?.resource_name ?? null,
-            assignedLabel: assignedResource ? resourceTypeLabel(assignedResource.resource_type) : null,
-            liffUrl,
-            pendingApproval,
-            bookingId: booking.id,
-          }),
-        /*   bookingConfirmMessage({
-            queueNumber,
-            branch: branchName,
-            service: serviceName,
-            date: dateLabel,
-            time: timeLabel,
-          }), */
-        ]);
+        // One card per queue (max 4, LINE allows 5 per push) so each keeps its own cancel button.
+        await pushMessage(
+          token,
+          payload.line_user_id,
+          created.map((c) =>
+            bookingConfirmFlex({
+              shopName: shop.name ?? 'Queue Booking',
+              queueNumber: c.queue_number,
+              branch: branchName,
+              service: serviceName,
+              date: dateLabel,
+              time: multiPick ? c.plan.startTime.slice(0, 5) : bookingTimeLabel(payload.start_time, endTime, slotCount),
+              assignedTo: c.plan.resource?.resource_name ?? null,
+              assignedLabel: c.plan.resource ? resourceTypeLabel(c.plan.resource.resource_type) : null,
+              liffUrl,
+              pendingApproval,
+              bookingId: c.id,
+            }),
+          ),
+        );
         linePushSent = true;
       } catch (e) {
         linePushError = e instanceof Error ? e.message : 'unknown error';
@@ -612,8 +701,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   try {
     const resourcePrice = Number(assignedResource?.unit_price ?? 0);
     const servicePrice = Number((service as unknown as { price?: number } | null)?.price ?? 0);
-    // Price is per slot, so a multi-slot booking pays for every slot.
-    const paymentPrice = (resourcePrice > 0 ? resourcePrice : servicePrice) * slotCount;
+    // Price is per slot: a consecutive booking pays for every slot, and a
+    // multi-pick order pays for all its queues through the main one.
+    const paymentPrice = (resourcePrice > 0 ? resourcePrice : servicePrice) * slotCount * created.length;
     const dateLabel = formatThaiDateLabel(payload.booking_date);
     const payment = await resolvePaymentForBooking({
       bookingId: booking.id,
@@ -626,7 +716,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       serviceName: service.service_name ?? '-',
       branchName: branch.branch_name ?? '-',
       dateLabel,
-      timeLabel: bookingTimeLabel(payload.start_time, endTime, slotCount),
+      timeLabel: orderTimeLabel,
       requestedMethod: payload.payment_method ?? null,
       requestedBankProvider: payload.bank_provider ?? null,
       platformType: detectOmisePlatform(req.headers.get('user-agent')),
@@ -668,6 +758,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       booking_time: payload.start_time.slice(0, 5),
       end_time: endTime.slice(0, 5),
       slot_count: slotCount,
+      /** Every queue of a multi-pick order; the first carries the payment. */
+      bookings: created.map((c) => ({ booking_id: c.id, queue_number: c.queue_number, start_time: c.plan.startTime.slice(0, 5) })),
       branch_name: branch.branch_name,
       service_name: service.service_name,
       line_push_sent: linePushSent,

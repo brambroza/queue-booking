@@ -496,7 +496,9 @@ export async function PATCH(req: Request) {
     if (body.end_time !== undefined) {
       const rawEnd = typeof body.end_time === 'string' ? body.end_time : '';
       const startMin = timeToMinutes(String(before.start_time));
-      const prevEndMin = timeToMinutes(before.end_time as string | null);
+      // A stored end before the start (old UTC bug) is ignored here.
+      const storedEndMin = timeToMinutes(before.end_time as string | null);
+      const prevEndMin = startMin !== null && storedEndMin !== null && storedEndMin > startMin ? storedEndMin : null;
       const newEndMin = timeToMinutes(rawEnd);
       if (newEndMin === null || startMin === null) {
         return NextResponse.json({ error: 'เวลาสิ้นสุดไม่ถูกต้อง' }, { status: 400 });

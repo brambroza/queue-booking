@@ -277,7 +277,7 @@ export function BookingsCrud() {
     await confirm({
       tone: 'primary',
       title: t('extend_confirm_title', 'ต่อเวลาคิวนี้?'),
-      description: `${t('extend_confirm_desc', 'เปลี่ยนเวลาสิ้นสุด')} ${hhmm(b.end_time ?? '')} → ${hhmm(endTime)} · ${t('extend_pay_note', 'ค่าบริการส่วนที่ต่อเก็บที่หน้าร้าน')}`,
+      description: `${t('extend_confirm_desc', 'เปลี่ยนเวลาสิ้นสุดเป็น')} ${hhmm(endTime)} · ${t('extend_pay_note', 'ค่าบริการส่วนที่ต่อเก็บที่หน้าร้าน')}`,
       context: { primary: `${t('queue_unit', 'คิว')} ${b.queue_number}`, secondary: b.resource_name ?? undefined },
       confirmLabel: t('extend_confirm', 'ต่อเวลา'),
       onConfirm: async () => {
