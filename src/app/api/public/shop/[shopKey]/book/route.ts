@@ -469,7 +469,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     resource_name: assignedResource?.resource_name ?? null,
     resource_capacity: assignedResource?.capacity ?? null,
   }).select('id,queue_number').single();
-
+ 
   // The trigger caught a concurrent booking the count above missed.
   if (error && isDailyLimitDbError(error.message)) {
     return NextResponse.json({ error: dailyLimitMessage(payload.booking_date), code: DAILY_LIMIT_CODE }, { status: 409 });
