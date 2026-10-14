@@ -40,7 +40,16 @@ export type Branch = {
   booking_advance_window?: string | null;
   booking_open_until?: string | null;
 };
-export type Service = { id: string; service_name: string; price?: number | null };
+export type Service = {
+  id: string;
+  service_name: string;
+  price?: number | null;
+  /** One slot; also the step of "ต่อเวลา +1 รอบ" and of multi-slot bookings. */
+  duration_minutes?: number | null;
+  booking_mode?: string | null;
+  min_duration_minutes?: number | null;
+  max_duration_minutes?: number | null;
+};
 export type LineUser = {
   id: string;
   line_user_id: string;

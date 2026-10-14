@@ -24,6 +24,7 @@ import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import type { Branch, LineUser, Resource, Service } from './booking-types';
 import { filterResourcesForService } from '@/lib/booking/resource-service-link';
 import { resolveMaxBookingDate } from '@/lib/booking/booking-window';
+import { maxSlotCount, minSlotCount, slotUnitMinutes } from '@/lib/booking/multi-slot';
 
 export type CreateDraft = {
   branch_id: string;
@@ -32,6 +33,8 @@ export type CreateDraft = {
   start_time: string;
   party_size: string;
   resource_id: string;
+  /** Consecutive slots; '' = 1. Only offered for flexible services with a resource. */
+  slot_count: string;
   customer_name: string;
   customer_nickname: string;
   customer_phone: string;
@@ -42,7 +45,7 @@ export type CreateResult = { queueNo: string; branch: string; service: string; d
 
 export const EMPTY_CREATE_DRAFT: CreateDraft = {
   branch_id: '', service_id: '', booking_date: '', start_time: '',
-  party_size: '', resource_id: '', customer_name: '', customer_nickname: '', customer_phone: '', note: '',
+  party_size: '', resource_id: '', slot_count: '', customer_name: '', customer_nickname: '', customer_phone: '', note: '',
 };
 
 /**
@@ -61,6 +64,7 @@ export function BookingCreateDrawer({
   result,
   onSubmit,
   onReset,
+  multiSlotEnabled = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -74,6 +78,8 @@ export function BookingCreateDrawer({
   result: CreateResult | null;
   onSubmit: (draft: CreateDraft, lineUserId: string) => void;
   onReset: () => void;
+  /** Shop switch `shops.multi_slot_enabled`; hides the slot count picker when off. */
+  multiSlotEnabled?: boolean;
 }) {
   const { t } = useTranslation('bookings');
   const [step, setStep] = useState(0);
@@ -81,7 +87,13 @@ export function BookingCreateDrawer({
   const [lineUserId, setLineUserId] = useState('');
 
   const activeStep = result ? 2 : step;
-  const set = (key: keyof CreateDraft) => (e: React.ChangeEvent<HTMLInputElement>) => setDraft((p) => ({ ...p, [key]: e.target.value }));
+  const set = (key: keyof CreateDraft) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setDraft((p) => ({
+      ...p,
+      [key]: e.target.value,
+      // A different service or resource has its own slot limit — start again from one.
+      ...(key === 'service_id' || key === 'resource_id' ? { slot_count: '' } : {}),
+    }));
 
   const step1Ok = Boolean(draft.branch_id && draft.service_id && draft.customer_name.trim() && draft.customer_phone.trim());
   const step2Ok = Boolean(draft.booking_date && draft.start_time);
@@ -110,6 +122,13 @@ export function BookingCreateDrawer({
     resources.filter((r) => !r.branch_id || r.branch_id === draft.branch_id),
     draft.service_id,
   );
+
+  // Several consecutive slots only for a flexible service held by a resource.
+  const selectedService = services.find((s) => s.id === draft.service_id);
+  const slotChoices = multiSlotEnabled && selectedService && draft.resource_id
+    ? Array.from({ length: maxSlotCount(selectedService) }, (_, i) => i + 1)
+        .filter((n) => n === 1 || n >= minSlotCount(selectedService))
+    : [1];
 
   /** LINE profile avatar + "nickname (display name)" for the picker. */
   function renderLineUser(u: LineUser) {
@@ -226,6 +245,15 @@ export function BookingCreateDrawer({
                 </TextField>
               ) : null}
             </Stack>
+            {slotChoices.length > 1 && selectedService ? (
+              <TextField id="create-slot-count" select fullWidth size="small" label={t('slot_count', 'จำนวนรอบต่อเนื่อง')} value={draft.slot_count || '1'} onChange={set('slot_count')}>
+                {slotChoices.map((n) => (
+                  <MenuItem key={n} value={String(n)}>
+                    {n} {t('round', 'รอบ')} ({n * slotUnitMinutes(selectedService)} {t('minutes', 'นาที')})
+                  </MenuItem>
+                ))}
+              </TextField>
+            ) : null}
             <TextField id="create-note" fullWidth size="small" label={t('note', 'หมายเหตุ (ไม่บังคับ)')} value={draft.note} onChange={set('note')} multiline minRows={2} />
           </Stack>
         ) : null}

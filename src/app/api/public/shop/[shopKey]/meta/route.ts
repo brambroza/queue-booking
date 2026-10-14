@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { getShopPaymentConfig, toPublicPaymentInfo } from '@/lib/payments/settings';
 import { isBookingEchoEnabled } from '@/lib/line/booking-echo';
-import { isOneBookingPerDay, isServiceDurationVisible } from '@/lib/booking/display-settings';
+import { isMultiSlotEnabled, isOneBookingPerDay, isServiceDurationVisible } from '@/lib/booking/display-settings';
 import { getShopBookingWindows, resolveMaxBookingDate } from '@/lib/booking/booking-window';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import { getFnbAccess } from '@/lib/subscription/features';
@@ -27,11 +27,12 @@ export async function GET(_: Request, { params }: { params: Promise<{ shopKey: s
     bookingEchoEnabled,
     showServiceDuration,
     oneBookingPerDay,
+    multiSlotEnabled,
     bookingWindows,
     fnbAccess,
   ] = await Promise.all([
     admin.from('branches').select('id,branch_name,layout_image_url').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
-    admin.from('services').select('id,service_name,duration_minutes,price,image_url').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
+    admin.from('services').select('id,service_name,duration_minutes,price,image_url,booking_mode,min_duration_minutes,max_duration_minutes').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
     admin
       .from('booking_resources')
       .select('id,branch_id,resource_name,resource_code,resource_type,capacity,unit_price,service_ids,image_urls,floor,zone,description')
@@ -43,6 +44,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ shopKey: s
     isBookingEchoEnabled(admin, shop.id),
     isServiceDurationVisible(admin, shop.id),
     isOneBookingPerDay(admin, shop.id),
+    isMultiSlotEnabled(admin, shop.id),
     // Read apart from the branch select above so the page still loads on a
     // database where migration 202609290002 has not run.
     getShopBookingWindows(admin, shop.id),
@@ -67,6 +69,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ shopKey: s
         booking_echo_enabled: bookingEchoEnabled,
         show_service_duration: showServiceDuration,
         one_booking_per_day: oneBookingPerDay,
+        multi_slot_enabled: multiSlotEnabled,
         fnb_enabled: fnbAccess.enabled,
       },
       branches: branchesWithWindow,

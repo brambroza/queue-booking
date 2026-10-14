@@ -28,8 +28,22 @@ import {
   resolveMaxBookingDate,
 } from '@/lib/booking/booking-window';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
+import { isMultiSlotEnabled } from '@/lib/booking/display-settings';
 import { escapePostgrestSearch } from '@/lib/utils/postgrest';
 import { bookingOrderColumns, parseBookingSort } from '@/lib/booking/list-sort';
+import {
+  MULTI_SLOT_NEEDS_RESOURCE_CODE,
+  MULTI_SLOT_NEEDS_RESOURCE_MESSAGE,
+  MULTI_SLOT_UNAVAILABLE_CODE,
+  bookingDurationMinutes,
+  bookingEndTime,
+  bookingTimeLabel,
+  isExtendableStatus,
+  isSlotCountAllowed,
+  minutesToTime,
+  slotUnitMinutes,
+  timeToMinutes,
+} from '@/lib/booking/multi-slot';
 
 /** Minimal shape needed to call a Postgres function — works for both the session and admin clients. */
 type RpcClient = { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown }> };
@@ -189,15 +203,27 @@ export async function POST(req: Request) {
 
     const { data: service } = await supabase
       .from('services')
-      .select('duration_minutes,service_name,price,capacity_per_slot')
+      .select('duration_minutes,service_name,price,capacity_per_slot,booking_mode,min_duration_minutes,max_duration_minutes')
       .eq('id', payload.service_id)
       .eq('shop_id', profile.shop_id)
       .maybeSingle();
 
+    const slotCount = payload.slot_count ?? 1;
+    if (slotCount > 1 && !(await isMultiSlotEnabled(supabase, profile.shop_id))) {
+      return NextResponse.json({ error: 'ยังไม่ได้เปิด "จองหลายรอบ / ต่อเวลา" ที่หน้าบริการ', code: MULTI_SLOT_UNAVAILABLE_CODE }, { status: 400 });
+    }
+    if (slotCount > 1 && (!service || !isSlotCountAllowed(service, slotCount))) {
+      return NextResponse.json({ error: 'จำนวนรอบเกินที่บริการนี้กำหนด', code: MULTI_SLOT_UNAVAILABLE_CODE }, { status: 400 });
+    }
+    const unitMin = slotUnitMinutes(service ?? {});
     const startLabel = payload.start_time.length === 5 ? `${payload.start_time}:00` : payload.start_time;
     const startAt = new Date(`${payload.booking_date}T${startLabel}+07:00`);
-    const endAt = new Date(startAt.getTime() + Math.max(service?.duration_minutes ?? 30, 5) * 60000);
-    const endTime = `${String(endAt.getHours()).padStart(2, '0')}:${String(endAt.getMinutes()).padStart(2, '0')}:00`;
+    const endAt = new Date(startAt.getTime() + unitMin * slotCount * 60000);
+    const endTime = bookingEndTime(payload.start_time, unitMin, slotCount)
+      ?? (slotCount === 1 ? `${String(endAt.getHours()).padStart(2, '0')}:${String(endAt.getMinutes()).padStart(2, '0')}:00` : null);
+    if (!endTime) {
+      return NextResponse.json({ error: 'ช่วงเวลาที่จองเลยเที่ยงคืน', code: MULTI_SLOT_UNAVAILABLE_CODE }, { status: 400 });
+    }
 
     let assignedResource: {
       resource_id: string;
@@ -265,6 +291,12 @@ export async function POST(req: Request) {
           unit_price: Number(resourcePrice?.unit_price ?? 0),
         };
       }
+    }
+
+    // Several slots in one booking only when a resource holds it — the resource
+    // check above already covered the whole run (endAt spans every slot).
+    if (slotCount > 1 && !assignedResource) {
+      return NextResponse.json({ error: MULTI_SLOT_NEEDS_RESOURCE_MESSAGE, code: MULTI_SLOT_NEEDS_RESOURCE_CODE }, { status: 400 });
     }
 
     // Slot capacity (services.capacity_per_slot, overridden per time range by
@@ -376,7 +408,7 @@ export async function POST(req: Request) {
       const token = shop?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
       const shopName = shop?.name ?? 'Queue Booking';
       const dateLabel = formatThaiDateLabel(payload.booking_date);
-      const timeLabel = payload.start_time.slice(0, 5);
+      const timeLabel = bookingTimeLabel(payload.start_time, endTime, slotCount);
       const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
       const liffUrl = shop?.shop_key && appUrl ? `${appUrl}/liff/${encodeURIComponent(shop.shop_key)}` : undefined;
 
@@ -409,7 +441,7 @@ export async function POST(req: Request) {
       try {
         const resourcePrice = Number(assignedResource?.unit_price ?? 0);
         const servicePrice = Number((service as unknown as { price?: number } | null)?.price ?? 0);
-        const paymentPrice = resourcePrice > 0 ? resourcePrice : servicePrice;
+        const paymentPrice = (resourcePrice > 0 ? resourcePrice : servicePrice) * slotCount;
         const payment = await resolvePaymentForBooking({
           bookingId: inserted.id,
           shopId: profile.shop_id,
@@ -460,6 +492,86 @@ export async function PATCH(req: Request) {
     if (!before) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     assertBranchAllowed(branchScope, before.branch_id);
 
+    // --- Extend ("ต่อเวลา"): change only end_time of a resource booking ---
+    if (body.end_time !== undefined) {
+      const rawEnd = typeof body.end_time === 'string' ? body.end_time : '';
+      const startMin = timeToMinutes(String(before.start_time));
+      const prevEndMin = timeToMinutes(before.end_time as string | null);
+      const newEndMin = timeToMinutes(rawEnd);
+      if (newEndMin === null || startMin === null) {
+        return NextResponse.json({ error: 'เวลาสิ้นสุดไม่ถูกต้อง' }, { status: 400 });
+      }
+      if (!(await isMultiSlotEnabled(supabase, profile.shop_id))) {
+        return NextResponse.json({ error: 'ยังไม่ได้เปิด "จองหลายรอบ / ต่อเวลา" ที่หน้าบริการ', code: MULTI_SLOT_UNAVAILABLE_CODE }, { status: 400 });
+      }
+      if (!before.resource_id) {
+        return NextResponse.json({ error: 'ต่อเวลาได้เฉพาะคิวที่ผูกสนาม/ห้อง/ผู้ให้บริการ', code: MULTI_SLOT_NEEDS_RESOURCE_CODE }, { status: 400 });
+      }
+      if (!isExtendableStatus(before.status as string)) {
+        return NextResponse.json({ error: 'คิวนี้จบหรือถูกยกเลิกแล้ว ต่อเวลาไม่ได้' }, { status: 400 });
+      }
+      if (newEndMin <= startMin || (prevEndMin !== null && newEndMin <= prevEndMin)) {
+        return NextResponse.json({ error: 'เวลาสิ้นสุดใหม่ต้องหลังเวลาเดิม' }, { status: 400 });
+      }
+      const newEndTime = minutesToTime(newEndMin);
+      const startAt = new Date(`${String(before.booking_date)}T${String(before.start_time).slice(0, 5)}:00+07:00`);
+      const endAt = new Date(`${String(before.booking_date)}T${newEndTime}+07:00`);
+      const free = await isResourceFree(supabase, {
+        shopId: profile.shop_id,
+        resourceId: String(before.resource_id),
+        startAt,
+        endAt,
+        excludeBookingId: id,
+      });
+      if (!free) {
+        const { data: res } = await supabase
+          .from('booking_resources')
+          .select('resource_type')
+          .eq('id', before.resource_id)
+          .eq('shop_id', profile.shop_id)
+          .maybeSingle();
+        return NextResponse.json({ error: resourceBusyMessage(res?.resource_type ?? null) }, { status: 409 });
+      }
+
+      const { error } = await supabase
+        .from('bookings')
+        .update({ end_time: newEndTime, updated_by: user.id })
+        .eq('id', id)
+        .eq('shop_id', profile.shop_id);
+      if (error) throw error;
+
+      const queueLabel = before.queue_number ?? id;
+      const description = `Extended ${queueLabel} to ${newEndTime.slice(0, 5)} (was ${String(before.end_time ?? '-').slice(0, 5)})`;
+      await supabase.from('booking_logs').insert({
+        company_id: profile.company_id,
+        shop_id: profile.shop_id,
+        booking_id: id,
+        action: 'update',
+        description,
+        created_by: user.id,
+      });
+      await safeCreateNotification(supabase, {
+        companyId: profile.company_id,
+        shopId: profile.shop_id,
+        branchId: before.branch_id,
+        userId: user.id,
+        type: 'booking_updated',
+        category: 'bookings',
+        priority: 'low',
+        title: `${queueLabel} — ต่อเวลาถึง ${newEndTime.slice(0, 5)}`,
+        message: description,
+        relatedType: 'booking',
+        relatedId: id,
+        actionUrl: '/portal/bookings',
+        icon: 'MoreTime',
+        color: '#1565c0',
+        metadata: { prev_end_time: before.end_time ?? null, new_end_time: newEndTime },
+        createdBy: user.id,
+      });
+      await safeSyncBookingToGoogleCalendar(profile.shop_id, id);
+      return NextResponse.json({ data: { ok: true, end_time: newEndTime } });
+    }
+
     // --- Move: date / time and/or resource (trainer, stylist, table) in one step ---
     // One request so a slot + provider change validates once, writes once and
     // pushes the customer a single LINE notice.
@@ -509,8 +621,17 @@ export async function PATCH(req: Request) {
       }
 
       const startAt = new Date(`${newDate}T${newTime}+07:00`);
-      const endAt = new Date(startAt.getTime() + Math.max(Number(svc?.duration_minutes ?? 30), 5) * 60_000);
-      const endTime = `${String(endAt.getHours()).padStart(2, '0')}:${String(endAt.getMinutes()).padStart(2, '0')}:00`;
+      // Keep the booking's own length (a multi-slot or extended booking stays long).
+      const durationMin = bookingDurationMinutes(
+        String(before.start_time),
+        before.end_time as string | null,
+        Math.max(Number(svc?.duration_minutes ?? 30), 5),
+      );
+      const endAt = new Date(startAt.getTime() + durationMin * 60_000);
+      const newStartMin = timeToMinutes(newTime);
+      const endTime = newStartMin !== null && newStartMin + durationMin < 24 * 60
+        ? minutesToTime(newStartMin + durationMin)
+        : `${String(endAt.getHours()).padStart(2, '0')}:${String(endAt.getMinutes()).padStart(2, '0')}:00`;
 
       // Whatever holds the booking after the move must be free in the target
       // window. Exclude this booking so its own old slot never blocks it.

@@ -81,6 +81,8 @@ export function BookingsCrud() {
   const [editTarget, setEditTarget] = useState<BookingRow | null>(null);
   const [moveTarget, setMoveTarget] = useState<BookingRow | null>(null);
   const [saving, setSaving] = useState(false);
+  /** Shop switch for multi-slot bookings + "ต่อเวลา"; off until loaded. */
+  const [multiSlotEnabled, setMultiSlotEnabled] = useState(false);
 
   // Search is typed continuously; wait for a pause before hitting the API.
   useEffect(() => {
@@ -147,6 +149,14 @@ export function BookingsCrud() {
         setResources(r.data ?? []);
       } catch {
         // Reference data only feeds dropdowns; the list still renders without it.
+      }
+      // Shop switch for multi-slot + "ต่อเวลา"; any failure keeps it off.
+      try {
+        const fRes = await fetch('/api/shop-display-settings', { cache: 'no-store' });
+        const f = (await fRes.json()) as { data?: { multi_slot_enabled?: boolean } };
+        setMultiSlotEnabled(fRes.ok && f.data?.multi_slot_enabled === true);
+      } catch {
+        setMultiSlotEnabled(false);
       }
     })();
   }, []);
@@ -261,6 +271,25 @@ export function BookingsCrud() {
    * Move = reschedule + reassign in one PATCH, so the API validates the target
    * once and the customer receives a single LINE notice.
    */
+  /** "ต่อเวลา": confirm, then PATCH the new end time (the server checks the resource is free). */
+  async function extendBooking(b: BookingRow, endTime: string) {
+    if (saving) return;
+    await confirm({
+      tone: 'primary',
+      title: t('extend_confirm_title', 'ต่อเวลาคิวนี้?'),
+      description: `${t('extend_confirm_desc', 'เปลี่ยนเวลาสิ้นสุด')} ${hhmm(b.end_time ?? '')} → ${hhmm(endTime)} · ${t('extend_pay_note', 'ค่าบริการส่วนที่ต่อเก็บที่หน้าร้าน')}`,
+      context: { primary: `${t('queue_unit', 'คิว')} ${b.queue_number}`, secondary: b.resource_name ?? undefined },
+      confirmLabel: t('extend_confirm', 'ต่อเวลา'),
+      onConfirm: async () => {
+        const r = await patchBooking({ id: b.id, end_time: endTime });
+        if (!r.ok) throw new Error(r.error ?? t('extend_failed', 'ต่อเวลาไม่สำเร็จ'));
+        push(`${t('extend_ok', 'ต่อเวลาแล้ว ถึง')} ${hhmm(endTime)}`);
+        setEditTarget((cur) => (cur && cur.id === b.id ? { ...cur, end_time: endTime } : cur));
+        reload();
+      },
+    });
+  }
+
   async function submitMove(draft: MoveDraft) {
     const b = moveTarget;
     if (!b || saving) return;
@@ -355,6 +384,7 @@ export function BookingsCrud() {
         result={createResult}
         onSubmit={(d, u) => void submitCreate(d, u)}
         onReset={() => setCreateResult(null)}
+        multiSlotEnabled={multiSlotEnabled}
       />
 
       <BookingEditDrawer
@@ -364,6 +394,8 @@ export function BookingsCrud() {
         onClose={() => setEditTarget(null)}
         onStatus={(b, s) => void updateStatus(b, s)}
         onMove={setMoveTarget}
+        slotMinutes={services.find((s) => s.id === editTarget?.service_id)?.duration_minutes ?? null}
+        onExtend={multiSlotEnabled ? (b, end) => void extendBooking(b, end) : undefined}
       />
 
       <BookingMoveDialog

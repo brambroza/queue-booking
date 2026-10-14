@@ -25,9 +25,22 @@ import {
   isBeyondBookingWindow,
   resolveMaxBookingDate,
 } from '@/lib/booking/booking-window';
-import { isOneBookingPerDay } from '@/lib/booking/display-settings';
+import { isMultiSlotEnabled, isOneBookingPerDay } from '@/lib/booking/display-settings';
 import { DAILY_LIMIT_CODE, DAILY_LIMIT_FREE_STATUSES, dailyLimitMessage, isDailyLimitDbError } from '@/lib/booking/daily-limit';
 import { SLOT_FULL_CODE, countSlotBookings, fetchSlotCapacity, isSlotFull, isSlotFullDbError, slotFullMessage } from '@/lib/booking/slot-capacity';
+import {
+  MULTI_SLOT_NEEDS_RESOURCE_CODE,
+  MULTI_SLOT_NEEDS_RESOURCE_MESSAGE,
+  MULTI_SLOT_UNAVAILABLE_CODE,
+  MAX_SLOTS_PER_BOOKING,
+  bookingEndTime,
+  bookingTimeLabel,
+  consecutiveSlotsOpen,
+  isSlotCountAllowed,
+  multiSlotUnavailableMessage,
+  slotUnitMinutes,
+  type GridSlot,
+} from '@/lib/booking/multi-slot';
 import { resolveLiffCaller } from '@/lib/line/liff-identity';
 import { clientIp, hitRateLimit, tooManyRequests } from '@/lib/security/rate-limit';
 
@@ -48,6 +61,8 @@ const bookSchema = z
     id_token: z.string().max(4096).optional(),
     party_size: z.coerce.number().int().min(1).max(200).optional(),
     resource_id: z.string().uuid().optional(),
+    /** Consecutive slots in one booking; >1 only for `flexible_duration` services with a resource. */
+    slot_count: z.coerce.number().int().min(1).max(MAX_SLOTS_PER_BOOKING).optional(),
     payment_method: z.enum(PAYMENT_METHODS).optional(),
     /** Which bank app to open; required with `bank_deeplink` / `omise_mobile_banking`, ignored otherwise. */
     bank_provider: z.enum(BANK_CODES).optional(),
@@ -79,6 +94,7 @@ function invalidFieldMessage(path: PropertyKey | undefined) {
     resource_id: 'ผู้ให้บริการ',
     payment_method: 'วิธีชำระเงิน',
     bank_provider: 'ธนาคารที่เลือก',
+    slot_count: 'จำนวนรอบ',
   };
   const label = typeof path === 'string' ? labels[path] : undefined;
   return label ? `ข้อมูลไม่ถูกต้อง: ${label}` : 'ข้อมูลการจองไม่ครบถ้วน';
@@ -164,10 +180,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
 
   const [{ data: branch }, { data: service }] = await Promise.all([
     admin.from('branches').select('id,branch_name').eq('id', payload.branch_id).eq('shop_id', shop.id).eq('is_deleted', false).maybeSingle(),
-    admin.from('services').select('id,service_name,duration_minutes,capacity_per_slot,price,requires_approval,booking_mode').eq('id', payload.service_id).eq('shop_id', shop.id).eq('is_deleted', false).maybeSingle(),
+    admin.from('services').select('id,service_name,duration_minutes,capacity_per_slot,price,requires_approval,booking_mode,min_duration_minutes,max_duration_minutes').eq('id', payload.service_id).eq('shop_id', shop.id).eq('is_deleted', false).maybeSingle(),
   ]);
   if (!branch || !service) {
     return NextResponse.json({ error: 'Invalid branch or service for this shop' }, { status: 400 });
+  }
+
+  const slotCount = payload.slot_count ?? 1;
+  if (slotCount > 1 && !(await isMultiSlotEnabled(admin, shop.id))) {
+    return NextResponse.json({ error: 'ร้านนี้ยังไม่เปิดให้จองหลายรอบต่อเนื่อง', code: MULTI_SLOT_UNAVAILABLE_CODE }, { status: 400 });
+  }
+  if (!isSlotCountAllowed(service, slotCount)) {
+    return NextResponse.json({ error: invalidFieldMessage('slot_count'), code: MULTI_SLOT_UNAVAILABLE_CODE }, { status: 400 });
   }
 
   let lineUserPk: string | null = null;
@@ -282,9 +306,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   const partySize = payload.party_size ?? null;
   const startLabel = payload.start_time.length === 5 ? `${payload.start_time}:00` : payload.start_time;
   const startAt = new Date(`${payload.booking_date}T${startLabel}+07:00`);
-  const durationMin = Math.max(Number(service.duration_minutes ?? 30), 5);
-  const endAt = new Date(startAt.getTime() + durationMin * 60000);
-  const endTime = `${String(endAt.getHours()).padStart(2, '0')}:${String(endAt.getMinutes()).padStart(2, '0')}:00`;
+  const unitMin = slotUnitMinutes(service);
+  const endAt = new Date(startAt.getTime() + unitMin * slotCount * 60000);
+  // Same-day end as a Bangkok wall-clock time. A single slot keeps the old
+  // behaviour; a multi-slot run must not cross midnight.
+  const endTime = bookingEndTime(payload.start_time, unitMin, slotCount)
+    ?? (slotCount === 1 ? `${String(endAt.getHours()).padStart(2, '0')}:${String(endAt.getMinutes()).padStart(2, '0')}:00` : null);
+  if (!endTime) {
+    return NextResponse.json({ error: invalidFieldMessage('slot_count'), code: MULTI_SLOT_UNAVAILABLE_CODE }, { status: 400 });
+  }
 
   let assignedResource: {
     resource_id: string;
@@ -353,6 +383,39 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
         capacity: Number(top.capacity ?? 1),
         unit_price: Number(resourcePrice?.unit_price ?? 0),
       };
+    }
+  }
+
+  // More than one slot is only safe when a resource holds the booking: the
+  // resource guard compares time ranges, plain slot capacity does not.
+  if (slotCount > 1) {
+    if (!assignedResource) {
+      return NextResponse.json({ error: MULTI_SLOT_NEEDS_RESOURCE_MESSAGE, code: MULTI_SLOT_NEEDS_RESOURCE_CODE }, { status: 400 });
+    }
+    // Every slot of the run must be offered by the grid (inside opening hours,
+    // outside the break, not past) and free for this resource.
+    const { data: grid, error: gridError } = await admin.rpc('get_slot_availability', {
+      p_shop_id: shop.id,
+      p_branch_id: payload.branch_id,
+      p_service_id: payload.service_id,
+      p_date: payload.booking_date,
+      p_resource_type: assignedResource.resource_type,
+      p_party_size: partySize,
+      p_resource_id: assignedResource.resource_id,
+    });
+    if (gridError) {
+      console.error('[public/book] multi-slot grid failed', gridError.message);
+      return NextResponse.json({ error: 'ขออภัย ระบบไม่สามารถรับการจองได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง' }, { status: 500 });
+    }
+    const gridSlots: GridSlot[] = ((grid ?? []) as Array<{ slot_time: string; remaining_capacity: number }>).map((s) => ({
+      ...s,
+      is_past: isSlotPast({ date: payload.booking_date, time: s.slot_time }, now),
+    }));
+    if (!consecutiveSlotsOpen(gridSlots, payload.start_time, unitMin, slotCount)) {
+      return NextResponse.json(
+        { error: multiSlotUnavailableMessage(payload.start_time, endTime), code: MULTI_SLOT_UNAVAILABLE_CODE },
+        { status: 409 },
+      );
     }
   }
 
@@ -450,8 +513,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       priority: pendingApproval ? 'high' : 'medium',
       title: pendingApproval ? `${queueNumber} — คำขอจองใหม่ รออนุมัติ` : `New booking ${queueNumber}`,
       message: pendingApproval
-        ? `ลูกค้าขอจอง ${payload.booking_date} ${payload.start_time.slice(0, 5)} (${service.service_name}) กรุณากด "อนุมัติ" ในหน้าคิว`
-        : `Customer booked ${payload.booking_date} ${payload.start_time.slice(0, 5)}`,
+        ? `ลูกค้าขอจอง ${payload.booking_date} ${bookingTimeLabel(payload.start_time, endTime, slotCount)} (${service.service_name}) กรุณากด "อนุมัติ" ในหน้าคิว`
+        : `Customer booked ${payload.booking_date} ${bookingTimeLabel(payload.start_time, endTime, slotCount)}`,
       relatedType: 'booking',
       relatedId: booking.id,
       actionUrl: '/portal/bookings',
@@ -489,7 +552,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     const token = shopLine?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
     if (token) {
       const dateLabel = formatThaiDateLabel(payload.booking_date);
-      const timeLabel = payload.start_time.slice(0, 5);
+      const timeLabel = bookingTimeLabel(payload.start_time, endTime, slotCount);
       const branchName = branch?.branch_name ?? '-';
       const serviceName = service?.service_name ?? '-';
       const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
@@ -549,7 +612,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   try {
     const resourcePrice = Number(assignedResource?.unit_price ?? 0);
     const servicePrice = Number((service as unknown as { price?: number } | null)?.price ?? 0);
-    const paymentPrice = resourcePrice > 0 ? resourcePrice : servicePrice;
+    // Price is per slot, so a multi-slot booking pays for every slot.
+    const paymentPrice = (resourcePrice > 0 ? resourcePrice : servicePrice) * slotCount;
     const dateLabel = formatThaiDateLabel(payload.booking_date);
     const payment = await resolvePaymentForBooking({
       bookingId: booking.id,
@@ -562,7 +626,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       serviceName: service.service_name ?? '-',
       branchName: branch.branch_name ?? '-',
       dateLabel,
-      timeLabel: payload.start_time.slice(0, 5),
+      timeLabel: bookingTimeLabel(payload.start_time, endTime, slotCount),
       requestedMethod: payload.payment_method ?? null,
       requestedBankProvider: payload.bank_provider ?? null,
       platformType: detectOmisePlatform(req.headers.get('user-agent')),
@@ -602,6 +666,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       status: initialStatus,
       booking_date: payload.booking_date,
       booking_time: payload.start_time.slice(0, 5),
+      end_time: endTime.slice(0, 5),
+      slot_count: slotCount,
       branch_name: branch.branch_name,
       service_name: service.service_name,
       line_push_sent: linePushSent,

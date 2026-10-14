@@ -158,6 +158,9 @@ export function ServicesCrud() {
   /** Shop-wide booking rule: one LIFF booking per customer per day. Default off. */
   const [oneBookingPerDay, setOneBookingPerDay] = useState(false);
   const [savingDailyLimit, setSavingDailyLimit] = useState(false);
+  /** Shop-wide switch: multi-slot LIFF bookings + staff "ต่อเวลา". Default off. */
+  const [multiSlotEnabled, setMultiSlotEnabled] = useState(false);
+  const [savingMultiSlot, setSavingMultiSlot] = useState(false);
   const [category, setCategory] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [presetKey, setPresetKey] = useState('');
@@ -249,6 +252,7 @@ export function ServicesCrud() {
     if (resDisplay.ok) {
       setShowDuration(d.data?.show_service_duration !== false);
       setOneBookingPerDay(d.data?.one_booking_per_day === true);
+      setMultiSlotEnabled(d.data?.multi_slot_enabled === true);
     }
     // Branches only feed the time-range capacity editor; without them it offers "ทุกสาขา" alone.
     if (resBranches.ok) setBranches(((b.data ?? []) as Array<Record<string, unknown>>).map((x) => ({ id: String(x.id), branch_name: String(x.branch_name ?? '') })));
@@ -293,6 +297,24 @@ export function ServicesCrud() {
     setSavingDailyLimit(false);
     if (!res.ok) {
       setOneBookingPerDay(!next);
+      return push(json.error ?? 'บันทึกการตั้งค่าไม่สำเร็จ', 'error');
+    }
+    push('บันทึกการตั้งค่าแล้ว');
+  }
+
+  /** Same commit-on-toggle pattern, for multi-slot bookings + "ต่อเวลา". */
+  async function onToggleMultiSlot(next: boolean) {
+    setMultiSlotEnabled(next);
+    setSavingMultiSlot(true);
+    const res = await fetch('/api/shop-display-settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ multi_slot_enabled: next }),
+    });
+    const json = await res.json();
+    setSavingMultiSlot(false);
+    if (!res.ok) {
+      setMultiSlotEnabled(!next);
       return push(json.error ?? 'บันทึกการตั้งค่าไม่สำเร็จ', 'error');
     }
     push('บันทึกการตั้งค่าแล้ว');
@@ -548,7 +570,7 @@ export function ServicesCrud() {
             label="แสดงระยะเวลาบริการในหน้าจอง LIFF"
           />
           <Typography variant="caption" color="text.secondary" display="block">
-            ปิดไว้ถ้าไม่ต้องการให้ลูกค้าเห็นจำนวนนาทีของแต่ละบริการ — มีผลกับการ์ดบริการ สรุปการจอง และรายการเลือกบริการ (ตั้งค่านี้ใช้ทั้งร้าน)
+            เมื่อปิด ลูกค้าจะไม่เห็นระยะเวลาของบริการในการ์ดบริการ รายการเลือกบริการ และสรุปการจอง มีผลทั้งร้าน
           </Typography>
         </CardContent>
       </Card>
@@ -566,8 +588,27 @@ export function ServicesCrud() {
             label="ลูกค้าจองได้วันละ 1 คิว"
           />
           <Typography variant="caption" color="text.secondary" display="block">
-            ลูกค้า 1 คน (ตาม LINE / เบอร์โทร) จองผ่าน LINE ได้วันละ 1 คิว ไม่ว่าบริการไหน — คิวที่ยกเลิกหรือไม่มาไม่นับ
-            พนักงานสร้างคิวจากหน้าจองในระบบให้ซ้ำได้ (ตั้งค่านี้ใช้ทั้งร้าน)
+            ลูกค้าแต่ละราย (ระบุจาก LINE หรือเบอร์โทร) จองผ่าน LINE ได้วันละ 1 คิวรวมทุกบริการ ไม่นับคิวที่ยกเลิกหรือไม่มา
+            พนักงานยังสร้างคิวเพิ่มจากระบบได้ มีผลทั้งร้าน
+          </Typography>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={multiSlotEnabled}
+                disabled={savingMultiSlot}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => void onToggleMultiSlot(e.target.checked)}
+              />
+            }
+            label="จองหลายรอบต่อเนื่อง / ต่อเวลา"
+          />
+          <Typography variant="caption" color="text.secondary" display="block">
+            ลูกค้าจองหลายรอบติดกันได้ในครั้งเดียว (เช่น สนาม 2 ชั่วโมง) และพนักงานต่อเวลาคิวได้ ใช้กับบริการแบบ &quot;เวลายืดหยุ่น&quot;
+            ที่คิวระบุสนาม ห้อง หรือผู้ให้บริการ จำนวนรอบสูงสุดตามระยะเวลาสูงสุดของบริการ มีผลทั้งร้าน
           </Typography>
         </CardContent>
       </Card>
@@ -761,7 +802,7 @@ export function ServicesCrud() {
                   <AccordionDetails>
                     <Stack spacing={1.5}>
                       <Typography variant="body2" color="text.secondary">
-                        เช่น เช้ารับ 2 คิว บ่ายรับ 3 คิว ช่วงที่ไม่ได้กำหนดใช้ค่าเริ่มต้นด้านบน เวลาสิ้นสุดไม่รวมรอบนั้น (13:00-18:00 รวมรอบ 17:30 ไม่รวม 18:00)
+                        เช่น ช่วงเช้ารับ 2 คิว ช่วงบ่ายรับ 3 คิว ช่วงที่ไม่ได้กำหนดใช้ค่าเริ่มต้นด้านบน เวลาสิ้นสุดไม่นับรวม (13:00-18:00 รวมรอบ 17:30 แต่ไม่รวม 18:00)
                       </Typography>
                       {capacityRulesError ? <Alert severity="error" onClose={() => setCapacityRulesError(null)}>{capacityRulesError}</Alert> : null}
                       {capacityRulesLoading ? <Typography variant="body2" color="text.secondary">กำลังโหลด...</Typography> : null}

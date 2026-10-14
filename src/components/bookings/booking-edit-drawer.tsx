@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { Box, Button, Card, CardContent, Divider, Drawer, IconButton, Stack, Typography } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
+import MoreTimeRoundedIcon from '@mui/icons-material/MoreTimeRounded';
+import { isExtendableStatus, minutesToTime, timeToMinutes } from '@/lib/booking/multi-slot';
 import { StatusChip } from '@/components/shared/status-chip';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { formatDateDMY, formatDateTimeDMY } from '@/lib/utils/date-format';
@@ -22,8 +24,22 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 /**
- * Booking detail drawer: summary, payment, status transitions and cancel.
+ * New end time `minutes` after the current end, or null when it would pass midnight.
+ *
+ * @param end - Current `end_time`.
+ * @param minutes - Minutes to add.
+ */
+function extendedEnd(end: string, minutes: number): string | null {
+  const e = timeToMinutes(end);
+  if (e === null || e + minutes >= 24 * 60) return null;
+  return minutesToTime(e + minutes);
+}
+
+/**
+ * Booking detail drawer: summary, payment, status transitions, extend and cancel.
  * Moving the slot / resource lives in the move dialog, opened via `onMove`.
+ * "ต่อเวลา" is offered only for bookings held by a resource (court, room,
+ * trainer) — the server checks that resource is free for the longer window.
  */
 export function BookingEditDrawer({
   booking,
@@ -32,6 +48,8 @@ export function BookingEditDrawer({
   onClose,
   onStatus,
   onMove,
+  slotMinutes,
+  onExtend,
 }: {
   booking: BookingRow | null;
   resourceLabel: string;
@@ -39,6 +57,10 @@ export function BookingEditDrawer({
   onClose: () => void;
   onStatus: (b: BookingRow, status: string) => void;
   onMove: (b: BookingRow) => void;
+  /** Length of one slot of the booking's service; adds a "+1 รอบ" button when not 30. */
+  slotMinutes?: number | null;
+  /** Extend to a new end time (`HH:MM:SS`). */
+  onExtend?: (b: BookingRow, endTime: string) => void;
 }) {
   const { t } = useTranslation('bookings');
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -48,6 +70,8 @@ export function BookingEditDrawer({
   const b = booking;
   const next = b ? NEXT_STATUSES[b.status] ?? [] : [];
   const ack = b ? changeAckState(b) : 'none';
+  const extendSteps = Array.from(new Set([30, Number(slotMinutes) || 0].filter((m) => m >= 5))).sort((x, y) => x - y);
+  const canExtend = Boolean(b && onExtend && b.resource_id && b.end_time && isExtendableStatus(b.status));
 
   return (
     <Drawer anchor="right" open={Boolean(b)} onClose={saving ? undefined : onClose} PaperProps={{ sx: { width: { xs: '100%', sm: 460 } } }}>
@@ -105,6 +129,34 @@ export function BookingEditDrawer({
                       {t('view_slip', 'ดูสลิป / ตรวจสอบ')}
                     </Button>
                   ) : null}
+                </Stack>
+              </Section>
+            ) : null}
+
+            {canExtend && b.end_time ? (
+              <Section title={t('extend_time', 'ต่อเวลา')}>
+                <Stack spacing={1}>
+                  <Typography variant="caption" color="text.secondary">
+                    {t('extend_hint', 'ระบบตรวจว่าว่างในช่วงที่ต่อก่อนบันทึก')} ({resourceLabel})
+                  </Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    {extendSteps.map((m) => {
+                      const newEnd = extendedEnd(b.end_time ?? '', m);
+                      return (
+                        <Button
+                          key={m}
+                          variant="outlined"
+                          startIcon={<MoreTimeRoundedIcon />}
+                          disabled={saving || !newEnd}
+                          onClick={() => newEnd && onExtend?.(b, newEnd)}
+                          sx={{ flex: 1 }}
+                        >
+                          +{m === Number(slotMinutes) && m !== 30 ? `1 ${t('round', 'รอบ')} (${m} ${t('minutes', 'นาที')})` : `${m} ${t('minutes', 'นาที')}`}
+                          {newEnd ? ` → ${hhmm(newEnd)}` : ''}
+                        </Button>
+                      );
+                    })}
+                  </Stack>
                 </Stack>
               </Section>
             ) : null}

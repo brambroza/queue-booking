@@ -123,6 +123,8 @@ export const bookingSchema = z.object({
   bank_provider: z.enum(BANK_CODES).optional(),
   /** Staff confirmed booking into a slot that is already full. */
   allow_overbook: z.boolean().optional(),
+  /** Consecutive slots in one booking; >1 only for `flexible_duration` services with a resource. */
+  slot_count: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(24).optional()),
 });
 
 export const bookingResourceSchema = z.object({

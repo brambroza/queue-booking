@@ -111,7 +111,7 @@ src/
 | `/api/chat-inbox` | LINE chat inbox + push reply |
 | `/api/line-settings` | LINE OA configuration |
 | `/api/settings` | Shop settings |
-| `/api/shop-display-settings` | Customer-facing flags on `shops`: `show_service_duration`, `one_booking_per_day` (GET both; PATCH keys optional) |
+| `/api/shop-display-settings` | Customer-facing flags on `shops`: `show_service_duration`, `one_booking_per_day`, `multi_slot_enabled` (GET all, staff may read; PATCH keys optional) |
 | `/api/fnb-settings` | F&B ordering switch (`shops.fnb_enabled`); turning ON needs Professional+ (`assertFnbPlan`, 402 `feature_locked`), OFF always allowed |
 | `/api/fnb-menu` | F&B menu CRUD (writes plan-gated; "sold out" toggle `is_available` allowed on any plan) |
 | `/api/fnb-orders` | Staff order board: GET open/all, PATCH status new→preparing→served/cancelled + LINE push to customer |
@@ -338,6 +338,20 @@ await safeCreateNotification({ shopId, type: 'booking_created', ... });
 - ลูกค้า: `/api/public/shop/[shopKey]/book` count ก่อน insert → 409 `{ error, code: 'slot_full' }`; LIFF โหลด slot ใหม่
 - Staff: `/api/bookings` POST + PATCH (ย้ายคิว) คืน 409 `slot_full` ครั้งแรก → portal ถาม `useConfirm` ("จองเกินรอบนี้") → ส่งซ้ำพร้อม `allow_overbook: true` (จองเกินได้ตั้งใจ)
 - Dashboard: `CapacityModel` รับ `perSlotSeats` = `seatsPerSlot(services)` (ผลรวม `capacity_per_slot` ของบริการ active) — เป็นค่าประมาณ, บริการที่ผูก resource capacity จริงคือจำนวน resource
+
+## Multi-slot Booking + ต่อเวลา (2026-10-14)
+
+ความยาวคิว = `end_time - start_time` อย่างเดียว ไม่มี column ความยาว
+- **Switch ทั้งร้าน `shops.multi_slot_enabled` (default ปิด)** ที่หน้า `/portal/services` ผ่าน `PATCH /api/shop-display-settings { multi_slot_enabled }` (GET อ่านได้ถึง role `staff`); migration `202610140001_multi_slot_toggle.sql` (**run before deploy** — อ่านผ่าน `isMultiSlotEnabled` แบบ defensive: ยังไม่รัน = ฟีเจอร์ปิด แต่กด switch จะ error). ปิด = LIFF ไม่โชว์ stepper, `/book` + `/api/bookings` POST ปฏิเสธ `slot_count > 1`, PATCH `end_time` (ต่อเวลา) 400, portal ซ่อนปุ่มต่อเวลา + ช่องจำนวนรอบ
+- Opt-in ต่อบริการ: `services.booking_mode = 'flexible_duration'` (column เดิมจาก `202605100002`); 1 รอบ = `duration_minutes`, จองได้ถึง `floor(max_duration_minutes / duration)` รอบ (cap 24), ถ้าเกิน 1 รอบต้อง ≥ `min_duration_minutes`
+- **เฉพาะคิวที่ผูก resource** (สนาม/ห้อง/ครู/โต๊ะ auto-assign) — resource guard เช็คแบบช่วงเวลาจึงกันรอบถัดไปให้เอง; ไม่มี resource + `slot_count > 1` = 400 `multi_slot_needs_resource` (slot capacity ปกตินับ start_time ตรงตัว จะไม่กันรอบหลัง)
+- LIFF: ลูกค้า**แตะหลายช่องใน grid เวลา** — แตะช่องแรก = เริ่ม, แตะช่องถัดไปที่ต่อเนื่อง = ขยายถึงช่องนั้น, แตะช่องในช่วง = หด, แตะช่องแรกซ้ำ = 1 รอบ, ช่องอื่น = เริ่มใหม่ (`nextSlotSelection` / `selectedSlotTimes`); ไฮไลต์ทุกช่องในช่วง + กล่องสรุป `HH:MM–HH:MM · N รอบ`; ส่ง `slot_count`; `/book` ตรวจทุกรอบด้วย `get_slot_availability` ของ resource นั้น (ในเวลาทำการ ไม่ทับพัก ไม่ผ่านแล้ว) → 409 `multi_slot_unavailable` + `is_resource_available` ช่วงเต็ม; ราคา = ราคาต่อรอบ × `slot_count`; Flex/ข้อความเวลาเป็น `HH:MM–HH:MM`
+- Portal สร้างคิว: select จำนวนรอบใน `BookingCreateDrawer` (`/api/bookings` POST `slot_count`, ไม่ตรวจเวลาทำการ — staff override)
+- **ต่อเวลา (staff เท่านั้น)**: `PATCH /api/bookings { id, end_time }` — คิวต้องมี `resource_id`, สถานะ `EXTENDABLE_STATUSES`, end ใหม่ > เดิม, วันเดียวกัน, `is_resource_available` (exclude ตัวเอง) ไม่ว่าง = 409; log + notification `booking_updated`; **ไม่ส่ง LINE ลูกค้า**, ไม่สร้าง payment เพิ่ม (เก็บเงินส่วนต่อที่หน้าร้าน). UI = ปุ่ม `+30 นาที` / `+1 รอบ` ใน `BookingEditDrawer` ผ่าน `useConfirm`
+- ย้ายคิว (PATCH move) คงความยาวเดิมของคิว (`bookingDurationMinutes`) ไม่รีเซ็ตเป็น duration ของบริการแล้ว
+- `end_time` ใน `/book` และ `/api/bookings` POST คำนวณด้วย string (`bookingEndTime`) ไม่ใช้ `Date#getHours()` ที่อ่าน timezone ของ server
+- Pure helpers + vitest: `src/lib/booking/multi-slot.ts` (`maxSlotCount`, `minSlotCount`, `isSlotCountAllowed`, `bookingEndTime`, `consecutiveSlotsOpen`, `maxOpenSlotCount`, `nextSlotSelection`, `selectedSlotTimes`, `bookingDurationMinutes`, `isExtendableStatus`)
+- Not done: ลูกค้าต่อเวลาเองใน LIFF, จ่ายเงินส่วนต่อออนไลน์, multi-slot สำหรับบริการไม่ผูก resource, chatbot ยังจองได้ทีละรอบ
 
 ## Daily Booking Limit (ลูกค้าจองได้วันละ 1 คิว)
 

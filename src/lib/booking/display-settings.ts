@@ -52,3 +52,23 @@ export async function isOneBookingPerDay(client: SupabaseClient, shopId: string)
   if (error) return false;
   return (data as { one_booking_per_day?: boolean } | null)?.one_booking_per_day === true;
 }
+
+/**
+ * Whether this shop turned on multi-slot bookings and staff "ต่อเวลา".
+ *
+ * `shops.multi_slot_enabled` ships in migration 202610140001. Until that has
+ * run the query errors, so a failure resolves to the column default (off).
+ *
+ * @param client - Supabase client already allowed to read this shop.
+ * @param shopId - Shop to read the flag for.
+ * @returns true only when the shop explicitly turned the feature on.
+ */
+export async function isMultiSlotEnabled(client: SupabaseClient, shopId: string): Promise<boolean> {
+  const { data, error } = await client
+    .from('shops')
+    .select('multi_slot_enabled')
+    .eq('id', shopId)
+    .maybeSingle();
+  if (error) return false;
+  return (data as { multi_slot_enabled?: boolean } | null)?.multi_slot_enabled === true;
+}
