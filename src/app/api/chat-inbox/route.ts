@@ -58,13 +58,27 @@ export async function GET(req: Request) {
 
     let usersQuery = admin
       .from('line_users')
-      .select('id,line_user_id,display_name,picture_url,updated_at', { count: 'exact' })
+      .select('id,line_user_id,display_name,picture_url,status_message,updated_at', { count: 'exact' })
       .eq('shop_id', profile.shop_id)
       .eq('is_deleted', false)
       .order('updated_at', { ascending: false });
 
     const safeQ = escapePostgrestSearch(q);
-    if (safeQ) usersQuery = usersQuery.or(`display_name.ilike.%${safeQ}%,line_user_id.ilike.%${safeQ}%`);
+    if (safeQ) {
+      // Search also hits the customer nickname the shop knows them by.
+      const { data: nickMatches } = await admin
+        .from('customers')
+        .select('line_user_id')
+        .eq('shop_id', profile.shop_id)
+        .eq('is_deleted', false)
+        .not('line_user_id', 'is', null)
+        .ilike('nickname', `%${safeQ}%`)
+        .limit(100);
+      const nickIds = [...new Set((nickMatches ?? []).map((c) => c.line_user_id as string))];
+      const filters = [`display_name.ilike.%${safeQ}%`, `line_user_id.ilike.%${safeQ}%`];
+      if (nickIds.length) filters.push(`id.in.(${nickIds.join(',')})`);
+      usersQuery = usersQuery.or(filters.join(','));
+    }
 
     const from = (page - 1) * pageSize;
     const { data: usersRaw, error: usersError, count } = await usersQuery.range(from, from + pageSize - 1);
@@ -89,7 +103,26 @@ export async function GET(req: Request) {
         if (c.line_user_id && nick && !nicknameByLineUser.has(c.line_user_id)) nicknameByLineUser.set(c.line_user_id, nick);
       }
     }
-    const users = (usersRaw ?? []).map((u) => ({ ...u, nickname: nicknameByLineUser.get(u.id) ?? null }));
+    // Latest message per conversation for the list preview (one small query per row, page ≤ 100).
+    const lastMessages = await Promise.all(
+      userIds.map(async (id) => {
+        const { data } = await admin
+          .from('line_messages')
+          .select('direction,message_type,message_text,created_at')
+          .eq('shop_id', profile.shop_id)
+          .eq('line_user_id', id)
+          .eq('is_deleted', false)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        return [id, data] as const;
+      }),
+    );
+    const lastMessageByUser = new Map(lastMessages);
+    const users = (usersRaw ?? [])
+      .map((u) => ({ ...u, nickname: nicknameByLineUser.get(u.id) ?? null, last_message: lastMessageByUser.get(u.id) ?? null }))
+      // Most recent conversation first within the page, like LINE.
+      .sort((a, b) => (b.last_message?.created_at ?? '').localeCompare(a.last_message?.created_at ?? ''));
 
     const msgPage = toInt(searchParams.get('msg_page'), 1);
     const msgPageSize = Math.min(toInt(searchParams.get('msg_page_size'), 100), 200);
