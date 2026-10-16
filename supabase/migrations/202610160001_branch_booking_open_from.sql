@@ -1,14 +1,14 @@
--- Per-branch rule: the date on which this branch starts taking bookings.
+-- Per-branch rule: the first date this branch accepts bookings FOR.
 --
--- `booking_open_until` (202609290002) caps the DAY BEING BOOKED. This column
--- is different: it gates WHEN bookings may be made at all. Before this date
--- (Bangkok) the branch accepts no booking for any day — LIFF shows "opens on
--- …", the chatbot answers the same, and /book, /api/bookings refuse with
--- `booking_not_open`. From that date on everything behaves as before.
+-- `booking_open_until` (202609290002) caps the day being booked from above;
+-- this column bounds it from below. Together they make a fixed range ("open
+-- for 23–25 Oct"): a customer may book today, but only for days inside it.
+-- Days before the range are left out of the LIFF calendar, the chatbot names
+-- the range, and /book, /api/bookings refuse them with `beyond_booking_window`.
 --
--- Decided 2026-10-16 (option B of the two readings): a pre-sale style switch
--- rather than a lower bound on the booking date. Staff are bound too, like the
--- other window rules. NULL = open now, so existing branches do not change.
+-- Decided 2026-10-16 from the shop's own example (SHOP-PDCLSQ, "open 23–25").
+-- Staff are bound too, like the other window rules. NULL = from today, so
+-- existing branches do not change.
 --
 -- Run BEFORE deploying the matching app version: the booking flow reads the
 -- column through a defensive helper and keeps working without it, but saving
@@ -20,8 +20,8 @@ alter table public.branches
 alter table public.branches
   drop constraint if exists branches_booking_open_range_check;
 
--- Opening after the last bookable day would leave a branch that never takes a
--- booking; refuse that combination at the source.
+-- A first date after the last date would leave a branch with no bookable
+-- day; refuse that combination at the source.
 alter table public.branches
   add constraint branches_booking_open_range_check
   check (
@@ -31,4 +31,4 @@ alter table public.branches
   );
 
 comment on column public.branches.booking_open_from is
-  'Bangkok date from which this branch accepts bookings (inclusive). Before it no booking may be made for any day. NULL = open now.';
+  'First date (inclusive, Bangkok) this branch accepts bookings for. NULL = from today. With booking_open_until it forms a fixed bookable range.';

@@ -43,11 +43,11 @@ export const branchSchema = z.object({
   ),
   /** Fixed last bookable date `YYYY-MM-DD`; '' / null = no fixed end. */
   booking_open_until: optionalIsoDateSchema,
-  /** Bangkok date the branch starts taking bookings; '' / null = open now. See booking-window.ts. */
+  /** First bookable date `YYYY-MM-DD`; '' / null = from today. See booking-window.ts. */
   booking_open_from: optionalIsoDateSchema,
 }).refine(
   (b) => !b.booking_open_from || !b.booking_open_until || b.booking_open_from <= b.booking_open_until,
-  { message: 'วันที่เริ่มเปิดรับจองต้องไม่เกินวันที่เปิดจองถึง', path: ['booking_open_from'] },
+  { message: 'วันที่เปิดจองตั้งแต่ต้องไม่เกินวันที่เปิดจองถึง', path: ['booking_open_from'] },
 );
 
 export const serviceSchema = z.object({

@@ -24,12 +24,13 @@ import { CUSTOMER_CANCELLABLE_STATUSES } from '@/lib/booking/status-flow';
 import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
 import {
-  bookingNotOpenMessage,
   bookingWindowMessage,
+  bookingWindowStartMessage,
   getBranchBookingWindow,
+  isBeforeBookingWindow,
   isBeyondBookingWindow,
-  resolveBookingOpensOn,
   resolveMaxBookingDate,
+  resolveMinBookingDate,
 } from '@/lib/booking/booking-window';
 
 /** Shop columns the event handlers need (subset of `getShopAndConfig`). */
@@ -138,12 +139,12 @@ async function handleTextEvent(
     // the customer would tap through to LIFF and find the day missing.
     const todayIso = toBangkokStamp(new Date()).date;
     const bookingWindow = await getBranchBookingWindow(admin, shop.id, String(branch.id));
-    const opensOn = resolveBookingOpensOn(todayIso, bookingWindow);
-    if (opensOn) {
-      await replyMessage(token, replyToken, [{ type: 'text', text: bookingNotOpenMessage(opensOn) }]);
+    const minDate = resolveMinBookingDate(todayIso, bookingWindow);
+    const maxDate = resolveMaxBookingDate(todayIso, bookingWindow);
+    if (minDate && isBeforeBookingWindow(bookingDate, minDate)) {
+      await replyMessage(token, replyToken, [{ type: 'text', text: bookingWindowStartMessage(minDate, maxDate) }]);
       return;
     }
-    const maxDate = resolveMaxBookingDate(todayIso, bookingWindow);
     if (maxDate && isBeyondBookingWindow(bookingDate, maxDate)) {
       await replyMessage(token, replyToken, [{ type: 'text', text: bookingWindowMessage(maxDate) }]);
       return;

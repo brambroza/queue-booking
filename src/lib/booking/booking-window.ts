@@ -11,10 +11,11 @@
  *   * `booking_open_until`     — fixed last bookable date.
  * When both are set the earlier one wins. Neither set = unlimited.
  *
- * A third column (migration 202610160001) gates WHEN bookings may be made:
- *   * `booking_open_from`      — Bangkok date the branch starts taking
- *     bookings at all (option B, decided 2026-10-16). Before it nothing can
- *     be booked for any day; from it on the two limits above apply as usual.
+ * A third column (migration 202610160001) bounds the window from below:
+ *   * `booking_open_from`      — first bookable date. Together with
+ *     `booking_open_until` it makes a fixed range ("open for 23–25 Oct"):
+ *     the customer may book TODAY, but only for days inside that range
+ *     (decided 2026-10-16 after an example from the shop).
  *
  * All dates are Bangkok-local ISO `YYYY-MM-DD` strings and the arithmetic is
  * done in UTC on those strings, so nothing depends on the process timezone.
@@ -26,8 +27,6 @@ import { formatThaiDateLabel } from '@/lib/utils/date-format';
 /** `code` sent with the 400 so the LIFF can tell this apart from a past slot. */
 export const BOOKING_WINDOW_CODE = 'beyond_booking_window';
 
-/** `code` sent with the 400 when the branch has not started taking bookings yet. */
-export const BOOKING_NOT_OPEN_CODE = 'booking_not_open';
 
 /** Stored format of `branches.booking_advance_window`: count + d/w/m. */
 export const ADVANCE_WINDOW_RE = /^([1-9]\d?)([dwm])$/;
@@ -112,26 +111,41 @@ export function resolveMaxBookingDate(todayIso: string, settings: BookingWindowS
 }
 
 /**
- * Date the branch starts taking bookings, when that is still ahead.
+ * First date (inclusive) this branch accepts bookings for, when that is later
+ * than today; `null` = no lower bound beyond "not in the past".
  *
  * @param todayIso - Bangkok "today" `YYYY-MM-DD`, from the server clock.
  * @param settings - The branch's window columns.
- * @returns `booking_open_from` while it is later than today; `null` once the
- *   branch is open (unset, past, or today — the opening day itself is open).
  */
-export function resolveBookingOpensOn(todayIso: string, settings: BookingWindowSettings | null | undefined): string | null {
+export function resolveMinBookingDate(todayIso: string, settings: BookingWindowSettings | null | undefined): string | null {
   if (!settings || !ISO_RE.test(todayIso)) return null;
   const from = isoDateOrNull(settings.booking_open_from);
   return from && from > todayIso ? from : null;
 }
 
 /**
- * Thai message shown while the branch has not started taking bookings.
+ * Whether `dateIso` lies before the branch's first bookable date.
  *
- * @param opensOn - Result of `resolveBookingOpensOn`, for "เปิดรับจองวันที่ 1 พ.ย. 2569".
+ * @param dateIso - Day being booked, `YYYY-MM-DD`.
+ * @param minDate - Result of `resolveMinBookingDate`; `null` never blocks.
  */
-export function bookingNotOpenMessage(opensOn: string): string {
-  return `สาขานี้จะเปิดรับจองวันที่ ${formatThaiDateLabel(opensOn)} กรุณากลับมาจองอีกครั้งในวันนั้น`;
+export function isBeforeBookingWindow(dateIso: string, minDate: string | null | undefined): boolean {
+  if (!minDate) return false;
+  return String(dateIso).slice(0, 10) < minDate;
+}
+
+/**
+ * Thai message shown when the chosen day is before the branch's first
+ * bookable date. Names the whole range when there is also a last date.
+ *
+ * @param minDate - First bookable date.
+ * @param maxDate - Last bookable date, or `null` when open-ended.
+ */
+export function bookingWindowStartMessage(minDate: string, maxDate?: string | null): string {
+  if (maxDate) {
+    return `สาขานี้เปิดจองเฉพาะวันที่ ${formatThaiDateLabel(minDate)} ถึง ${formatThaiDateLabel(maxDate)} กรุณาเลือกวันใหม่`;
+  }
+  return `สาขานี้เปิดจองตั้งแต่วันที่ ${formatThaiDateLabel(minDate)} กรุณาเลือกวันใหม่`;
 }
 
 /**

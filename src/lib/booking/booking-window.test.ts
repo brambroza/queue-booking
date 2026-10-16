@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   addCalendarMonths,
   advanceWindowEnd,
-  bookingNotOpenMessage,
   bookingWindowMessage,
+  bookingWindowStartMessage,
+  isBeforeBookingWindow,
   isBeyondBookingWindow,
-  resolveBookingOpensOn,
   resolveMaxBookingDate,
+  resolveMinBookingDate,
 } from './booking-window';
 
 const today = '2026-09-29';
@@ -104,36 +105,58 @@ describe('bookingWindowMessage', () => {
   });
 });
 
-describe('resolveBookingOpensOn', () => {
-  it('is open when nothing is set', () => {
-    expect(resolveBookingOpensOn(today, null)).toBeNull();
-    expect(resolveBookingOpensOn(today, {})).toBeNull();
-    expect(resolveBookingOpensOn(today, { booking_open_from: null })).toBeNull();
+describe('resolveMinBookingDate', () => {
+  it('has no lower bound when nothing is set', () => {
+    expect(resolveMinBookingDate(today, null)).toBeNull();
+    expect(resolveMinBookingDate(today, {})).toBeNull();
+    expect(resolveMinBookingDate(today, { booking_open_from: null })).toBeNull();
   });
 
-  it('returns the opening date while it is still ahead', () => {
-    expect(resolveBookingOpensOn(today, { booking_open_from: '2026-10-01' })).toBe('2026-10-01');
-    expect(resolveBookingOpensOn(today, { booking_open_from: '2026-10-01T00:00:00+07:00' })).toBe('2026-10-01');
+  it('returns the first bookable date while it is still ahead', () => {
+    expect(resolveMinBookingDate(today, { booking_open_from: '2026-10-23' })).toBe('2026-10-23');
+    expect(resolveMinBookingDate(today, { booking_open_from: '2026-10-23T00:00:00+07:00' })).toBe('2026-10-23');
   });
 
-  it('is open on the opening day itself and after', () => {
-    expect(resolveBookingOpensOn(today, { booking_open_from: today })).toBeNull();
-    expect(resolveBookingOpensOn(today, { booking_open_from: '2026-09-01' })).toBeNull();
+  it('is null once the date is today or past (the past check covers it)', () => {
+    expect(resolveMinBookingDate(today, { booking_open_from: today })).toBeNull();
+    expect(resolveMinBookingDate(today, { booking_open_from: '2026-09-01' })).toBeNull();
   });
 
   it('ignores garbage and a bad today', () => {
-    expect(resolveBookingOpensOn(today, { booking_open_from: 'soon' })).toBeNull();
-    expect(resolveBookingOpensOn('not-a-date', { booking_open_from: '2030-01-01' })).toBeNull();
+    expect(resolveMinBookingDate(today, { booking_open_from: 'soon' })).toBeNull();
+    expect(resolveMinBookingDate('not-a-date', { booking_open_from: '2030-01-01' })).toBeNull();
   });
 
   it('does not affect the last bookable date', () => {
-    expect(resolveMaxBookingDate(today, { booking_open_from: '2030-01-01', booking_open_until: '2026-12-31' })).toBe('2026-12-31');
+    expect(resolveMaxBookingDate(today, { booking_open_from: '2026-10-23', booking_open_until: '2026-10-25' })).toBe('2026-10-25');
   });
 });
 
-describe('bookingNotOpenMessage', () => {
-  it('names the opening day', () => {
-    expect(bookingNotOpenMessage('2026-11-01')).toContain('1');
-    expect(bookingNotOpenMessage('2026-11-01')).toContain('เปิดรับจอง');
+describe('isBeforeBookingWindow', () => {
+  it('never blocks without a lower bound', () => {
+    expect(isBeforeBookingWindow('2020-01-01', null)).toBe(false);
+    expect(isBeforeBookingWindow('2020-01-01', undefined)).toBe(false);
+  });
+
+  it('allows the first date and later', () => {
+    expect(isBeforeBookingWindow('2026-10-23', '2026-10-23')).toBe(false);
+    expect(isBeforeBookingWindow('2026-10-24', '2026-10-23')).toBe(false);
+  });
+
+  it('blocks the day before', () => {
+    expect(isBeforeBookingWindow('2026-10-22', '2026-10-23')).toBe(true);
+  });
+});
+
+describe('bookingWindowStartMessage', () => {
+  it('names the whole range when both ends are set', () => {
+    const msg = bookingWindowStartMessage('2026-10-23', '2026-10-25');
+    expect(msg).toContain('23');
+    expect(msg).toContain('25');
+    expect(msg).toContain('เฉพาะ');
+  });
+
+  it('names only the start when open-ended', () => {
+    expect(bookingWindowStartMessage('2026-10-23', null)).toContain('ตั้งแต่');
   });
 });

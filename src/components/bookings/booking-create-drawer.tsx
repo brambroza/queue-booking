@@ -23,7 +23,7 @@ import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import type { Branch, LineUser, Resource, Service } from './booking-types';
 import { filterResourcesForService } from '@/lib/booking/resource-service-link';
-import { resolveBookingOpensOn, resolveMaxBookingDate } from '@/lib/booking/booking-window';
+import { resolveMaxBookingDate, resolveMinBookingDate } from '@/lib/booking/booking-window';
 import { maxSlotCount, minSlotCount, slotUnitMinutes } from '@/lib/booking/multi-slot';
 
 export type CreateDraft = {
@@ -95,11 +95,8 @@ export function BookingCreateDrawer({
       ...(key === 'service_id' || key === 'resource_id' ? { slot_count: '' } : {}),
     }));
 
-  // The branch has not started taking bookings yet (booking_open_from ahead);
-  // staff are bound like customers, the server refuses with booking_not_open.
-  const branchOpensOn = resolveBookingOpensOn(getTodayISOInBangkok(), branches.find((b) => b.id === draft.branch_id));
   const step1Ok = Boolean(draft.branch_id && draft.service_id && draft.customer_name.trim() && draft.customer_phone.trim());
-  const step2Ok = Boolean(draft.booking_date && draft.start_time) && !branchOpensOn;
+  const step2Ok = Boolean(draft.booking_date && draft.start_time);
 
   function resetAll() {
     setStep(0);
@@ -118,7 +115,17 @@ export function BookingCreateDrawer({
   // Staff follow the branch's advance-booking window too; the server refuses
   // a later day, this only stops the picker from offering it.
   const today = getTodayISOInBangkok();
-  const maxDate = resolveMaxBookingDate(today, branches.find((b) => b.id === draft.branch_id)) ?? undefined;
+  const selectedBranchWindow = branches.find((b) => b.id === draft.branch_id);
+  const maxDate = resolveMaxBookingDate(today, selectedBranchWindow) ?? undefined;
+  const minDate = resolveMinBookingDate(today, selectedBranchWindow) ?? undefined;
+  const dateHelper =
+    minDate && maxDate
+      ? `${t('book_between', 'เปิดจองวันที่')} ${formatDateDMY(minDate)} – ${formatDateDMY(maxDate)}`
+      : minDate
+        ? `${t('book_from', 'เปิดจองตั้งแต่วันที่')} ${formatDateDMY(minDate)}`
+        : maxDate
+          ? `${t('book_until', 'จองล่วงหน้าได้ถึง')} ${formatDateDMY(maxDate)}`
+          : undefined;
 
   // Resources linked to specific services only show up for those services.
   const resourceOptions = filterResourcesForService(
@@ -233,13 +240,8 @@ export function BookingCreateDrawer({
 
         {activeStep === 1 ? (
           <Stack spacing={2}>
-            {branchOpensOn ? (
-              <Alert severity="info">
-                {t('branch_not_open', 'สาขานี้จะเปิดรับจองวันที่')} {formatDateDMY(branchOpensOn)}
-              </Alert>
-            ) : null}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField id="create-date" type="date" required fullWidth size="small" label={t('date', 'วันที่')} value={draft.booking_date} onChange={set('booking_date')} helperText={maxDate ? `${t('book_until', 'จองล่วงหน้าได้ถึง')} ${formatDateDMY(maxDate)}` : undefined} slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: today, max: maxDate } }} />
+              <TextField id="create-date" type="date" required fullWidth size="small" label={t('date', 'วันที่')} value={draft.booking_date} onChange={set('booking_date')} helperText={dateHelper} slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: minDate ?? today, max: maxDate } }} />
               <TextField id="create-time" type="time" required fullWidth size="small" label={t('time_start', 'เวลาเริ่ม')} value={draft.start_time} onChange={set('start_time')} slotProps={{ inputLabel: { shrink: true } }} />
             </Stack>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>

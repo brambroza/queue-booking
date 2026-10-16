@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
-import { getBranchBookingWindow, resolveBookingOpensOn, resolveMaxBookingDate } from '@/lib/booking/booking-window';
+import { getBranchBookingWindow, resolveMaxBookingDate, resolveMinBookingDate } from '@/lib/booking/booking-window';
 import { calendarEndDate } from '@/lib/booking/bookable-days';
 
 const querySchema = z.object({ branch_id: z.string().uuid() });
@@ -26,8 +26,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
   const today = toBangkokStamp(new Date()).date;
   const bookingWindow = await getBranchBookingWindow(admin, shop.id, branchId);
   const maxDate = resolveMaxBookingDate(today, bookingWindow);
-  // Branch not taking bookings yet: the LIFF shows the opening date, no calendar.
-  const opensOn = resolveBookingOpensOn(today, bookingWindow);
+  const minDate = resolveMinBookingDate(today, bookingWindow);
+  const rangeStart = minDate ?? today;
   const rangeEnd = calendarEndDate({ today, maxDate });
 
   // Same scoping as /slots: a row with no branch applies to every branch.
@@ -44,7 +44,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
       .select('holiday_date')
       .eq('shop_id', shop.id)
       .eq('is_deleted', false)
-      .gte('holiday_date', today)
+      .gte('holiday_date', rangeStart)
       .lte('holiday_date', rangeEnd)
       .or(`branch_id.is.null,branch_id.eq.${branchId}`),
   ]);
@@ -60,8 +60,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
   return NextResponse.json({
     data: {
       today,
+      min_date: minDate,
       max_date: maxDate,
-      opens_on: opensOn,
       open_weekdays: openWeekdays,
       holidays,
     },

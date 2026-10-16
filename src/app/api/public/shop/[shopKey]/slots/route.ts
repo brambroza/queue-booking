@@ -5,12 +5,13 @@ import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import { DATE_PAST_HINT, DAY_OVER_HINT, isSlotPast } from '@/lib/booking/slot-time';
 import { weekdayOf } from '@/lib/dashboard/date-range';
 import {
-  bookingNotOpenMessage,
   bookingWindowMessage,
+  bookingWindowStartMessage,
   getBranchBookingWindow,
+  isBeforeBookingWindow,
   isBeyondBookingWindow,
-  resolveBookingOpensOn,
   resolveMaxBookingDate,
+  resolveMinBookingDate,
 } from '@/lib/booking/booking-window';
 
 export async function GET(req: Request, { params }: { params: Promise<{ shopKey: string }> }) {
@@ -59,19 +60,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
   // Past the branch's advance-booking window nothing is offered at all, so the
   // slot lookup is skipped. /book refuses the same dates with the same helper.
   const bookingWindow = await getBranchBookingWindow(admin, shop.id, branchId);
-  const opensOn = resolveBookingOpensOn(now.date, bookingWindow);
+  const minDate = resolveMinBookingDate(now.date, bookingWindow);
   const maxDate = resolveMaxBookingDate(now.date, bookingWindow);
-  // Not taking bookings yet: no slot for any day, the LIFF shows the opening date.
-  if (opensOn) {
+  // Before the branch's first bookable date nothing is offered either.
+  if (minDate && isBeforeBookingWindow(date, minDate)) {
     return NextResponse.json({
       data: [],
       meta: {
-        reason: 'not_open',
-        hint: bookingNotOpenMessage(opensOn),
+        reason: 'before_window',
+        hint: bookingWindowStartMessage(minDate, maxDate),
         open_slots: 0,
         today: now.date,
+        min_date: minDate,
         max_date: maxDate,
-        opens_on: opensOn,
         has_working_hours: true,
         is_holiday: false,
       },
@@ -85,6 +86,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
         hint: bookingWindowMessage(maxDate),
         open_slots: 0,
         today: now.date,
+        min_date: minDate,
         max_date: maxDate,
         has_working_hours: true,
         is_holiday: false,
@@ -172,6 +174,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
       open_slots: openSlots,
       /** Bangkok date, so the LIFF date picker's minimum agrees with the server. */
       today: now.date,
+      /** First bookable date of this branch when later than today; null = from today. */
+      min_date: minDate,
       /** Last bookable date of this branch (inclusive); null = unlimited. */
       max_date: maxDate,
       has_working_hours: hasWorkingHours,

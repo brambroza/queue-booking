@@ -377,14 +377,14 @@ Opt-in **ต่อสาขา** ตั้งที่ฟอร์ม `/portal/b
 - Chatbot (`ask_available_slots`) ตอบ `bookingWindowMessage` แทนรายการเวลาเมื่อวันที่ถามเกิน window; `/api/available-slots` คืน `data: []` + `meta.reason: 'beyond_window'`
 - Not done: ยังไม่มี integration test ของ route; ยังไม่ได้ทดสอบกับสาขาที่ตั้ง window จริง (ทุกสาขาใน DB ยังเป็น NULL)
 
-### วันที่เริ่มเปิดรับจอง (2026-10-16)
+### เปิดจองตั้งแต่วันที่ (2026-10-16)
 
-`branches.booking_open_from` (migration `202610160001_branch_booking_open_from.sql`, **must run before deploy** — ฟอร์มสาขาส่ง column นี้) = วัน Bangkok ที่สาขา**เริ่มรับจอง** ไม่ใช่ขอบล่างของวันที่จอง (เลือกแบบ B 2026-10-16: pre-sale switch). ก่อนวันนั้นจองไม่ได้**ทุกวัน** ทั้งลูกค้าและ staff; ถึงวันนั้น (inclusive) ทุกอย่างกลับเป็นปกติ. `NULL` = เปิดรับจองทันที. DB CHECK + zod refine: `booking_open_from <= booking_open_until`
-- Helper: `resolveBookingOpensOn(today, settings)` คืนวันเปิดเฉพาะเมื่อยังมาไม่ถึง ไม่งั้น `null`; `bookingNotOpenMessage`; code `BOOKING_NOT_OPEN_CODE = 'booking_not_open'`
-- บังคับที่ `/api/public/shop/[shopKey]/book`, `/api/bookings` POST (400 `booking_not_open`), chatbot `ask_available_slots` ตอบข้อความ; `/slots` + `/api/available-slots` คืน `data: []` + `meta.reason: 'not_open'` + `meta.opens_on`; `/meta` ส่ง `branches[].booking_opens_on`; `/bookable-days` ส่ง `opens_on`
-- ย้ายคิวเดิม (PATCH) **ไม่ตรวจ** — คิวที่มีอยู่แล้วย้ายได้
-- LIFF: ซ่อนปฏิทิน + ปุ่ม "ดูเวลาว่าง" + ปิดปุ่มยืนยัน แสดง Alert "จะเปิดรับจองวันที่ …"; portal `BookingCreateDrawer` ขึ้น Alert ที่ step วันเวลา + ปิดปุ่มยืนยัน
-- Not done: ยังไม่ได้ทดสอบกับสาขาจริง; ไม่มี countdown / แจ้งเตือนลูกค้าเมื่อเปิดจอง
+`branches.booking_open_from` (migration `202610160001_branch_booking_open_from.sql`, **must run before deploy** — ฟอร์มสาขาส่ง column นี้) = **วันแรกที่จองได้** (ขอบล่างของ `booking_date`) คู่กับ `booking_open_until` เป็นช่วงตายตัว เช่น ร้าน SHOP-PDCLSQ "เปิดจอง 23–25" = ลูกค้าจองได้ตั้งแต่วันนี้ แต่เลือกได้แค่ 23, 24, 25. `NULL` = ตั้งแต่วันนี้. DB CHECK + zod refine: `booking_open_from <= booking_open_until`. (เคยลองความหมายแบบ "วันที่เริ่มรับจอง / pre-sale" แล้ว user ยกตัวอย่างชัดว่าต้องการขอบล่าง จึงเปลี่ยนในวันเดียวกัน)
+- Helper: `resolveMinBookingDate(today, settings)` คืน from เฉพาะเมื่อ > วันนี้ (ไม่งั้น null — กฎวันผ่านแล้วคุมเอง), `isBeforeBookingWindow`, `bookingWindowStartMessage(min, max?)` ("เปิดจองเฉพาะวันที่ 23 ต.ค. ถึง 25 ต.ค. 2569" / "เปิดจองตั้งแต่วันที่ …"); ใช้ code เดิม `beyond_booking_window`
+- บังคับทั้งลูกค้าและ staff เหมือน window เดิม: `/api/public/shop/[shopKey]/book`, `/api/bookings` POST และ PATCH (เฉพาะย้าย**วัน**) 400; `/slots` + `/api/available-slots` คืน `data: []` + `meta.reason: 'before_window'` + `meta.min_date`; chatbot ตอบข้อความช่วง; `/meta` ส่ง `branches[].min_booking_date`; `/bookable-days` ส่ง `min_date` (holiday query เริ่มที่ min)
+- LIFF: `BookableDayRules.minDate` — ปฏิทินไม่โชว์วันก่อน from, `firstBookableDay` / `bookableMonths` เริ่มจาก from; caption ใต้ปฏิทิน "เปิดจองวันที่ A ถึง B"; fallback native input ตั้ง `min`
+- Portal: `BookingCreateDrawer` ตั้ง `min` ช่องวันที่ + helper text ช่วง; `BookingMoveDialog` error + ปิดปุ่มเมื่อย้ายไปวันก่อน from
+- Not done: ยังไม่ได้ทดสอบกับสาขาจริง (SHOP-PDCLSQ ยังไม่ได้ตั้งค่าใน DB)
 
 ## LIFF ปฏิทินแสดงเฉพาะวันที่จองได้ (2026-09-29)
 

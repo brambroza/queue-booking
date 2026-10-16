@@ -125,3 +125,27 @@ describe('monthHasBookableDay', () => {
     expect(monthHasBookableDay('2026-11', rules)).toBe(false);
   });
 });
+
+describe('minDate (branch first bookable date)', () => {
+  // Thu 23 – Sat 25 Oct 2026; weekdays only, so the 25th (Sunday) stays closed.
+  const ranged = { ...rules, minDate: '2026-10-23', maxDate: '2026-10-25' };
+
+  it('rejects days before the lower bound and accepts the range', () => {
+    expect(isDayBookable('2026-10-22', ranged)).toBe(false);
+    expect(isDayBookable('2026-10-23', ranged)).toBe(true);
+    expect(isDayBookable('2026-10-24', { ...ranged, openWeekdays: [0, 1, 2, 3, 4, 5, 6] })).toBe(true);
+    expect(isDayBookable('2026-10-26', { ...ranged, openWeekdays: [0, 1, 2, 3, 4, 5, 6] })).toBe(false);
+  });
+
+  it('starts the first bookable day at the lower bound', () => {
+    expect(firstBookableDay(ranged)).toBe('2026-10-23');
+  });
+
+  it('pages the calendar from the month of the lower bound', () => {
+    expect(bookableMonths({ ...rules, minDate: '2026-11-03', maxDate: '2026-11-30' })).toEqual(['2026-11']);
+  });
+
+  it('ignores a lower bound that is not ahead of today', () => {
+    expect(isDayBookable(rules.today, { ...rules, minDate: '2026-09-01' })).toBe(isDayBookable(rules.today, rules));
+  });
+});

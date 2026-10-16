@@ -4,7 +4,7 @@
  * The calendar shows only days that can actually be booked; everything else
  * is left blank so the customer never taps a day and gets told "closed"
  * (decided 2026-09-29). A day is bookable when it is
- *   * today or later,
+ *   * today or later, and not before the branch's first bookable date,
  *   * within the branch's advance-booking window (see booking-window.ts),
  *   * a weekday the branch has working hours for, and
  *   * not a holiday of the shop / branch.
@@ -29,6 +29,8 @@ export const WEEKDAY_LABELS_TH = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ'
 export type BookableDayRules = {
   /** Bangkok "today" from the server. */
   today: string;
+  /** First bookable date (inclusive) when later than today; null / undefined = from today. */
+  minDate?: string | null;
   /** Last bookable date (inclusive); null = unlimited. */
   maxDate: string | null;
   /** Weekdays (0 = Sunday … 6 = Saturday) with active working hours. */
@@ -60,6 +62,7 @@ function addDaysIso(iso: string, days: number): string {
 export function isDayBookable(iso: string, rules: BookableDayRules): boolean {
   if (!ISO_RE.test(iso)) return false;
   if (iso < rules.today) return false;
+  if (rules.minDate && iso < rules.minDate) return false;
   if (rules.maxDate && iso > rules.maxDate) return false;
   if (!rules.openWeekdays.includes(weekdayOfIso(iso))) return false;
   return !rules.holidays.includes(iso);
@@ -83,7 +86,8 @@ export function calendarEndDate(rules: Pick<BookableDayRules, 'today' | 'maxDate
  */
 export function firstBookableDay(rules: BookableDayRules): string | null {
   const end = calendarEndDate(rules);
-  for (let day = rules.today; day <= end; day = addDaysIso(day, 1)) {
+  const start = rules.minDate && rules.minDate > rules.today ? rules.minDate : rules.today;
+  for (let day = start; day <= end; day = addDaysIso(day, 1)) {
     if (isDayBookable(day, rules)) return day;
   }
   return null;
@@ -100,8 +104,9 @@ export function monthHasBookableDay(month: string, rules: BookableDayRules): boo
 }
 
 /**
- * Months the calendar can page through: from today's month to the month of
- * `calendarEndDate`, skipping months with no bookable day at all.
+ * Months the calendar can page through: from the month of the first bookable
+ * day (today, or the branch's lower bound) to the month of `calendarEndDate`,
+ * skipping months with no bookable day at all.
  *
  * @param rules - Branch rules from `/bookable-days`.
  * @returns Month keys `YYYY-MM`, ascending.
@@ -109,7 +114,8 @@ export function monthHasBookableDay(month: string, rules: BookableDayRules): boo
 export function bookableMonths(rules: BookableDayRules): string[] {
   const out: string[] = [];
   const endMonth = calendarEndDate(rules).slice(0, 7);
-  for (let first = `${rules.today.slice(0, 7)}-01`; first.slice(0, 7) <= endMonth; first = addCalendarMonths(first, 1)) {
+  const start = rules.minDate && rules.minDate > rules.today ? rules.minDate : rules.today;
+  for (let first = `${start.slice(0, 7)}-01`; first.slice(0, 7) <= endMonth; first = addCalendarMonths(first, 1)) {
     const month = first.slice(0, 7);
     if (monthHasBookableDay(month, rules)) out.push(month);
   }

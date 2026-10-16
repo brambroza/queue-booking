@@ -3,12 +3,13 @@ import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { assertBranchAllowed } from '@/lib/auth/branch-scope';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import {
-  bookingNotOpenMessage,
   bookingWindowMessage,
+  bookingWindowStartMessage,
   getBranchBookingWindow,
+  isBeforeBookingWindow,
   isBeyondBookingWindow,
-  resolveBookingOpensOn,
   resolveMaxBookingDate,
+  resolveMinBookingDate,
 } from '@/lib/booking/booking-window';
 
 export async function GET(req: Request) {
@@ -41,11 +42,14 @@ export async function GET(req: Request) {
     // Staff follow the branch's advance-booking window too: no slots past it.
     const today = toBangkokStamp(new Date()).date;
     const bookingWindow = await getBranchBookingWindow(supabase, profile.shop_id, branchId);
-    const opensOn = resolveBookingOpensOn(today, bookingWindow);
-    if (opensOn) {
-      return NextResponse.json({ data: [], meta: { reason: 'not_open', hint: bookingNotOpenMessage(opensOn), opens_on: opensOn } });
-    }
+    const minDate = resolveMinBookingDate(today, bookingWindow);
     const maxDate = resolveMaxBookingDate(today, bookingWindow);
+    if (minDate && isBeforeBookingWindow(date, minDate)) {
+      return NextResponse.json({
+        data: [],
+        meta: { reason: 'before_window', hint: bookingWindowStartMessage(minDate, maxDate), min_date: minDate, max_date: maxDate },
+      });
+    }
     if (maxDate && isBeyondBookingWindow(date, maxDate)) {
       return NextResponse.json({ data: [], meta: { reason: 'beyond_window', hint: bookingWindowMessage(maxDate), max_date: maxDate } });
     }

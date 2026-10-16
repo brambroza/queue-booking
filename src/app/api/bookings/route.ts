@@ -21,14 +21,14 @@ import { shouldNotifyCancellation } from '@/lib/booking/status-meta';
 import { isApprovalTransition, isCallTransition } from '@/lib/booking/status-flow';
 import { SLOT_FULL_CODE, countSlotBookings, fetchSlotCapacity, isSlotFull, occupiesSlot, slotFullStaffMessage } from '@/lib/booking/slot-capacity';
 import {
-  BOOKING_NOT_OPEN_CODE,
   BOOKING_WINDOW_CODE,
-  bookingNotOpenMessage,
   bookingWindowMessage,
+  bookingWindowStartMessage,
   getBranchBookingWindow,
   isBeyondBookingWindow,
-  resolveBookingOpensOn,
+  isBeforeBookingWindow,
   resolveMaxBookingDate,
+  resolveMinBookingDate,
 } from '@/lib/booking/booking-window';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import { isMultiSlotEnabled } from '@/lib/booking/display-settings';
@@ -135,11 +135,11 @@ export async function POST(req: Request) {
     // customers (decided 2026-09-29) — no override, unlike slot capacity.
     const todayIso = toBangkokStamp(new Date()).date;
     const bookingWindow = await getBranchBookingWindow(supabase, profile.shop_id, payload.branch_id);
-    const opensOn = resolveBookingOpensOn(todayIso, bookingWindow);
-    if (opensOn) {
-      return NextResponse.json({ error: bookingNotOpenMessage(opensOn), code: BOOKING_NOT_OPEN_CODE }, { status: 400 });
-    }
+    const minDate = resolveMinBookingDate(todayIso, bookingWindow);
     const maxDate = resolveMaxBookingDate(todayIso, bookingWindow);
+    if (minDate && isBeforeBookingWindow(payload.booking_date, minDate)) {
+      return NextResponse.json({ error: bookingWindowStartMessage(minDate, maxDate), code: BOOKING_WINDOW_CODE }, { status: 400 });
+    }
     if (maxDate && isBeyondBookingWindow(payload.booking_date, maxDate)) {
       return NextResponse.json({ error: bookingWindowMessage(maxDate), code: BOOKING_WINDOW_CODE }, { status: 400 });
     }
@@ -600,10 +600,13 @@ export async function PATCH(req: Request) {
       // Only a date change is checked: a booking made before the limit was
       // tightened can still change its time or provider on its own day.
       if (newDate !== String(before.booking_date)) {
-        const maxDate = resolveMaxBookingDate(
-          toBangkokStamp(new Date()).date,
-          await getBranchBookingWindow(supabase, profile.shop_id, String(before.branch_id)),
-        );
+        const todayIso = toBangkokStamp(new Date()).date;
+        const bookingWindow = await getBranchBookingWindow(supabase, profile.shop_id, String(before.branch_id));
+        const minDate = resolveMinBookingDate(todayIso, bookingWindow);
+        const maxDate = resolveMaxBookingDate(todayIso, bookingWindow);
+        if (minDate && isBeforeBookingWindow(newDate, minDate)) {
+          return NextResponse.json({ error: bookingWindowStartMessage(minDate, maxDate), code: BOOKING_WINDOW_CODE }, { status: 400 });
+        }
         if (maxDate && isBeyondBookingWindow(newDate, maxDate)) {
           return NextResponse.json({ error: bookingWindowMessage(maxDate), code: BOOKING_WINDOW_CODE }, { status: 400 });
         }
