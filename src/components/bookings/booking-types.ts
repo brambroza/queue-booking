@@ -39,6 +39,7 @@ export type Branch = {
   /** Advance-booking limit of the branch (see booking-window.ts); unset = unlimited. */
   booking_advance_window?: string | null;
   booking_open_until?: string | null;
+  booking_open_from?: string | null;
 };
 export type Service = {
   id: string;

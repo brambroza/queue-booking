@@ -11,6 +11,11 @@
  *   * `booking_open_until`     — fixed last bookable date.
  * When both are set the earlier one wins. Neither set = unlimited.
  *
+ * A third column (migration 202610160001) gates WHEN bookings may be made:
+ *   * `booking_open_from`      — Bangkok date the branch starts taking
+ *     bookings at all (option B, decided 2026-10-16). Before it nothing can
+ *     be booked for any day; from it on the two limits above apply as usual.
+ *
  * All dates are Bangkok-local ISO `YYYY-MM-DD` strings and the arithmetic is
  * done in UTC on those strings, so nothing depends on the process timezone.
  */
@@ -20,6 +25,9 @@ import { formatThaiDateLabel } from '@/lib/utils/date-format';
 
 /** `code` sent with the 400 so the LIFF can tell this apart from a past slot. */
 export const BOOKING_WINDOW_CODE = 'beyond_booking_window';
+
+/** `code` sent with the 400 when the branch has not started taking bookings yet. */
+export const BOOKING_NOT_OPEN_CODE = 'booking_not_open';
 
 /** Stored format of `branches.booking_advance_window`: count + d/w/m. */
 export const ADVANCE_WINDOW_RE = /^([1-9]\d?)([dwm])$/;
@@ -37,11 +45,20 @@ export const ADVANCE_WINDOW_OPTIONS: ReadonlyArray<{ value: string; label: strin
 
 const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** The two branch columns that bound how far ahead a booking may be made. */
+/** The branch columns that bound when, and how far ahead, a booking may be made. */
 export type BookingWindowSettings = {
   booking_advance_window?: string | null;
   booking_open_until?: string | null;
+  booking_open_from?: string | null;
 };
+
+/**
+ * Normalise a stored date column to `YYYY-MM-DD`, or `null` when unset/garbage.
+ */
+function isoDateOrNull(value: string | null | undefined): string | null {
+  const raw = String(value ?? '').slice(0, 10);
+  return ISO_RE.test(raw) ? raw : null;
+}
 
 /**
  * Add calendar months to an ISO date, clamping to the last day of the target
@@ -89,10 +106,32 @@ export function advanceWindowEnd(todayIso: string, window: string | null | undef
 export function resolveMaxBookingDate(todayIso: string, settings: BookingWindowSettings | null | undefined): string | null {
   if (!settings) return null;
   const rolling = advanceWindowEnd(todayIso, settings.booking_advance_window);
-  const rawFixed = String(settings.booking_open_until ?? '').slice(0, 10);
-  const fixed = ISO_RE.test(rawFixed) ? rawFixed : null;
+  const fixed = isoDateOrNull(settings.booking_open_until);
   if (rolling && fixed) return rolling < fixed ? rolling : fixed;
   return rolling ?? fixed;
+}
+
+/**
+ * Date the branch starts taking bookings, when that is still ahead.
+ *
+ * @param todayIso - Bangkok "today" `YYYY-MM-DD`, from the server clock.
+ * @param settings - The branch's window columns.
+ * @returns `booking_open_from` while it is later than today; `null` once the
+ *   branch is open (unset, past, or today — the opening day itself is open).
+ */
+export function resolveBookingOpensOn(todayIso: string, settings: BookingWindowSettings | null | undefined): string | null {
+  if (!settings || !ISO_RE.test(todayIso)) return null;
+  const from = isoDateOrNull(settings.booking_open_from);
+  return from && from > todayIso ? from : null;
+}
+
+/**
+ * Thai message shown while the branch has not started taking bookings.
+ *
+ * @param opensOn - Result of `resolveBookingOpensOn`, for "เปิดรับจองวันที่ 1 พ.ย. 2569".
+ */
+export function bookingNotOpenMessage(opensOn: string): string {
+  return `สาขานี้จะเปิดรับจองวันที่ ${formatThaiDateLabel(opensOn)} กรุณากลับมาจองอีกครั้งในวันนั้น`;
 }
 
 /**
@@ -118,7 +157,7 @@ export function bookingWindowMessage(maxDate: string): string {
 /**
  * Read a branch's booking-window columns.
  *
- * The columns ship in migration 202609290002. Until that has run the query
+ * The columns ship in migrations 202609290002 / 202610160001. Until those have run the query
  * errors, and this sits on the booking flow — so a failure resolves to "no
  * limit" rather than blocking bookings the shop never asked to block.
  *
@@ -134,7 +173,7 @@ export async function getBranchBookingWindow(
 ): Promise<BookingWindowSettings | null> {
   const { data, error } = await client
     .from('branches')
-    .select('booking_advance_window,booking_open_until')
+    .select('booking_advance_window,booking_open_until,booking_open_from')
     .eq('id', branchId)
     .eq('shop_id', shopId)
     .maybeSingle();
@@ -156,12 +195,16 @@ export async function getShopBookingWindows(
   const out = new Map<string, BookingWindowSettings>();
   const { data, error } = await client
     .from('branches')
-    .select('id,booking_advance_window,booking_open_until')
+    .select('id,booking_advance_window,booking_open_until,booking_open_from')
     .eq('shop_id', shopId)
     .eq('is_deleted', false);
   if (error || !data) return out;
   for (const row of data as Array<BookingWindowSettings & { id: string }>) {
-    out.set(row.id, { booking_advance_window: row.booking_advance_window, booking_open_until: row.booking_open_until });
+    out.set(row.id, {
+      booking_advance_window: row.booking_advance_window,
+      booking_open_until: row.booking_open_until,
+      booking_open_from: row.booking_open_from,
+    });
   }
   return out;
 }

@@ -4,7 +4,14 @@ import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import { DATE_PAST_HINT, DAY_OVER_HINT, isSlotPast } from '@/lib/booking/slot-time';
 import { weekdayOf } from '@/lib/dashboard/date-range';
-import { bookingWindowMessage, getBranchBookingWindow, isBeyondBookingWindow, resolveMaxBookingDate } from '@/lib/booking/booking-window';
+import {
+  bookingNotOpenMessage,
+  bookingWindowMessage,
+  getBranchBookingWindow,
+  isBeyondBookingWindow,
+  resolveBookingOpensOn,
+  resolveMaxBookingDate,
+} from '@/lib/booking/booking-window';
 
 export async function GET(req: Request, { params }: { params: Promise<{ shopKey: string }> }) {
   const { shopKey } = await params;
@@ -51,7 +58,25 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
 
   // Past the branch's advance-booking window nothing is offered at all, so the
   // slot lookup is skipped. /book refuses the same dates with the same helper.
-  const maxDate = resolveMaxBookingDate(now.date, await getBranchBookingWindow(admin, shop.id, branchId));
+  const bookingWindow = await getBranchBookingWindow(admin, shop.id, branchId);
+  const opensOn = resolveBookingOpensOn(now.date, bookingWindow);
+  const maxDate = resolveMaxBookingDate(now.date, bookingWindow);
+  // Not taking bookings yet: no slot for any day, the LIFF shows the opening date.
+  if (opensOn) {
+    return NextResponse.json({
+      data: [],
+      meta: {
+        reason: 'not_open',
+        hint: bookingNotOpenMessage(opensOn),
+        open_slots: 0,
+        today: now.date,
+        max_date: maxDate,
+        opens_on: opensOn,
+        has_working_hours: true,
+        is_holiday: false,
+      },
+    });
+  }
   if (maxDate && isBeyondBookingWindow(date, maxDate)) {
     return NextResponse.json({
       data: [],

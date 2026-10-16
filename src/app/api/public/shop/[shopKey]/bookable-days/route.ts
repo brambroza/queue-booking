@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
-import { getBranchBookingWindow, resolveMaxBookingDate } from '@/lib/booking/booking-window';
+import { getBranchBookingWindow, resolveBookingOpensOn, resolveMaxBookingDate } from '@/lib/booking/booking-window';
 import { calendarEndDate } from '@/lib/booking/bookable-days';
 
 const querySchema = z.object({ branch_id: z.string().uuid() });
@@ -24,7 +24,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
   if (!shop) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
 
   const today = toBangkokStamp(new Date()).date;
-  const maxDate = resolveMaxBookingDate(today, await getBranchBookingWindow(admin, shop.id, branchId));
+  const bookingWindow = await getBranchBookingWindow(admin, shop.id, branchId);
+  const maxDate = resolveMaxBookingDate(today, bookingWindow);
+  // Branch not taking bookings yet: the LIFF shows the opening date, no calendar.
+  const opensOn = resolveBookingOpensOn(today, bookingWindow);
   const rangeEnd = calendarEndDate({ today, maxDate });
 
   // Same scoping as /slots: a row with no branch applies to every branch.
@@ -58,6 +61,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
     data: {
       today,
       max_date: maxDate,
+      opens_on: opensOn,
       open_weekdays: openWeekdays,
       holidays,
     },

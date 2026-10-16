@@ -19,10 +19,13 @@ import { resolveInitialBookingStatus } from '@/lib/booking/status-flow';
 import { isSlotPast, SLOT_PAST_CODE, SLOT_PAST_MESSAGE } from '@/lib/booking/slot-time';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import {
+  BOOKING_NOT_OPEN_CODE,
   BOOKING_WINDOW_CODE,
+  bookingNotOpenMessage,
   bookingWindowMessage,
   getBranchBookingWindow,
   isBeyondBookingWindow,
+  resolveBookingOpensOn,
   resolveMaxBookingDate,
 } from '@/lib/booking/booking-window';
 import { isMultiSlotEnabled, isOneBookingPerDay } from '@/lib/booking/display-settings';
@@ -154,7 +157,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
 
   // The LIFF date picker stops at the branch's last bookable date, but a
   // forged request does not. Same helper as /slots.
-  const maxDate = resolveMaxBookingDate(now.date, await getBranchBookingWindow(admin, shop.id, payload.branch_id));
+  const bookingWindow = await getBranchBookingWindow(admin, shop.id, payload.branch_id);
+  // A branch that has not started taking bookings refuses every day.
+  const opensOn = resolveBookingOpensOn(now.date, bookingWindow);
+  if (opensOn) {
+    return NextResponse.json({ error: bookingNotOpenMessage(opensOn), code: BOOKING_NOT_OPEN_CODE }, { status: 400 });
+  }
+  const maxDate = resolveMaxBookingDate(now.date, bookingWindow);
   if (maxDate && isBeyondBookingWindow(payload.booking_date, maxDate)) {
     return NextResponse.json({ error: bookingWindowMessage(maxDate), code: BOOKING_WINDOW_CODE }, { status: 400 });
   }

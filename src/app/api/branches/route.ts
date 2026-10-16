@@ -149,6 +149,7 @@ export async function POST(req: Request) {
       // the booking window leaves the column defaults (unlimited).
       ...('booking_advance_window' in body ? { booking_advance_window: payload.booking_advance_window ?? null } : {}),
       ...('booking_open_until' in body ? { booking_open_until: payload.booking_open_until ?? null } : {}),
+      ...('booking_open_from' in body ? { booking_open_from: payload.booking_open_from ?? null } : {}),
       created_by: user.id,
       updated_by: user.id,
     };
@@ -216,6 +217,7 @@ export async function PATCH(req: Request) {
         // Same rule for the booking window: absent key = leave the stored limit alone.
         ...('booking_advance_window' in body ? { booking_advance_window: parsed.data.booking_advance_window ?? null } : {}),
         ...('booking_open_until' in body ? { booking_open_until: parsed.data.booking_open_until ?? null } : {}),
+        ...('booking_open_from' in body ? { booking_open_from: parsed.data.booking_open_from ?? null } : {}),
         updated_by: user.id,
       })
       .eq('id', id)
@@ -235,6 +237,7 @@ export async function PATCH(req: Request) {
         active: parsed.data.active,
         ...('booking_advance_window' in body ? { booking_advance_window: parsed.data.booking_advance_window ?? null } : {}),
         ...('booking_open_until' in body ? { booking_open_until: parsed.data.booking_open_until ?? null } : {}),
+        ...('booking_open_from' in body ? { booking_open_from: parsed.data.booking_open_from ?? null } : {}),
       },
     });
     return NextResponse.json({ data: true });

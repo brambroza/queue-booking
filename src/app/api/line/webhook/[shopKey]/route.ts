@@ -23,7 +23,14 @@ import { cancelBookingByCustomer } from '@/lib/booking/cancel-by-customer';
 import { CUSTOMER_CANCELLABLE_STATUSES } from '@/lib/booking/status-flow';
 import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
-import { bookingWindowMessage, getBranchBookingWindow, isBeyondBookingWindow, resolveMaxBookingDate } from '@/lib/booking/booking-window';
+import {
+  bookingNotOpenMessage,
+  bookingWindowMessage,
+  getBranchBookingWindow,
+  isBeyondBookingWindow,
+  resolveBookingOpensOn,
+  resolveMaxBookingDate,
+} from '@/lib/booking/booking-window';
 
 /** Shop columns the event handlers need (subset of `getShopAndConfig`). */
 type WebhookShop = {
@@ -129,10 +136,14 @@ async function handleTextEvent(
 
     // Never list times for a day the branch does not take bookings for yet —
     // the customer would tap through to LIFF and find the day missing.
-    const maxDate = resolveMaxBookingDate(
-      toBangkokStamp(new Date()).date,
-      await getBranchBookingWindow(admin, shop.id, String(branch.id)),
-    );
+    const todayIso = toBangkokStamp(new Date()).date;
+    const bookingWindow = await getBranchBookingWindow(admin, shop.id, String(branch.id));
+    const opensOn = resolveBookingOpensOn(todayIso, bookingWindow);
+    if (opensOn) {
+      await replyMessage(token, replyToken, [{ type: 'text', text: bookingNotOpenMessage(opensOn) }]);
+      return;
+    }
+    const maxDate = resolveMaxBookingDate(todayIso, bookingWindow);
     if (maxDate && isBeyondBookingWindow(bookingDate, maxDate)) {
       await replyMessage(token, replyToken, [{ type: 'text', text: bookingWindowMessage(maxDate) }]);
       return;

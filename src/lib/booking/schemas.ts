@@ -13,6 +13,18 @@ const optionalImageUrlSchema = z.preprocess(
   imageUrlSchema.optional().nullable(),
 );
 
+/** Optional `YYYY-MM-DD` column; forms send '' for "unset". */
+const optionalIsoDateSchema = z.preprocess(
+  (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
+  z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .refine((v) => !Number.isNaN(new Date(`${v}T00:00:00Z`).getTime()))
+    .optional()
+    .nullable(),
+);
+
 export const branchSchema = z.object({
   branch_name: z.string().min(2),
   address: z.string().optional().default(''),
@@ -30,17 +42,13 @@ export const branchSchema = z.object({
     z.string().trim().regex(ADVANCE_WINDOW_RE).optional().nullable(),
   ),
   /** Fixed last bookable date `YYYY-MM-DD`; '' / null = no fixed end. */
-  booking_open_until: z.preprocess(
-    (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
-    z
-      .string()
-      .trim()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
-      .refine((v) => !Number.isNaN(new Date(`${v}T00:00:00Z`).getTime()))
-      .optional()
-      .nullable(),
-  ),
-});
+  booking_open_until: optionalIsoDateSchema,
+  /** Bangkok date the branch starts taking bookings; '' / null = open now. See booking-window.ts. */
+  booking_open_from: optionalIsoDateSchema,
+}).refine(
+  (b) => !b.booking_open_from || !b.booking_open_until || b.booking_open_from <= b.booking_open_until,
+  { message: 'วันที่เริ่มเปิดรับจองต้องไม่เกินวันที่เปิดจองถึง', path: ['booking_open_from'] },
+);
 
 export const serviceSchema = z.object({
   service_name: z.string().min(2),

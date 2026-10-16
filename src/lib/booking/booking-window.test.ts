@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   addCalendarMonths,
   advanceWindowEnd,
+  bookingNotOpenMessage,
   bookingWindowMessage,
   isBeyondBookingWindow,
+  resolveBookingOpensOn,
   resolveMaxBookingDate,
 } from './booking-window';
 
@@ -99,5 +101,39 @@ describe('isBeyondBookingWindow', () => {
 describe('bookingWindowMessage', () => {
   it('names the last bookable date', () => {
     expect(bookingWindowMessage('2026-10-29')).toContain('29');
+  });
+});
+
+describe('resolveBookingOpensOn', () => {
+  it('is open when nothing is set', () => {
+    expect(resolveBookingOpensOn(today, null)).toBeNull();
+    expect(resolveBookingOpensOn(today, {})).toBeNull();
+    expect(resolveBookingOpensOn(today, { booking_open_from: null })).toBeNull();
+  });
+
+  it('returns the opening date while it is still ahead', () => {
+    expect(resolveBookingOpensOn(today, { booking_open_from: '2026-10-01' })).toBe('2026-10-01');
+    expect(resolveBookingOpensOn(today, { booking_open_from: '2026-10-01T00:00:00+07:00' })).toBe('2026-10-01');
+  });
+
+  it('is open on the opening day itself and after', () => {
+    expect(resolveBookingOpensOn(today, { booking_open_from: today })).toBeNull();
+    expect(resolveBookingOpensOn(today, { booking_open_from: '2026-09-01' })).toBeNull();
+  });
+
+  it('ignores garbage and a bad today', () => {
+    expect(resolveBookingOpensOn(today, { booking_open_from: 'soon' })).toBeNull();
+    expect(resolveBookingOpensOn('not-a-date', { booking_open_from: '2030-01-01' })).toBeNull();
+  });
+
+  it('does not affect the last bookable date', () => {
+    expect(resolveMaxBookingDate(today, { booking_open_from: '2030-01-01', booking_open_until: '2026-12-31' })).toBe('2026-12-31');
+  });
+});
+
+describe('bookingNotOpenMessage', () => {
+  it('names the opening day', () => {
+    expect(bookingNotOpenMessage('2026-11-01')).toContain('1');
+    expect(bookingNotOpenMessage('2026-11-01')).toContain('เปิดรับจอง');
   });
 });

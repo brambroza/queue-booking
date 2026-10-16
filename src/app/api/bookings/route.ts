@@ -21,10 +21,13 @@ import { shouldNotifyCancellation } from '@/lib/booking/status-meta';
 import { isApprovalTransition, isCallTransition } from '@/lib/booking/status-flow';
 import { SLOT_FULL_CODE, countSlotBookings, fetchSlotCapacity, isSlotFull, occupiesSlot, slotFullStaffMessage } from '@/lib/booking/slot-capacity';
 import {
+  BOOKING_NOT_OPEN_CODE,
   BOOKING_WINDOW_CODE,
+  bookingNotOpenMessage,
   bookingWindowMessage,
   getBranchBookingWindow,
   isBeyondBookingWindow,
+  resolveBookingOpensOn,
   resolveMaxBookingDate,
 } from '@/lib/booking/booking-window';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
@@ -130,10 +133,13 @@ export async function POST(req: Request) {
 
     // Staff are bound by the branch's advance-booking window exactly like
     // customers (decided 2026-09-29) — no override, unlike slot capacity.
-    const maxDate = resolveMaxBookingDate(
-      toBangkokStamp(new Date()).date,
-      await getBranchBookingWindow(supabase, profile.shop_id, payload.branch_id),
-    );
+    const todayIso = toBangkokStamp(new Date()).date;
+    const bookingWindow = await getBranchBookingWindow(supabase, profile.shop_id, payload.branch_id);
+    const opensOn = resolveBookingOpensOn(todayIso, bookingWindow);
+    if (opensOn) {
+      return NextResponse.json({ error: bookingNotOpenMessage(opensOn), code: BOOKING_NOT_OPEN_CODE }, { status: 400 });
+    }
+    const maxDate = resolveMaxBookingDate(todayIso, bookingWindow);
     if (maxDate && isBeyondBookingWindow(payload.booking_date, maxDate)) {
       return NextResponse.json({ error: bookingWindowMessage(maxDate), code: BOOKING_WINDOW_CODE }, { status: 400 });
     }

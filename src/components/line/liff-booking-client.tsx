@@ -41,7 +41,7 @@ import { CUSTOMER_CANCELLABLE_STATUSES, checkInEligibility } from '@/lib/booking
 import { FNB_ORDERABLE_BOOKING_STATUSES } from '@/lib/fnb/schemas';
 import { LiffFnbOrderSheet } from '@/components/line/liff-fnb-order-sheet';
 import { DAILY_LIMIT_CODE, dailyLimitMessage, findSameDayBooking } from '@/lib/booking/daily-limit';
-import { BOOKING_WINDOW_CODE } from '@/lib/booking/booking-window';
+import { BOOKING_NOT_OPEN_CODE, BOOKING_WINDOW_CODE } from '@/lib/booking/booking-window';
 import { firstBookableDay, isDayBookable, type BookableDayRules } from '@/lib/booking/bookable-days';
 import { LiffDateCalendar } from '@/components/line/liff-date-calendar';
 import { SLOT_FULL_CODE } from '@/lib/booking/slot-capacity';
@@ -72,6 +72,8 @@ type Branch = {
   layout_image_url?: string | null;
   /** Last bookable date of this branch (server-resolved, Bangkok); null = unlimited. */
   max_booking_date?: string | null;
+  /** Set while the branch is not taking bookings yet (`booking_open_from` ahead); null = open. */
+  booking_opens_on?: string | null;
 };
 type Service = {
   id: string;
@@ -110,10 +112,12 @@ type Slot = {
   is_past?: boolean;
 };
 type SlotMeta = {
-  reason: 'ok' | 'holiday' | 'closed' | 'full' | 'beyond_window';
+  reason: 'ok' | 'holiday' | 'closed' | 'full' | 'beyond_window' | 'not_open';
   hint?: string;
   /** Last bookable date of the branch; caps the date picker. */
   max_date?: string | null;
+  /** Branch not taking bookings yet; the date it opens. */
+  opens_on?: string | null;
   /** Slots with room left and not yet started; 0 with a non-empty grid = nothing bookable. */
   open_slots?: number;
   /** Bangkok date from the server; floors the date picker. */
@@ -381,6 +385,8 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const [dayRules, setDayRules] = useState<BookableDayRules | null>(null);
   /** Rules failed to load — the native date input takes over so booking still works. */
   const [dayRulesFailed, setDayRulesFailed] = useState(false);
+  /** From /bookable-days: the branch opens for booking on this date (null = open now). */
+  const [dayRulesOpensOn, setDayRulesOpensOn] = useState<string | null>(null);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [slotHint, setSlotHint] = useState('');
   const [slotMeta, setSlotMeta] = useState<SlotMeta>({ reason: 'ok' });
@@ -441,9 +447,20 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     [shop?.one_booking_per_day, date, upcoming, history],
   );
 
-  const canLoadSlots = branchId && serviceId && date;
+  // /slots carries the freshest value, /bookable-days the next, /meta covers the time before either loads.
+  const branchOpensOn =
+    slotMeta.opens_on ?? dayRulesOpensOn ?? branches.find((b) => b.id === branchId)?.booking_opens_on ?? '';
+  const canLoadSlots = branchId && serviceId && date && !branchOpensOn;
   const canBook =
-    memberReady && !sameDayBooking && branchId && serviceId && date && selectedTime && customerName.trim().length >= 1 && isCompleteThaiPhone(customerPhone);
+    memberReady &&
+    !sameDayBooking &&
+    !branchOpensOn &&
+    branchId &&
+    serviceId &&
+    date &&
+    selectedTime &&
+    customerName.trim().length >= 1 &&
+    isCompleteThaiPhone(customerPhone);
 
   /**
    * Why step 1 cannot be left yet, or '' when it can. A silently dead button
@@ -711,6 +728,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     let cancelled = false;
     setDayRules(null);
     setDayRulesFailed(false);
+    setDayRulesOpensOn(null);
     void (async () => {
       try {
         const res = await fetch(`/api/public/shop/${encodeURIComponent(shopKey)}/bookable-days?branch_id=${encodeURIComponent(branchId)}`, { cache: 'no-store' });
@@ -724,6 +742,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
           holidays: json.data.holidays ?? [],
         };
         setDayRules(rules);
+        setDayRulesOpensOn(json.data.opens_on ?? null);
         setTodayIso(rules.today);
         // Never leave a day selected that the calendar does not show.
         setDate((prev) => (isDayBookable(prev, rules) ? prev : firstBookableDay(rules) ?? ''));
@@ -890,6 +909,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       // The branch's booking window moved (or the page sat open overnight) —
       // reload so the date picker's maximum matches the server.
       if (json.code === BOOKING_WINDOW_CODE) void loadSlots();
+      // The branch is not taking bookings yet (opened in another tab before
+      // the shop set the date) — reload so the opening notice shows.
+      if (json.code === BOOKING_NOT_OPEN_CODE) void loadSlots();
       // A later slot of the run was taken meanwhile — redraw the grid.
       if (json.code === MULTI_SLOT_UNAVAILABLE_CODE || json.code === MULTI_PICK_INVALID_CODE) void loadSlots();
       return push(json.error ?? 'จองคิวไม่สำเร็จ', 'error');
@@ -1414,6 +1436,8 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       <Alert severity="info" icon={<EventBusyRoundedIcon fontSize="inherit" />}>ปิดทำการ</Alert>
     ) : slotMeta.reason === 'beyond_window' ? (
       <Alert severity="info" icon={<EventBusyRoundedIcon fontSize="inherit" />}>{slotMeta.hint || 'ยังไม่เปิดจองวันที่เลือก'}</Alert>
+    ) : slotMeta.reason === 'not_open' ? (
+      <Alert severity="info" icon={<EventBusyRoundedIcon fontSize="inherit" />}>{slotMeta.hint || 'สาขานี้ยังไม่เปิดรับจอง'}</Alert>
     ) : slotMeta.reason === 'full' ? (
       <Alert severity="warning">{slotMeta.hint || 'คิวเต็ม'}</Alert>
     ) : null;
@@ -1583,7 +1607,12 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                     </MenuItem>
                   ))}
                 </TextField>
-                {dayRulesFailed ? (
+                {branchOpensOn ? (
+                  // Not taking bookings yet: no calendar at all, just the opening date.
+                  <Alert severity="info" icon={<EventBusyRoundedIcon fontSize="inherit" />}>
+                    สาขานี้จะเปิดรับจองวันที่ {formatDateDMY(branchOpensOn)} กรุณากลับมาจองอีกครั้งในวันนั้น
+                  </Alert>
+                ) : dayRulesFailed ? (
                   // Calendar rules unavailable — fall back to the device's own
                   // picker so the customer can still book; the server checks the day.
                   <TextField

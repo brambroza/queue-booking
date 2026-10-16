@@ -377,6 +377,15 @@ Opt-in **ต่อสาขา** ตั้งที่ฟอร์ม `/portal/b
 - Chatbot (`ask_available_slots`) ตอบ `bookingWindowMessage` แทนรายการเวลาเมื่อวันที่ถามเกิน window; `/api/available-slots` คืน `data: []` + `meta.reason: 'beyond_window'`
 - Not done: ยังไม่มี integration test ของ route; ยังไม่ได้ทดสอบกับสาขาที่ตั้ง window จริง (ทุกสาขาใน DB ยังเป็น NULL)
 
+### วันที่เริ่มเปิดรับจอง (2026-10-16)
+
+`branches.booking_open_from` (migration `202610160001_branch_booking_open_from.sql`, **must run before deploy** — ฟอร์มสาขาส่ง column นี้) = วัน Bangkok ที่สาขา**เริ่มรับจอง** ไม่ใช่ขอบล่างของวันที่จอง (เลือกแบบ B 2026-10-16: pre-sale switch). ก่อนวันนั้นจองไม่ได้**ทุกวัน** ทั้งลูกค้าและ staff; ถึงวันนั้น (inclusive) ทุกอย่างกลับเป็นปกติ. `NULL` = เปิดรับจองทันที. DB CHECK + zod refine: `booking_open_from <= booking_open_until`
+- Helper: `resolveBookingOpensOn(today, settings)` คืนวันเปิดเฉพาะเมื่อยังมาไม่ถึง ไม่งั้น `null`; `bookingNotOpenMessage`; code `BOOKING_NOT_OPEN_CODE = 'booking_not_open'`
+- บังคับที่ `/api/public/shop/[shopKey]/book`, `/api/bookings` POST (400 `booking_not_open`), chatbot `ask_available_slots` ตอบข้อความ; `/slots` + `/api/available-slots` คืน `data: []` + `meta.reason: 'not_open'` + `meta.opens_on`; `/meta` ส่ง `branches[].booking_opens_on`; `/bookable-days` ส่ง `opens_on`
+- ย้ายคิวเดิม (PATCH) **ไม่ตรวจ** — คิวที่มีอยู่แล้วย้ายได้
+- LIFF: ซ่อนปฏิทิน + ปุ่ม "ดูเวลาว่าง" + ปิดปุ่มยืนยัน แสดง Alert "จะเปิดรับจองวันที่ …"; portal `BookingCreateDrawer` ขึ้น Alert ที่ step วันเวลา + ปิดปุ่มยืนยัน
+- Not done: ยังไม่ได้ทดสอบกับสาขาจริง; ไม่มี countdown / แจ้งเตือนลูกค้าเมื่อเปิดจอง
+
 ## LIFF ปฏิทินแสดงเฉพาะวันที่จองได้ (2026-09-29)
 
 ลูกค้า **ไม่เห็นวัน** ที่จองไม่ได้ — กันลูกค้างง. **ช่วงเวลา** ยังแสดงครบแบบ disabled เหมือนเดิม

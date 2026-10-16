@@ -4,7 +4,7 @@ import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { getShopPaymentConfig, toPublicPaymentInfo } from '@/lib/payments/settings';
 import { isBookingEchoEnabled } from '@/lib/line/booking-echo';
 import { isMultiSlotEnabled, isOneBookingPerDay, isServiceDurationVisible } from '@/lib/booking/display-settings';
-import { getShopBookingWindows, resolveMaxBookingDate } from '@/lib/booking/booking-window';
+import { getShopBookingWindows, resolveBookingOpensOn, resolveMaxBookingDate } from '@/lib/booking/booking-window';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import { getFnbAccess } from '@/lib/subscription/features';
 
@@ -58,6 +58,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ shopKey: s
   const branchesWithWindow = (branches ?? []).map((b) => ({
     ...b,
     max_booking_date: resolveMaxBookingDate(today, bookingWindows.get(String(b.id))),
+    // Set while the branch is not taking bookings yet; the LIFF shows it instead of the calendar.
+    booking_opens_on: resolveBookingOpensOn(today, bookingWindows.get(String(b.id))),
   }));
 
   return NextResponse.json({

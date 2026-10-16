@@ -23,7 +23,7 @@ import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import type { Branch, LineUser, Resource, Service } from './booking-types';
 import { filterResourcesForService } from '@/lib/booking/resource-service-link';
-import { resolveMaxBookingDate } from '@/lib/booking/booking-window';
+import { resolveBookingOpensOn, resolveMaxBookingDate } from '@/lib/booking/booking-window';
 import { maxSlotCount, minSlotCount, slotUnitMinutes } from '@/lib/booking/multi-slot';
 
 export type CreateDraft = {
@@ -95,8 +95,11 @@ export function BookingCreateDrawer({
       ...(key === 'service_id' || key === 'resource_id' ? { slot_count: '' } : {}),
     }));
 
+  // The branch has not started taking bookings yet (booking_open_from ahead);
+  // staff are bound like customers, the server refuses with booking_not_open.
+  const branchOpensOn = resolveBookingOpensOn(getTodayISOInBangkok(), branches.find((b) => b.id === draft.branch_id));
   const step1Ok = Boolean(draft.branch_id && draft.service_id && draft.customer_name.trim() && draft.customer_phone.trim());
-  const step2Ok = Boolean(draft.booking_date && draft.start_time);
+  const step2Ok = Boolean(draft.booking_date && draft.start_time) && !branchOpensOn;
 
   function resetAll() {
     setStep(0);
@@ -230,6 +233,11 @@ export function BookingCreateDrawer({
 
         {activeStep === 1 ? (
           <Stack spacing={2}>
+            {branchOpensOn ? (
+              <Alert severity="info">
+                {t('branch_not_open', 'สาขานี้จะเปิดรับจองวันที่')} {formatDateDMY(branchOpensOn)}
+              </Alert>
+            ) : null}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <TextField id="create-date" type="date" required fullWidth size="small" label={t('date', 'วันที่')} value={draft.booking_date} onChange={set('booking_date')} helperText={maxDate ? `${t('book_until', 'จองล่วงหน้าได้ถึง')} ${formatDateDMY(maxDate)}` : undefined} slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: today, max: maxDate } }} />
               <TextField id="create-time" type="time" required fullWidth size="small" label={t('time_start', 'เวลาเริ่ม')} value={draft.start_time} onChange={set('start_time')} slotProps={{ inputLabel: { shrink: true } }} />
