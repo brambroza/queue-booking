@@ -44,6 +44,8 @@ import { DAILY_LIMIT_CODE, dailyLimitMessage, findSameDayBooking } from '@/lib/b
 import { BOOKING_WINDOW_CODE } from '@/lib/booking/booking-window';
 import { firstBookableDay, isDayBookable, type BookableDayRules } from '@/lib/booking/bookable-days';
 import { LiffDateCalendar } from '@/components/line/liff-date-calendar';
+import { bangkokTimeOf, isoToBangkokLocalDate, isReleased, NOT_RELEASED_CODE, releaseCountdown, releaseJitterMs } from '@/lib/booking/booking-release';
+import { fetchJsonWithBusyRetry } from '@/lib/line/liff-fetch';
 import { SLOT_FULL_CODE } from '@/lib/booking/slot-capacity';
 import { MAX_SLOTS_PER_ORDER, MULTI_PICK_INVALID_CODE, MULTI_SLOT_UNAVAILABLE_CODE, toggleSlotPick } from '@/lib/booking/multi-slot';
 import { LiffPaymentPanel, openBankDeeplink } from '@/components/line/liff-payment-panel';
@@ -65,6 +67,16 @@ import type { PaymentMethod } from '@/types/db';
 import { BankGrid } from '@/components/line/bank-grid';
 import { isBankAppMethod, isMobileBankingAmountOk } from '@/lib/payments/mobile-banking/banks';
 
+/** Idempotency key for one press of "ยืนยันจอง". */
+function newAttemptKey(): string {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  } catch {
+    // fall through
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 type Branch = {
   id: string;
   branch_name: string;
@@ -74,6 +86,8 @@ type Branch = {
   max_booking_date?: string | null;
   /** First bookable date when later than today (server-resolved, Bangkok); null = from today. */
   min_booking_date?: string | null;
+  /** Moment booking opens (waiting room before it); null = always open. */
+  booking_release_at?: string | null;
 };
 type Service = {
   id: string;
@@ -381,6 +395,13 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const [galleryResourceId, setGalleryResourceId] = useState('');
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [date, setDate] = useState(getTodayISOInBangkok());
+  /** Server clock minus device clock, so the release countdown ignores a wrong phone clock. */
+  const [clockOffsetMs, setClockOffsetMs] = useState(0);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  /** False during the random pause right after release (spreads the crowd's first load). */
+  const [releaseJitterDone, setReleaseJitterDone] = useState(true);
+  /** One per press of "ยืนยันจอง"; reused by automatic retries so a retry never books twice. */
+  const bookAttemptKey = useRef('');
   /** Which days the calendar may show for the chosen branch; null until loaded. */
   const [dayRules, setDayRules] = useState<BookableDayRules | null>(null);
   /** Rules failed to load — the native date input takes over so booking still works. */
@@ -411,6 +432,8 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const [isMobileLike, setIsMobileLike] = useState(true);
   const [resumeBooking, setResumeBooking] = useState<BookingResult | null>(null);
   const [loading, setLoading] = useState(false);
+  /** Only the booking submit, so a slot reload (or its busy retries) never reads as "กำลังบันทึก". */
+  const [submitting, setSubmitting] = useState(false);
   const [memberReady, setMemberReady] = useState(false);
   const [memberStatus, setMemberStatus] = useState<'idle' | 'checking' | 'ready' | 'error'>('idle');
   const [memberError, setMemberError] = useState('');
@@ -445,8 +468,13 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     [shop?.one_booking_per_day, date, upcoming, history],
   );
 
-  const canLoadSlots = branchId && serviceId && date;
+  const releaseAt = branches.find((b) => b.id === branchId)?.booking_release_at ?? null;
+  const waitingForRelease = Boolean(releaseAt) && !isReleased(releaseAt, nowMs + clockOffsetMs);
+  /** Closed before the branch's release time: nothing is loaded or booked. */
+  const bookingGateOpen = !waitingForRelease && releaseJitterDone;
+  const canLoadSlots = branchId && serviceId && date && bookingGateOpen;
   const canBook =
+    bookingGateOpen &&
     memberReady && !sameDayBooking && branchId && serviceId && date && selectedTime && customerName.trim().length >= 1 && isCompleteThaiPhone(customerPhone);
 
   /**
@@ -673,11 +701,19 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     if (selectedResourceId) params.set('resource_id', selectedResourceId);
     const url = `/api/public/shop/${shopKey}/slots?${params.toString()}`;
     try {
-      const res = await fetch(url);
-      const json = await res.json();
+      // Busy (429/503) waits and retries here — a page refresh would cost more.
+      const { res, json } = await fetchJsonWithBusyRetry(url, undefined, {
+        onWait: (seconds) => setSlotHint(`มีผู้ใช้งานจำนวนมาก กำลังลองใหม่ใน ${seconds} วินาที ไม่ต้องรีเฟรช`),
+      });
       setLoading(false);
       if (!res.ok) {
-        const msg = json.error ?? 'โหลดคิวว่างไม่สำเร็จ';
+        const msg = typeof json.error === 'string' ? json.error : 'โหลดคิวว่างไม่สำเร็จ';
+        // Opened a moment early (device clock ahead): the countdown takes over.
+        if (json.code === NOT_RELEASED_CODE) {
+          setSlots([]);
+          setSlotHint(msg);
+          return;
+        }
         setSlots([]);
         setSlotHint(msg);
         return push(msg, 'error');
@@ -748,7 +784,57 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     if (!dayRules && !dayRulesFailed) return;
     void loadSlots();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, branchId, serviceId, date, dayRules, dayRulesFailed]);
+  }, [step, branchId, serviceId, date, dayRules, dayRulesFailed, bookingGateOpen]);
+
+  // A different order is a different attempt — never replay the previous one.
+  useEffect(() => {
+    bookAttemptKey.current = '';
+  }, [branchId, serviceId, date, selectedTime, extraTimes, selectedResourceId]);
+
+  // Server clock, once, when any branch still has a release ahead.
+  const hasPendingRelease = branches.some((b) => b.booking_release_at && !isReleased(b.booking_release_at, Date.now()));
+  useEffect(() => {
+    if (!hasPendingRelease) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const sentAt = Date.now();
+        const res = await fetch('/api/public/time', { cache: 'no-store' });
+        const json = (await res.json()) as { now?: number };
+        const receivedAt = Date.now();
+        if (!cancelled && typeof json.now === 'number') setClockOffsetMs(json.now + (receivedAt - sentAt) / 2 - receivedAt);
+      } catch {
+        // Device clock it is; the server still refuses early requests.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPendingRelease]);
+
+  // Countdown tick while the chosen branch waits for its release, then a short
+  // random pause so every phone in the crowd does not load slots in the same second.
+  useEffect(() => {
+    if (!releaseAt || isReleased(releaseAt, Date.now() + clockOffsetMs)) {
+      setReleaseJitterDone(true);
+      return;
+    }
+    setReleaseJitterDone(false);
+    let jitterTimer: ReturnType<typeof setTimeout> | undefined;
+    const tick = setInterval(() => {
+      const now = Date.now();
+      setNowMs(now);
+      if (isReleased(releaseAt, now + clockOffsetMs)) {
+        clearInterval(tick);
+        jitterTimer = setTimeout(() => setReleaseJitterDone(true), releaseJitterMs());
+      }
+    }, 1000);
+    setNowMs(Date.now());
+    return () => {
+      clearInterval(tick);
+      if (jitterTimer) clearTimeout(jitterTimer);
+    };
+  }, [releaseAt, clockOffsetMs]);
 
   // Restore an unfinished payment after a reload. Anything older than the TTL is
   // dropped rather than shown, since the invoice has almost certainly lapsed.
@@ -859,9 +945,14 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   }
 
   async function bookNow() {
-    if (!canBook) return;
+    if (!canBook || loading) return;
     setLoading(true);
-    const res = await fetch(`/api/public/shop/${shopKey}/book`, {
+    setSubmitting(true);
+    if (!bookAttemptKey.current) bookAttemptKey.current = newAttemptKey();
+    let res: Response;
+    let json: Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    try {
+      ({ res, json } = await fetchJsonWithBusyRetry(`/api/public/shop/${shopKey}/book`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -878,10 +969,22 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         id_token: lineUserId ? currentIdToken() || undefined : undefined,
         payment_method: chosenMethod || undefined,
         bank_provider: isBankAppMethod(chosenMethod) && chosenBank ? chosenBank : undefined,
+        idempotency_key: bookAttemptKey.current,
       }),
-    });
-    const json = await res.json();
+      }, {
+        // `busy` 409 = this same press is still being saved (an earlier retry).
+        retryCodes: ['busy'],
+        onWait: (seconds) => push(`มีผู้จองพร้อมกันจำนวนมาก กำลังลองใหม่ใน ${seconds} วินาที ไม่ต้องรีเฟรช`, 'info'),
+      }));
+    } catch {
+      setLoading(false);
+      setSubmitting(false);
+      return push('เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', 'error');
+    }
     setLoading(false);
+    setSubmitting(false);
+    // A final answer either way: the next press is a new attempt.
+    bookAttemptKey.current = '';
     if (!res.ok) {
       // The grid was left open past the slot's start — refresh it so the
       // customer sees which slots are still bookable.
@@ -975,6 +1078,27 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   }
 
   const selectedBranch = useMemo(() => branches.find((b) => b.id === branchId), [branches, branchId]);
+
+  const countdown = releaseAt ? releaseCountdown(releaseAt, nowMs + clockOffsetMs) : null;
+  /** Waiting room card: shown until the branch opens, then for the short jitter pause. */
+  const releaseNotice = !bookingGateOpen && releaseAt && countdown ? (
+    <Alert severity="info" icon={<HourglassTopRoundedIcon fontSize="inherit" />}>
+      {waitingForRelease ? (
+        <Stack spacing={0.5}>
+          <Typography variant="subtitle2" fontWeight={700}>
+            เปิดให้จอง {formatDateDMY(isoToBangkokLocalDate(releaseAt))} เวลา {bangkokTimeOf(releaseAt)} น.
+          </Typography>
+          <Typography variant="h5" fontWeight={800} sx={{ fontVariantNumeric: 'tabular-nums' }}>
+            {countdown.days > 0 ? `${countdown.days} วัน ` : ''}
+            {String(countdown.hours).padStart(2, '0')}:{String(countdown.minutes).padStart(2, '0')}:{String(countdown.seconds).padStart(2, '0')}
+          </Typography>
+          <Typography variant="caption">ไม่ต้องกดรีเฟรช เมื่อถึงเวลาหน้านี้จะเปิดให้เลือกคิวเอง</Typography>
+        </Stack>
+      ) : (
+        'กำลังเปิดให้จอง…'
+      )}
+    </Alert>
+  ) : null;
   // /slots carries the freshest value; /meta covers the time before the first load.
   const maxBookingDate = slotMeta.max_date ?? selectedBranch?.max_booking_date ?? '';
   const minBookingDate = slotMeta.min_date ?? dayRules?.minDate ?? selectedBranch?.min_booking_date ?? '';
@@ -1521,6 +1645,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                 {nextBlockedReason ? (
                   <Typography variant="caption" sx={{ color: 'warning.dark', textAlign: 'center' }}>{nextBlockedReason}</Typography>
                 ) : null}
+                {releaseNotice}
                 <Button variant="text" color="inherit" size="large" fullWidth sx={{ color: 'text.secondary' }} onClick={() => void closeLiffOrBack()}>
                   ยกเลิก
                 </Button>
@@ -1636,6 +1761,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
 
               <Stack spacing={1}>
                 <LiffLabel>{date ? `เวลาว่าง · ${formatDateDMY(date)}` : 'เวลาว่าง'}</LiffLabel>
+                {releaseNotice}
                 {slotAlert}
                 {slotHint ? <Typography variant="caption" sx={{ color: 'warning.dark' }}>{slotHint}</Typography> : null}
                 {loading ? <LiffSkeleton rows={2} /> : null}
@@ -1676,7 +1802,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                     </Typography>
                   </Alert>
                 ) : null}
-                {!loading && slots.length === 0 && !slotHint && slotMeta.reason === 'ok' ? (
+                {bookingGateOpen && !loading && slots.length === 0 && !slotHint && slotMeta.reason === 'ok' ? (
                   <LiffEmpty icon={<CalendarMonthRoundedIcon />} text="กดดูเวลาว่างเพื่อเลือกคิว" />
                 ) : null}
               </Stack>
@@ -1720,9 +1846,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                   size="large"
                   onClick={() => void bookNow()}
                   disabled={!canBook || loading || (showMethodPicker && !chosenMethod)}
-                  startIcon={loading ? <CircularProgress size={16} color="inherit" /> : undefined}
+                  startIcon={submitting ? <CircularProgress size={16} color="inherit" /> : undefined}
                 >
-                  {loading ? 'กำลังบันทึก...' : 'ยืนยันจองคิว'}
+                  {submitting ? 'กำลังบันทึก...' : 'ยืนยันจองคิว'}
                 </Button>
               </Box>
             </>

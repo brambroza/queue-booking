@@ -9,6 +9,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { formatDateDMY } from '@/lib/utils/date-format';
+import { isoToBangkokLocal } from '@/lib/booking/booking-release';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import TagRoundedIcon from '@mui/icons-material/TagRounded';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
@@ -23,7 +24,8 @@ type Column = {
   label: string;
   /** `image` = one uploaded photo (needs `imageKind`); stored as a URL, '' when none. */
   /** `select` = one of `options`; the option with value '' means "not set". */
-  type?: 'text' | 'number' | 'time' | 'date' | 'checkbox' | 'image' | 'select';
+  /** `datetime` = Bangkok wall-clock date + time; the API receives `YYYY-MM-DDTHH:mm`, '' when unset. */
+  type?: 'text' | 'number' | 'time' | 'date' | 'datetime' | 'checkbox' | 'image' | 'select';
   imageKind?: ShopImageKind;
   options?: ReadonlyArray<{ value: string; label: string }>;
   /** Field may be left empty; sent as ''. Default is required. */
@@ -89,6 +91,7 @@ export function SimpleCrud({
         return;
       }
       if (c.type === 'checkbox') next[c.key] = Boolean(v);
+      else if (c.type === 'datetime') next[c.key] = isoToBangkokLocal(typeof v === 'string' ? v : null);
       else next[c.key] = String(v ?? defaults[c.key] ?? '');
     });
     setEditingId(String(row.id));
@@ -174,6 +177,10 @@ export function SimpleCrud({
     if (c.type === 'image') return row[c.key] ? 'มีรูป' : '-';
     if (c.type === 'time') return String(row[c.key] ?? '-').slice(0, 5);
     if (c.type === 'date') return formatDateDMY(row[c.key] as string | null | undefined);
+    if (c.type === 'datetime') {
+      const local = isoToBangkokLocal(row[c.key] as string | null | undefined);
+      return local ? `${formatDateDMY(local.slice(0, 10))} ${local.slice(11)}` : '-';
+    }
     if (c.type === 'select') {
       const value = String(row[c.key] ?? '');
       return c.options?.find((o) => o.value === value)?.label ?? (value || '-');
@@ -258,7 +265,7 @@ export function SimpleCrud({
               <tbody>
                 {pagedRows.map((row) => (
                   <tr key={String(row.id)} className="border-t border-slate-100">
-                    {columns.map((c) => <td key={c.key} className="px-3 py-2">{c.type === 'image' || c.type === 'select' || c.type === 'date' ? cellText(c, row) : String(row[c.key] ?? '-')}</td>)}
+                    {columns.map((c) => <td key={c.key} className="px-3 py-2">{c.type === 'image' || c.type === 'select' || c.type === 'date' || c.type === 'datetime' ? cellText(c, row) : String(row[c.key] ?? '-')}</td>)}
                     <td className="px-3 py-2">
                       <ActionIconGroup
                         actions={[
@@ -335,7 +342,7 @@ export function SimpleCrud({
                       {(c.options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
                   ) : (
-                    <input className="input" name={c.key} type={c.type ?? 'text'} defaultValue={String(formSeed[c.key] ?? '')} required={!c.optional} />
+                    <input className="input" name={c.key} type={c.type === 'datetime' ? 'datetime-local' : c.type ?? 'text'} defaultValue={String(formSeed[c.key] ?? '')} required={!c.optional} />
                   )}
                   {c.hint ? <span className="mt-1 block text-xs text-slate-500">{c.hint}</span> : null}
                 </label>

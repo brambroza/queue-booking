@@ -9,7 +9,7 @@ export default function BranchesPage() {
         endpoint="/api/branches"
         title="สาขา"
         // '' on both booking-window fields = unlimited (stored as NULL).
-        defaults={{ active: true, open_time: '09:00', close_time: '18:00', booking_advance_window: '', booking_open_until: '', booking_open_from: '' }}
+        defaults={{ active: true, open_time: '09:00', close_time: '18:00', booking_advance_window: '', booking_open_until: '', booking_open_from: '', booking_release_at: '' }}
         columns={[
           { key: 'branch_name', label: 'ชื่อสาขา' },
           { key: 'address', label: 'ที่อยู่' },
@@ -38,6 +38,13 @@ export default function BranchesPage() {
             type: 'date',
             optional: true,
             hint: 'เว้นว่าง = ไม่กำหนด ถ้าตั้งทั้งสองช่อง ใช้วันที่ถึงก่อน',
+          },
+          {
+            key: 'booking_release_at',
+            label: 'เปิดให้จองเวลา (ห้องรอ)',
+            type: 'datetime',
+            optional: true,
+            hint: 'เวลาไทย ก่อนถึงเวลานี้ลูกค้าเห็นหน้านับถอยหลังและยังกดจองไม่ได้ ไม่ต้องกดรีเฟรช — ใช้เมื่อประกาศเปิดจองพร้อมกัน เช่น 19:00 เว้นว่าง = เปิดตลอด',
           },
           {
             key: 'layout_image_url',

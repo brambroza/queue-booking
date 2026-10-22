@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
+import { resolveShopCached } from '@/lib/line/shop-resolver';
+import { cached } from '@/lib/cache/kv';
+import { getShopReleaseTimes, isReleased, NOT_RELEASED_CODE, notReleasedMessage } from '@/lib/booking/booking-release';
+import { PUBLIC_CACHE_HEADERS } from '@/lib/cache/http';
+import { clientIp, hitRateLimit, tooManyRequests } from '@/lib/security/rate-limit';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import { DATE_PAST_HINT, DAY_OVER_HINT, isSlotPast } from '@/lib/booking/slot-time';
 import { weekdayOf } from '@/lib/dashboard/date-range';
@@ -40,8 +44,49 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
   }
 
   const admin = createAdminClient();
-  const shop = await resolveShopByKeyOrId(admin, shopKey);
+  if (!(await hitRateLimit(admin, 'liffRead', clientIp(req)))) return tooManyRequests();
+  const shop = await resolveShopCached(admin, shopKey);
   if (!shop) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
+
+  // Before the branch's release nothing is looked up (and nothing cached).
+  const releaseAt = (await cached(`release:${shop.id}`, { ttlSeconds: 15 }, () => getShopReleaseTimes(admin, shop.id)))[branchId];
+  if (releaseAt && !isReleased(releaseAt, Date.now())) {
+    return NextResponse.json(
+      { error: notReleasedMessage(releaseAt), code: NOT_RELEASED_CODE, release_at: releaseAt },
+      { status: 400, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
+
+  // A burst of customers on the same day/service shares one lookup: concurrent
+  // misses are coalesced and the result is reused for a few seconds. Staleness
+  // is safe because /book re-checks capacity before every insert.
+  const key = ['slots', shop.id, branchId, serviceId, date, resourceType ?? '', resourceId ?? '', partySize ?? ''].join(':');
+  try {
+    const body = await cached(key, { ttlSeconds: SLOTS_TTL_SECONDS, staleSeconds: 30 }, () =>
+      loadSlots(admin, shop.id, { branchId, serviceId, date, resourceType, resourceId, partySize }),
+    );
+    if ('status' in body) return NextResponse.json({ error: body.error }, { status: body.status });
+    return NextResponse.json(body, { headers: PUBLIC_CACHE_HEADERS.slots });
+  } catch (error) {
+    console.error('[slots] lookup failed', error instanceof Error ? error.message : error);
+    return NextResponse.json({ error: 'โหลดช่วงเวลาไม่สำเร็จ กรุณาลองใหม่' }, { status: 503 });
+  }
+}
+
+/** Seconds one slot grid is reused across customers. */
+const SLOTS_TTL_SECONDS = 3;
+
+type SlotQuery = {
+  branchId: string;
+  serviceId: string;
+  date: string;
+  resourceType: string | null;
+  resourceId: string | null;
+  partySize: string | null;
+};
+
+async function loadSlots(admin: ReturnType<typeof createAdminClient>, shopId: string, query: SlotQuery) {
+  const { branchId, serviceId, date, resourceType, resourceId, partySize } = query;
 
   // Weekday must come from the date string itself, never from `Date#getDay()`:
   // that reads the process timezone, and on Vercel (UTC) Bangkok midnight is
@@ -50,7 +95,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
   try {
     weekday = weekdayOf(date);
   } catch {
-    return NextResponse.json({ error: 'Invalid date' }, { status: 400 });
+    return { error: 'Invalid date', status: 400 } as const;
   }
 
   // Server clock in Bangkok, never the customer's device: a slot that already
@@ -59,12 +104,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
 
   // Past the branch's advance-booking window nothing is offered at all, so the
   // slot lookup is skipped. /book refuses the same dates with the same helper.
-  const bookingWindow = await getBranchBookingWindow(admin, shop.id, branchId);
+  const bookingWindow = await getBranchBookingWindow(admin, shopId, branchId);
   const minDate = resolveMinBookingDate(now.date, bookingWindow);
   const maxDate = resolveMaxBookingDate(now.date, bookingWindow);
   // Before the branch's first bookable date nothing is offered either.
   if (minDate && isBeforeBookingWindow(date, minDate)) {
-    return NextResponse.json({
+    return {
       data: [],
       meta: {
         reason: 'before_window',
@@ -76,10 +121,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
         has_working_hours: true,
         is_holiday: false,
       },
-    });
+    };
   }
   if (maxDate && isBeyondBookingWindow(date, maxDate)) {
-    return NextResponse.json({
+    return {
       data: [],
       meta: {
         reason: 'beyond_window',
@@ -91,14 +136,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
         has_working_hours: true,
         is_holiday: false,
       },
-    });
+    };
   }
 
   const [{ data: holidayRows }, { data: whRows }, { data: anyWhRows }] = await Promise.all([
     admin
       .from('holidays')
       .select('id')
-      .eq('shop_id', shop.id)
+      .eq('shop_id', shopId)
       .eq('holiday_date', date)
       .eq('is_deleted', false)
       .or(`branch_id.is.null,branch_id.eq.${branchId}`)
@@ -106,7 +151,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
     admin
       .from('working_hours')
       .select('id')
-      .eq('shop_id', shop.id)
+      .eq('shop_id', shopId)
       .eq('weekday', weekday)
       .eq('active', true)
       .eq('is_deleted', false)
@@ -116,7 +161,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
     admin
       .from('working_hours')
       .select('id')
-      .eq('shop_id', shop.id)
+      .eq('shop_id', shopId)
       .eq('is_deleted', false)
       .limit(1),
   ]);
@@ -124,7 +169,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
   // Returns full slots too (remaining_capacity = 0) so the LIFF grid can grey
   // them out with "เต็ม N/N" instead of dropping them from the timeline.
   const { data, error } = await admin.rpc('get_slot_availability', {
-    p_shop_id: shop.id,
+    p_shop_id: shopId,
     p_branch_id: branchId,
     p_service_id: serviceId,
     p_date: date,
@@ -133,7 +178,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
     p_resource_id: resourceId || null,
   });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  // Thrown so a failed lookup is never cached as an empty grid.
+  if (error) throw new Error(error.message);
 
   const slots =((data ?? []) as Array<{ slot_time: string; capacity: number; booked_count: number; remaining_capacity: number }>).map(
     (s) => ({ ...s, is_past: isSlotPast({ date, time: s.slot_time }, now) })
@@ -166,7 +212,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
     hint = date < now.date ? DATE_PAST_HINT : allPast ? DAY_OVER_HINT : 'คิวเต็มทุกช่วงเวลาในวันที่เลือก';
   }
 
-  return NextResponse.json({
+  return {
     data: slots,
     meta: {
       reason,
@@ -181,5 +227,5 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
       has_working_hours: hasWorkingHours,
       is_holiday: isHoliday,
     },
-  });
+  };
 }

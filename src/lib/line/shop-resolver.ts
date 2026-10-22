@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { escapeLike } from '@/lib/utils/postgrest';
+import { cached } from '@/lib/cache/kv';
 
 export type ResolvedShop = {
   id: string;
@@ -46,4 +47,18 @@ export async function resolveShopByKeyOrId(admin: SupabaseClient, shopRef: strin
   }
 
   return null;
+}
+
+/**
+ * `resolveShopByKeyOrId` behind the shared cache (60s), for public routes hit on
+ * every LIFF refresh. A miss (unknown key) is cached too, so a flood of bad keys
+ * does not reach the database either.
+ *
+ * @param admin - Service-role client.
+ * @param shopRef - Shop key or id from the URL.
+ */
+export function resolveShopCached(admin: SupabaseClient, shopRef: string): Promise<ResolvedShop | null> {
+  const ref = shopRef.trim();
+  if (!ref || ref.length > 100) return Promise.resolve(null);
+  return cached(`shop:${ref}`, { ttlSeconds: 60 }, () => resolveShopByKeyOrId(admin, ref));
 }

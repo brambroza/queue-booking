@@ -1,8 +1,12 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { channelIdFromLiffId, isValidLiffId, normalizeLiffId } from './liff-id';
 import { resolveLoginChannelIds } from './verify-id-token';
 import { resolveLiffCaller } from './liff-identity';
+import { resetCacheForTests } from '@/lib/cache/kv';
+
+// resolveLiffCaller caches a shop's channel ids; each test stubs its own shop.
+beforeEach(() => resetCacheForTests());
 
 describe('channelIdFromLiffId', () => {
   it('reads the owning channel from the LIFF id or a pasted LIFF url', () => {

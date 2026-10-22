@@ -152,6 +152,7 @@ src/
 | `/api/public/shop/[shopKey]/fnb/request` | LIFF "เรียกพนักงาน" / "ขอเช็คบิล" (one open request per booking+type, unique index; bill stores an estimate snapshot) |
 | `/api/public/shop/[shopKey]/fnb/bill` | Read-only bill estimate for the caller's own booking (bay fee unless paid online + non-cancelled food) |
 | `/api/public/shop/[shopKey]/display` | Queue display data |
+| `/api/public/time` | Server clock (`{ now }`, no DB) for the LIFF release countdown |
 | `/api/public/shop/[shopKey]/me` | LIFF user profile |
 | `/api/public/shop/[shopKey]/member-context` | Member context |
 | `/api/line/webhook/[shopKey]` | LINE Webhook handler |
@@ -394,6 +395,21 @@ Opt-in **ต่อสาขา** ตั้งที่ฟอร์ม `/portal/b
 - **เวลา**: ไม่เปลี่ยน — grid วาดทุก slot, เต็ม = สีเทา "เต็ม N/N", ผ่านแล้ว = เส้นประ, กดไม่ได้. เคยลองซ่อน slot ที่จองไม่ได้แล้ว user ให้กลับเป็น disabled (2026-09-29) อย่าซ่อนอีก
 - วันที่ **คิวเต็มทั้งวัน** ยังแสดงในปฏิทิน (ปฏิทินไม่รู้ occupancy)
 - Pure helpers + vitest: `src/lib/booking/bookable-days.ts` (`isDayBookable`, `firstBookableDay`, `bookableMonths`, `buildMonthGrid`, `calendarEndDate`, `formatThaiMonthTitle`)
+## Booking Rush Protection (2026-10-22)
+
+เหตุ: ร้านประกาศเปิดจอง 19:00 ลูกค้ารีเฟรช LIFF รัว ~1M request → Supabase ล่ม (1 refresh เคย = ~23 Supabase calls, 2 writes)
+- **Cache** `src/lib/cache/kv.ts` `cached(key, { ttlSeconds }, loader)`: memory ต่อ instance → Upstash Redis REST (optional, `UPSTASH_REDIS_REST_URL/TOKEN`, ไม่มี dependency ใช้ `fetch`) → loader; coalesce miss พร้อมกันเป็น loader เดียว, loader พัง = เสิร์ฟค่าเก่า (stale), Redis timeout 150ms + circuit breaker 30s — **Redis ล่มต้องไม่ทำให้ request พัง**. loader ต้อง throw เมื่อ query error (ห้าม cache ค่าว่างจาก error). `invalidateCache([...])` รับ prefix `*` (memory เท่านั้น)
+- Keys: `shop:{shopKey}` 60s (`resolveShopCached`), `meta:{shopId}` 30s, `bookable-days:{shop}:{branch}` 60s, `slots:{shop}:{branch}:{service}:{date}:…` 3s (ลบ prefix หลัง `/book` สำเร็จ), `release:{shopId}` 15s, `liff-channels:{shopId}` 60s, `liffsub:{shop}:{sha256(token)}` ≤600s/≤token exp. `/api/branches` POST/PATCH ลบ `release`/`meta`/`bookable-days`; settings อื่นรอ TTL (≤ ~45s รวม CDN)
+- **CDN**: `/meta`, `/bookable-days`, `/slots` ส่ง `Cache-Control: s-maxage` (`src/lib/cache/http.ts`) — ห้ามใส่ข้อมูลรายลูกค้าใน response เหล่านี้
+- **Rate limit** `src/lib/security/rate-limit.ts`: Redis (fixed window) → memory เมื่อ Redis error (**ไม่ตก DB**); ไม่ตั้ง Redis = limit เดิมยังใช้ RPC `hit_rate_limit`, limit `noDb` (`liffRead`, `liffIp`) ใช้ memory. `/me` + `/book` key ด้วย `liffSubject` (hash ของ id_token) + `liffIp` 600/min กัน CGNAT มือถือ 429 ปลอม. 429 มี `code: rate_limited`, `retry_after`
+- `/me` view mode อ่าน `line_users` ก่อน เขียนเฉพาะเมื่อ display name/รูปเปลี่ยน
+- **`/book` guards** `src/lib/security/request-guard.ts`: `acquireSeat('book:{shop}', 20)` เกิน = 503 `code: busy`; `idempotency_key` (client ส่งต่อการกด 1 ครั้ง) → `pending` = 409 `busy`, สำเร็จแล้ว = replay response เดิม 10 นาที; Google Calendar sync ย้ายไป `after()`
+- **ห้องรอ** `branches.booking_release_at timestamptz` (migration `202610220001`, **run before deploy** — ฟอร์มสาขาส่ง column นี้; flow จองอ่านแบบ defensive): ฟอร์ม `/portal/branches` ช่อง `type: 'datetime'` (SimpleCrud ใหม่, เวลาไทยเสมอ `bangkokLocalToIso`). ก่อนเวลา: LIFF โชว์นับถอยหลัง (offset จาก `/api/public/time`), ไม่โหลด slot/ไม่ให้จอง, ถึงเวลาสุ่มรอ 0–5s (`releaseJitterMs`) ก่อนโหลด; `/slots` + `/book` ตอบ 400 `code: not_released`. `/me` ยังโหลดตามปกติ. Helpers + vitest: `src/lib/booking/booking-release.ts`
+- LIFF client: `fetchJsonWithBusyRetry` (`src/lib/line/liff-fetch.ts`) retry 429/5xx/network เอง (backoff ×2 cap 15s + jitter) พร้อมข้อความ "ไม่ต้องรีเฟรช"; `/book` network error ไม่ค้าง loading แล้ว
+- เลขคิว: migration `202610220002_queue_number_counter.sql` เปลี่ยน `assign_queue_number` จาก `count(*)` ทั้งวันเป็น counter row `queue_counters` (UPDATE … RETURNING), seed จากจำนวนแถวเดิมของวัน — format/unique index เดิม; รันตอน live ได้
+- Load test: `scripts/load/liff-rush.k6.js` (staging เท่านั้น)
+- Not done: sessionStorage cache ฝั่ง LIFF, รวม query `shops` ใน `/meta` (cache แทนแล้ว), `payment/status` polling ยังไม่ผ่าน cache, invalidate meta จาก settings/services routes
+
 ## Queue Number
 
 เลขคิวออกโดย **DB trigger** `assign_queue_number` (migration `202609220001_queue_number_sequence.sql` — **must run before deploy**: app ไม่ส่ง `queue_number` ตอน insert แล้ว ถ้าไม่มี trigger จะพัง NOT NULL)
@@ -493,6 +509,7 @@ Omise Mobile Banking: toggle `shops.mobile_banking_enabled` (migration `20260916
 | `SMTP_*` | Email | Gmail SMTP fallback |
 | `SLIP_VERIFY_PROVIDER` / `EASYSLIP_API_KEY` | Slip | Platform slip-verification key (Professional+); shops may use their own instead |
 | `SLIP_VERIFY_EASYSLIP_ENABLED` | Slip | Kill switch for the EasySlip adapter (default on) |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Rush | Optional shared cache + rate limit + booking guards (memory-only without) |
 
 ---
 

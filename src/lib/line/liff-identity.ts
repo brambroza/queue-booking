@@ -1,4 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { createHash } from 'node:crypto';
+import { cached, redisPipeline } from '@/lib/cache/kv';
 import { resolveLoginChannelIds, verifyLiffIdToken } from './verify-id-token';
 
 export type LiffIdentityResult =
@@ -48,23 +50,23 @@ export async function resolveLiffCaller(
   const claimed = (claimedLineUserId ?? '').trim();
   const required = isLiffTokenRequired();
 
-  const full = await admin
-    .from('shops')
-    .select('line_login_channel_id,liff_id,liff_id_login_shop')
-    .eq('id', shopId)
-    .maybeSingle();
-  // `line_login_channel_id` ships in migration 202608230001; without it the LIFF ids are still enough.
-  const shopAuth = full.error
-    ? (await admin.from('shops').select('liff_id,liff_id_login_shop').eq('id', shopId).maybeSingle()).data
-    : full.data;
-  const channelIds = resolveLoginChannelIds(shopAuth as Parameters<typeof resolveLoginChannelIds>[0]);
+  // Channel ids change only when the owner edits LINE settings; cached so every
+  // LIFF call does not re-read the shop row.
+  const channelIds = await cached(`liff-channels:${shopId}`, { ttlSeconds: 60 }, async () => {
+    const full = await admin
+      .from('shops')
+      .select('line_login_channel_id,liff_id,liff_id_login_shop')
+      .eq('id', shopId)
+      .maybeSingle();
+    // `line_login_channel_id` ships in migration 202608230001; without it the LIFF ids are still enough.
+    const shopAuth = full.error
+      ? (await admin.from('shops').select('liff_id,liff_id_login_shop').eq('id', shopId).maybeSingle()).data
+      : full.data;
+    return resolveLoginChannelIds(shopAuth as Parameters<typeof resolveLoginChannelIds>[0]);
+  });
 
   if (channelIds.length > 0 && idToken) {
-    let sub: string | null = null;
-    for (const channelId of channelIds) {
-      sub = await verifyLiffIdToken(idToken, channelId);
-      if (sub) break;
-    }
+    const sub = await verifyTokenCached(idToken, shopId, channelIds);
     if (sub && (!claimed || claimed === sub)) return { ok: true, lineUserId: sub, verified: true };
     // Distinguishes "LINE rejected the token" (usually a wrong LINE Login channel id)
     // from "token is fine but belongs to another user" in the server log.
@@ -83,4 +85,41 @@ export async function resolveLiffCaller(
 
   if (!LINE_USER_ID_RE.test(claimed)) return { ok: false, status: 400, error: 'Invalid payload' };
   return { ok: true, lineUserId: claimed, verified: false };
+}
+
+/** Verified tokens are remembered this long (LIFF ID tokens live about an hour). */
+const VERIFIED_TOKEN_TTL_SECONDS = 600;
+
+/**
+ * Verify a LIFF ID token against the shop's channels, remembering a successful
+ * result in Redis so a refreshing customer does not cost one LINE call per
+ * request. Only successes are cached; the key is a hash, never the token.
+ */
+async function verifyTokenCached(idToken: string, shopId: string, channelIds: string[]): Promise<string | null> {
+  const key = `liffsub:${shopId}:${createHash('sha256').update(idToken).digest('hex')}`;
+  const hit = await redisPipeline([['GET', key]]);
+  if (typeof hit?.[0] === 'string' && hit[0]) return hit[0];
+
+  let sub: string | null = null;
+  for (const channelId of channelIds) {
+    sub = await verifyLiffIdToken(idToken, channelId);
+    if (sub) break;
+  }
+  const ttl = sub ? verifiedTokenTtl(idToken) : 0;
+  if (sub && ttl > 0) void redisPipeline([['SET', key, sub, 'EX', ttl]]);
+  return sub;
+}
+
+/**
+ * Cache lifetime for a token LINE just accepted: up to its own `exp`, capped.
+ * The payload is only read after LINE verified the token.
+ */
+function verifiedTokenTtl(idToken: string): number {
+  try {
+    const payload = JSON.parse(Buffer.from(idToken.split('.')[1] ?? '', 'base64url').toString('utf8')) as { exp?: number };
+    if (typeof payload.exp !== 'number') return 0;
+    return Math.min(VERIFIED_TOKEN_TTL_SECONDS, Math.floor(payload.exp - Date.now() / 1000));
+  } catch {
+    return 0;
+  }
 }

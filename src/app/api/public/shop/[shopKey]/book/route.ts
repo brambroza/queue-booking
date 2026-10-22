@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
+import { resolveShopCached, type ResolvedShop } from '@/lib/line/shop-resolver';
 import { pushMessage } from '@/lib/line/client';
 import { bookingConfirmFlex } from '@/lib/line/messages';
 import { assertFeatureQuota, SubscriptionInactiveError, SubscriptionQuotaError } from '@/lib/subscription/enforcement';
@@ -49,7 +49,10 @@ import {
   type GridSlot,
 } from '@/lib/booking/multi-slot';
 import { resolveLiffCaller } from '@/lib/line/liff-identity';
-import { clientIp, hitRateLimit, tooManyRequests } from '@/lib/security/rate-limit';
+import { clientIp, hitRateLimit, liffSubject, tooManyRequests } from '@/lib/security/rate-limit';
+import { acquireSeat, claimIdempotencyKey, settleIdempotencyKey } from '@/lib/security/request-guard';
+import { cached, invalidateCache } from '@/lib/cache/kv';
+import { getShopReleaseTimes, isReleased, NOT_RELEASED_CODE, notReleasedMessage } from '@/lib/booking/booking-release';
 
 const bookSchema = z
   .object({
@@ -82,6 +85,8 @@ const bookSchema = z
     payment_method: z.enum(PAYMENT_METHODS).optional(),
     /** Which bank app to open; required with `bank_deeplink` / `omise_mobile_banking`, ignored otherwise. */
     bank_provider: z.enum(BANK_CODES).optional(),
+    /** One per press of "ยืนยันจอง": a double tap or client retry replays the first result. */
+    idempotency_key: z.string().regex(/^[A-Za-z0-9-]{8,64}$/).optional(),
   })
   .superRefine((value, ctx) => {
     if (isBankAppMethod(value.payment_method) && !value.bank_provider) {
@@ -125,20 +130,84 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   }
 
   const admin = createAdminClient();
-  if (!(await hitRateLimit(admin, 'book', clientIp(req)))) return tooManyRequests();
+  // Per LINE session plus a loose per-IP ceiling (carrier CGNAT shares IPs).
+  if (!(await hitRateLimit(admin, 'liffIp', clientIp(req)))) return tooManyRequests();
+  if (!(await hitRateLimit(admin, 'book', liffSubject(req, parsed.data.id_token)))) return tooManyRequests();
 
-  const shop = await resolveShopByKeyOrId(admin, shopKey);
+  const shop = await resolveShopCached(admin, shopKey);
   if (!shop) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
+
+  // Waiting room: refused before any customer / slot lookup.
+  const releaseAt = (await cached(`release:${shop.id}`, { ttlSeconds: 15 }, () => getShopReleaseTimes(admin, shop.id)))[parsed.data.branch_id];
+  if (releaseAt && !isReleased(releaseAt, Date.now())) {
+    return NextResponse.json({ error: notReleasedMessage(releaseAt), code: NOT_RELEASED_CODE, release_at: releaseAt }, { status: 400 });
+  }
+
+  const idempotencyKey = parsed.data.idempotency_key ? `book:${shop.id}:${parsed.data.idempotency_key}` : null;
+  if (idempotencyKey) {
+    const claim = await claimIdempotencyKey(idempotencyKey);
+    if (claim.state === 'done') return NextResponse.json(claim.response);
+    if (claim.state === 'pending') {
+      return NextResponse.json({ error: 'กำลังบันทึกการจองนี้อยู่ กรุณารอสักครู่', code: BUSY_CODE, retry_after: 3 }, { status: 409 });
+    }
+  }
+
+  // At a booking rush only a few inserts per shop run at once; the rest are told
+  // to retry in a moment instead of piling connections onto the database.
+  const seat = await acquireSeat(`book:${shop.id}`, MAX_CONCURRENT_BOOKINGS_PER_SHOP);
+  if (!seat) {
+    if (idempotencyKey) await settleIdempotencyKey(idempotencyKey, null);
+    return busyResponse();
+  }
+
+  let response: NextResponse;
+  try {
+    response = await createBooking(req, shopKey, parsed.data, admin, shop);
+  } catch (error) {
+    if (idempotencyKey) await settleIdempotencyKey(idempotencyKey, null);
+    throw error;
+  } finally {
+    await seat.release();
+  }
+
+  if (response.ok) {
+    // The grid other customers see must not keep offering what was just taken.
+    void invalidateCache([`slots:${shop.id}:${parsed.data.branch_id}:${parsed.data.service_id}:${parsed.data.booking_date}:*`]);
+  }
+  if (idempotencyKey) await settleIdempotencyKey(idempotencyKey, response.ok ? await response.clone().json() : null);
+  return response;
+}
+
+/** Bookings of one shop allowed in flight at once (across instances when Redis is set). */
+const MAX_CONCURRENT_BOOKINGS_PER_SHOP = 20;
+const BUSY_CODE = 'busy';
+
+function busyResponse() {
+  return NextResponse.json(
+    { error: 'มีผู้จองพร้อมกันจำนวนมาก ระบบกำลังลองใหม่ให้อัตโนมัติ', code: BUSY_CODE, retry_after: 2 },
+    { status: 503, headers: { 'Retry-After': '2' } },
+  );
+}
+
+type BookInput = z.infer<typeof bookSchema>;
+
+async function createBooking(
+  req: Request,
+  shopKey: string,
+  input: BookInput,
+  admin: ReturnType<typeof createAdminClient>,
+  shop: ResolvedShop,
+): Promise<NextResponse> {
 
   // A LINE identity ties the booking to a customer's history and receives
   // LINE pushes, so it must be proven. A booking without one is still allowed.
   let verifiedLineUserId: string | null = null;
-  if (parsed.data.line_user_id || parsed.data.id_token) {
-    const caller = await resolveLiffCaller(admin, shop.id, parsed.data.line_user_id, parsed.data.id_token);
+  if (input.line_user_id || input.id_token) {
+    const caller = await resolveLiffCaller(admin, shop.id, input.line_user_id, input.id_token);
     if (!caller.ok) return NextResponse.json({ error: caller.error }, { status: caller.status });
     verifiedLineUserId = caller.lineUserId;
   }
-  const payload = { ...parsed.data, line_user_id: verifiedLineUserId ?? undefined };
+  const payload = { ...input, line_user_id: verifiedLineUserId ?? undefined };
 
   // The LIFF greys these out, but a grid left open past the hour (or a forged
   // request) still reaches here. Same rule as /slots, same Bangkok clock.
@@ -636,7 +705,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     });
   }
 
-  for (const c of created) await safeSyncBookingToGoogleCalendar(shop.id, c.id);
+  // After the response: a Google round trip per queue must not hold the customer
+  // (and a booking seat) at a rush.
+  after(async () => {
+    for (const c of created) await safeSyncBookingToGoogleCalendar(shop.id, c.id);
+  });
 
   let linePushSent = false;
   let linePushError: string | null = null;

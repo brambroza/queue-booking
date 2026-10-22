@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
+import { resolveShopCached } from '@/lib/line/shop-resolver';
 import { NICKNAME_MAX, normalizeNicknameInput } from '@/lib/booking/customer-label';
 import { CUSTOMER_ACTIVE_STATUSES } from '@/lib/booking/status-flow';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import { resolveLiffCaller } from '@/lib/line/liff-identity';
-import { clientIp, hitRateLimit, tooManyRequests } from '@/lib/security/rate-limit';
+import { clientIp, hitRateLimit, liffSubject, tooManyRequests } from '@/lib/security/rate-limit';
 
 const bodySchema = z.object({
   line_user_id: z.string().min(1).max(64).optional(),
@@ -29,9 +29,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   if (!parsed.success) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
 
   const admin = createAdminClient();
-  if (!(await hitRateLimit(admin, 'liffProfile', clientIp(req)))) return tooManyRequests();
+  // Keyed per LINE session, plus a loose per-IP ceiling: customers behind one
+  // carrier IP (CGNAT) must not share a 60/min bucket at a booking rush.
+  if (!(await hitRateLimit(admin, 'liffIp', clientIp(req)))) return tooManyRequests();
+  if (!(await hitRateLimit(admin, 'liffProfile', liffSubject(req, parsed.data.id_token)))) return tooManyRequests();
 
-  const shop = await resolveShopByKeyOrId(admin, shopKey);
+  const shop = await resolveShopCached(admin, shopKey);
   if (!shop) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
 
   const payload = parsed.data;
@@ -40,23 +43,38 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   const caller = await resolveLiffCaller(admin, shop.id, payload.line_user_id, payload.id_token);
   if (!caller.ok) return NextResponse.json({ error: caller.error }, { status: caller.status });
 
-  const { data: lineUser, error: lineUserError } = await admin
-    .from('line_users')
-    .upsert(
-      {
-        company_id: shop.company_id,
-        shop_id: shop.id,
-        line_user_id: caller.lineUserId,
-        display_name: payload.display_name ?? null,
-        picture_url: payload.picture_url || null,
-      },
-      { onConflict: 'shop_id,line_user_id' },
-    )
-    .select('id,line_user_id,display_name,picture_url')
-    .single();
-  if (lineUserError || !lineUser) {
-    console.error('[public/me] line user upsert failed', lineUserError?.message);
-    return NextResponse.json({ error: 'โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่' }, { status: 500 });
+  const lineUserRow = {
+    company_id: shop.company_id,
+    shop_id: shop.id,
+    line_user_id: caller.lineUserId,
+    display_name: payload.display_name ?? null,
+    picture_url: payload.picture_url || null,
+  };
+  // A plain view reads first and only writes when the LINE profile changed:
+  // the old unconditional upsert made every refresh a database write.
+  let lineUser: { id: string; line_user_id: string; display_name: string | null; picture_url: string | null } | null = null;
+  if (payload.mode === 'view') {
+    const { data: existing } = await admin
+      .from('line_users')
+      .select('id,line_user_id,display_name,picture_url')
+      .eq('shop_id', shop.id)
+      .eq('line_user_id', caller.lineUserId)
+      .maybeSingle();
+    if (existing && existing.display_name === lineUserRow.display_name && existing.picture_url === lineUserRow.picture_url) {
+      lineUser = existing;
+    }
+  }
+  if (!lineUser) {
+    const { data: upserted, error: lineUserError } = await admin
+      .from('line_users')
+      .upsert(lineUserRow, { onConflict: 'shop_id,line_user_id' })
+      .select('id,line_user_id,display_name,picture_url')
+      .single();
+    if (lineUserError || !upserted) {
+      console.error('[public/me] line user upsert failed', lineUserError?.message);
+      return NextResponse.json({ error: 'โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่' }, { status: 500 });
+    }
+    lineUser = upserted;
   }
 
   let customerId: string | null = null;

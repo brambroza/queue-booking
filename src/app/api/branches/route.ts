@@ -8,6 +8,12 @@ import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 import { subscriptionErrorResponse } from '@/lib/subscription/response';
 import { writeAuditLog } from '@/lib/audit/activity-log';
 import { escapePostgrestSearch } from '@/lib/utils/postgrest';
+import { invalidateCache } from '@/lib/cache/kv';
+
+/** Public LIFF caches holding branch data (release time, windows, names). */
+function invalidateBranchCaches(shopId: string) {
+  return invalidateCache([`release:${shopId}`, `meta:${shopId}`, `bookable-days:${shopId}:*`]);
+}
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
@@ -150,6 +156,7 @@ export async function POST(req: Request) {
       ...('booking_advance_window' in body ? { booking_advance_window: payload.booking_advance_window ?? null } : {}),
       ...('booking_open_until' in body ? { booking_open_until: payload.booking_open_until ?? null } : {}),
       ...('booking_open_from' in body ? { booking_open_from: payload.booking_open_from ?? null } : {}),
+      ...('booking_release_at' in body ? { booking_release_at: payload.booking_release_at ?? null } : {}),
       created_by: user.id,
       updated_by: user.id,
     };
@@ -172,6 +179,7 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
+    await invalidateBranchCaches(targetShopId);
 
     return NextResponse.json({ data: true });
   } catch (e) {
@@ -218,12 +226,14 @@ export async function PATCH(req: Request) {
         ...('booking_advance_window' in body ? { booking_advance_window: parsed.data.booking_advance_window ?? null } : {}),
         ...('booking_open_until' in body ? { booking_open_until: parsed.data.booking_open_until ?? null } : {}),
         ...('booking_open_from' in body ? { booking_open_from: parsed.data.booking_open_from ?? null } : {}),
+        ...('booking_release_at' in body ? { booking_release_at: parsed.data.booking_release_at ?? null } : {}),
         updated_by: user.id,
       })
       .eq('id', id)
       .eq('shop_id', profile.shop_id);
 
     if (error) throw error;
+    await invalidateBranchCaches(profile.shop_id);
     if (hasImage) await removeDetachedShopAssets([current?.layout_image_url], [parsed.data.layout_image_url], profile.shop_id);
     await writeAuditLog({
       companyId: profile.company_id,
@@ -238,6 +248,7 @@ export async function PATCH(req: Request) {
         ...('booking_advance_window' in body ? { booking_advance_window: parsed.data.booking_advance_window ?? null } : {}),
         ...('booking_open_until' in body ? { booking_open_until: parsed.data.booking_open_until ?? null } : {}),
         ...('booking_open_from' in body ? { booking_open_from: parsed.data.booking_open_from ?? null } : {}),
+        ...('booking_release_at' in body ? { booking_release_at: parsed.data.booking_release_at ?? null } : {}),
       },
     });
     return NextResponse.json({ data: true });

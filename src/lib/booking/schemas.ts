@@ -3,6 +3,7 @@ import { BANK_CODES, PAYMENT_METHODS } from '@/types/db';
 import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 import { RESOURCE_TYPES } from '@/lib/booking/resource-types';
 import { ADVANCE_WINDOW_RE } from '@/lib/booking/booking-window';
+import { bangkokLocalToIso } from '@/lib/booking/booking-release';
 import { RESOURCE_IMAGE_MAX } from '@/lib/storage/shop-assets';
 
 /** A stored photo URL. Ownership (own shop-assets prefix) is checked in the route. */
@@ -45,6 +46,22 @@ export const branchSchema = z.object({
   booking_open_until: optionalIsoDateSchema,
   /** First bookable date `YYYY-MM-DD`; '' / null = from today. See booking-window.ts. */
   booking_open_from: optionalIsoDateSchema,
+  /**
+   * Moment booking opens (waiting room before it). The form sends a Bangkok
+   * `datetime-local` value; stored as an ISO timestamp. '' / null = always open.
+   */
+  booking_release_at: z
+    .union([z.string(), z.null()])
+    .optional()
+    .transform((v, ctx) => {
+      if (v === undefined) return undefined;
+      const iso = bangkokLocalToIso(v);
+      if (iso === undefined) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'เวลาเปิดให้จองไม่ถูกต้อง' });
+        return z.NEVER;
+      }
+      return iso;
+    }),
 }).refine(
   (b) => !b.booking_open_from || !b.booking_open_until || b.booking_open_from <= b.booking_open_until,
   { message: 'วันที่เปิดจองตั้งแต่ต้องไม่เกินวันที่เปิดจองถึง', path: ['booking_open_from'] },
