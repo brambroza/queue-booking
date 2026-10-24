@@ -10,7 +10,7 @@ const CreateSchema = z.object({
   phone: z.string().trim().min(6).max(30).optional(),
   email: z.string().trim().email().max(200).optional(),
   note: z.string().trim().max(1000).optional(),
-  source: z.enum(['pricing_page', 'paywall', 'settings', 'portal']).default('portal'),
+  source: z.enum(['pricing_page', 'paywall', 'settings', 'portal', 'automation']).default('portal'),
 });
 
 const UpdateSchema = z.object({

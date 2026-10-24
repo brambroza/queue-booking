@@ -13,7 +13,7 @@ export type PaywallDetail = {
   message?: string;
 };
 
-export type UpgradeSource = 'paywall' | 'settings' | 'portal' | 'pricing_page';
+export type UpgradeSource = 'paywall' | 'settings' | 'portal' | 'pricing_page' | 'automation';
 
 type UpgradeContextValue = {
   /** Opens the upgrade dialog with the quota detail returned by a 402 response. */

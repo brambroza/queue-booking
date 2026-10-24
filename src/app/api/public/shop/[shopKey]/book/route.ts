@@ -10,6 +10,7 @@ import { createNotification, safeCreateNotification } from '@/lib/notifications/
 import { resolvePaymentForBooking, type PaymentBankInfo, type PaymentDeeplinkInfo } from '@/lib/payments/resolve';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
 import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
+import { safeRecordAutomationConversion } from '@/lib/automation/record-conversion';
 import { resourceBusyMessage, resourceTypeLabel } from '@/lib/booking/resource-types';
 import { resourceServesService, resourceServiceMismatchMessage } from '@/lib/booking/resource-service-link';
 import { NICKNAME_MAX, normalizeNicknameInput } from '@/lib/booking/customer-label';
@@ -709,6 +710,14 @@ async function createBooking(
   // (and a booking seat) at a rush.
   after(async () => {
     for (const c of created) await safeSyncBookingToGoogleCalendar(shop.id, c.id);
+    // Credit a recent follow-up / win-back push with this order (ROI card).
+    const unitPrice = Number((service as unknown as { price?: number } | null)?.price ?? 0);
+    await safeRecordAutomationConversion(admin, {
+      shopId: shop.id,
+      customerId,
+      bookingId: booking.id,
+      revenue: unitPrice * slotCount * created.length,
+    });
   });
 
   let linePushSent = false;

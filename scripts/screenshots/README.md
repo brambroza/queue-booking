@@ -48,8 +48,31 @@ Requires Node 22.18+ (the script is TypeScript run by Node's type stripping).
 
 ## Adding a shot
 
-Add an entry to `SHOTS` in `shots.mts`. `clickTexts` may only walk through UI
-navigation (tabs, option cards, "next"); never a button that saves.
+Add an entry to `SHOTS` in `shots.mts`. `clickTexts` and `clickSelectors` may only
+walk through UI navigation (tabs, option cards, "next", an edit icon); never a
+button that saves.
+
+Per-shot options beyond the basics:
+
+- `business` — serve this sample catalog even without `--business`, so a LIFF shot
+  has services and slots when the demo shop has none. `dir` still decides the folder.
+- `patch` — functions `(body, { today, shopKey }) => body` applied to a read
+  endpoint's response after `routes` and the sample catalog. Use it for dates
+  relative to today (booking windows, release countdowns). `{shopKey}` in the path
+  is replaced at run time.
+- `scrollMargin` — pixels kept above `scrollToText`.
+
+## Blog: booking window (`window-*`)
+
+Four shots for the events-and-courses blog post, written to
+`public/images/product/booking-window/`: the branch form with an event date range,
+the LIFF calendar limited to those days, the calendar capped one week ahead, and
+the waiting-room countdown. They use the `workshop` sample business and dates
+relative to the capture day, so re-run them when the dates in the images get old.
+
+```bash
+npm run screenshots -- window-portal-branch-form window-liff-event-days window-liff-advance-1w window-liff-waiting-room
+```
 
 ## Before using a new image
 

@@ -16,6 +16,7 @@ import { DashboardRecentBookings } from './dashboard-recent-bookings';
 import { DashboardStatusDonut } from './dashboard-status-donut';
 import { DashboardSideLists } from './dashboard-side-lists';
 import { DashboardInsights } from './dashboard-insights';
+import { AutomationRoiCard } from '@/components/automation/automation-roi-card';
 import { DashboardWeekdayPattern } from './dashboard-weekday-pattern';
 
 const RANGE_KINDS: RangeKind[] = ['today', 'week', 'month', 'custom'];
@@ -165,6 +166,7 @@ export function DashboardPageClient() {
       ) : data ? (
         <Stack spacing={2} sx={{ opacity: loading ? 0.6 : 1, transition: 'opacity .15s' }}>
           <DashboardKpiRow data={data} />
+          <AutomationRoiCard />
           <Box ref={overviewRef} sx={{ scrollMarginTop: 80 }}>
             <DashboardOverviewChart data={data} view={view} onViewChange={setView} nowHour={nowHour} />
           </Box>

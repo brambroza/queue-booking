@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildDetailTable, sendSalesEmail } from '@/lib/notifications/sales-email';
 
-export type UpgradeRequestSource = 'register' | 'pricing_page' | 'paywall' | 'settings' | 'portal';
+export type UpgradeRequestSource = 'register' | 'pricing_page' | 'paywall' | 'settings' | 'portal' | 'automation' | 'quota_80';
 
 export type UpgradeRequestInput = {
   companyId: string | null;

@@ -100,7 +100,7 @@ export function bangkokToday(): string {
  * @param days Days to add, may be negative.
  * @returns Shifted ISO date.
  */
-function addDays(iso: string, days: number): string {
+export function addDays(iso: string, days: number): string {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }

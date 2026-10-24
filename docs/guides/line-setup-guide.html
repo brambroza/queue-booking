@@ -187,7 +187,7 @@ table.t td:first-child{font-weight:700;background:var(--tint);width:24%}
         <li>กด “Enable Messaging API”</li>
         <li>ตั้งชื่อ Provider เป็นชื่อร้าน แล้วกดยืนยัน</li>
       </ol>
-      <figure class="fig "><img data-fig src="images/line/line-02-messaging-api.png" alt=""><figcaption><b>OA Manager → Settings → Messaging API</b> กด Enable แล้วตั้งชื่อ Provider</figcaption></figure>
+      <figure class="fig "><img data-fig src="images/line/line-02-messaging-api.png" alt=""><figcaption><b>OA Manager → ตั้งค่า → Messaging API</b> เปิดแล้วสถานะขึ้น “กำลังใช้งาน” พร้อมแชนแนล ID และความลับแชนแนล</figcaption></figure>
       <div class="get"><b>ได้อะไรกลับมา</b>Channel ID, Channel Secret และ Messaging API Channel ใหม่</div>
     </div>
   </article>
@@ -203,7 +203,7 @@ table.t td:first-child{font-weight:700;background:var(--tint);width:24%}
       </ol>
       <div class="figrow">
         <figure class="fig "><img data-fig src="images/line/line-04-channel-secret.png" alt=""><figcaption><b>Basic settings</b> คัดลอก Channel secret</figcaption></figure>
-        <figure class="fig "><img data-fig src="images/line/line-05-access-token.png" alt=""><figcaption><b>Messaging API</b> กด Issue แล้วคัดลอก token</figcaption></figure>
+        <figure class="fig "><img data-fig src="images/line/line-05-access-token.png" alt=""><figcaption><b>Messaging API</b> คัดลอก token (ยังไม่มีให้กด Issue ก่อน)</figcaption></figure>
       </div>
       <div class="put"><b>นำไปใส่ใน Portal</b>ตั้งค่า LINE → Channel Access Token และ Channel Secret แล้วกดบันทึก</div>
       <figure class="fig tall"><img data-fig src="../../public/images/product/guide/guide-line-settings.webp" alt=""><figcaption><b>Portal → ตั้งค่า LINE</b> ช่อง Channel Access Token, Channel Secret และ LIFF ID ทั้งสองช่อง ค่าที่บันทึกแล้วจะแสดงแค่ 4 ตัวท้าย</figcaption></figure>
@@ -216,13 +216,13 @@ table.t td:first-child{font-weight:700;background:var(--tint);width:24%}
     <div class="body">
       <ol class="acts">
         <li>ใน Portal เปิด ตั้งค่า LINE แล้วคัดลอก <b>Webhook URL</b> ของร้าน</li>
-        <li>กลับไปที่ LINE Developers Console → Messaging API → Webhook settings</li>
-        <li>วาง URL เปิด <b>Use webhook</b> เป็น ON แล้วกด <b>Verify</b></li>
+        <li>ใน LINE OA Manager ไปที่ <b>ตั้งค่า → Messaging API</b> วาง URL ในช่อง <b>ลิงก์ Webhook</b> แล้วกด <b>บันทึก</b></li>
+        <li>ไปที่ LINE Developers Console → Messaging API → Webhook settings เปิด <b>Use webhook</b> เป็น ON แล้วกด <b>Verify</b></li>
       </ol>
       <div><span class="url">https://queuebooking.com/api/line/webhook/{shopKey}</span></div>
       <div class="figrow">
         <figure class="fig tall"><img data-fig src="../../public/images/product/guide/guide-line-setup.webp" alt=""><figcaption><b>Portal → ตั้งค่าเริ่มต้น LINE</b> Step 1 มีปุ่ม Copy Webhook URL ของร้าน และ Checklist บอกว่าค่าไหนยังขาด</figcaption></figure>
-        <figure class="fig "><img data-fig src="images/line/line-06-webhook.png" alt=""><figcaption><b>Developers Console → Webhook settings</b> วาง URL, Use webhook ON, กด Verify ขึ้น Success</figcaption></figure>
+        <figure class="fig "><img data-fig src="images/line/line-06-webhook.png" alt=""><figcaption><b>OA Manager → ตั้งค่า → Messaging API</b> วาง URL ในช่องลิงก์ Webhook (ต้องขึ้นต้นด้วย https://) แล้วกดบันทึก</figcaption></figure>
       </div>
       <div class="get"><b>ผลที่ถูกต้อง</b>กด Verify แล้วขึ้น Success</div>
     </div>
@@ -232,22 +232,27 @@ table.t td:first-child{font-weight:700;background:var(--tint);width:24%}
   <article class="step">
     <header><span class="n">5</span><h2>ตั้งค่าการตอบกลับใน OA Manager</h2><span class="where">LINE OA Manager</span></header>
     <div class="body">
-      <p>ไปที่ Settings → Response settings แล้วตั้งค่าตามนี้ เพื่อให้ระบบเป็นตัวตอบแชทหลัก</p>
+      <p>ไปที่ ตั้งค่า → ตั้งค่าการตอบกลับ แล้วตั้งค่าตามนี้ เพื่อให้ระบบเป็นตัวตอบแชทหลัก</p>
       <table class="t">
         <tr><th>หัวข้อ</th><th>ตั้งเป็น</th></tr>
-        <tr><td>Chat</td><td>ON</td></tr>
-        <tr><td>Webhook</td><td>ON</td></tr>
-        <tr><td>Auto-reply messages</td><td>OFF</td></tr>
-        <tr><td>Greeting messages</td><td>ON</td></tr>
+        <tr><td>แชท</td><td>เปิด</td></tr>
+        <tr><td>ข้อความทักทายเพื่อนใหม่</td><td>เปิด</td></tr>
+        <tr><td>Webhook</td><td>เปิด</td></tr>
+        <tr><td>วิธีตอบข้อความ</td><td>แชทแบบแมนนวล (ไม่ใช้ข้อความตอบกลับอัตโนมัติ)</td></tr>
       </table>
-      <figure class="fig "><img data-fig src="images/line/line-07-response-settings.png" alt=""><figcaption><b>OA Manager → Settings → Response settings</b> ตั้งค่าตามตาราง</figcaption></figure>
+      <figure class="fig "><img data-fig src="images/line/line-07-response-settings.png" alt=""><figcaption><b>OA Manager → ตั้งค่า → ตั้งค่าการตอบกลับ</b> เปิดแชท ข้อความทักทาย และ Webhook แล้วเลือกวิธีตอบข้อความตามตาราง</figcaption></figure>
+      <div class="warn">ถ้าเลือก “แชทแบบแมนนวล + ข้อความตอบกลับอัตโนมัติ” LINE จะตอบข้อความอัตโนมัติซ้อนกับระบบ ลูกค้าจะได้ข้อความ 2 ชุด</div>
     </div>
   </article>
 
   <article class="step">
     <header><span class="n">6</span><h2>สร้าง LIFF App 2 ตัว</h2><span class="where">LINE Developers Console</span></header>
     <div class="body">
-      <p>เข้า Messaging API Channel เดิม → แท็บ LIFF → กด <b>Add</b> สร้างทีละตัวตามตาราง</p>
+      <ol class="acts">
+        <li>ใน Provider เดียวกับ Messaging API Channel กด <b>Create a new channel</b> เลือก <b>LINE Login</b> (LINE ไม่ให้สร้าง LIFF ใน Messaging API Channel) ถ้ามี LINE Login Channel อยู่แล้วใช้ตัวเดิมได้</li>
+        <li>แท็บ <b>Basic settings</b> ของ LINE Login Channel: ตั้ง <b>Linked LINE Official Account</b> เป็น OA ของร้าน เพื่อให้ Bot link ใช้งานได้</li>
+        <li>แท็บ <b>LIFF</b> → กด <b>Add</b> สร้างทีละตัวตามตาราง</li>
+      </ol>
       <table class="t">
         <tr><th>ตั้งค่า</th><th>ตัวที่ 1: จองคิว</th><th>ตัวที่ 2: สมาชิก / คิวของฉัน</th></tr>
         <tr><td>LIFF app name</td><td>Booking App</td><td>Member App</td></tr>
@@ -257,7 +262,7 @@ table.t td:first-child{font-weight:700;background:var(--tint);width:24%}
         <tr><td>Bot link feature</td><td>ON</td><td>ON</td></tr>
       </table>
       <div class="figrow">
-        <figure class="fig "><img data-fig src="images/line/line-08-liff-add.png" alt=""><figcaption><b>LIFF → Add</b> กรอกตามตารางด้านบน</figcaption></figure>
+        <figure class="fig "><img data-fig src="images/line/line-08-liff-add.png" alt=""><figcaption><b>LINE Login Channel → LIFF → Add</b> กรอกตามตารางด้านบน</figcaption></figure>
         <figure class="fig "><img data-fig src="images/line/line-09-liff-list.png" alt=""><figcaption><b>LIFF</b> ได้ LIFF app 2 ตัว คัดลอก LIFF ID ของแต่ละตัว</figcaption></figure>
       </div>
       <div class="put"><b>นำไปใส่ใน Portal</b>ตั้งค่า LINE → LIFF ID (ตัวที่ 1) และ LIFF ID สมาชิก (ตัวที่ 2) แล้วกดบันทึก</div>
@@ -273,12 +278,11 @@ table.t td:first-child{font-weight:700;background:var(--tint);width:24%}
         <li>เลือกประเภทธุรกิจและแบบเมนู ระบบจัดปุ่ม ไอคอน และข้อความภาษาไทยให้</li>
         <li>กด <b>บันทึกรูปลงระบบ</b> แล้วกด <b>เผยแพร่ไป LINE</b></li>
       </ol>
-      <div class="figrow">
-        <figure class="fig "><img data-fig src="../../public/images/product/portal-rich-menu.webp" alt=""><figcaption><b>Portal → สร้าง Rich Menu</b> เลือกประเภทธุรกิจ ดูตัวอย่าง แล้วเผยแพร่</figcaption></figure>
-        <figure class="fig phone"><img data-fig src="images/line/line-10-rich-menu-chat.jpg" alt=""><figcaption><b>แชท LINE OA ของร้าน</b> Rich Menu ที่เผยแพร่แล้ว</figcaption></figure>
-      </div>
+      <figure class="fig "><img data-fig src="../../public/images/product/portal-rich-menu.webp" alt=""><figcaption><b>Portal → สร้าง Rich Menu</b> เลือกประเภทธุรกิจ ดูตัวอย่าง แล้วเผยแพร่</figcaption></figure>
       <div class="get"><b>ผลที่ได้</b>เมนูจองคิว เช็คคิวของฉัน ติดต่อร้าน ขึ้นที่ด้านล่างแชท LINE OA ของร้าน</div>
       <div class="warn">ต้องใส่ LIFF ID ให้เรียบร้อยก่อน ระบบจึงจะเผยแพร่ได้ Rich Menu ที่เผยแพร่จากระบบจะไม่แสดงใน LINE OA Manager ให้จัดการจากหน้า Portal</div>
+      <p><b>ทางเลือก:</b> ถ้าร้านอยากออกแบบริชเมนูเองใน LINE OA Manager (หน้าจอแชท → ริชเมนู → สร้างใหม่) ให้ตั้งแอ็กชันของปุ่มเป็น “ลิงก์” แล้วใส่ <span class="mono">https://liff.line.me/{LIFF ID}</span> ของตัวจองคิว และของตัวสมาชิก</p>
+      <figure class="fig "><img data-fig src="images/line/line-10-rich-menu-chat.png" alt=""><figcaption><b>OA Manager → หน้าจอแชท → ริชเมนู</b> ตัวอย่างริชเมนูที่สร้างเอง ปุ่ม “จองคิว” และ “ข้อมูลสมาชิก” ลิงก์ไปที่ LIFF ทั้งสองตัว</figcaption></figure>
     </div>
   </article>
 
@@ -306,7 +310,7 @@ table.t td:first-child{font-weight:700;background:var(--tint);width:24%}
   <h2 class="sec-title">ติดปัญหา? ลองตรวจตามนี้</h2>
   <div class="cols">
     <div class="card bad"><h3>Verify Webhook ไม่ผ่าน</h3><ul><li>URL ขึ้นต้นด้วย https</li><li>คัดลอก URL จาก Portal ครบทั้งบรรทัด</li><li>บันทึก Token และ Secret ใน Portal แล้ว</li></ul></div>
-    <div class="card bad"><h3>Bot ไม่ตอบแชท</h3><ul><li>Use webhook เป็น ON</li><li>Auto-reply messages เป็น OFF</li><li>Channel Access Token ถูกต้อง ไม่หมดอายุ</li></ul></div>
+    <div class="card bad"><h3>Bot ไม่ตอบแชท</h3><ul><li>Use webhook เป็น ON</li><li>วิธีตอบข้อความเป็น “แชทแบบแมนนวล”</li><li>Channel Access Token ถูกต้อง ไม่หมดอายุ</li></ul></div>
     <div class="card bad"><h3>LIFF เปิดไม่ได้</h3><ul><li>Endpoint URL ตรงกับร้านและเป็น https</li><li>LIFF ID ที่ใส่ใน Portal ถูกตัว (จอง / สมาชิก)</li><li>เปิดผ่านแอป LINE ไม่ใช่เบราว์เซอร์</li></ul></div>
     <div class="card bad"><h3>กดปุ่ม Rich Menu แล้วไม่เปิด</h3><ul><li>ใส่ LIFF ID แล้วและเผยแพร่ใหม่</li><li>ปิดแชทแล้วเปิดใหม่เพื่อโหลดเมนูล่าสุด</li></ul></div>
   </div>

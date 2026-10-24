@@ -5,7 +5,7 @@ import { getSubscriptionState } from '@/lib/subscription/enforcement';
 const PAID_FEATURE_PLAN_CODES: ReadonlySet<string> = new Set(['professional', 'business', 'enterprise']);
 
 /** Plan-gated features, as the paywall dialog names them. */
-export type GatedFeature = 'fnb' | 'slip_verify';
+export type GatedFeature = 'fnb' | 'slip_verify' | 'winback';
 
 /**
  * Whether a plan code includes F&B ordering (Professional and above).
@@ -23,6 +23,16 @@ export function planAllowsFnb(planCode: string | null | undefined): boolean {
  * @param planCode - Effective plan code from `getSubscriptionState`.
  */
 export function planAllowsSlipVerify(planCode: string | null | undefined): boolean {
+  return Boolean(planCode && PAID_FEATURE_PLAN_CODES.has(planCode));
+}
+
+/**
+ * Whether a plan code includes automatic win-back messages (Professional and
+ * above). Starter still sees the win-back preview numbers.
+ *
+ * @param planCode - Effective plan code from `getSubscriptionState`.
+ */
+export function planAllowsWinback(planCode: string | null | undefined): boolean {
   return Boolean(planCode && PAID_FEATURE_PLAN_CODES.has(planCode));
 }
 

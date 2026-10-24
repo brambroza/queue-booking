@@ -7,7 +7,7 @@
  */
 import type { ShopCatalog } from './fixtures.mts';
 
-export type BusinessKey = 'barber' | 'clinic' | 'restaurant' | 'buffet' | 'meeting-room' | 'badminton' | 'tennis' | 'bb-gun' | 'golf';
+export type BusinessKey = 'barber' | 'clinic' | 'restaurant' | 'buffet' | 'meeting-room' | 'badminton' | 'tennis' | 'bb-gun' | 'golf' | 'workshop';
 
 export type SampleService = { id: string; service_name: string; duration_minutes: number; price: number; image_url: null };
 
@@ -263,6 +263,23 @@ export const BUSINESSES: BusinessCatalog[] = [
       { name: 'เบย์ 2', capacity: 4, zone: 'Lounge' },
       { name: 'เบย์ 3', capacity: 6, zone: 'Private' },
       { name: 'เบย์ 4', capacity: 6, zone: 'Private' },
+    ],
+  ),
+  business(
+    10,
+    'workshop',
+    'สตูดิโอเวิร์กช็อป บ้านดิน',
+    'สาขาเอกมัย',
+    'day_rose',
+    'service_area',
+    [
+      ['เวิร์กช็อปปั้นเซรามิก รอบ 3 ชั่วโมง', 180, 1290],
+      ['คอร์สวาดสีน้ำ 4 ครั้ง', 120, 3200],
+      ['เวิร์กช็อปทำเทียนหอม', 90, 890],
+    ],
+    [
+      { name: 'ห้องสตูดิโอ A', capacity: 8, floor: '2' },
+      { name: 'ห้องสตูดิโอ B', capacity: 6, floor: '2' },
     ],
   ),
 ];

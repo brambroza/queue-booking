@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { PageShell } from '@/components/ui/page-shell';
+import { AutomationSettingsCard } from '@/components/automation/automation-settings-card';
 import { useToast } from '@/components/ui/toast';
 import { track } from '@/lib/analytics/track';
 import { REMINDER_MINUTES_DEFAULT, REMINDER_PRESETS, reminderLeadLabel } from '@/lib/line/booking-reminder';
@@ -232,6 +233,8 @@ export default function LineSettingsPage() {
           </ul>
         )}
       </form>
+
+      <AutomationSettingsCard />
     </PageShell>
   );
 }

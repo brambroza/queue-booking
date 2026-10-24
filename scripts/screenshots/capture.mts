@@ -29,7 +29,7 @@ import {
   sampleBookingsInRange,
   type ShopCatalog,
 } from './fixtures.mts';
-import { BUSINESS_SHOT_NAMES, SHOTS, type Shot } from './shots.mts';
+import { BUSINESS_SHOT_NAMES, SHOTS, type BodyPatch, type Shot } from './shots.mts';
 
 const REQUIRED_ENV = ['SCREENSHOT_BASE_URL', 'SCREENSHOT_EMAIL', 'SCREENSHOT_PASSWORD', 'SCREENSHOT_SHOP_KEY'] as const;
 const OUTPUT_DIR = path.resolve('public/images/product');
@@ -92,6 +92,7 @@ async function fulfillJson(route: Route, body: unknown): Promise<void> {
  * @param catalog Catalog the sample data is built from.
  * @param sample Business catalog served in place of the demo shop's own, if any.
  * @param routes Fixed JSON bodies for read endpoints the shot wants in a given state.
+ * @param patches Functions that rewrite a read endpoint's body (paths may contain `{shopKey}`).
  */
 async function guardApi(
   context: BrowserContext,
@@ -99,9 +100,13 @@ async function guardApi(
   catalog: ShopCatalog,
   sample?: BusinessCatalog,
   routes?: Record<string, unknown>,
+  patches?: Record<string, BodyPatch>,
 ): Promise<void> {
   const today = bangkokToday();
   const listBody = (rows: unknown[]) => ({ data: rows, pagination: { page: 1, page_size: rows.length, total: rows.length } });
+  const patchFor = new Map<string, BodyPatch>(
+    Object.entries(patches ?? {}).map(([p, fn]) => [p.replace('{shopKey}', encodeURIComponent(env.SCREENSHOT_SHOP_KEY)), fn]),
+  );
   await context.route(`${env.SCREENSHOT_BASE_URL}/api/**`, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -115,59 +120,74 @@ async function guardApi(
       console.warn(`  blocked ${request.method()} ${url.pathname}`);
       return route.abort();
     }
-    if (routes && url.pathname in routes) return fulfillJson(route, routes[url.pathname]);
 
-    if (sample) {
-      if (/^\/api\/public\/shop\/[^/]+\/meta$/.test(url.pathname)) {
-        const real = (await (await route.fetch()).json()) as { data?: { shop?: object } };
-        return fulfillJson(route, {
-          ...real,
-          data: {
-            ...real.data,
-            shop: { ...real.data?.shop, name: sample.shopName },
-            branches: sample.branches,
-            services: sample.services,
-            resources: sample.resources,
-          },
-        });
+    /**
+     * Body this endpoint shows in the screenshots, or undefined to pass the
+     * request through: fixed `routes` first, then the sample catalog, then
+     * the sample bookings layered over the real response.
+     */
+    const sampledBody = async (): Promise<unknown> => {
+      if (routes && url.pathname in routes) return routes[url.pathname];
+
+      if (sample) {
+        if (/^\/api\/public\/shop\/[^/]+\/meta$/.test(url.pathname)) {
+          const real = (await (await route.fetch()).json()) as { data?: { shop?: object } };
+          return {
+            ...real,
+            data: {
+              ...real.data,
+              shop: { ...real.data?.shop, name: sample.shopName },
+              branches: sample.branches,
+              services: sample.services,
+              resources: sample.resources,
+            },
+          };
+        }
+        if (/^\/api\/public\/shop\/[^/]+\/bookable-days$/.test(url.pathname)) return sampleBookableDays(today);
+        if (/^\/api\/public\/shop\/[^/]+\/slots$/.test(url.pathname)) return sampleSlots(query.get('date') ?? today);
+        if (url.pathname === '/api/branches') return listBody(sample.branches);
+        if (url.pathname === '/api/services') return listBody(sample.services);
+        if (url.pathname === '/api/resources') return listBody(sample.resources);
       }
-      if (/^\/api\/public\/shop\/[^/]+\/bookable-days$/.test(url.pathname)) return fulfillJson(route, sampleBookableDays(today));
-      if (/^\/api\/public\/shop\/[^/]+\/slots$/.test(url.pathname)) return fulfillJson(route, sampleSlots(query.get('date') ?? today));
-      if (url.pathname === '/api/branches') return fulfillJson(route, listBody(sample.branches));
-      if (url.pathname === '/api/services') return fulfillJson(route, listBody(sample.services));
-      if (url.pathname === '/api/resources') return fulfillJson(route, listBody(sample.resources));
-    }
 
-    if (url.pathname === '/api/dashboard') {
-      const real = await route.fetch();
-      return fulfillJson(route, overlayDashboard(await real.json(), catalog));
-    }
-    if (url.pathname === '/api/reports' && query.get('mode') !== 'csv') {
-      const real = await route.fetch();
-      return fulfillJson(route, overlayReport(await real.json(), catalog, sample?.shopName));
-    }
-    if (/^\/api\/public\/shop\/[^/]+\/display$/.test(url.pathname)) {
-      const real = await route.fetch();
-      return fulfillJson(route, overlaySignage(await real.json(), catalog, sample));
-    }
-    if (url.pathname === '/api/bookings') {
-      const date = query.get('date');
-      const status = query.get('status');
-      const all = date ? sampleBookings(catalog, date) : sampleBookings(catalog, today);
-      const rows = status ? all.filter((r) => r.status === status) : all;
-      const pageSize = Number(query.get('page_size') ?? rows.length) || rows.length;
-      const page = Number(query.get('page') ?? 1) || 1;
-      return fulfillJson(route, {
-        data: rows.slice((page - 1) * pageSize, page * pageSize),
-        pagination: { page, page_size: pageSize, total: rows.length },
-      });
-    }
-    if (url.pathname === '/api/calendar') {
-      const from = query.get('from') ?? today;
-      const to = query.get('to') ?? today;
-      return fulfillJson(route, { data: sampleBookingsInRange(catalog, from, to, today) });
-    }
-    return route.continue();
+      if (url.pathname === '/api/dashboard') {
+        const real = await route.fetch();
+        return overlayDashboard(await real.json(), catalog);
+      }
+      if (url.pathname === '/api/reports' && query.get('mode') !== 'csv') {
+        const real = await route.fetch();
+        return overlayReport(await real.json(), catalog, sample?.shopName);
+      }
+      if (/^\/api\/public\/shop\/[^/]+\/display$/.test(url.pathname)) {
+        const real = await route.fetch();
+        return overlaySignage(await real.json(), catalog, sample);
+      }
+      if (url.pathname === '/api/bookings') {
+        const date = query.get('date');
+        const status = query.get('status');
+        const all = date ? sampleBookings(catalog, date) : sampleBookings(catalog, today);
+        const rows = status ? all.filter((r) => r.status === status) : all;
+        const pageSize = Number(query.get('page_size') ?? rows.length) || rows.length;
+        const page = Number(query.get('page') ?? 1) || 1;
+        return {
+          data: rows.slice((page - 1) * pageSize, page * pageSize),
+          pagination: { page, page_size: pageSize, total: rows.length },
+        };
+      }
+      if (url.pathname === '/api/calendar') {
+        const from = query.get('from') ?? today;
+        const to = query.get('to') ?? today;
+        return { data: sampleBookingsInRange(catalog, from, to, today) };
+      }
+      return undefined;
+    };
+
+    const patch = patchFor.get(url.pathname);
+    let body = await sampledBody();
+    if (body === undefined && !patch) return route.continue();
+    if (body === undefined) body = await (await route.fetch()).json();
+    if (patch) body = patch(body, { today, shopKey: env.SCREENSHOT_SHOP_KEY });
+    return fulfillJson(route, body);
   });
 }
 
@@ -301,7 +321,7 @@ async function capture(
   sample?: BusinessCatalog,
 ): Promise<{ file: string; bytes: number }> {
   const context = await newContext(browser, shot, shot.kind === 'portal' ? statePath : undefined);
-  await guardApi(context, env, sample ?? (await loadCatalog(context, env)), sample, shot.routes);
+  await guardApi(context, env, sample ?? (await loadCatalog(context, env)), sample, shot.routes, shot.patch);
   if (shot.kind === 'liff') await stubLiff(context);
 
   try {
@@ -314,6 +334,11 @@ async function capture(
     await settle(page);
     for (const text of shot.clickTexts ?? []) {
       await page.getByText(text, { exact: false }).first().click();
+      await page.waitForTimeout(CLICK_DEBOUNCE_MS);
+      await settle(page);
+    }
+    for (const selector of shot.clickSelectors ?? []) {
+      await page.locator(selector).first().click();
       await page.waitForTimeout(CLICK_DEBOUNCE_MS);
       await settle(page);
     }
@@ -342,13 +367,15 @@ async function capture(
     if (shot.scrollToText) {
       // Show the part of a long page the shot is about (e.g. the slot grid under the calendar).
       await page.getByText(shot.scrollToText, { exact: false }).first().evaluate((el) => el.scrollIntoView({ block: 'start' }));
+      if (shot.scrollMargin) await page.evaluate((px) => window.scrollBy(0, -px), shot.scrollMargin);
     }
     await page.waitForTimeout(200);
     // Business sets crop the portal shell away: its shop name and notification
     // count are server-rendered from the demo shop and cannot be replaced.
     const clip = sample && shot.clipSelector ? await clipTo(page, shot.clipSelector, shot.viewport.height) : undefined;
     const png = await page.screenshot({ fullPage: clip ? false : (shot.fullPage ?? false), clip, type: 'png' });
-    const dir = path.join(OUTPUT_DIR, sample?.key ?? shot.dir ?? '');
+    // A shot's own folder wins over the business folder (blog shots name both).
+    const dir = path.join(OUTPUT_DIR, shot.dir ?? sample?.key ?? '');
     await mkdir(dir, { recursive: true });
     const file = path.join(dir, `${shot.name}.webp`);
     const info = await sharp(png)
@@ -400,9 +427,11 @@ async function main(): Promise<void> {
     if (shots.some((shot) => shot.kind === 'portal')) await login(browser, env, statePath);
     for (const sample of businesses) {
       for (const shot of shots) {
-        const label = sample ? `${sample.key}/${shot.name}` : shot.name;
+        // A shot may name its own sample business when the run has none.
+        const shotSample = sample ?? (shot.business ? findBusiness(shot.business) : undefined);
+        const label = shotSample ? `${shotSample.key}/${shot.name}` : shot.name;
         try {
-          const { file, bytes } = await capture(browser, shot, env, statePath, sample);
+          const { file, bytes } = await capture(browser, shot, env, statePath, shotSample);
           console.log(`ok   ${label} -> ${path.relative(process.cwd(), file)} (${Math.round(bytes / 1024)} KB)`);
         } catch (error) {
           failed += 1;

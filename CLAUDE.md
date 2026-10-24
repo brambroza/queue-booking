@@ -107,6 +107,8 @@ src/
 | `/api/calendar` | Booking timeline (grouped by date) |
 | `/api/dashboard` | 14-day trend + status distribution |
 | `/api/reports` | Range report (`preset=today|tomorrow|next7|week|month|last7|last30|custom`, max 92 days): KPI, by_day/by_hour/by_status, services/branches/staff, booking list (cap 1,000) · `mode=csv&group=day|staff|bookings` |
+| `/api/automation` | Customer automations: GET settings + this month's cap usage, ROI (`automation_sends` converted) and win-back preview (also creates a `quota_80` upgrade lead once/month when a Starter shop passes 80% of its booking quota); PATCH settings (win-back ON needs Professional+, 402) |
+| `/api/cron/customer-automations` | pg_cron (`Bearer CRON_SECRET`): `?job=followup` every 5 min, `?job=winback` daily 10:00 Bangkok |
 | `/api/notifications` | Notification center |
 | `/api/chat-inbox` | LINE chat inbox + push reply |
 | `/api/line-settings` | LINE OA configuration |
@@ -409,6 +411,17 @@ Opt-in **ต่อสาขา** ตั้งที่ฟอร์ม `/portal/b
 - เลขคิว: migration `202610220002_queue_number_counter.sql` เปลี่ยน `assign_queue_number` จาก `count(*)` ทั้งวันเป็น counter row `queue_counters` (UPDATE … RETURNING), seed จากจำนวนแถวเดิมของวัน — format/unique index เดิม; รันตอน live ได้
 - Load test: `scripts/load/liff-rush.k6.js` (staging เท่านั้น)
 - Not done: sessionStorage cache ฝั่ง LIFF, รวม query `shops` ใน `/meta` (cache แทนแล้ว), `payment/status` polling ยังไม่ผ่าน cache, invalidate meta จาก settings/services routes
+
+## Customer Automations (2026-10-23, rule-based, no LLM)
+
+Two LINE automations that bring customers back, both **default off**, set at `/portal/line-settings#automation` (`AutomationSettingsCard`) via `/api/automation`. Migrations `202610230001_customer_automations.sql` + `202610230002_customer_automations_cron.sql` (**run before use** — app reads the columns defensively: not run = automations off, settings save returns 400)
+- **Follow-up (all plans)**: after a queue becomes `completed` (`bookings.completed_at` stamped by DB trigger `stamp_booking_completed_at`, every path) + `shops.followup_delay_minutes` → `followupThanksFlex` (review button when `shops.google_review_url` https, "จองครั้งถัดไป" LIFF booking tab). Claimed via `bookings.followup_sent_at` (one per booking, also unique index); a failed push is recorded and **not retried**; older than delay + 24 h = skipped. Old completed rows (NULL `completed_at`) never get one
+- **Win-back (Professional+, `planAllowsWinback`)**: daily; per customer the median gap between completed visits (≥2 visits, else `shops.winback_default_days`), clamped 7–120 days, + grace max(3, 25%). Skip: has an upcoming queue, last visit > 180 days, any win-back attempt in 30 days, no LINE user. Longest overdue first. Rules in `src/lib/automation/visit-interval.ts` (`decideWinback`); history loader `customer-history.ts` (paged, tenant + `is_demo=false`)
+- **Cap**: both share `shops.automation_monthly_cap` (default 300), Starter ceiling 100 (`effectiveAutomationCap`), counted from `automation_sends` `status=sent` since Bangkok month start — every push spends the shop's own LINE OA quota. Unknown usage = send nothing
+- **ROI**: `/book` `after()` → `safeRecordAutomationConversion` credits the latest unconverted send to the same customer within 14 days (`pickAttributableSend`), `revenue_estimate` = service price × queues. Estimate, labelled "≈" in UI
+- **Upsell**: dashboard `AutomationRoiCard` shows ROI, or for Starter the real overdue count + baht as a locked card → `openUpgrade('automation')`; `/api/automation` GET creates a `quota_80` `upgrade_requests` lead once per month at ≥80% of the monthly booking quota
+- Senders `src/lib/line/notify-automation.ts` (`safeSendFollowup`, `safeSendWinback`, never throw, record every attempt); Flex in `messages-automation.ts`; vitest in `src/lib/automation/automation-rules.test.ts` + `src/lib/line/notify-automation.test.ts`
+- Not done: `ref` param on the LIFF link (attribution is time-window only), customers page "เลยกำหนด" badge, weekly owner digest, RFM segments, no-show risk → deposit, waitlist. Untested against a real LINE OA
 
 ## Queue Number
 
