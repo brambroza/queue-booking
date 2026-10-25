@@ -49,6 +49,7 @@ import { fetchJsonWithBusyRetry } from '@/lib/line/liff-fetch';
 import { SLOT_FULL_CODE } from '@/lib/booking/slot-capacity';
 import { MAX_SLOTS_PER_ORDER, MULTI_PICK_INVALID_CODE, MULTI_SLOT_UNAVAILABLE_CODE, toggleSlotPick } from '@/lib/booking/multi-slot';
 import { LiffPaymentPanel, openBankDeeplink } from '@/components/line/liff-payment-panel';
+import { paymentResumeKind, pickLinkedPaymentTarget, readLinkedBookingId } from '@/lib/line/liff-payment-link';
 import {
   KeyValueList,
   LiffEmpty,
@@ -66,6 +67,7 @@ import {
 import type { PaymentMethod } from '@/types/db';
 import { BankGrid } from '@/components/line/bank-grid';
 import { isBankAppMethod, isMobileBankingAmountOk } from '@/lib/payments/mobile-banking/banks';
+import { isAwaitingPayment } from '@/lib/payments/payment-hold';
 
 /** Idempotency key for one press of "ยืนยันจอง". */
 function newAttemptKey(): string {
@@ -205,8 +207,10 @@ type BookingResult = {
   booking_id: string;
   queue_number: string;
   payment_method: string | null;
-  /** `pending_approval` when the service needs the shop to confirm first. */
+  /** `pending_approval` when the service needs the shop to confirm first, or while the order waits for payment. */
   status?: string | null;
+  /** True when the queue is held until paid and lapses at the payment deadline. */
+  awaiting_payment?: boolean;
 };
 
 /** Methods where the customer still has something to do after booking. */
@@ -264,8 +268,9 @@ function resolveLiffId(shopLiffId?: string | null) {
   return '';
 }
 
-function buildLiffOpenUrl(liffId: string, shopKey: string, tab: 'booking' | 'account') {
+function buildLiffOpenUrl(liffId: string, shopKey: string, tab: 'booking' | 'account', bookingId?: string | null) {
   const params = new URLSearchParams({ shop_key: shopKey, tab });
+  if (bookingId) params.set('booking_id', bookingId);
   return `https://liff.line.me/${encodeURIComponent(liffId)}?${params.toString()}`;
 }
 
@@ -631,12 +636,23 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         if (!activeLiffId) throw (lastInitError ?? new Error('invalid liff id'));
 
         if (!liff.isLoggedIn()) {
-          const openUrl = buildLiffOpenUrl(activeLiffId, shopKey, initialTab);
+          const openUrl = buildLiffOpenUrl(activeLiffId, shopKey, initialTab, readLinkedBookingId(window.location.search));
           setLiffOpenUrl(openUrl);
           setMemberStatus('error');
           setMemberError('กรุณาเปิดหน้านี้ผ่าน LINE LIFF');
           if (typeof window !== 'undefined' && liff.isInClient?.()) {
             liff.login();
+          } else if (typeof window !== 'undefined') {
+            // Opened as a plain web link (old Flex buttons used `${APP_URL}/liff/...`),
+            // e.g. LINE's in-app browser: hand over to liff.line.me so LINE opens
+            // the real LIFF app. Once per tab session so a failed login cannot loop.
+            const guardKey = `liff-reopen:${shopKey}:${initialTab}`;
+            let alreadyTried = true;
+            try {
+              alreadyTried = window.sessionStorage.getItem(guardKey) === '1';
+              if (!alreadyTried) window.sessionStorage.setItem(guardKey, '1');
+            } catch { /* storage blocked — keep the manual "เปิดผ่าน LINE" button */ }
+            if (!alreadyTried) window.location.replace(openUrl);
           }
           return;
         }
@@ -662,6 +678,25 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         // Phone and nickname are prefilled by loadMe under the same rule.
         setCustomerName((prev) => (prev.trim() ? prev : me.customer?.full_name || profile.displayName));
         if (me.was_registered) push('สมัครสมาชิกกับร้านสำเร็จแล้ว กรุณายืนยันข้อมูลก่อนจองคิว', 'success');
+
+        // Arrived from a payment Flex button ("อัปโหลดสลิป"): open that queue's
+        // payment panel straight away — only when it is the caller's own queue
+        // (from /me) and still owes a slip / bank-app payment; otherwise the
+        // normal queue list shows. The id is dropped from the URL so a reload
+        // after paying does not reopen it.
+        const linkedId = readLinkedBookingId(window.location.search);
+        if (linkedId) {
+          const target = pickLinkedPaymentTarget(linkedId, me.upcoming ?? []);
+          if (target) {
+            setTab('account');
+            setResumeBooking(target);
+          }
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('booking_id');
+            window.history.replaceState(window.history.state, '', url.toString());
+          } catch { /* keep the URL as is */ }
+        }
         setMemberReady(true);
         setMemberStatus('ready');
       } catch (e) {
@@ -1022,6 +1057,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       queue_number: json.data?.queue_number ?? '',
       payment_method: paymentMethod,
       status: json.data?.status ?? null,
+      awaiting_payment: json.data?.awaiting_payment === true,
     };
     setBookingResult(result);
     setResumeBooking(null);
@@ -1062,7 +1098,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       // customer. The shop still sees it in the portal notification bell.
     }
 
-    push(result.status === 'pending_approval' ? 'ส่งคำขอจองแล้ว รอร้านยืนยัน' : 'จองคิวสำเร็จ');
+    push(result.awaiting_payment ? 'จองคิวแล้ว กรุณาชำระเงินเพื่อยืนยันคิว' : result.status === 'pending_approval' ? 'ส่งคำขอจองแล้ว รอร้านยืนยัน' : 'จองคิวสำเร็จ');
     void loadMe();
     // Never auto-close while a payment panel is on screen — it would close the
     // only place the customer can upload their slip or reopen the bank app.
@@ -1235,6 +1271,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
 
   if (queueNo) {
     const awaitingApproval = bookingResult?.status === 'pending_approval';
+    const awaitingPayment = bookingResult?.awaiting_payment === true;
     const summaryRows = [
       { label: 'บริการ', value: selectedService?.service_name ?? '-' },
       { label: 'วันที่', value: formatDateDMY(date) },
@@ -1250,7 +1287,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         : []),
     ];
     return (
-      <LiffShell {...shellProps} title={awaitingApproval ? 'รอร้านยืนยัน' : 'จองคิวสำเร็จ'}>
+      <LiffShell {...shellProps} title={awaitingPayment ? 'รอชำระเงิน' : awaitingApproval ? 'รอร้านยืนยัน' : 'จองคิวสำเร็จ'}>
         <Card>
           <Stack alignItems="center" sx={{ px: 2, pt: 2.75, pb: 2.25, textAlign: 'center' }}>
             <Box
@@ -1276,12 +1313,14 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
             >
               {queueNo}
             </Typography>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{awaitingApproval ? 'ส่งคำขอจองแล้ว' : 'จองคิวสำเร็จ'}</Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{awaitingPayment ? 'จองคิวแล้ว รอชำระเงิน' : awaitingApproval ? 'ส่งคำขอจองแล้ว' : 'จองคิวสำเร็จ'}</Typography>
           </Stack>
           <Divider />
           <Stack spacing={1.25} sx={{ p: 1.75 }}>
             <KeyValueList rows={summaryRows} />
-            {awaitingApproval ? (
+            {awaitingPayment ? (
+              <Alert severity="warning">คิวจะได้รับการยืนยันเมื่อชำระเงินเรียบร้อย หากไม่ชำระภายในเวลาที่กำหนด ระบบจะยกเลิกคิวให้อัตโนมัติ</Alert>
+            ) : awaitingApproval ? (
               <Alert severity="warning">คิวนี้รอร้านตรวจสอบและยืนยัน ร้านจะแจ้งผลผ่าน LINE อีกครั้ง</Alert>
             ) : (
               <Typography variant="caption" color="text.secondary">กรุณามาก่อนเวลาประมาณ 10 นาที</Typography>
@@ -1422,8 +1461,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         </Stack>
       );
     }
-    const canResumeSlip = b.payment_method === 'bank_transfer' && (b.payment_status === 'pending_payment' || b.payment_status === 'rejected');
-    const canResumeDeeplink = isBankAppMethod(b.payment_method) && (b.payment_status === 'pending_payment' || b.payment_status === 'failed');
+    const resumeKind = paymentResumeKind(b);
+    const canResumeSlip = resumeKind === 'slip';
+    const canResumeDeeplink = resumeKind === 'bank_app';
     const canCancel = (CUSTOMER_CANCELLABLE_STATUSES as readonly string[]).includes(b.status);
     // Same rule as the API: only on the booking day and while still waiting.
     const canCheckIn = Boolean(todayIso) && checkInEligibility({ status: b.status, booking_date: b.booking_date }, todayIso).ok;
@@ -1461,7 +1501,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
             ถึงคิวของคุณแล้ว กรุณามาที่จุดบริการ{b.resource_name ? ` (${b.resource_name})` : ''}
           </Alert>
         ) : null}
-        {b.status === 'pending_approval' ? (
+        {isAwaitingPayment(b.status, b.payment_status) ? (
+          <Alert severity="warning" sx={{ mt: 1.25 }}>รอชำระเงิน — คิวจะยืนยันเมื่อชำระเรียบร้อย หากเลยเวลาชำระ คิวอาจถูกยกเลิก</Alert>
+        ) : b.status === 'pending_approval' ? (
           <Alert severity="warning" sx={{ mt: 1.25 }}>รอร้านตรวจสอบและยืนยันคิว — ร้านจะแจ้งผลผ่าน LINE</Alert>
         ) : null}
         {b.status === 'checked_in' ? (

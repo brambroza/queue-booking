@@ -11,10 +11,12 @@ export type LiffTab = 'booking' | 'account';
  * @param liffId - Bare LIFF ID (`1234567890-abcdefgh`).
  * @param shopKey - `shops.shop_key`.
  * @param tab - Tab to land on.
+ * @param bookingId - Optional queue to focus; the account tab opens its payment panel when still payable.
  * @returns The `liff.line.me` deep link.
  */
-export function buildLiffUri(liffId: string, shopKey: string, tab: LiffTab): string {
+export function buildLiffUri(liffId: string, shopKey: string, tab: LiffTab, bookingId?: string | null): string {
   const params = new URLSearchParams({ shop_key: shopKey, tab });
+  if (bookingId) params.set('booking_id', bookingId);
   return `https://liff.line.me/${encodeURIComponent(liffId)}?${params.toString()}`;
 }
 
@@ -31,6 +33,8 @@ export type CustomerLiffUrlInput = {
   /** `shops.liff_id_login_shop` — member LIFF, preferred for the account tab. */
   liffIdLoginShop?: string | null;
   tab: LiffTab;
+  /** Queue the link is about (payment Flex) — LIFF opens that queue's payment panel. */
+  bookingId?: string | null;
   /** `NEXT_PUBLIC_APP_URL`; used only when no LIFF ID is available. */
   appUrl?: string | null;
 };
@@ -56,11 +60,12 @@ export function resolveCustomerLiffUrl(input: CustomerLiffUrlInput): string | un
   const ordered = input.tab === 'account' ? [fromLogin, fromShop, fromEnv] : [fromShop, fromLogin, fromEnv];
   for (const raw of ordered) {
     const id = usableLiffId(raw);
-    if (id) return buildLiffUri(id, shopKey, input.tab);
+    if (id) return buildLiffUri(id, shopKey, input.tab, input.bookingId);
   }
 
   const appUrl = (input.appUrl ?? '').replace(/\/+$/, '');
   if (!appUrl) return undefined;
   const base = `${appUrl}/liff/${encodeURIComponent(shopKey)}`;
-  return input.tab === 'account' ? `${base}/member` : base;
+  const path = input.tab === 'account' ? `${base}/member` : base;
+  return input.bookingId ? `${path}?booking_id=${encodeURIComponent(input.bookingId)}` : path;
 }

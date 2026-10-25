@@ -123,6 +123,7 @@ src/
 | `/api/shop-payment-settings/deeplink` | Bank deeplink (SCB/KBank) credentials per shop + `/test` connection check |
 | `/api/shop-payment-settings/slip-verify` | Slip verification vendor key per shop (GET source `shop\|platform\|none` + `plan_locked`; PATCH `enabled` / `credentials.apiKey`, sealed) + `/test` (vendor quota call, rate-limited `slipVerifyTest`) |
 | `/api/cron/slip-recheck` | pg_cron every 5 min (`Bearer CRON_SECRET`): re-runs the bank-side check on pending slips with `next_recheck_at` due, auto-approves when verified |
+| `/api/cron/payment-expiry` | pg_cron every 5 min (`Bearer CRON_SECRET`): cancels LIFF orders held `pending_approval` for payment once `payment_expires_at` + 5 min passed unpaid (Omise / deeplink re-checked at the provider first) |
 | `/api/payments/webhook` | Omise webhook (shared secret `?key=`) |
 | `/api/payments/bank/[provider]/webhook/[shopKey]` | Bank deeplink confirmation (per-shop secret `?key=`, verified by inquiry) |
 | `/api/me-profile` | Current user profile |
@@ -483,6 +484,18 @@ pending | pending_approval | confirmed | checked_in | waiting ─(ลูกค�
 | `omise_mobile_banking` | Bank buttons in LIFF (`MOBILE_BANKS` in `src/lib/payments/mobile-banking/banks.ts`: kbank/scb/bay/bbl/ktb) → Omise `source[type]=mobile_banking_*` charge with `return_uri` → `authorize_uri` opens bank app, amount locked; bank in `bookings.bank_provider`, link in `bank_deeplink_url`, charge in `omise_charge_id` | `confirmOmiseCharge` (`src/lib/payments/omise-confirm.ts`) — shared by webhook, `/payment/status` polling and `/payment/deeplink-return`; re-fetches charge, checks satang, conditional `paid` update |
 | `bank_transfer` | Shop PromptPay QR + slip upload | Staff approves slip |
 | `bank_deeplink` | Open bank app (SCB Easy / K PLUS) via `src/lib/payments/deeplink/` adapters; bank in `bookings.bank_provider` | Bank inquiry API (`confirmDeeplinkPayment`) — never the webhook body |
+
+**Payment Flex buttons** ("อัปโหลดสลิป", "อัปโหลดสลิปใหม่", "ดูคิวของฉัน" on QR/deeplink cards) link via `resolveCustomerLiffUrl({ tab: 'account', bookingId })` → `…&booking_id=`. After `/me` loads, the LIFF client opens that queue's payment panel when `pickLinkedPaymentTarget` (`src/lib/line/liff-payment-link.ts`) finds it among the caller's own upcoming queues and it still owes a slip / bank-app payment; otherwise the queue list shows. `/liff/[shopKey]?tab=account` (old raw links) redirects to `/member`, keeping `booking_id`; outside LIFF the page hands over to `liff.line.me` once per session.
+
+### Payment hold + auto-expiry (2026-10-25)
+
+Applies only when a LIFF booking gets an online invoice with a deadline (`resolvePaymentForBooking` returned `expiresAt`). Shops without a payment method, staff-created bookings (`/api/bookings`) and services that already need approval keep the old flow
+- `/book` runs payment setup **before** the staff notice and LINE confirm, then `holdBookingsForPayment`: every queue of the order `confirmed` → `pending_approval` + `bookings.payment_hold_booking_id` = the paying (first) booking. Response `awaiting_payment: true`; Flex/LIFF say "รอชำระเงิน"
+- Paid (`confirmOmiseCharge`, `confirmDeeplinkPayment`, `approveSlip`) → `releasePaymentHold` before the receipt: held queues → `confirmed`. A queue the cron already cancelled is **not** revived — staff get `payment_after_expiry` (refund / rebook by hand)
+- `/api/cron/payment-expiry` (migration `202610250002_payment_hold_expiry.sql`, **run before deploy** for the hold to exist; without it the app keeps the old behaviour): unpaid = `pending_payment|failed|rejected` (slip in review `awaiting_verification` never cancelled), grace `PAYMENT_EXPIRY_GRACE_MINUTES` = 5, provider error = retry next tick. Cancel → note marker, `booking_logs` `cancel_payment_expired`, staff notification, customer `bookingPaymentExpiredFlex`, Google Calendar sync. `payment_status` is left as is; hold id kept on cancelled rows
+- Staff can still press "อนุมัติ" on a held queue (cash at the counter) → `confirmed`, cron skips it
+- Rules + vitest: `src/lib/payments/payment-hold.ts` (`shouldHoldForPayment`, `isPaymentHoldExpired`, `isAwaitingPayment`); server side `payment-hold-server.ts`
+- Not done: per-shop switch (always on when the shop takes online payment), siblings of a multi-pick stay held if staff approve only the paying queue, `/me` does not read the hold column (LIFF infers from status pair)
 
 ### Slip auto-check (`bank_transfer`)
 

@@ -95,12 +95,16 @@ export function bookingConfirmFlex(payload: {
   pendingApproval?: boolean;
   /** When set, "ยกเลิกคิว" is a one-tap postback; otherwise it falls back to the legacy text message. */
   bookingId?: string;
+  /** True when the queue is held until paid (payment hold): says "รอชำระเงิน" and that it lapses. Wins over `pendingApproval`. */
+  awaitingPayment?: boolean;
 }) {
-  const title = payload.pendingApproval ? 'รับคำขอจองแล้ว' : 'จองคิวสำเร็จ';
-  const headerColor = payload.pendingApproval ? '#d97706' : '#12a862';
-  const note = payload.pendingApproval
-    ? 'คิวนี้รอร้านตรวจสอบและยืนยัน ร้านจะแจ้งผลผ่าน LINE อีกครั้ง'
-    : 'กรุณามาก่อนเวลาประมาณ 10 นาที';
+  const title = payload.awaitingPayment ? 'จองคิวแล้ว รอชำระเงิน' : payload.pendingApproval ? 'รับคำขอจองแล้ว' : 'จองคิวสำเร็จ';
+  const headerColor = payload.awaitingPayment || payload.pendingApproval ? '#d97706' : '#12a862';
+  const note = payload.awaitingPayment
+    ? 'คิวจะได้รับการยืนยันเมื่อชำระเงินเรียบร้อย หากไม่ชำระภายในเวลาที่กำหนด ระบบจะยกเลิกคิวให้อัตโนมัติ'
+    : payload.pendingApproval
+      ? 'คิวนี้รอร้านตรวจสอบและยืนยัน ร้านจะแจ้งผลผ่าน LINE อีกครั้ง'
+      : 'กรุณามาก่อนเวลาประมาณ 10 นาที';
   const footerButtons: Array<Record<string, unknown>> = [
     {
       type: 'button',
@@ -724,4 +728,25 @@ export function bookingSelfCancelledFlex(payload: {
       footer: { type: 'box', layout: 'vertical', spacing: 'sm', contents: footerButtons },
     },
   };
+}
+
+/**
+ * Flex pushed when the payment deadline passed and the system released the
+ * queue (`/api/cron/payment-expiry`). Same card as the self-cancel reply, with
+ * the reason spelled out so the customer does not think the shop cancelled.
+ */
+export function bookingPaymentExpiredFlex(payload: {
+  shopName: string;
+  queueNumber: string;
+  date: string;
+  time: string;
+  liffUrl?: string;
+}) {
+  const flex = bookingSelfCancelledFlex(payload);
+  const header = flex.contents.header.contents[1] as { text: string };
+  header.text = 'คิวถูกยกเลิก (เลยเวลาชำระเงิน)';
+  const noteBox = flex.contents.body.contents[2] as unknown as { contents: Array<{ text: string }> };
+  noteBox.contents[0].text = `ไม่พบการชำระเงินของคิว ${payload.queueNumber} (วันที่ ${payload.date} เวลา ${payload.time}) ภายในเวลาที่กำหนด ระบบจึงยกเลิกคิวให้อัตโนมัติ หากชำระเงินแล้ว กรุณาติดต่อร้าน หรือจองคิวใหม่ได้ทันที`;
+  flex.altText = `คิว ${payload.queueNumber} ถูกยกเลิกเพราะเลยเวลาชำระเงิน`;
+  return flex;
 }

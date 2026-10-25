@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { safeCreateNotification } from '@/lib/notifications/createNotification';
 import { pushPaymentReceipt } from '@/lib/payments/receipt';
+import { releasePaymentHold } from '@/lib/payments/payment-hold-server';
 import { getDeeplinkAdapter, parseBankProvider } from './registry';
 import { loadShopDeeplinkProvider, providerCacheKey } from './settings';
 import type { InquiryResult } from './types';
@@ -157,6 +158,7 @@ export async function confirmDeeplinkPayment(
   });
 
   const receiptRef = `RCP-${provider.toUpperCase()}-${(booking.bank_txn_ref ?? booking.id.slice(0, 8)).toUpperCase()}`;
+  await releasePaymentHold(admin, { shopId: booking.shop_id, bookingId: booking.id });
   await pushPaymentReceipt(admin, { bookingId: booking.id, shopId: booking.shop_id, receiptRef, paidAt });
 
   return 'paid';

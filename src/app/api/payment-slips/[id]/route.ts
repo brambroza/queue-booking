@@ -90,6 +90,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       liffId: shopRow?.liff_id ?? null,
       liffIdLoginShop: shopRow?.liff_id_login_shop ?? null,
       tab: 'account',
+      bookingId: booking.id,
       appUrl: process.env.NEXT_PUBLIC_APP_URL ?? null,
     }) ?? null;
 

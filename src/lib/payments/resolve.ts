@@ -45,7 +45,8 @@ export interface PaymentSetupResult {
 const LOCKED_STATUSES = new Set(['awaiting_verification', 'paid']);
 
 /**
- * Customer "my queues" link for payment Flex buttons (upload slip, check status).
+ * Customer "my queues" link for payment Flex buttons (upload slip, check status),
+ * carrying `booking_id` so LIFF opens that queue's payment panel directly.
  * Must be a `liff.line.me` link: a plain app URL opens outside the LIFF context,
  * so the page cannot log the customer in and the upload never happens.
  */
@@ -53,6 +54,7 @@ async function accountLiffUrl(
   admin: ReturnType<typeof createAdminClient>,
   shopId: string,
   shopKey: string | null | undefined,
+  bookingId: string,
 ): Promise<string | null> {
   if (!shopKey) return null;
   const { data } = await admin
@@ -67,6 +69,7 @@ async function accountLiffUrl(
       liffId: row.liff_id ?? null,
       liffIdLoginShop: row.liff_id_login_shop ?? null,
       tab: 'account',
+      bookingId,
       appUrl: process.env.NEXT_PUBLIC_APP_URL ?? null,
     }) ?? null
   );
@@ -122,7 +125,7 @@ export async function resolvePaymentForBooking(opts: {
       ? opts.requestedMethod
       : enabledMethods[0];
 
-  const accountUrl = await accountLiffUrl(admin, opts.shopId, opts.shopKey);
+  const accountUrl = await accountLiffUrl(admin, opts.shopId, opts.shopKey, opts.bookingId);
 
   const common = {
     shopName: opts.shopName,

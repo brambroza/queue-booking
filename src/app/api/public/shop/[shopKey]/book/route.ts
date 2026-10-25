@@ -17,6 +17,8 @@ import { NICKNAME_MAX, normalizeNicknameInput } from '@/lib/booking/customer-lab
 import { BANK_CODES, BANK_PROVIDERS, PAYMENT_METHODS } from '@/types/db';
 import { detectOmisePlatform, isBankAppMethod } from '@/lib/payments/mobile-banking/banks';
 import { resolveInitialBookingStatus } from '@/lib/booking/status-flow';
+import { shouldHoldForPayment } from '@/lib/payments/payment-hold';
+import { holdBookingsForPayment } from '@/lib/payments/payment-hold-server';
 import { isSlotPast, SLOT_PAST_CODE, SLOT_PAST_MESSAGE } from '@/lib/booking/slot-time';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import {
@@ -672,6 +674,72 @@ async function createBooking(
     await admin.from('booking_resource_assignments').insert(assignments);
   }
 
+  // Payment setup — non-blocking, never fails the booking. Runs before the
+  // staff notice and the LINE confirmation so both can say "รอชำระเงิน".
+  // Runs regardless of line_user_id: the QR and slip upload live on-screen in
+  // LIFF now, so a customer without a LINE push still needs a payable invoice.
+  let paymentFlex: object | null = null;
+  let awaitingPayment = false;
+  let paymentInfo: {
+    method: string;
+    amount: number;
+    qr_image_url: string;
+    expires_at: string | null;
+    bank: PaymentBankInfo | null;
+    deeplink: PaymentDeeplinkInfo | null;
+  } | null = null;
+
+  try {
+    const resourcePrice = Number(assignedResource?.unit_price ?? 0);
+    const servicePrice = Number((service as unknown as { price?: number } | null)?.price ?? 0);
+    // Price is per slot: a consecutive booking pays for every slot, and a
+    // multi-pick order pays for all its queues through the main one.
+    const paymentPrice = (resourcePrice > 0 ? resourcePrice : servicePrice) * slotCount * created.length;
+    const dateLabel = formatThaiDateLabel(payload.booking_date);
+    const payment = await resolvePaymentForBooking({
+      bookingId: booking.id,
+      shopId: shop.id,
+      companyId: shop.company_id,
+      shopKey: shop.shop_key,
+      amountTHB: paymentPrice,
+      shopName: shop.name ?? 'Queue Booking',
+      queueNumber,
+      serviceName: service.service_name ?? '-',
+      branchName: branch.branch_name ?? '-',
+      dateLabel,
+      timeLabel: orderTimeLabel,
+      requestedMethod: payload.payment_method ?? null,
+      requestedBankProvider: payload.bank_provider ?? null,
+      platformType: detectOmisePlatform(req.headers.get('user-agent')),
+    });
+
+    if (payment) {
+      paymentInfo = {
+        method: payment.method,
+        amount: payment.amountTHB,
+        qr_image_url: payment.qrImageUrl,
+        expires_at: payment.expiresAt,
+        bank: payment.bank,
+        deeplink: payment.deeplink,
+      };
+
+      paymentFlex = payment.flex;
+      // An online payment holds the order as pending_approval until paid;
+      // the payment-expiry cron releases the seat when the deadline passes.
+      if (shouldHoldForPayment(initialStatus, Boolean(payment.expiresAt))) {
+        awaitingPayment = await holdBookingsForPayment(admin, {
+          shopId: shop.id,
+          payingBookingId: booking.id,
+          bookingIds: created.map((c) => c.id),
+        });
+      }
+    }
+  } catch (payErr) {
+    console.error('[payments] setup error (booking still created):', payErr instanceof Error ? payErr.message : payErr);
+  }
+
+  const bookingStatus = awaitingPayment ? 'pending_approval' : initialStatus;
+
   try {
     await createNotification(admin, {
       companyId: shop.company_id,
@@ -681,8 +749,12 @@ async function createBooking(
       type: 'booking_created',
       category: 'bookings',
       priority: pendingApproval ? 'high' : 'medium',
-      title: pendingApproval ? `${orderQueueLabel} — คำขอจองใหม่ รออนุมัติ` : `New booking ${orderQueueLabel}`,
-      message: pendingApproval
+      title: awaitingPayment
+        ? `${orderQueueLabel} — จองใหม่ รอชำระเงิน`
+        : pendingApproval ? `${orderQueueLabel} — คำขอจองใหม่ รออนุมัติ` : `New booking ${orderQueueLabel}`,
+      message: awaitingPayment
+        ? `ลูกค้าจอง ${payload.booking_date} ${orderTimeLabel} (${service.service_name}) — คิวจะยืนยันอัตโนมัติเมื่อชำระเงิน ถ้าไม่ชำระภายในเวลาที่กำหนดระบบจะยกเลิกให้`
+        : pendingApproval
         ? `ลูกค้าขอจอง ${payload.booking_date} ${orderTimeLabel} (${service.service_name}) กรุณากด "อนุมัติ" ในหน้าคิว`
         : `Customer booked ${payload.booking_date} ${orderTimeLabel}`,
       relatedType: 'booking',
@@ -690,7 +762,7 @@ async function createBooking(
       actionUrl: '/portal/bookings',
       icon: pendingApproval ? 'PendingActions' : 'EventAvailable',
       color: pendingApproval ? '#d97706' : '#2e7d32',
-      metadata: { source: 'liff', queue_number: queueNumber, queue_numbers: created.map((c) => c.queue_number), status: initialStatus },
+      metadata: { source: 'liff', queue_number: queueNumber, queue_numbers: created.map((c) => c.queue_number), status: bookingStatus, awaiting_payment: awaitingPayment },
       createdBy: null,
     });
   } catch (e) {
@@ -756,6 +828,7 @@ async function createBooking(
               assignedLabel: c.plan.resource ? resourceTypeLabel(c.plan.resource.resource_type) : null,
               liffUrl,
               pendingApproval,
+              awaitingPayment,
               bookingId: c.id,
             }),
           ),
@@ -775,75 +848,32 @@ async function createBooking(
     }
   }
 
-  // Payment setup — non-blocking, never fails the booking.
-  // Runs regardless of line_user_id: the QR and slip upload live on-screen in
-  // LIFF now, so a customer without a LINE push still needs a payable invoice.
+  // Payment card goes after the confirmation card(s) so the chat reads in order.
   let qrPaymentCreated = false;
-  let paymentInfo: {
-    method: string;
-    amount: number;
-    qr_image_url: string;
-    expires_at: string | null;
-    bank: PaymentBankInfo | null;
-    deeplink: PaymentDeeplinkInfo | null;
-  } | null = null;
-
-  try {
-    const resourcePrice = Number(assignedResource?.unit_price ?? 0);
-    const servicePrice = Number((service as unknown as { price?: number } | null)?.price ?? 0);
-    // Price is per slot: a consecutive booking pays for every slot, and a
-    // multi-pick order pays for all its queues through the main one.
-    const paymentPrice = (resourcePrice > 0 ? resourcePrice : servicePrice) * slotCount * created.length;
-    const dateLabel = formatThaiDateLabel(payload.booking_date);
-    const payment = await resolvePaymentForBooking({
-      bookingId: booking.id,
-      shopId: shop.id,
-      companyId: shop.company_id,
-      shopKey: shop.shop_key,
-      amountTHB: paymentPrice,
-      shopName: shop.name ?? 'Queue Booking',
-      queueNumber,
-      serviceName: service.service_name ?? '-',
-      branchName: branch.branch_name ?? '-',
-      dateLabel,
-      timeLabel: orderTimeLabel,
-      requestedMethod: payload.payment_method ?? null,
-      requestedBankProvider: payload.bank_provider ?? null,
-      platformType: detectOmisePlatform(req.headers.get('user-agent')),
-    });
-
-    if (payment) {
-      paymentInfo = {
-        method: payment.method,
-        amount: payment.amountTHB,
-        qr_image_url: payment.qrImageUrl,
-        expires_at: payment.expiresAt,
-        bank: payment.bank,
-        deeplink: payment.deeplink,
-      };
-
-      if (payload.line_user_id) {
-        const { data: shopLine } = await admin
-          .from('shops')
-          .select('line_channel_access_token')
-          .eq('id', shop.id)
-          .maybeSingle();
-        const qrToken = shopLine?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
-        if (qrToken) {
-          await pushMessage(qrToken, payload.line_user_id, [payment.flex]);
-          qrPaymentCreated = true;
-        }
+  if (paymentFlex && payload.line_user_id) {
+    try {
+      const { data: shopLine } = await admin
+        .from('shops')
+        .select('line_channel_access_token')
+        .eq('id', shop.id)
+        .maybeSingle();
+      const qrToken = shopLine?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+      if (qrToken) {
+        await pushMessage(qrToken, payload.line_user_id, [paymentFlex]);
+        qrPaymentCreated = true;
       }
+    } catch (payErr) {
+      console.error('[payments] payment push error (booking still created):', payErr instanceof Error ? payErr.message : payErr);
     }
-  } catch (payErr) {
-    console.error('[payments] setup error (booking still created):', payErr instanceof Error ? payErr.message : payErr);
   }
 
   return NextResponse.json({
     data: {
       booking_id: booking.id,
       queue_number: booking.queue_number,
-      status: initialStatus,
+      status: bookingStatus,
+      /** True when the order is held until paid (lapses at `payment.expires_at`). */
+      awaiting_payment: awaitingPayment,
       booking_date: payload.booking_date,
       booking_time: payload.start_time.slice(0, 5),
       end_time: endTime.slice(0, 5),

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { pushPaymentReceipt } from '@/lib/payments/receipt';
+import { releasePaymentHold } from '@/lib/payments/payment-hold-server';
 import { safeCreateNotification } from '@/lib/notifications/createNotification';
 
 /** Postgres unique_violation — here, the approved-transRef index. */
@@ -119,6 +120,8 @@ export async function approveSlip(admin: SupabaseClient, opts: ApproveSlipOption
     relatedId: booking.id,
     ...(opts.reviewerId ? { createdBy: opts.reviewerId } : {}),
   });
+
+  await releasePaymentHold(admin, { shopId: opts.shopId, bookingId: booking.id });
 
   await pushPaymentReceipt(admin, {
     bookingId: booking.id,

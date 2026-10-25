@@ -12,6 +12,12 @@ describe('buildLiffUri', () => {
     );
   });
 
+  it('adds booking_id when given (payment Flex buttons)', () => {
+    expect(buildLiffUri(BOOKING_ID, 'SHOP-1', 'account', 'b-1')).toBe(
+      `https://liff.line.me/${BOOKING_ID}?shop_key=SHOP-1&tab=account&booking_id=b-1`,
+    );
+  });
+
   it('encodes the shop key', () => {
     expect(buildLiffUri(BOOKING_ID, 'a b&c', 'booking')).toContain('shop_key=a+b%26c');
   });

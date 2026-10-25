@@ -6,17 +6,20 @@ import { LiffSection, LiffShell } from '@/components/line/liff-ui';
 export default async function LiffBookingClientEntry({
   searchParams,
 }: {
-  searchParams: Promise<{ shopKey?: string; shop_key?: string; shopId?: string; shop_id?: string; tab?: string; view?: string }>;
+  searchParams: Promise<{ shopKey?: string; shop_key?: string; shopId?: string; shop_id?: string; tab?: string; view?: string; booking_id?: string }>;
 }) {
   const qs = await searchParams;
   const ref = qs.shopKey ?? qs.shop_key ?? qs.shopId ?? qs.shop_id;
   const tab = (qs.tab ?? qs.view ?? '').toLowerCase();
 
+  // Payment Flex links carry `booking_id`; the LIFF page opens that queue's payment panel.
+  const query = qs.booking_id ? `?booking_id=${encodeURIComponent(qs.booking_id)}` : '';
+
   if (ref) {
     if (tab === 'account' || tab === 'member') {
-      redirect(`/liff/${encodeURIComponent(ref)}/member`);
+      redirect(`/liff/${encodeURIComponent(ref)}/member${query}`);
     }
-    redirect(`/liff/${encodeURIComponent(ref)}`);
+    redirect(`/liff/${encodeURIComponent(ref)}${query}`);
   }
 
   return (

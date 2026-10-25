@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { safeCreateNotification } from '@/lib/notifications/createNotification';
 import { pushPaymentReceipt } from '@/lib/payments/receipt';
+import { releasePaymentHold } from '@/lib/payments/payment-hold-server';
 import { resolveOmiseSecretKey, retrieveCharge, type OmiseCharge } from './omise';
 
 export type OmiseConfirmOutcome =
@@ -159,6 +160,7 @@ export async function confirmOmiseCharge(
     raw_event: rawEvent,
   });
 
+  await releasePaymentHold(admin, { shopId: booking.shop_id, bookingId: booking.id });
   await pushPaymentReceipt(admin, { bookingId: booking.id, shopId: booking.shop_id, receiptRef: omiseReceiptRef(charge.id), paidAt });
 
   return 'paid';
