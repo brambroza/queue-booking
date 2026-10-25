@@ -4,6 +4,7 @@ import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 import { RESOURCE_TYPES } from '@/lib/booking/resource-types';
 import { ADVANCE_WINDOW_RE } from '@/lib/booking/booking-window';
 import { bangkokLocalToIso } from '@/lib/booking/booking-release';
+import { endTimeMinutes, timeToMinutes } from '@/lib/booking/multi-slot';
 import { RESOURCE_IMAGE_MAX } from '@/lib/storage/shop-assets';
 
 /** A stored photo URL. Ownership (own shop-assets prefix) is checked in the route. */
@@ -108,18 +109,28 @@ export const capacityRulesPayloadSchema = z.object({
   rules: z.array(capacityRuleSchema).max(50),
 });
 
-export const workingHourSchema = z.object({
-  branch_id: z.string().uuid(),
-  weekday: z.coerce.number().int().min(0).max(6),
-  open_time: z.string(),
-  close_time: z.string(),
-  break_start: z.string().nullable().optional(),
-  break_end: z.string().nullable().optional(),
-  slot_interval_minutes: z.coerce.number().int().min(5).max(180),
-  /** Deprecated, no longer in the form: slot capacity is set per service. */
-  capacity_per_slot: z.coerce.number().int().min(1).max(100).optional(),
-  active: z.coerce.boolean().default(true),
-});
+export const workingHourSchema = z
+  .object({
+    branch_id: z.string().uuid(),
+    weekday: z.coerce.number().int().min(0).max(6),
+    open_time: z.string(),
+    /** `00:00` = midnight at the end of the day (open until midnight). */
+    close_time: z.string(),
+    break_start: z.string().nullable().optional(),
+    break_end: z.string().nullable().optional(),
+    slot_interval_minutes: z.coerce.number().int().min(5).max(180),
+    /** Deprecated, no longer in the form: slot capacity is set per service. */
+    capacity_per_slot: z.coerce.number().int().min(1).max(100).optional(),
+    active: z.coerce.boolean().default(true),
+  })
+  .refine(
+    (v) => {
+      const open = timeToMinutes(v.open_time);
+      const close = open === null ? null : endTimeMinutes(v.close_time, open);
+      return open !== null && close !== null && close > open;
+    },
+    { path: ['close_time'], message: 'เวลาปิดต้องหลังเวลาเปิด (ปิดเที่ยงคืนให้ใส่ 00:00)' },
+  );
 
 /** HTML inputs send '' for an untouched field; treat that as "not provided". */
 const emptyToUndefined = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);

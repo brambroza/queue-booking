@@ -160,7 +160,9 @@ export function hourlyCapacityForRow(row: WorkingHoursRow, perSlotSeats: number 
   const interval = Math.max(5, row.slot_interval_minutes || 30);
   const seatsAt = typeof perSlotSeats === 'function' ? perSlotSeats : () => perSlotSeats;
   const open = timeToMinutes(row.open_time);
-  const close = timeToMinutes(row.close_time);
+  // Closing at 00:00 = midnight at the end of the day (same rule as the slot RPCs).
+  const rawClose = timeToMinutes(row.close_time);
+  const close = rawClose === 0 && open > 0 ? 24 * 60 : rawClose;
   const breakStart = row.break_start ? timeToMinutes(row.break_start) : null;
   const breakEnd = row.break_end ? timeToMinutes(row.break_end) : null;
   if (close <= open) return out;

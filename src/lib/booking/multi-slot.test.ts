@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  END_OF_DAY_MINUTES,
   bookingDurationMinutes,
   bookingEndTime,
   bookingTimeLabel,
   consecutiveSlotsOpen,
   effectiveEndMinutes,
+  endTimeMinutes,
   isExtendableStatus,
   isSlotCountAllowed,
   maxOpenSlotCount,
@@ -74,8 +76,13 @@ describe('bookingEndTime', () => {
     expect(bookingEndTime('09:30:00', 45, 3)).toBe('11:45:00');
   });
 
-  it('refuses running to or past midnight', () => {
-    expect(bookingEndTime('23:00', 60, 1)).toBeNull();
+  it('ends exactly at midnight as 00:00 (end of day)', () => {
+    expect(bookingEndTime('23:00', 60, 1)).toBe('00:00:00');
+    expect(bookingEndTime('22:00', 60, 2)).toBe('00:00:00');
+  });
+
+  it('refuses running past midnight', () => {
+    expect(bookingEndTime('23:30', 60, 1)).toBeNull();
     expect(bookingEndTime('22:30', 60, 2)).toBeNull();
   });
 
@@ -141,6 +148,24 @@ describe('bookingDurationMinutes', () => {
   it('falls back when end is missing or not after start', () => {
     expect(bookingDurationMinutes('18:00:00', null, 60)).toBe(60);
     expect(bookingDurationMinutes('18:00:00', '18:00:00', 45)).toBe(45);
+  });
+
+  it('reads an end of 00:00 as midnight at the end of the day', () => {
+    expect(bookingDurationMinutes('23:00:00', '00:00:00', 30)).toBe(60);
+    expect(bookingDurationMinutes('22:00:00', '00:00:00', 30)).toBe(120);
+  });
+});
+
+describe('endTimeMinutes', () => {
+  it('maps 00:00 after a later start to 1440', () => {
+    expect(endTimeMinutes('00:00', 8 * 60)).toBe(END_OF_DAY_MINUTES);
+    expect(endTimeMinutes('00:00:00', 23 * 60)).toBe(END_OF_DAY_MINUTES);
+  });
+
+  it('keeps other times and a 00:00 start as they are', () => {
+    expect(endTimeMinutes('18:00', 8 * 60)).toBe(18 * 60);
+    expect(endTimeMinutes('00:00', 0)).toBe(0);
+    expect(endTimeMinutes('25:00', 60)).toBeNull();
   });
 });
 

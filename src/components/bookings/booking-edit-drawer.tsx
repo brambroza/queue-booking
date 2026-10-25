@@ -5,7 +5,7 @@ import { Box, Button, Card, CardContent, Divider, Drawer, IconButton, Stack, Typ
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
 import MoreTimeRoundedIcon from '@mui/icons-material/MoreTimeRounded';
-import { effectiveEndMinutes, isExtendableStatus, minutesToTime } from '@/lib/booking/multi-slot';
+import { END_OF_DAY_MINUTES, effectiveEndMinutes, isExtendableStatus, minutesToTime } from '@/lib/booking/multi-slot';
 import { StatusChip } from '@/components/shared/status-chip';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { formatDateDMY, formatDateTimeDMY } from '@/lib/utils/date-format';
@@ -35,8 +35,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
  */
 function extendedEnd(start: string, end: string | null | undefined, slotMinutes: number, minutes: number): string | null {
   const e = effectiveEndMinutes(start, end, slotMinutes);
-  if (e === null || e + minutes >= 24 * 60) return null;
-  return minutesToTime(e + minutes);
+  if (e === null || e + minutes > END_OF_DAY_MINUTES) return null;
+  return minutesToTime((e + minutes) % END_OF_DAY_MINUTES);
 }
 
 /**

@@ -128,10 +128,29 @@ export function minutesToTime(minutes: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
 }
 
+/** Minutes of midnight at the end of the day (`00:00` stored as an end / close time). */
+export const END_OF_DAY_MINUTES = 24 * 60;
+
 /**
- * End time of a booking of `count` slots starting at `start`. Null when the
- * booking would run past midnight (end_time is a plain `time`, same day only).
- * Exactly midnight is refused too: `00:00` would read as before the start.
+ * Minutes since midnight of an end or closing time. `00:00` after a later
+ * start means midnight at the END of that day (1440), so a shop open
+ * 08:00–00:00 or a 23:00–00:00 booking reads the way the owner meant it —
+ * the SQL slot / overlap functions apply the same rule (202610250003).
+ *
+ * @param end - End / close time (`HH:MM[:SS]`).
+ * @param startMinutes - Start / open time in minutes since midnight.
+ */
+export function endTimeMinutes(end: string | null | undefined, startMinutes: number): number | null {
+  const e = timeToMinutes(end);
+  if (e === null) return null;
+  return e === 0 && startMinutes > 0 ? END_OF_DAY_MINUTES : e;
+}
+
+/**
+ * End time of a booking of `count` slots starting at `start`. Ending exactly
+ * at midnight gives `00:00:00` (read as end of day, see `endTimeMinutes`);
+ * null when the booking would run past midnight (end_time is a plain `time`,
+ * same day only).
  *
  * @param start - `HH:MM` or `HH:MM:SS`.
  * @param unitMinutes - Length of one slot.
@@ -141,8 +160,8 @@ export function bookingEndTime(start: string, unitMinutes: number, count: number
   const s = timeToMinutes(start);
   if (s === null) return null;
   const end = s + unitMinutes * count;
-  if (end >= 24 * 60) return null;
-  return minutesToTime(end);
+  if (end > END_OF_DAY_MINUTES) return null;
+  return minutesToTime(end % END_OF_DAY_MINUTES);
 }
 
 /**
@@ -193,8 +212,9 @@ export function maxOpenSlotCount(service: MultiSlotService, slots: readonly Grid
 
 /**
  * Length of an existing booking in minutes, so moving it keeps its length.
- * Falls back to the service duration when `end_time` is missing or not after
- * the start.
+ * An `end_time` of `00:00` counts as midnight at the end of the day. Falls
+ * back to the service duration when `end_time` is missing or not after the
+ * start.
  *
  * @param start - Booking start time.
  * @param end - Booking end time (nullable).
@@ -202,7 +222,7 @@ export function maxOpenSlotCount(service: MultiSlotService, slots: readonly Grid
  */
 export function bookingDurationMinutes(start: string, end: string | null | undefined, fallbackMinutes: number): number {
   const s = timeToMinutes(start);
-  const e = timeToMinutes(end);
+  const e = s === null ? null : endTimeMinutes(end, s);
   if (s === null || e === null || e <= s) return fallbackMinutes;
   return e - s;
 }

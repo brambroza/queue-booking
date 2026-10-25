@@ -105,7 +105,10 @@ export function buildTimeline(data: Pick<SignageData, 'schedule' | 'resources'>,
     .map((p) => {
       const start = toMinutes(p.start_time);
       if (start === null || !p.resource_name) return null;
-      const end = Math.max(start + 15, toMinutes(p.end_time) ?? start + DEFAULT_BOOKING_MINUTES);
+      const rawEnd = toMinutes(p.end_time);
+      // 00:00 after a later start = midnight at the end of the day.
+      const endMin = rawEnd === 0 && start > 0 ? 24 * 60 : rawEnd;
+      const end = Math.max(start + 15, endMin ?? start + DEFAULT_BOOKING_MINUTES);
       return { person: p, start, end };
     })
     .filter((x): x is { person: SignagePerson; start: number; end: number } => x !== null);

@@ -38,9 +38,11 @@ import {
   MULTI_SLOT_NEEDS_RESOURCE_CODE,
   MULTI_SLOT_NEEDS_RESOURCE_MESSAGE,
   MULTI_SLOT_UNAVAILABLE_CODE,
+  END_OF_DAY_MINUTES,
   bookingDurationMinutes,
   bookingEndTime,
   bookingTimeLabel,
+  endTimeMinutes,
   isExtendableStatus,
   isSlotCountAllowed,
   minutesToTime,
@@ -502,10 +504,11 @@ export async function PATCH(req: Request) {
     if (body.end_time !== undefined) {
       const rawEnd = typeof body.end_time === 'string' ? body.end_time : '';
       const startMin = timeToMinutes(String(before.start_time));
-      // A stored end before the start (old UTC bug) is ignored here.
-      const storedEndMin = timeToMinutes(before.end_time as string | null);
+      // A stored end before the start (old UTC bug) is ignored here; 00:00 is
+      // end of day, so a booking already running to midnight cannot grow.
+      const storedEndMin = startMin === null ? null : endTimeMinutes(before.end_time as string | null, startMin);
       const prevEndMin = startMin !== null && storedEndMin !== null && storedEndMin > startMin ? storedEndMin : null;
-      const newEndMin = timeToMinutes(rawEnd);
+      const newEndMin = startMin === null ? null : endTimeMinutes(rawEnd, startMin);
       if (newEndMin === null || startMin === null) {
         return NextResponse.json({ error: 'เวลาสิ้นสุดไม่ถูกต้อง' }, { status: 400 });
       }
@@ -521,9 +524,9 @@ export async function PATCH(req: Request) {
       if (newEndMin <= startMin || (prevEndMin !== null && newEndMin <= prevEndMin)) {
         return NextResponse.json({ error: 'เวลาสิ้นสุดใหม่ต้องหลังเวลาเดิม' }, { status: 400 });
       }
-      const newEndTime = minutesToTime(newEndMin);
+      const newEndTime = minutesToTime(newEndMin % END_OF_DAY_MINUTES);
       const startAt = new Date(`${String(before.booking_date)}T${String(before.start_time).slice(0, 5)}:00+07:00`);
-      const endAt = new Date(`${String(before.booking_date)}T${newEndTime}+07:00`);
+      const endAt = new Date(startAt.getTime() + (newEndMin - startMin) * 60_000);
       const free = await isResourceFree(supabase, {
         shopId: profile.shop_id,
         resourceId: String(before.resource_id),
@@ -640,8 +643,9 @@ export async function PATCH(req: Request) {
       );
       const endAt = new Date(startAt.getTime() + durationMin * 60_000);
       const newStartMin = timeToMinutes(newTime);
-      const endTime = newStartMin !== null && newStartMin + durationMin < 24 * 60
-        ? minutesToTime(newStartMin + durationMin)
+      // Ending exactly at midnight stores 00:00 (end of day, see endTimeMinutes).
+      const endTime = newStartMin !== null && newStartMin + durationMin <= END_OF_DAY_MINUTES
+        ? minutesToTime((newStartMin + durationMin) % END_OF_DAY_MINUTES)
         : `${String(endAt.getHours()).padStart(2, '0')}:${String(endAt.getMinutes()).padStart(2, '0')}:00`;
 
       // Whatever holds the booking after the move must be free in the target

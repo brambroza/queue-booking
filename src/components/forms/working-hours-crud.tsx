@@ -354,6 +354,7 @@ export function WorkingHoursCrud() {
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-600">เวลาปิด</label>
                 <input className="input" type="time" value={draft.close_time} onChange={(e) => setDraft((p) => ({ ...p, close_time: e.target.value }))} required />
+                <p className="text-xs text-slate-500">ปิดเที่ยงคืนใส่ 00:00 (นับเป็นสิ้นวันนั้น)</p>
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-600">พักเริ่ม</label>

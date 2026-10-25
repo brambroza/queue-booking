@@ -47,6 +47,13 @@ describe('hourlyCapacityForRow', () => {
     expect(Array.from(map.values()).reduce((s, v) => s + v, 0)).toBe(32); // 16 slots × 2
   });
 
+  it('reads a 00:00 close as midnight at the end of the day', () => {
+    const map = hourlyCapacityForRow({ ...fullWeek(A)[0], open_time: '08:00', close_time: '00:00:00', break_start: null, break_end: null, slot_interval_minutes: 60 }, 1);
+    expect(map.get(8)).toBe(1);
+    expect(map.get(23)).toBe(1);
+    expect(map.size).toBe(16); // 08:00 … 23:00
+  });
+
   it('returns nothing when close <= open', () => {
     expect(hourlyCapacityForRow({ ...fullWeek(A)[0], close_time: '09:00' }, SEATS).size).toBe(0);
   });
