@@ -258,7 +258,7 @@ export default function PaymentSettingsPage() {
               <input
                 className="input"
                 type="number"
-                min={15}
+                min={5}
                 max={20160}
                 value={form.transfer_payment_window_minutes}
                 onChange={(e) => setForm((s) => ({ ...s, transfer_payment_window_minutes: Number(e.target.value) || 1440 }))}

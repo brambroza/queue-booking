@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { pushMessage } from '@/lib/line/client';
 import { slipRejectedFlex } from '@/lib/line/messages-payment';
 import { approveSlip } from '@/lib/payments/slip/approve';
+import { resolveCustomerLiffUrl } from '@/lib/line/liff-url';
 
 const schema = z
   .object({
@@ -80,13 +81,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const admin = createAdminClient();
     const { data: shopRow } = await admin
       .from('shops')
-      .select('name,shop_key')
+      .select('name,shop_key,liff_id,liff_id_login_shop')
       .eq('id', profile.shop_id)
       .maybeSingle();
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/+$/, '');
-    const uploadUrl = appUrl && shopRow?.shop_key
-      ? `${appUrl}/liff/${encodeURIComponent(shopRow.shop_key)}?tab=account`
-      : null;
+    // liff.line.me link — a plain app URL opens outside LIFF and cannot log the customer in.
+    const uploadUrl = resolveCustomerLiffUrl({
+      shopKey: shopRow?.shop_key,
+      liffId: shopRow?.liff_id ?? null,
+      liffIdLoginShop: shopRow?.liff_id_login_shop ?? null,
+      tab: 'account',
+      appUrl: process.env.NEXT_PUBLIC_APP_URL ?? null,
+    }) ?? null;
 
     const now = new Date().toISOString();
     const amount = Number(booking.payment_amount ?? 0);

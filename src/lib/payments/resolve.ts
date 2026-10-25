@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { deeplinkPaymentFlex, qrPaymentFlex, transferPaymentFlex } from '@/lib/line/messages-payment';
+import { resolveCustomerLiffUrl } from '@/lib/line/liff-url';
 import type { BankCode, PaymentMethod } from '@/types/db';
 import { getShopPaymentConfig } from './settings';
 import { createBookingQrPayment } from './qr';
@@ -43,10 +44,32 @@ export interface PaymentSetupResult {
 /** Statuses where re-issuing an invoice would destroy state the customer already advanced. */
 const LOCKED_STATUSES = new Set(['awaiting_verification', 'paid']);
 
-function liffUrl(shopKey: string | null | undefined) {
-  const base = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/+$/, '');
-  if (!base || !shopKey) return null;
-  return `${base}/liff/${encodeURIComponent(shopKey)}?tab=account`;
+/**
+ * Customer "my queues" link for payment Flex buttons (upload slip, check status).
+ * Must be a `liff.line.me` link: a plain app URL opens outside the LIFF context,
+ * so the page cannot log the customer in and the upload never happens.
+ */
+async function accountLiffUrl(
+  admin: ReturnType<typeof createAdminClient>,
+  shopId: string,
+  shopKey: string | null | undefined,
+): Promise<string | null> {
+  if (!shopKey) return null;
+  const { data } = await admin
+    .from('shops')
+    .select('liff_id,liff_id_login_shop')
+    .eq('id', shopId)
+    .maybeSingle();
+  const row = (data ?? {}) as { liff_id?: string | null; liff_id_login_shop?: string | null };
+  return (
+    resolveCustomerLiffUrl({
+      shopKey,
+      liffId: row.liff_id ?? null,
+      liffIdLoginShop: row.liff_id_login_shop ?? null,
+      tab: 'account',
+      appUrl: process.env.NEXT_PUBLIC_APP_URL ?? null,
+    }) ?? null
+  );
 }
 
 /**
@@ -99,6 +122,8 @@ export async function resolvePaymentForBooking(opts: {
       ? opts.requestedMethod
       : enabledMethods[0];
 
+  const accountUrl = await accountLiffUrl(admin, opts.shopId, opts.shopKey);
+
   const common = {
     shopName: opts.shopName,
     queueNumber: opts.queueNumber,
@@ -147,7 +172,7 @@ export async function resolvePaymentForBooking(opts: {
         deeplinkUrl: result.deeplinkUrl,
         fallbackUrl: result.returnUrl,
         expiresAt: result.expiresAt,
-        accountUrl: liffUrl(opts.shopKey),
+        accountUrl,
       }),
     };
   }
@@ -193,7 +218,7 @@ export async function resolvePaymentForBooking(opts: {
         deeplinkUrl: result.authorizeUri,
         fallbackUrl: result.returnUrl,
         expiresAt: result.expiresAt,
-        accountUrl: liffUrl(opts.shopKey),
+        accountUrl,
       }),
     };
   }
@@ -231,7 +256,7 @@ export async function resolvePaymentForBooking(opts: {
         bankName: result.bankName,
         bankAccountNo: result.bankAccountNo,
         expiresAt: result.expiresAt,
-        uploadUrl: liffUrl(opts.shopKey),
+        uploadUrl: accountUrl,
       }),
     };
   }
