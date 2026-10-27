@@ -8,7 +8,7 @@ import { MuiAppProvider } from '@/components/theme/mui-provider';
 import { PostHogProvider } from '@/components/analytics/posthog-provider';
 import { CookieConsent } from '@/components/consent/cookie-consent';
 import { BreadcrumbSchema } from '@/components/seo/breadcrumb-schema';
-import { darkSurface, lightSurface } from '@/theme/tokens';
+import { lightSurface } from '@/theme/tokens';
 
 const kanit = Kanit({
   subsets: ['latin', 'thai'],
@@ -77,16 +77,13 @@ export const metadata: Metadata = {
 /**
  * Mobile viewport: `viewportFit: cover` lets the portal shell pad for iOS
  * safe areas, and `themeColor` tints the browser chrome to match the app
- * background in each color scheme. Zoom is intentionally left enabled.
+ * background (light by default). Zoom is intentionally left enabled.
  */
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: lightSurface.bg },
-    { media: '(prefers-color-scheme: dark)', color: darkSurface.bg },
-  ],
+  themeColor: lightSurface.bg,
 };
 
 
@@ -122,8 +119,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     },
   };
 
-  // กัน FOUC: ตั้งค่าโหมดสีก่อน hydrate (อ่าน localStorage / system preference)
-  const colorModeScript = `(function(){try{var m=localStorage.getItem('qb-color-mode');if(!m){m=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}var r=document.documentElement;if(m==='dark'){r.classList.add('dark');}r.style.colorScheme=m;r.dataset.theme=m;}catch(e){}})();`;
+  // กัน FOUC: ตั้งค่าโหมดสีก่อน hydrate (อ่าน localStorage; ไม่เคยเลือก = light เสมอ ไม่ตาม OS)
+  const colorModeScript = `(function(){try{var m=localStorage.getItem('qb-color-mode');if(m!=='dark'){m='light';}var r=document.documentElement;if(m==='dark'){r.classList.add('dark');}r.style.colorScheme=m;r.dataset.theme=m;}catch(e){}})();`;
 
   return (
     <html lang="th" suppressHydrationWarning>

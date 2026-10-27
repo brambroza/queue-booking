@@ -40,11 +40,8 @@ export function MuiAppProvider({ children }: { children: React.ReactNode }) {
     const stored = (typeof window !== 'undefined'
       ? (window.localStorage.getItem(COLOR_MODE_KEY) as ColorMode | null)
       : null);
-    const initial: ColorMode =
-      stored ??
-      (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'dark'
-        : 'light');
+    // ไม่เคยเลือกเอง = light (ไม่ตาม OS)
+    const initial: ColorMode = stored === 'dark' ? 'dark' : 'light';
     setModeState(initial);
     applyHtmlMode(initial);
   }, []);

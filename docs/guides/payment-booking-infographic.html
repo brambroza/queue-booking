@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>อินโฟกราฟิก รับชำระเงินเมื่อลูกค้าจองคิว</title>
+<style>
+@font-face{font-family:'Kanit';font-weight:400;src:url('../../public/fonts/Kanit-Regular.ttf')}
+@font-face{font-family:'Kanit';font-weight:700;src:url('../../public/fonts/Kanit-Bold.ttf')}
+/* Layout: 1600px poster, two lanes (customer in LINE | shop in Admin Portal) crossed by three stages
+   (จองคิว, ชำระเงิน, ผลลัพธ์). LINE chat panels are drawn from the Flex JSON the app sends
+   (flex-samples.js, built by payment-infographic-flex.mjs); everything else is a real screenshot. */
+:root{
+  --ink:#14211a; --muted:#56665d; --line:#d7e3db; --bg:#f3f8f5; --card:#ffffff;
+  --brand:#0e9f5a; --brand-deep:#0a6b3d; --brand-soft:#e2f4ea;
+  --cust:#1b5aa6; --cust-soft:#e3eefc; --red:#b3261e; --red-soft:#fce9e7;
+  --chat:#c9d7ea;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{width:1600px;background:var(--bg);font-family:'Kanit',sans-serif;color:var(--ink);font-size:20px;line-height:1.5}
+h1,h2,h3,p{margin:0}
+.poster{padding:48px;display:flex;flex-direction:column;gap:26px}
+
+header{background:var(--brand-deep);color:#fff;border-radius:28px;padding:38px 46px;position:relative;overflow:hidden}
+header::after{content:"";position:absolute;right:-90px;top:-80px;width:360px;height:360px;border-radius:50%;background:var(--brand);opacity:.5}
+header .eyebrow{font-size:19px;letter-spacing:.05em;opacity:.85;position:relative;z-index:1}
+header h1{font-size:58px;line-height:1.15;margin-top:8px;position:relative;z-index:1}
+header p{font-size:23px;margin-top:10px;max-width:1050px;opacity:.95;position:relative;z-index:1}
+
+.lanes{display:grid;grid-template-columns:150px 1fr 1fr;gap:18px}
+.lane-head{border-radius:18px;padding:14px 22px;display:flex;align-items:center;gap:14px}
+.lane-head .dot{width:16px;height:16px;border-radius:50%}
+.lane-head b{font-size:26px}
+.lane-head span{font-size:17px;opacity:.85}
+.lane-head.cust{background:var(--cust-soft);color:var(--cust)}
+.lane-head.cust .dot{background:var(--cust)}
+.lane-head.shop{background:var(--brand-soft);color:var(--brand-deep)}
+.lane-head.shop .dot{background:var(--brand)}
+
+.stage{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:var(--ink);color:#fff;border-radius:20px;padding:18px 10px;text-align:center}
+.stage .n{width:52px;height:52px;border-radius:50%;background:#fff;color:var(--ink);display:grid;place-items:center;font-size:26px;font-weight:700}
+.stage b{font-size:24px;line-height:1.2}
+
+.cell{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:20px 22px;display:flex;flex-direction:column;gap:14px}
+.cell.cust{border-top:6px solid var(--cust)}
+.cell.shop{border-top:6px solid var(--brand)}
+.cell p.say{font-size:19px;color:var(--muted)}
+.cell p.say b{color:var(--ink)}
+.pair{display:flex;gap:16px;justify-content:center;align-items:flex-start}
+.cap{font-size:15px;color:var(--muted);text-align:center;margin-top:6px}
+
+/* phone frames */
+.phone{width:330px;border:7px solid #1d2a23;border-radius:30px;overflow:hidden;background:#fff;flex:none}
+.phone .bar{background:#fff;border-bottom:1px solid #e5e7eb;padding:9px 14px;display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700}
+.phone .bar .av{width:28px;height:28px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:13px}
+.phone .bar small{margin-left:auto;font-weight:400;color:#6b7280;font-size:12px}
+.chat{background:var(--chat);padding:14px 10px 16px;display:flex;flex-direction:column;gap:12px}
+.msg{display:flex;gap:7px;align-items:flex-start}
+.msg .av{flex:none;width:30px;height:30px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:700}
+.phone.shot .frame{height:var(--h);overflow:hidden}
+.phone.shot .frame img{display:block;width:100%;height:100%;object-fit:cover;object-position:var(--pos,top)}
+
+/* desktop shots */
+.desk{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}
+.desk img{display:block;width:100%}
+.desk.crop{height:var(--h)}
+.desk.crop img{height:100%;object-fit:cover;object-position:var(--pos,top)}
+
+/* outcomes */
+.result{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.res{border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.res.ok{background:var(--brand-soft)}
+.res.no{background:var(--red-soft)}
+.res .label{font-size:17px;font-weight:700}
+.res.ok .label{color:var(--brand-deep)}
+.res.no .label{color:var(--red)}
+
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.fact{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px 24px;display:flex;flex-direction:column;gap:6px}
+.fact b{font-size:23px;line-height:1.25}
+.fact span{font-size:18px;color:var(--muted)}
+.fact .big{font-size:40px;font-weight:700;color:var(--brand-deep);line-height:1.1}
+footer{display:flex;justify-content:space-between;gap:24px;color:var(--muted);font-size:16px;border-top:1px solid var(--line);padding-top:14px}
+footer .left{display:flex;flex-direction:column;gap:2px}
+footer .left small{font-size:14px}
+footer .maker{display:flex;align-items:center;gap:14px;text-align:right}
+footer .maker img{width:52px;height:52px;flex:none}
+footer .maker b{display:block;color:var(--ink);font-size:18px}
+
+/* Flex bubble (subset of the LINE Flex spec the app uses) */
+.fx-bubble{background:#fff;border-radius:17px;overflow:hidden;font-family:'Kanit',sans-serif;line-height:1.35;color:#111}
+.fx-btn{display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:15px;font-weight:700;padding:0 8px;text-align:center}
+</style>
+</head>
+<body>
+<div class="poster">
+  <header>
+    <div class="eyebrow">QueueBooking · สำหรับร้านค้า</div>
+    <h1>รับชำระเงินเมื่อลูกค้าจองคิว</h1>
+    <p>ลูกค้าจองผ่าน LINE แล้วชำระเงินได้ทันที คิวยืนยันเมื่อร้านได้รับเงิน และระบบคืนที่ว่างให้เองเมื่อลูกค้าไม่ชำระตามเวลา ภาพด้านล่างแสดงสิ่งที่ลูกค้าและร้านเห็นในแต่ละขั้น</p>
+  </header>
+
+  <div class="lanes">
+    <div></div>
+    <div class="lane-head cust"><span class="dot"></span><b>ลูกค้าเห็นใน LINE</b><span>แชทกับร้าน และหน้าจองคิว</span></div>
+    <div class="lane-head shop"><span class="dot"></span><b>ร้านเห็นใน Admin Portal</b><span>หน้าจัดการคิว และแจ้งเตือน</span></div>
+
+    <!-- Stage 1 -->
+    <div class="stage"><span class="n">1</span><b>จองคิว</b></div>
+    <div class="cell cust">
+      <p class="say">กดยืนยันจองแล้ว ลูกค้าได้รับ <b>การ์ดแจ้งว่าจองแล้ว รอชำระเงิน</b> และ <b>การ์ดชำระเงิน</b> ที่มี QR กับปุ่มอัปโหลดสลิปในแชท</p>
+      <div class="pair">
+        <div class="phone"><div class="bar"><span class="av">ส</span>สมาร์ทแบดมินตัน<small>LINE</small></div>
+          <div class="chat"><div class="msg"><span class="av">ส</span><div data-flex="confirm" data-width="270"></div></div></div></div>
+        <div class="phone"><div class="bar"><span class="av">ส</span>สมาร์ทแบดมินตัน<small>LINE</small></div>
+          <div class="chat"><div class="msg"><span class="av">ส</span><div data-flex="transfer" data-width="270"></div></div></div></div>
+      </div>
+    </div>
+    <div class="cell shop">
+      <p class="say">คิวขึ้นในหน้าจัดการคิวทันที สถานะ <b>รอยืนยัน</b> ช่องชำระเป็น <b>รอชำระ</b> และมีแจ้งเตือน <b>จองใหม่ รอชำระเงิน</b> ที่นั่งถูกกันไว้ให้ลูกค้ารายนี้</p>
+      <div class="desk"><img src="images/payment/info-bookings.png" alt=""></div>
+      <div class="desk"><img src="images/payment/info-notify-new.png" alt=""></div>
+      <p class="cap">เมนู จัดการคิว และ แจ้งเตือน</p>
+    </div>
+
+    <!-- Stage 2 -->
+    <div class="stage"><span class="n">2</span><b>ชำระเงิน</b></div>
+    <div class="cell cust">
+      <p class="say">ลูกค้าเปิดหน้าชำระเงิน เห็น <b>ยอด เวลาที่เหลือ และ QR</b> โอนแล้วแนบสลิป จากนั้นได้การ์ด <b>ได้รับสลิปแล้ว</b> ในแชท</p>
+      <div class="pair">
+        <div>
+          <div class="phone shot"><div class="frame" style="--h:640px;--pos:0 54%"><img src="../../public/images/product/payment-guide/pay-liff-awaiting-payment.webp" alt=""></div></div>
+          <p class="cap">หน้าชำระเงินใน LINE</p>
+        </div>
+        <div>
+          <div class="phone"><div class="bar"><span class="av">ส</span>สมาร์ทแบดมินตัน<small>LINE</small></div>
+            <div class="chat"><div class="msg"><span class="av">ส</span><div data-flex="slipReceived" data-width="270"></div></div></div></div>
+          <p class="cap">การ์ดในแชทหลังแนบสลิป</p>
+        </div>
+      </div>
+    </div>
+    <div class="cell shop">
+      <p class="say">ร้านได้แจ้งเตือน <b>สลิปใหม่รอตรวจสอบ</b> เปิดเมนู <b>ตรวจสอบการชำระเงิน</b> เทียบยอดในสลิป แล้วกด <b>อนุมัติ</b> หรือปฏิเสธพร้อมเหตุผล</p>
+      <div class="desk"><img src="images/payment/info-notify-slip.png" alt=""></div>
+      <div class="desk"><img src="images/payment/info-slip-review.png" alt=""></div>
+    </div>
+
+    <!-- Stage 3 -->
+    <div class="stage"><span class="n">3</span><b>ผลลัพธ์</b></div>
+    <div class="cell cust">
+      <div class="result">
+        <div class="res ok"><span class="label">ร้านอนุมัติแล้ว</span>
+          <div class="phone" style="width:300px"><div class="chat"><div class="msg"><span class="av">ส</span><div data-flex="receipt" data-width="240"></div></div></div></div>
+          <p class="cap">ใบเสร็จทาง LINE คิวยืนยันแล้ว</p>
+        </div>
+        <div class="res no"><span class="label">ไม่ชำระภายในเวลา</span>
+          <div class="phone" style="width:300px"><div class="chat"><div class="msg"><span class="av">ส</span><div data-flex="expired" data-width="240"></div></div></div></div>
+          <p class="cap">แจ้งยกเลิก พร้อมปุ่มจองคิวใหม่</p>
+        </div>
+      </div>
+    </div>
+    <div class="cell shop">
+      <p class="say">อนุมัติแล้ว คิวเปลี่ยนเป็น <b>ยืนยันแล้ว</b> เอง ถ้าลูกค้าไม่ชำระตามเวลา ระบบ <b>ยกเลิกอัตโนมัติ</b> ประมาณ 5 ถึง 10 นาทีหลังหมดเวลา และเปิดที่ว่างให้คนอื่นจอง</p>
+      <div class="desk"><img src="images/payment/info-notify-verified.png" alt=""></div>
+      <div class="desk"><img src="images/payment/info-notify-cancel.png" alt=""></div>
+      <p class="cap">แจ้งเตือนเมื่อยืนยันการชำระเงิน และเมื่อระบบยกเลิกคิวที่ไม่ชำระ</p>
+    </div>
+  </div>
+
+  <section class="facts">
+    <div class="fact"><span class="big">30 ถึง 60 นาที</span><b>เวลาชำระที่แนะนำ</b><span>สำหรับร้านที่ลูกค้าแย่งจอง ตั้งที่เมนูตั้งค่าการชำระเงิน ค่าเริ่มต้นคือ 24 ชั่วโมง ตั้งได้ต่ำสุด 15 นาที</span></div>
+    <div class="fact"><b>ส่งสลิปแล้ว คิวไม่ถูกยกเลิก</b><span>ที่นั่งถูกกันไว้จนกว่าร้านจะตรวจ ควรตรวจสลิปให้เร็วที่สุด</span></div>
+    <div class="fact"><b>ลูกค้าจ่ายเงินสดหน้าร้าน</b><span>กดปุ่มอนุมัติที่คิวในหน้าจัดการคิว ระบบจะไม่ยกเลิกคิวนั้น</span></div>
+  </section>
+
+  <footer>
+    <div class="left"><span>QueueBooking · queuebooking.com</span><small>หน้าจอ Portal และหน้าชำระเงินเป็นภาพจริงจากระบบ การ์ดในแชทวาดจากข้อความที่ระบบส่งจริง</small></div>
+    <div class="maker"><div><span>ข้อมูลในภาพเป็นข้อมูลตัวอย่าง</span><b>จัดทำโดย บริษัท โก อะลอง จำกัด</b></div><img src="images/payment/goalong-logo.png" alt="GoAlong"></div>
+  </footer>
+</div>
+
+<script src="images/payment/flex-samples.js"></script>
+<script>
+// Minimal LINE Flex renderer for the components the payment cards use.
+const TEXT = { xxs: 11, xs: 13, sm: 14, md: 16, lg: 19, xl: 22, xxl: 29, '3xl': 35 };
+const GAP = { none: 0, xs: 2, sm: 4, md: 8, lg: 12, xl: 16, xxl: 20 };
+const IMG = { xxs: 40, xs: 60, sm: 80, md: 100, lg: 120, xl: 140, xxl: 160, '3xl': 180, '4xl': 200, '5xl': 220 };
+const px = (v, map) => (v == null ? null : String(v).endsWith('px') ? parseFloat(v) : map[v] ?? null);
+
+function el(tag, style) { const e = document.createElement(tag); Object.assign(e.style, style || {}); return e; }
+
+function node(n, parent) {
+  const horizontal = parent === 'horizontal' || parent === 'baseline';
+  let e;
+  if (n.type === 'box') {
+    e = el('div', { display: 'flex', flexDirection: n.layout === 'vertical' ? 'column' : 'row', minWidth: '0' });
+    if (n.layout === 'baseline') e.style.alignItems = 'baseline';
+    if (n.spacing) e.style.gap = px(n.spacing, GAP) + 'px';
+    if (n.paddingAll) e.style.padding = px(n.paddingAll, GAP) + 'px';
+    if (n.backgroundColor) e.style.background = n.backgroundColor;
+    if (n.cornerRadius) e.style.borderRadius = px(n.cornerRadius, GAP) + 'px';
+    if (n.justifyContent) e.style.justifyContent = n.justifyContent;
+    if (n.alignItems) e.style.alignItems = n.alignItems;
+    (n.contents || []).forEach((c) => e.appendChild(node(c, n.layout)));
+  } else if (n.type === 'text') {
+    e = el('div', { fontSize: (px(n.size, TEXT) || 16) + 'px', color: n.color || '#111', fontWeight: n.weight === 'bold' ? '700' : '400', textAlign: n.align || 'start', minWidth: '0' });
+    if (!n.wrap) Object.assign(e.style, { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' });
+    e.textContent = n.text;
+  } else if (n.type === 'button') {
+    const style = n.style || 'link';
+    e = el('div', { height: (n.height === 'sm' ? 40 : 52) + 'px' });
+    e.className = 'fx-btn';
+    if (style === 'primary') Object.assign(e.style, { background: n.color || '#17c950', color: '#fff' });
+    else if (style === 'secondary') Object.assign(e.style, { background: n.color || '#dcdfe5', color: '#111' });
+    else Object.assign(e.style, { color: n.color || '#42659a' });
+    e.textContent = (n.action && n.action.label) || '';
+  } else if (n.type === 'image') {
+    e = el('div', { display: 'flex', justifyContent: 'center' });
+    const img = el('img', { display: 'block', width: n.size === 'full' ? '100%' : (px(n.size, IMG) || 100) + 'px', maxWidth: '100%' });
+    if (n.aspectRatio) {
+      const [w, h] = n.aspectRatio.split(':').map(Number);
+      img.style.aspectRatio = `${w} / ${h}`;
+      img.style.objectFit = n.aspectMode === 'cover' ? 'cover' : 'contain';
+    }
+    img.src = n.url;
+    e.appendChild(img);
+  } else if (n.type === 'separator') {
+    e = el('div', { borderTop: '1px solid ' + (n.color || '#e5e7eb'), alignSelf: 'stretch' });
+  } else {
+    e = el('div');
+  }
+  if (horizontal && n.type !== 'separator') e.style.flex = n.flex != null ? String(n.flex) : '1';
+  if (n.margin) e.style[horizontal ? 'marginLeft' : 'marginTop'] = px(n.margin, GAP) + 'px';
+  return e;
+}
+
+function bubble(b, width) {
+  const root = el('div', { width: width + 'px' });
+  root.className = 'fx-bubble';
+  [['header', 20], ['hero', 0], ['body', 20], ['footer', 10]].forEach(([key, pad]) => {
+    if (!b[key]) return;
+    const block = node(b[key], 'vertical');
+    if (!b[key].paddingAll) block.style.padding = pad + 'px';
+    root.appendChild(block);
+  });
+  return root;
+}
+
+document.querySelectorAll('[data-flex]').forEach((slot) => {
+  const msg = window.FLEX_SAMPLES[slot.dataset.flex];
+  slot.appendChild(bubble(msg.contents, Number(slot.dataset.width) || 260));
+});
+</script>
+</body>
+</html>

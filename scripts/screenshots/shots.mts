@@ -8,6 +8,7 @@
 
 import { addDays } from './fixtures.mts';
 import type { BusinessKey } from './catalogs.mts';
+import { PAYMENT_GUIDE } from './shots-payment.mts';
 
 export type ShotKind = 'portal' | 'liff' | 'display';
 
@@ -16,6 +17,9 @@ export type PatchContext = { today: string; shopKey: string };
 
 /** Rewrites the body a read endpoint would have returned (real, sampled or from `routes`). */
 export type BodyPatch = (body: unknown, ctx: PatchContext) => unknown;
+
+/** A fixed JSON body, or one built at run time (dates relative to today). */
+export type FixtureBody = unknown | ((ctx: PatchContext) => unknown);
 
 export type Viewport = { width: number; height: number };
 
@@ -45,8 +49,9 @@ export type Shot = {
   /** Sub-folder of public/images/product to write to (e.g. 'guide'); default is the folder itself. */
   dir?: string;
   /**
-   * JSON bodies served in place of these read endpoints (path → body), so a
-   * page can show a state the demo shop is not in. Writes stay blocked.
+   * JSON bodies served in place of these read endpoints (path → body, or a
+   * function of today), so a page can show a state the demo shop is not in.
+   * Writes stay blocked. `{shopKey}` in a path is replaced at run time.
    */
   routes?: Record<string, unknown>;
   /**
@@ -65,6 +70,17 @@ export type Shot = {
    * LIFF endpoints), so a capture from localhost reads like production.
    */
   showBaseUrlAs?: string;
+  /**
+   * Answers for write requests (path → body), so a shot can walk past a submit
+   * button (e.g. "ยืนยันจองคิว") to the screen after it. The request is answered
+   * here and never reaches the server; every other write stays blocked.
+   * `{shopKey}` in a path is replaced at run time.
+   */
+  writes?: Record<string, FixtureBody>;
+  /** Body for LIFF `POST /me` instead of the default fixture (e.g. a queue waiting for payment). */
+  me?: FixtureBody;
+  /** Extra wait before the capture, e.g. for a toast to close. */
+  delayMs?: number;
 };
 
 export const DESKTOP: Viewport = { width: 1440, height: 900 };
@@ -259,6 +275,7 @@ const BOOKING_WINDOW: Shot[] = [
 export const SHOTS: Shot[] = [
   ...GUIDE,
   ...BOOKING_WINDOW,
+  ...PAYMENT_GUIDE,
   { name: 'portal-dashboard', kind: 'portal', path: '/portal/dashboard', viewport: DESKTOP },
   { name: 'portal-queue-board', kind: 'portal', path: '/portal/queue-board', viewport: DESKTOP },
   { name: 'portal-bookings', kind: 'portal', path: '/portal/bookings', viewport: DESKTOP_TALL, clipSelector: PORTAL_CONTENT },

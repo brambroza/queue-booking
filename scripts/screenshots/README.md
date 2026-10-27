@@ -99,3 +99,21 @@ hand-made captures the guide expects is in `docs/guides/line-screenshots-needed.
 npm run screenshots -- guide-dashboard-checklist guide-branches guide-services guide-working-hours guide-line-settings guide-line-setup
 ./docs/guides/build.sh
 ```
+
+## Payment guide (`pay-*`)
+
+Eight shots for `docs/guides/payment-booking-guide.html` (built into
+`public/docs/payment-booking-guide.pdf` by `docs/guides/build-payment-guide.sh`),
+written to `public/images/product/payment-guide/`. Defined in `shots-payment.mts`
+with the `badminton` sample and fictional payee details. Two more per-shot options:
+
+- `writes` — answers for write requests the shot walks past (here "ยืนยันจองคิว"
+  and `payment/status`), so the "รอชำระเงิน" screen can be captured. The request
+  is answered by the script and never reaches the server; other writes stay blocked.
+- `me` — body for LIFF `POST /me` (a queue waiting for payment or slip review).
+- `delayMs` — wait before the capture (the booking toast covers the header).
+
+```bash
+npm run screenshots -- pay-portal-settings pay-portal-services pay-liff-pick-slot pay-liff-awaiting-payment pay-liff-my-queue-unpaid pay-liff-slip-review pay-portal-slip-inbox pay-portal-slip-review
+./docs/guides/build-payment-guide.sh
+```

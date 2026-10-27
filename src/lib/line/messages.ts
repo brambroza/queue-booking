@@ -743,8 +743,10 @@ export function bookingPaymentExpiredFlex(payload: {
   liffUrl?: string;
 }) {
   const flex = bookingSelfCancelledFlex(payload);
-  const header = flex.contents.header.contents[1] as { text: string };
+  const header = flex.contents.header.contents[1] as { text: string; wrap?: boolean };
   header.text = 'คิวถูกยกเลิก (เลยเวลาชำระเงิน)';
+  // Longer than the self-cancel title: wrap instead of LINE's ellipsis.
+  header.wrap = true;
   const noteBox = flex.contents.body.contents[2] as unknown as { contents: Array<{ text: string }> };
   noteBox.contents[0].text = `ไม่พบการชำระเงินของคิว ${payload.queueNumber} (วันที่ ${payload.date} เวลา ${payload.time}) ภายในเวลาที่กำหนด ระบบจึงยกเลิกคิวให้อัตโนมัติ หากชำระเงินแล้ว กรุณาติดต่อร้าน หรือจองคิวใหม่ได้ทันที`;
   flex.altText = `คิว ${payload.queueNumber} ถูกยกเลิกเพราะเลยเวลาชำระเงิน`;

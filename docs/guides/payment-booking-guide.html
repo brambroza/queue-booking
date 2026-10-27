@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>คู่มือรับชำระเงินเมื่อลูกค้าจองคิว QueueBooking</title>
+<style>
+@font-face{font-family:'Kanit';font-weight:400;src:url('../../public/fonts/Kanit-Regular.ttf')}
+@font-face{font-family:'Kanit';font-weight:700;src:url('../../public/fonts/Kanit-Bold.ttf')}
+/* Layout: cover with the flow at a glance, then one A4 step per screen pair (real screenshots), then rules and Q&A. */
+:root{
+  --ink:#14211a; --muted:#5b6b62; --line:#dbe5de; --tint:#f1f7f3;
+  --brand:#0e9f5a; --brand-deep:#0a6b3d; --brand-soft:#e4f5ec;
+  --amber:#a15c07; --amber-soft:#fdf1dc; --red:#b3261e; --red-soft:#fdecea;
+}
+@page{size:A4;margin:15mm 15mm 16mm}
+*{box-sizing:border-box}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{margin:0;font-family:'Kanit','Sarabun','Noto Sans Thai',sans-serif;font-weight:400;color:var(--ink);font-size:11pt;line-height:1.55}
+h1,h2,h3{margin:0;font-weight:700;line-height:1.25}
+p{margin:0}
+.page{page-break-after:always}
+.page:last-child{page-break-after:auto}
+
+/* cover */
+.cover{display:flex;flex-direction:column;gap:14px}
+.cover .top{background:var(--brand-deep);color:#fff;border-radius:18px;padding:30px 32px 32px;position:relative;overflow:hidden}
+.cover .top::after{content:"";position:absolute;right:-60px;bottom:-90px;width:250px;height:250px;border-radius:50%;background:var(--brand);opacity:.45}
+.brand{font-size:11.5pt;letter-spacing:.04em;opacity:.9}
+.cover h1{font-size:27pt;margin-top:26px;max-width:460px;position:relative;z-index:1}
+.cover .sub{margin-top:10px;font-size:12pt;opacity:.92;max-width:470px;position:relative;z-index:1}
+.flow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.flow div{background:var(--tint);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.flow b{font-size:9.5pt;color:var(--brand-deep);letter-spacing:.03em}
+.flow span{font-size:10.5pt}
+.box{border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.box h2{font-size:13pt;margin-bottom:6px}
+.box ul{margin:0;padding-left:18px}
+.box li{margin:3px 0}
+.status{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center;font-size:10.5pt}
+.chip{display:inline-block;border-radius:999px;padding:1px 10px;font-size:9.5pt;font-weight:700;white-space:nowrap;text-align:center}
+.chip.wait{background:#e3eefc;color:#1b5aa6}
+.chip.ok{background:var(--brand-soft);color:var(--brand-deep)}
+.chip.no{background:var(--red-soft);color:var(--red)}
+.foot{display:flex;justify-content:space-between;color:var(--muted);font-size:9pt;border-top:1px solid var(--line);padding-top:6px}
+
+/* steps */
+.step{margin:0 0 12px}
+.step>header{display:flex;gap:12px;align-items:center;background:var(--brand-soft);padding:9px 14px;border-radius:12px;break-after:avoid}
+.step>header .n{flex:none;width:28px;height:28px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-weight:700;font-size:10.5pt}
+.step>header h2{font-size:13pt}
+.step>header .where{margin-left:auto;font-size:9pt;color:var(--brand-deep);border:1px solid var(--brand);border-radius:999px;padding:1px 10px;white-space:nowrap}
+.step .body{padding:9px 4px 2px;display:flex;flex-direction:column;gap:8px}
+.step ol{margin:0;padding-left:20px}
+.step ol li{margin:2px 0}
+.note{border-radius:10px;padding:8px 12px;font-size:10.5pt;background:var(--amber-soft);color:#6b3e03;break-inside:avoid}
+.tip{border-radius:10px;padding:8px 12px;font-size:10.5pt;background:var(--tint);border:1px solid var(--line);break-inside:avoid}
+
+/* figures: real screenshots of the product */
+.fig{break-inside:avoid;margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.fig .frame{overflow:hidden}
+.fig img{display:block;width:100%}
+.fig figcaption{font-size:9pt;color:var(--muted);padding:5px 10px;border-top:1px solid var(--line);line-height:1.4}
+.crop-top .frame{height:var(--h)}
+.crop-top img{height:100%;object-fit:cover;object-position:top}
+.crop-bottom .frame{height:var(--h)}
+.crop-bottom img{height:100%;object-fit:cover;object-position:bottom}
+.phones{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+.phones .fig{max-width:68mm;justify-self:center;width:100%}
+.side{display:grid;grid-template-columns:62mm 1fr;gap:14px;align-items:start}
+
+/* Q&A */
+.qa{display:flex;flex-direction:column;gap:9px}
+.qa div{break-inside:avoid;border-bottom:1px solid var(--line);padding-bottom:8px}
+.qa h3{font-size:11.5pt;margin-bottom:2px}
+.sec-title{font-size:15pt;margin:0 0 10px;color:var(--brand-deep)}
+</style>
+</head>
+<body>
+
+<section class="page cover">
+  <div class="top">
+    <div class="brand">QueueBooking · คู่มือสำหรับร้านค้า</div>
+    <h1>รับชำระเงินเมื่อลูกค้าจองคิว</h1>
+    <p class="sub">ลูกค้าจองผ่าน LINE แล้วชำระเงินได้ทันที ระบบจะยืนยันคิวเมื่อร้านได้รับเงิน และคืนที่ว่างให้คนอื่นจองเมื่อลูกค้าไม่ชำระภายในเวลาที่ร้านกำหนด</p>
+  </div>
+
+  <div class="box">
+    <h2>ขั้นตอนโดยรวม</h2>
+    <div class="flow">
+      <div><b>ร้าน · ขั้นที่ 1</b><span>เปิดช่องทางรับเงินและกำหนดเวลาชำระ</span></div>
+      <div><b>ร้าน · ขั้นที่ 2</b><span>ตั้งราคาบริการ</span></div>
+      <div><b>ลูกค้า · ขั้นที่ 3</b><span>เลือกเวลาและกดยืนยันจองคิว</span></div>
+      <div><b>ลูกค้า · ขั้นที่ 4</b><span>สแกน QR โอนเงิน และแนบสลิป</span></div>
+      <div><b>ลูกค้า · ขั้นที่ 5</b><span>ติดตามสถานะในหน้าคิวของฉัน</span></div>
+      <div><b>ร้าน · ขั้นที่ 6</b><span>ตรวจสลิปและกดอนุมัติ</span></div>
+    </div>
+  </div>
+
+  <div class="box">
+    <h2>สถานะคิวที่ลูกค้าและร้านจะเห็น</h2>
+    <div class="status">
+      <span class="chip wait">รอยืนยัน</span><span>ลูกค้าจองแล้วแต่ยังไม่ได้ชำระเงิน หรือส่งสลิปแล้วรอร้านตรวจ ที่นั่งถูกกันไว้ให้ลูกค้ารายนี้</span>
+      <span class="chip ok">ยืนยันแล้ว</span><span>ร้านได้รับเงินแล้ว ลูกค้าได้รับใบเสร็จทาง LINE</span>
+      <span class="chip no">ยกเลิก</span><span>ลูกค้าไม่ชำระภายในเวลาที่กำหนด ระบบยกเลิกให้และเปิดที่ว่างให้จองใหม่</span>
+    </div>
+  </div>
+
+  <div class="box">
+    <h2>ก่อนเริ่ม</h2>
+    <ul>
+      <li>ร้านต้องมีหมายเลขพร้อมเพย์สำหรับรับเงิน</li>
+      <li>ระบบเรียกเก็บเงินเฉพาะบริการที่ตั้งราคามากกว่า 0 บาท</li>
+      <li>คิวที่พนักงานสร้างจากระบบหลังร้านไม่ต้องรอชำระ และไม่ถูกยกเลิกอัตโนมัติ</li>
+    </ul>
+  </div>
+
+  <div class="foot"><span>QueueBooking</span><span>ภาพประกอบเป็นข้อมูลตัวอย่าง</span></div>
+</section>
+
+<section class="page">
+  <article class="step">
+    <header><span class="n">1</span><h2>เปิดรับโอนเงินและกำหนดเวลาชำระ</h2><span class="where">ตั้งค่าการชำระเงิน</span></header>
+    <div class="body">
+      <ol>
+        <li>เลือกช่อง <b>โอนเงิน + แนบสลิป</b></li>
+        <li>กรอกหมายเลขพร้อมเพย์และชื่อผู้รับเงินที่จะแสดงต่อลูกค้า เลขบัญชีธนาคารกรอกหรือไม่กรอกก็ได้</li>
+        <li>กำหนด <b>ให้เวลาชำระ (นาที)</b> คือเวลาที่ลูกค้ามีสำหรับชำระเงินหลังกดจอง แล้วกดบันทึก</li>
+      </ol>
+      <figure class="fig crop-top" style="--h:112mm">
+        <div class="frame"><img src="../../public/images/product/payment-guide/pay-portal-settings.webp" alt="หน้าตั้งค่าการชำระเงิน"></div>
+        <figcaption>ตัวอย่างร้านที่เปิดรับโอนเงินและให้เวลาชำระ 30 นาที ใต้แบบฟอร์มมีตัวอย่าง QR ให้ลองสแกนเพื่อตรวจชื่อผู้รับ</figcaption>
+      </figure>
+      <div class="tip">ค่าเริ่มต้นของเวลาชำระคือ 1,440 นาที (24 ชั่วโมง) และกำหนดได้ต่ำสุด 15 นาที ร้านที่เปิดให้จองล่วงหน้าไม่นาน หรือมีลูกค้าแย่งจองพร้อมกัน ควรตั้ง 30 ถึง 60 นาที เพื่อให้ที่ว่างที่ไม่มีคนชำระกลับมาเปิดจองได้เร็ว</div>
+      <div class="note">ช่องทาง QR Payment อัตโนมัติ และจ่ายผ่านแอปธนาคาร ต้องสมัครบริการ Omise ก่อน ช่องทางนี้ยืนยันการชำระให้อัตโนมัติโดยร้านไม่ต้องตรวจสลิป</div>
+    </div>
+  </article>
+</section>
+
+<section class="page">
+  <article class="step">
+    <header><span class="n">2</span><h2>ตั้งราคาบริการ</h2><span class="where">บริการ</span></header>
+    <div class="body">
+      <p>ราคาในคอลัมน์ <b>ราคา</b> คือยอดที่ลูกค้าต้องชำระต่อการจอง 1 คิว บริการที่ราคาเป็น 0 ลูกค้าจองได้ทันทีโดยไม่ต้องชำระ</p>
+      <figure class="fig crop-bottom" style="--h:60mm">
+        <div class="frame"><img src="../../public/images/product/payment-guide/pay-portal-services.webp" alt="หน้าบริการ"></div>
+        <figcaption>ตัวอย่างร้านแบดมินตัน เช่าสนาม 1 ชั่วโมง ราคา 180 บาท</figcaption>
+      </figure>
+      <div class="tip">ถ้าสนาม ห้อง หรือผู้ให้บริการที่ลูกค้าเลือกมีราคาของตัวเอง ระบบใช้ราคานั้นแทนราคาบริการ</div>
+    </div>
+  </article>
+
+  <article class="step">
+    <header><span class="n">3</span><h2>ลูกค้าเลือกเวลาและกดยืนยันจองคิว</h2><span class="where">LINE ของลูกค้า</span></header>
+    <div class="body">
+      <div class="side">
+        <figure class="fig crop-bottom" style="--h:112mm">
+          <div class="frame"><img src="../../public/images/product/payment-guide/pay-liff-pick-slot.webp" alt="หน้าเลือกเวลา"></div>
+          <figcaption>ลูกค้าเลือกช่องเวลาแล้วกดยืนยันจองคิว</figcaption>
+        </figure>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <p>ลูกค้าเปิดหน้าจองจากเมนูใน LINE เลือกบริการ วันที่ และเวลาที่ว่าง ช่องที่เต็มแล้วเป็นสีเทาและกดไม่ได้</p>
+          <p>เมื่อกดยืนยันจองคิว ระบบออกเลขคิวทันทีและกันที่นั่งไว้ให้ลูกค้ารายนี้ คิวจะอยู่ในสถานะ <span class="chip wait">รอยืนยัน</span> จนกว่าจะชำระเงิน</p>
+          <p>ถ้าร้านเปิดรับเงินมากกว่าหนึ่งช่องทาง ลูกค้าจะเลือกวิธีชำระได้ในหน้านี้</p>
+        </div>
+      </div>
+    </div>
+  </article>
+</section>
+
+<section class="page">
+  <article class="step">
+    <header><span class="n">4</span><h2>ลูกค้าชำระเงินและแนบสลิป</h2><span class="where">LINE ของลูกค้า</span></header>
+    <div class="body">
+      <div class="side">
+        <figure class="fig">
+          <div class="frame"><img src="../../public/images/product/payment-guide/pay-liff-awaiting-payment.webp" alt="หน้ารอชำระเงิน"></div>
+          <figcaption>หน้าจอหลังจองสำเร็จ แสดงยอด เวลาที่เหลือ QR และปุ่มแนบสลิป</figcaption>
+        </figure>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <p>หลังกดจอง ลูกค้าเห็นยอดที่ต้องชำระ เวลาที่เหลือ และ QR พร้อมเพย์ของร้าน พร้อมข้อความแจ้งว่าหากไม่ชำระภายในเวลาที่กำหนด ระบบจะยกเลิกคิวให้อัตโนมัติ</p>
+          <p>ลูกค้าสแกน QR ด้วยแอปธนาคาร โอนเงิน แล้วกด <b>เลือกรูปสลิป</b> เพื่อแนบหลักฐานการโอน</p>
+          <p>ลูกค้าได้รับข้อความใน LINE ด้วย 2 ข้อความ คือการ์ดแจ้งว่าจองแล้วรอชำระเงิน และการ์ดชำระเงินที่มี QR กับปุ่มแนบสลิป ลูกค้าจึงกลับมาชำระภายหลังได้โดยไม่ต้องจองใหม่</p>
+          <div class="note">QR ในภาพเป็นตัวอย่างประกอบคู่มือ ใช้ชำระเงินไม่ได้</div>
+        </div>
+      </div>
+    </div>
+  </article>
+</section>
+
+<section class="page">
+  <article class="step">
+    <header><span class="n">5</span><h2>ลูกค้าติดตามสถานะในหน้าคิวของฉัน</h2><span class="where">LINE ของลูกค้า</span></header>
+    <div class="body">
+      <div class="phones">
+        <figure class="fig crop-bottom" style="--h:84mm">
+          <div class="frame"><img src="../../public/images/product/payment-guide/pay-liff-my-queue-unpaid.webp" alt="คิวที่ยังไม่ชำระ"></div>
+          <figcaption>ยังไม่ชำระ: มีปุ่มชำระเงินและแนบสลิป</figcaption>
+        </figure>
+        <figure class="fig crop-bottom" style="--h:84mm">
+          <div class="frame"><img src="../../public/images/product/payment-guide/pay-liff-slip-review.webp" alt="สลิปรอร้านตรวจ"></div>
+          <figcaption>ส่งสลิปแล้ว: รอร้านตรวจสอบ</figcaption>
+        </figure>
+      </div>
+      <p>ลูกค้าเปิดหน้าคิวของฉันได้ตลอดเวลา เพื่อชำระเงินต่อ แนบสลิปใหม่ หรือดูว่าร้านตรวจสลิปแล้วหรือยัง เมื่อร้านอนุมัติ ลูกค้าได้รับใบเสร็จทาง LINE และคิวเปลี่ยนเป็น <span class="chip ok">ยืนยันแล้ว</span></p>
+    </div>
+  </article>
+
+  <article class="step">
+    <header><span class="n">6</span><h2>ร้านตรวจสลิปและกดอนุมัติ</h2><span class="where">ตรวจสอบการชำระเงิน</span></header>
+    <div class="body">
+      <figure class="fig">
+        <div class="frame"><img src="../../public/images/product/payment-guide/pay-portal-slip-inbox.webp" alt="รายการสลิปรอตรวจสอบ"></div>
+        <figcaption>สลิปที่ลูกค้าส่งเข้ามาจะอยู่ในแท็บรอตรวจสอบ</figcaption>
+      </figure>
+    </div>
+  </article>
+</section>
+
+<section class="page">
+  <article class="step">
+    <header><span class="n">6</span><h2>ร้านตรวจสลิปและกดอนุมัติ (ต่อ)</h2><span class="where">ตรวจสอบการชำระเงิน</span></header>
+    <div class="body">
+      <div class="side">
+        <figure class="fig">
+          <div class="frame"><img src="../../public/images/product/payment-guide/pay-portal-slip-review.webp" alt="หน้าตรวจสลิป"></div>
+          <figcaption>กดตรวจสอบเพื่อดูสลิปเทียบกับยอดที่ต้องชำระ</figcaption>
+        </figure>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <ol>
+            <li>กดปุ่ม <b>ตรวจสอบ</b> ที่รายการสลิป</li>
+            <li>เทียบยอดเงินและชื่อผู้รับในสลิปกับยอดที่ต้องชำระ หรือเช็กยอดเข้าในแอปธนาคารของร้าน</li>
+            <li>ถ้าถูกต้อง กด <b>อนุมัติ</b> ระบบยืนยันคิวและส่งใบเสร็จให้ลูกค้าทาง LINE ทันที</li>
+            <li>ถ้าไม่ถูกต้อง เลือกเหตุผลแล้วกด <b>ปฏิเสธ</b> ลูกค้าจะแนบสลิปใหม่ได้</li>
+          </ol>
+          <div class="note">ระบบไม่ยกเลิกคิวที่ลูกค้าส่งสลิปแล้ว แม้จะเลยเวลาชำระ ที่นั่งจึงถูกกันไว้จนกว่าร้านจะตรวจ ควรตรวจสลิปให้เร็วที่สุด</div>
+          <div class="tip">ร้านที่เปิดใช้การตรวจสลิปอัตโนมัติ ระบบจะตรวจยอดกับธนาคารและอนุมัติให้เองเมื่อข้อมูลตรงกัน</div>
+        </div>
+      </div>
+    </div>
+  </article>
+</section>
+
+<section class="page">
+  <h2 class="sec-title">เมื่อลูกค้าไม่ชำระตามเวลา</h2>
+  <div class="box" style="margin-bottom:12px">
+    <ul>
+      <li>ระบบยกเลิกคิวให้อัตโนมัติประมาณ 5 ถึง 10 นาทีหลังหมดเวลาชำระ</li>
+      <li>ลูกค้าได้รับข้อความ LINE แจ้งว่าคิวถูกยกเลิกเพราะเลยเวลาชำระ พร้อมปุ่มจองคิวใหม่</li>
+      <li>ร้านได้รับการแจ้งเตือนในระบบ และหมายเหตุของคิวระบุว่ายกเลิกอัตโนมัติเพราะเลยเวลาชำระเงิน</li>
+      <li>ช่วงเวลานั้นกลับมาเปิดให้ลูกค้าคนอื่นจองได้ทันที</li>
+    </ul>
+  </div>
+
+  <h2 class="sec-title">คำถามที่พบบ่อย</h2>
+  <div class="qa">
+    <div><h3>ลูกค้าขอจ่ายเงินสดที่หน้าร้าน ทำอย่างไร</h3><p>เปิดคิวนั้นในหน้าคิวแล้วกด <b>อนุมัติ</b> คิวจะเปลี่ยนเป็นยืนยันแล้ว และระบบจะไม่ยกเลิกคิวนี้อัตโนมัติ</p></div>
+    <div><h3>ลูกค้าโอนเงินมาหลังคิวถูกยกเลิกไปแล้ว</h3><p>ระบบไม่เปิดคิวคืนให้เอง แต่จะแจ้งเตือนร้านว่ามีการชำระเงินหลังคิวถูกยกเลิก ร้านควรติดต่อลูกค้าเพื่อคืนเงินหรือจองคิวให้ใหม่</p></div>
+    <div><h3>ลูกค้าแนบสลิปผิดรูป</h3><p>ร้านกดปฏิเสธพร้อมเลือกเหตุผล ลูกค้าจะเห็นเหตุผลในหน้าคิวของฉันและแนบสลิปใหม่ได้</p></div>
+    <div><h3>ลูกค้าจองหลายช่องเวลาในครั้งเดียว</h3><p>ลูกค้าชำระยอดรวมครั้งเดียว เมื่อร้านอนุมัติ ทุกคิวในการจองนั้นเปลี่ยนเป็นยืนยันแล้วพร้อมกัน ถ้าไม่ชำระ ทุกคิวถูกยกเลิกพร้อมกัน</p></div>
+    <div><h3>บริการที่ตั้งให้ร้านอนุมัติก่อนรับจอง</h3><p>บริการกลุ่มนี้ใช้ขั้นตอนอนุมัติของร้านตามเดิม และไม่ถูกยกเลิกอัตโนมัติเมื่อเลยเวลาชำระ</p></div>
+    <div><h3>เปลี่ยนเวลาชำระแล้ว มีผลกับคิวที่จองไว้ก่อนหรือไม่</h3><p>ไม่มีผล เวลาใหม่ใช้กับการจองที่เกิดขึ้นหลังบันทึกการตั้งค่า</p></div>
+  </div>
+</section>
+
+</body>
+</html>

@@ -29,7 +29,7 @@ import {
   sampleBookingsInRange,
   type ShopCatalog,
 } from './fixtures.mts';
-import { BUSINESS_SHOT_NAMES, SHOTS, type BodyPatch, type Shot } from './shots.mts';
+import { BUSINESS_SHOT_NAMES, SHOTS, type BodyPatch, type FixtureBody, type Shot } from './shots.mts';
 
 const REQUIRED_ENV = ['SCREENSHOT_BASE_URL', 'SCREENSHOT_EMAIL', 'SCREENSHOT_PASSWORD', 'SCREENSHOT_SHOP_KEY'] as const;
 const OUTPUT_DIR = path.resolve('public/images/product');
@@ -93,6 +93,8 @@ async function fulfillJson(route: Route, body: unknown): Promise<void> {
  * @param sample Business catalog served in place of the demo shop's own, if any.
  * @param routes Fixed JSON bodies for read endpoints the shot wants in a given state.
  * @param patches Functions that rewrite a read endpoint's body (paths may contain `{shopKey}`).
+ * @param writes Answers for write requests the shot walks past; never sent to the server.
+ * @param me Body for LIFF `POST /me` in place of the default fixture.
  */
 async function guardApi(
   context: BrowserContext,
@@ -101,22 +103,33 @@ async function guardApi(
   sample?: BusinessCatalog,
   routes?: Record<string, unknown>,
   patches?: Record<string, BodyPatch>,
+  writes?: Record<string, FixtureBody>,
+  me?: FixtureBody,
 ): Promise<void> {
   const today = bangkokToday();
+  const ctx = { today, shopKey: env.SCREENSHOT_SHOP_KEY };
   const listBody = (rows: unknown[]) => ({ data: rows, pagination: { page: 1, page_size: rows.length, total: rows.length } });
-  const patchFor = new Map<string, BodyPatch>(
-    Object.entries(patches ?? {}).map(([p, fn]) => [p.replace('{shopKey}', encodeURIComponent(env.SCREENSHOT_SHOP_KEY)), fn]),
-  );
+  const withShopKey = (p: string) => p.replace('{shopKey}', encodeURIComponent(env.SCREENSHOT_SHOP_KEY));
+  const resolve = (body: FixtureBody): unknown => (typeof body === 'function' ? (body as (c: typeof ctx) => unknown)(ctx) : body);
+  const patchFor = new Map<string, BodyPatch>(Object.entries(patches ?? {}).map(([p, fn]) => [withShopKey(p), fn]));
+  const routeFor = new Map<string, unknown>(Object.entries(routes ?? {}).map(([p, body]) => [withShopKey(p), body]));
+  const writeFor = new Map<string, FixtureBody>(Object.entries(writes ?? {}).map(([p, body]) => [withShopKey(p), body]));
   await context.route(`${env.SCREENSHOT_BASE_URL}/api/**`, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const query = url.searchParams;
 
     if (/^\/api\/public\/shop\/[^/]+\/me$/.test(url.pathname)) {
+      if (me !== undefined) return fulfillJson(route, resolve(me));
       const onAccountPage = (request.headers().referer ?? '').includes('/member');
       return fulfillJson(route, meFixture(catalog, onAccountPage));
     }
     if (request.method() !== 'GET') {
+      const answer = writeFor.get(url.pathname);
+      if (answer !== undefined) {
+        console.log(`  answered ${request.method()} ${url.pathname} from fixture`);
+        return fulfillJson(route, resolve(answer));
+      }
       console.warn(`  blocked ${request.method()} ${url.pathname}`);
       return route.abort();
     }
@@ -127,7 +140,7 @@ async function guardApi(
      * the sample bookings layered over the real response.
      */
     const sampledBody = async (): Promise<unknown> => {
-      if (routes && url.pathname in routes) return routes[url.pathname];
+      if (routeFor.has(url.pathname)) return resolve(routeFor.get(url.pathname));
 
       if (sample) {
         if (/^\/api\/public\/shop\/[^/]+\/meta$/.test(url.pathname)) {
@@ -321,7 +334,7 @@ async function capture(
   sample?: BusinessCatalog,
 ): Promise<{ file: string; bytes: number }> {
   const context = await newContext(browser, shot, shot.kind === 'portal' ? statePath : undefined);
-  await guardApi(context, env, sample ?? (await loadCatalog(context, env)), sample, shot.routes, shot.patch);
+  await guardApi(context, env, sample ?? (await loadCatalog(context, env)), sample, shot.routes, shot.patch, shot.writes, shot.me);
   if (shot.kind === 'liff') await stubLiff(context);
 
   try {
@@ -347,6 +360,7 @@ async function capture(
       await settle(page);
     }
     if (shot.waitForText) await page.getByText(shot.waitForText).first().waitFor({ timeout: 15_000 });
+    if (shot.delayMs) await page.waitForTimeout(shot.delayMs);
 
     // The display's floating controls fade out after three idle seconds.
     if (shot.kind === 'display') await page.waitForTimeout(DISPLAY_CONTROLS_MS);
