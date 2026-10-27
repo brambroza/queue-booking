@@ -1,6 +1,7 @@
 import { PageShell } from '@/components/ui/page-shell';
 import { SettingsCrud } from '@/components/forms/settings-crud';
 import { GoogleCalendarSettings } from '@/components/forms/google-calendar-settings';
+import { ShowcaseSettingsCard } from '@/components/showcase/showcase-settings-card';
 
 export default function SettingsPage() {
   return (
@@ -8,6 +9,7 @@ export default function SettingsPage() {
       <div className="space-y-4">
         <GoogleCalendarSettings />
         <SettingsCrud />
+        <ShowcaseSettingsCard />
       </div>
     </PageShell>
   );

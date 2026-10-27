@@ -109,7 +109,17 @@ export default function PrivacyPolicyPage() {
                 </Box>
               </Section>
 
-              <Section title="5. ติดต่อเรา">
+              <Section title="5. การแสดงร้านค้าบนเว็บไซต์">
+                <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.9 }}>
+                  ร้านค้าที่ใช้บริการเลือกได้ว่าจะยินยอมให้เราแสดงชื่อร้าน โลโก้ ประเภทธุรกิจ พื้นที่ คำรีวิว
+                  และลิงก์จองคิวของร้านบนเว็บไซต์ เพื่อแนะนำร้านให้ลูกค้าใหม่หรือไม่ ความยินยอมนี้แยกจากการยอมรับเงื่อนไขการใช้งาน
+                  ไม่ยินยอมก็ใช้บริการได้ตามปกติ ร้านเลือกได้ว่าจะแสดงข้อมูลใด ทีมงานตรวจก่อนแสดงทุกครั้ง
+                  และถอนความยินยอมได้ทุกเมื่อที่หน้าตั้งค่าของร้าน เมื่อถอนแล้วข้อมูลจะหายจากเว็บไซต์ภายในไม่กี่นาที
+                  เราเก็บบันทึกวันเวลาที่ให้และถอนความยินยอมไว้เป็นหลักฐาน
+                </Typography>
+              </Section>
+
+              <Section title="6. ติดต่อเรา">
                 <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.9 }}>
                   หากมีคำถามเกี่ยวกับนโยบายความเป็นส่วนตัวหรือต้องการใช้สิทธิของคุณ ติดต่อได้ที่
                   <br />
@@ -120,7 +130,7 @@ export default function PrivacyPolicyPage() {
           </Paper>
 
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 3 }}>
-            ปรับปรุงล่าสุด: กรกฎาคม 2569
+            ปรับปรุงล่าสุด: ตุลาคม 2569
           </Typography>
         </Container>
       </Box>

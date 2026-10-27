@@ -10,6 +10,8 @@ import { env } from '@/lib/utils/env';
 import { normalizeBusinessType } from '@/lib/line/rich-menu/business-types';
 import { clientIp, hitRateLimit, tooManyRequests } from '@/lib/security/rate-limit';
 import { EXISTING_EMAIL_MESSAGE, isExistingEmailSignUp } from '@/lib/auth/signup-result';
+import { applyOwnerPatch, emptyShowcaseRow } from '@/lib/showcase/showcase-rules';
+import { logShowcaseEvents, saveShowcaseRow } from '@/lib/showcase/showcase-server';
 
 /** Generic failure for every later step: DB messages stay in the server log. */
 function registerFailed(step: string, detail?: string) {
@@ -29,7 +31,7 @@ export async function POST(req: Request) {
     const admin = createAdminClient();
     if (!(await hitRateLimit(admin, 'register', clientIp(req)))) return tooManyRequests();
 
-    const { company_name, shop_name, owner_name, phone, email, password, plan_name, business_category, utm } = parsed.data;
+    const { company_name, shop_name, owner_name, phone, email, password, plan_name, business_category, utm, showcase_consent } = parsed.data;
 
   const { data: authData, error: authError } = await admin.auth.signUp({
     email,
@@ -156,6 +158,18 @@ export async function POST(req: Request) {
     userId,
     businessCategory: business_category || null,
   });
+
+  // Optional landing-page consent. Best-effort: a missing table (migration
+  // 202610270001 not run) must not fail the signup; the owner can opt in later.
+  if (showcase_consent) {
+    try {
+      const { next, events } = applyOwnerPatch(emptyShowcaseRow(shop.id, company.id), { consent: true });
+      await saveShowcaseRow(admin, next);
+      await logShowcaseEvents(admin, next, events, userId, { source: 'register' });
+    } catch (showcaseErr) {
+      console.error('[register] showcase consent not saved:', showcaseErr instanceof Error ? showcaseErr.message : showcaseErr);
+    }
+  }
 
   // Someone who picked a paid tier on the pricing page is the warmest lead the
   // funnel produces. Capture it so sales can follow up.

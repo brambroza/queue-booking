@@ -20,6 +20,15 @@ export const BUSINESS_TYPES = [
   'field_service',
   'government',
   'consult',
+  'spa',
+  'sports_court',
+  'outdoor',
+  'pet',
+  'beauty_clinic',
+  'car_care',
+  'photo_studio',
+  'tutoring',
+  'event',
 ] as const;
 
 export type BusinessType = (typeof BUSINESS_TYPES)[number];
@@ -38,6 +47,15 @@ export const BUSINESS_TYPE_LABELS: Record<BusinessType, string> = {
   field_service: 'ทีมช่าง / ติดตั้งนอกสถานที่',
   government: 'หน่วยงานราชการ',
   consult: 'ที่ปรึกษา / นัดหมายส่วนตัว',
+  spa: 'สปา / ร้านนวด',
+  sports_court: 'สนามกีฬา (แบด / เทนนิส / ฟุตบอล)',
+  outdoor: 'สนามบีบีกัน / กิจกรรม outdoor',
+  pet: 'สัตว์เลี้ยง (อาบน้ำตัดขน / คลินิกสัตว์)',
+  beauty_clinic: 'คลินิกความงาม / ทันตกรรม',
+  car_care: 'คาร์แคร์ / ล้างรถ',
+  photo_studio: 'สตูดิโอถ่ายภาพ',
+  tutoring: 'คลาสเรียน / ติวเตอร์',
+  event: 'งานอีเวนต์ / สัมมนา / บูธ',
 };
 
 /**
@@ -58,6 +76,19 @@ const ALIASES: Record<string, BusinessType> = {
   'ทีมช่างติดตั้ง': 'field_service',
   'งานราชการ': 'government',
   consult: 'consult',
+  'สปา': 'spa',
+  'นวด': 'spa',
+  'สนามกีฬา': 'sports_court',
+  'สนามแบด': 'sports_court',
+  'บีบีกัน': 'outdoor',
+  'สัตว์เลี้ยง': 'pet',
+  'ทันตกรรม': 'beauty_clinic',
+  'คลินิกความงาม': 'beauty_clinic',
+  'ล้างรถ': 'car_care',
+  'คาร์แคร์': 'car_care',
+  'สตูดิโอ': 'photo_studio',
+  'ติวเตอร์': 'tutoring',
+  'อีเวนต์': 'event',
   // demo `demo_business_type`
   barber: 'salon',
   restaurant: 'restaurant',

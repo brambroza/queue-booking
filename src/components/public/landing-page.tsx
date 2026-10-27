@@ -30,6 +30,8 @@ import TranslateRoundedIcon from '@mui/icons-material/TranslateRounded';
 import UpdateRoundedIcon from '@mui/icons-material/UpdateRounded';
 import { faqs, pricingPlans } from './content';
 import { DigitalSignageShowcase } from './landing-signage-showcase';
+import { ShopShowcaseSection } from './landing-shop-showcase';
+import type { PublicShowcaseCard } from '@/lib/showcase/showcase-rules';
 import { BankAppPaymentShowcaseSection } from './sections';
 import { LandingFooter } from './landing-footer';
 import { LandingNavbar, lineFriendUrl } from './landing-navbar';
@@ -682,7 +684,8 @@ function FinalCta() {
   );
 }
 
-export function LandingPage() {
+/** @param showcase - Published shops (`loadPublicShowcase`); the section hides when empty. */
+export function LandingPage({ showcase = [] }: { showcase?: PublicShowcaseCard[] }) {
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -882,6 +885,7 @@ export function LandingPage() {
         <GoogleCalendarShowcase />
         <DigitalSignageShowcase />
         <OutcomeSection />
+        <ShopShowcaseSection shops={showcase} />
         <PricingSection />
         <SupportSection />
         <LandingFaqSection />

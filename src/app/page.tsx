@@ -1,6 +1,10 @@
 import type { Metadata } from 'next';
 import { LandingPage } from '@/components/public/landing-page';
 import { faqs } from '@/components/public/content';
+import { loadPublicShowcase } from '@/lib/showcase/showcase-server';
+
+/** Showcase changes call revalidatePath('/'); this is the fallback refresh. */
+export const revalidate = 300;
 
 
 export const metadata: Metadata = {
@@ -29,7 +33,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function HomePage() {
+export default async function HomePage() {
+  const showcase = await loadPublicShowcase();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://queuebooking.com';
   const softwareSchema = {
     '@context': 'https://schema.org',
@@ -84,7 +89,7 @@ export default function HomePage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
-      <LandingPage />
+      <LandingPage showcase={showcase} />
     </>
   );
 }

@@ -3,8 +3,9 @@ import { BUSINESS_TYPE_LABELS, BUSINESS_TYPES, normalizeBusinessType } from './b
 
 /** Must stay in sync with BUSINESS_CATEGORIES in src/components/auth/register-form.tsx */
 const REGISTRATION_VALUES = [
-  'ร้านตัดผม', 'ร้านทำเล็บ', 'คลินิก', 'ร้านอาหาร', 'buffet', 'fitness', 'meeting_room',
-  'ร้านซ่อมรถ', 'ร้านซ่อมมือถือ', 'ทีมช่างติดตั้ง', 'งานราชการ', 'Consult',
+  'ร้านตัดผม', 'ร้านทำเล็บ', 'spa', 'คลินิก', 'beauty_clinic', 'pet', 'ร้านอาหาร', 'buffet', 'fitness',
+  'sports_court', 'outdoor', 'tutoring', 'photo_studio', 'event', 'meeting_room',
+  'ร้านซ่อมรถ', 'car_care', 'ร้านซ่อมมือถือ', 'ทีมช่างติดตั้ง', 'งานราชการ', 'Consult',
 ];
 
 describe('normalizeBusinessType', () => {
@@ -27,7 +28,7 @@ describe('normalizeBusinessType', () => {
   it('returns null for empty or unknown', () => {
     expect(normalizeBusinessType(null)).toBeNull();
     expect(normalizeBusinessType('')).toBeNull();
-    expect(normalizeBusinessType('spa')).toBeNull();
+    expect(normalizeBusinessType('bakery')).toBeNull();
   });
 
   it('has a Thai label for every type', () => {

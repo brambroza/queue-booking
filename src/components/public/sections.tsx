@@ -23,7 +23,7 @@ import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import { alpha, type Theme } from '@mui/material/styles';
 import { MOBILE_BANKS } from '@/lib/payments/mobile-banking/banks';
-import { features, pricingPlans, testimonials, useCases as useCaseCards } from './content';
+import { features, pricingPlans, useCases as useCaseCards } from './content';
 
 /** สไตล์ chip แบรนด์ (soft) — theme-aware รองรับ light/dark */
 const brandChipSx = (theme: Theme) => ({
@@ -618,14 +618,6 @@ export function PricingPreviewSection() {
           </Grid>
         ))}
       </Grid>
-    </SectionWrap>
-  );
-}
-
-export function TestimonialSection() {
-  return (
-    <SectionWrap title="ร้านค้าที่ใช้ระบบจัดการคิวได้ง่ายขึ้น" sub="เสียงตอบรับจากธุรกิจบริการ" tag="Testimonials" bg="#f6f7f9">
-      <Grid container spacing={2}>{testimonials.map((t) => <Grid key={t.name} size={{ xs: 12, md: 4 }}><Card sx={{ borderRadius: 1, height: '100%' }}><CardContent><Typography>“{t.quote}”</Typography><Typography fontWeight={700} sx={{ mt: 1.2 }}>{t.name}</Typography><Typography variant="caption" color="text.secondary">{t.type}</Typography></CardContent></Card></Grid>)}</Grid>
     </SectionWrap>
   );
 }

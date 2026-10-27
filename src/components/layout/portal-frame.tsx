@@ -36,6 +36,7 @@ import {
 } from '@/components/layout/sidebar-collapse-context';
 import { useI18n } from '@/components/i18n/i18n-provider';
 import { DemoModeBanner } from '@/components/demo/demo-mode-banner';
+import { ShowcasePromptBanner } from '@/components/showcase/showcase-prompt-banner';
 import { PortalTour } from '@/components/layout/portal-tour';
 import { UpgradeProvider } from '@/components/subscription/upgrade-provider';
 
@@ -359,6 +360,7 @@ function PortalFrameInner({
         <Box component="main" data-tour="page-content" sx={{ pt: { xs: 1.5, md: '15px' }, pb: 4 }}>
           <Container maxWidth="xl">
             <DemoModeBanner show={demoModeEnabled} />
+            <ShowcasePromptBanner hidden={demoModeEnabled || isSuperAdmin} />
             <UpgradeProvider>{children}</UpgradeProvider>
           </Container>
         </Box>

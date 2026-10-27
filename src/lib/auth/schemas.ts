@@ -12,6 +12,8 @@ export const registerSchema = z.object({
   business_category: z.string().trim().max(60).optional().default(''),
   /** First-touch campaign parameters captured on the landing page. */
   utm: z.record(z.string()).optional(),
+  /** Separate PDPA consent to be shown on the landing page; never pre-ticked. */
+  showcase_consent: z.boolean().optional().default(false),
 });
 
 export const loginSchema = z.object({

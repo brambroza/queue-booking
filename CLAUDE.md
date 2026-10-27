@@ -126,6 +126,7 @@ src/
 | `/api/cron/payment-expiry` | pg_cron every 5 min (`Bearer CRON_SECRET`): cancels LIFF orders held `pending_approval` for payment once `payment_expires_at` + 5 min passed unpaid (Omise / deeplink re-checked at the provider first) |
 | `/api/payments/webhook` | Omise webhook (shared secret `?key=`) |
 | `/api/payments/bank/[provider]/webhook/[shopKey]` | Bank deeplink confirmation (per-shop secret `?key=`, verified by inquiry) |
+| `/api/shop-showcase` | Landing-page showcase of this shop: GET consent + fields + review state (staff may read); PATCH `consent`, `show_*`, `area_label`, `quote`, `submit` (shop_owner) — writes via service role, rules in `applyOwnerPatch` |
 | `/api/me-profile` | Current user profile |
 | `/api/available-slots` | Slot availability check |
 | `/api/service-templates` | Service templates |
@@ -166,6 +167,7 @@ src/
 | `/api/admin/shop-subscriptions` | Manage shop plans; GET also returns `setup` (5-step progress per shop, `src/lib/onboarding/status.ts`, same rules as the dashboard checklist) and `email_log` (last onboarding email per shop) |
 | `/api/admin/shop-subscriptions/send-email` | Send an onboarding email to the shop owner: `kind=setup_guide` (LINE OA setup nudge + PDF `public/docs/line-setup-guide.pdf`, source `docs/guides/line-setup-guide.html`) or `kind=go_live` (needs 5/5 steps; closes demo mode via `disableDemoMode` then sends). 409 `line_already_connected` / `recently_sent` need `force`; every send is audit-logged `onboarding_email_sent` |
 | `/api/admin/active-shop` | Acting shop for super_admin (GET list + current, POST select, DELETE clear) — stored in httpOnly cookie `portal_admin_shop_id`, applied by `requireAuthContext` |
+| `/api/admin/shop-showcase` | Showcase review queue (GET, with real-booking count + LINE flag) and `approve\|reject\|unpublish\|feature\|unfeature` (PATCH, reason required for reject/unpublish, notifies the shop, audit-logged) |
 | `/api/shop-subscription/current` | Current plan status |
 
 ---
@@ -424,6 +426,18 @@ Two LINE automations that bring customers back, both **default off**, set at `/p
 - Senders `src/lib/line/notify-automation.ts` (`safeSendFollowup`, `safeSendWinback`, never throw, record every attempt); Flex in `messages-automation.ts`; vitest in `src/lib/automation/automation-rules.test.ts` + `src/lib/line/notify-automation.test.ts`
 - Not done: `ref` param on the LIFF link (attribution is time-window only), customers page "เลยกำหนด" badge, weekly owner digest, RFM segments, no-show risk → deposit, waitlist. Untested against a real LINE OA
 
+## Shop Showcase บนหน้าแรก (2026-10-27)
+
+ร้านยินยอม (PDPA แยกจาก terms, ไม่ติ๊กไว้ก่อน) ให้แสดงชื่อ/โลโก้/ประเภท/พื้นที่/คำรีวิว/ปุ่มจองบน `/` — ช่องที่ `/register` และการ์ด `ShowcaseSettingsCard` ที่ `/portal/settings#showcase`; super_admin ตรวจที่ `/portal/shop-showcase`
+- Migration `202610270001_shop_showcase.sql` (**run before use** — app อ่านแบบ defensive: ไม่รัน = หน้าแรกไม่มี section, การ์ดขึ้น "ยังไม่พร้อม", สมัครไม่พัง). `shop_showcase` RLS select-only (`can_access_shop`) — **เขียนผ่าน service role เท่านั้น** กันร้านตั้ง published เอง; `shop_showcase_events` = หลักฐาน consent/revoke/review (append-only)
+- สถานะ `draft → pending → approved | rejected`, ถอน = `revoked`. หน้าแรกแสดงเมื่อ `consent && published_at` และใช้ `published_quote` (snapshot ตอนอนุมัติ) — แก้คำรีวิวหลังอนุมัติต้องส่งตรวจใหม่ ระหว่างนั้นข้อความเดิมยังแสดง; reject ของการส่งซ้ำคงของเดิม, `unpublish` เอาออก. ถอนความยินยอม = ล้าง snapshot + featured ทันที
+- Rules + vitest: `src/lib/showcase/showcase-rules.ts` (`applyOwnerPatch`, `applyAdminAction`, `toPublicShowcaseCard` กรองช่องที่ร้านปิดฝั่ง server, logo https เท่านั้น, ลิงก์จองผ่าน `resolveCustomerLiffUrl` tab booking); server `showcase-server.ts` (`loadPublicShowcase` cache `showcase:public` 60s, error = `[]`; `invalidatePublicShowcase` ลบ cache + `revalidatePath('/')`). `/` เป็น `revalidate = 300`
+- Landing: `ShopShowcaseSection` (`landing-shop-showcase.tsx`) แถบโลโก้ทุกร้าน + การ์ดรีวิว ≤6 (featured ก่อน) — ไม่มีร้าน = ไม่ render เลย, ห้ามใส่ข้อมูลตัวอย่าง. `testimonials` ตัวอย่างเดิมใน `content.ts` ถูกลบแล้ว
+- เกณฑ์ช่วยตรวจ (ไม่บังคับ): เชื่อม LINE, คิวจริง ≥ 20, ไม่อยู่ demo mode (`showcaseEligibility`); ร้าน demo mode ถูกกรองออกจากหน้าแรกเสมอ
+- Banner ชวนร้านเดิม `ShowcasePromptBanner` (ใน `portal-frame`, ใต้ demo banner) ขึ้นครั้งเดียวต่อร้าน: เฉพาะ `shop_owner` (ไม่ใช่ super_admin), ไม่ใช่ demo mode, ยังไม่ยินยอม/ไม่เคยถอน และ `shop_showcase.prompt_dismissed_at` ว่าง (`shouldShowShowcasePrompt`). กด "ดูรายละเอียด" หรือ "ไม่สนใจ" / ✕ = `PATCH /api/shop-showcase { dismiss_prompt: true }` เก็บใน DB ไม่ใช่ localStorage
+- `SHOWCASE_CONSENT_VERSION` ต้อง bump เมื่อแก้ข้อความยินยอม (ตอนนี้แค่บันทึก ไม่บังคับยืนยันใหม่)
+- Not done: สิ่งจูงใจ (ส่วนลด/โควตา — รอ management), กรองตามประเภทในหน้า use case, หน้า `/en`, public API route, บังคับยืนยันใหม่เมื่อ version เปลี่ยน
+
 ## Queue Number
 
 เลขคิวออกโดย **DB trigger** `assign_queue_number` (migration `202609220001_queue_number_sequence.sql` — **must run before deploy**: app ไม่ส่ง `queue_number` ตอน insert แล้ว ถ้าไม่มี trigger จะพัง NOT NULL)
@@ -469,7 +483,7 @@ pending | pending_approval | confirmed | checked_in | waiting ─(ลูกค�
 ## Rich Menu Builder (`/portal/rich-menu`)
 
 เลือกประเภทธุรกิจ → master template (layout + ไอคอน + ข้อความไทย + สี) → preview → ดาวน์โหลด / บันทึกรูป / เผยแพร่ไป LINE
-- Lib ทั้งหมดที่ `src/lib/line/rich-menu/` (pure, มี vitest): `business-types.ts` (`BUSINESS_TYPES` 12 ค่า, `normalizeBusinessType` map จาก registration `business_category` + `demo_business_type`), `layouts.ts` (cells integer ใน 2500-space: `hero3|grid3x2|grid2x2|grid3x1|grid2x1`), `templates.ts` (`templateForBusiness`, `refitButtonsForLayout`), `schema.ts` (`RichMenuConfigSchema` v1: label ≤20, chatBarText ≤14, buttons = จำนวน cell), `render.ts` (`renderRichMenu` วาดใน 2500-space แล้ว `scale` — preview กับ export ใช้โค้ดเดียว), `line-request.ts` (`buildRichMenuRequest` → LINE `areas` จาก cell เดียวกับภาพ, throw `RichMenuConfigError` ถ้าไม่มี LIFF ID), `line-api.ts` (create / upload content ผ่าน **api-data.line.me** / set default / delete), `canvas.ts` (browser only: `ensureFontsLoaded`, `canvasToBlobUnderCap` PNG→JPEG ถ้าเกิน 1 MB), `image-size.ts` (ตรวจขนาด PNG/JPEG ฝั่ง server)
+- Lib ทั้งหมดที่ `src/lib/line/rich-menu/` (pure, มี vitest): `business-types.ts` (`BUSINESS_TYPES` 21 ค่า — 2026-10-27 เพิ่ม spa, sports_court, outdoor, pet, beauty_clinic, car_care, photo_studio, tutoring, event; หน้าสมัครส่ง key เหล่านี้ตรง ๆ และ `service_templates` ของ 9 ประเภทนี้อยู่ใน migration `202610270002_more_business_templates.sql` (ไม่รัน = ร้านใหม่ได้ "บริการทั่วไป" 1 รายการ ไม่พัง), `normalizeBusinessType` map จาก registration `business_category` + `demo_business_type`), `layouts.ts` (cells integer ใน 2500-space: `hero3|grid3x2|grid2x2|grid3x1|grid2x1`), `templates.ts` (`templateForBusiness`, `refitButtonsForLayout`), `schema.ts` (`RichMenuConfigSchema` v1: label ≤20, chatBarText ≤14, buttons = จำนวน cell), `render.ts` (`renderRichMenu` วาดใน 2500-space แล้ว `scale` — preview กับ export ใช้โค้ดเดียว), `line-request.ts` (`buildRichMenuRequest` → LINE `areas` จาก cell เดียวกับภาพ, throw `RichMenuConfigError` ถ้าไม่มี LIFF ID), `line-api.ts` (create / upload content ผ่าน **api-data.line.me** / set default / delete), `canvas.ts` (browser only: `ensureFontsLoaded`, `canvasToBlobUnderCap` PNG→JPEG ถ้าเกิน 1 MB), `image-size.ts` (ตรวจขนาด PNG/JPEG ฝั่ง server)
 - UI: `src/components/rich-menu/` (`RichMenuBuilder` container + pickers + `PhonePreview` + `ExportBar`); studio ไอคอนรายชิ้นเดิม (`src/components/onboarding/rich-menu-icon-studio.tsx`) ใช้ icons/colors/canvas จาก lib เดียวกัน ไม่มี sheet export แล้ว
 - Publish flow: ต้อง save config → บันทึกรูปลงระบบ (`shops.rich_menu_image_url`) → publish; server อ่านรูปกลับจาก storage, ตรวจขนาดตรง layout, สร้าง menu บน LINE, ถ้า upload/set default พังจะลบ menu ที่เพิ่งสร้าง; menu เก่าของระบบถูกลบ best-effort; เก็บ `shops.line_rich_menu_id` + `rich_menu_published_at`
 - Rich menu ที่สร้างผ่าน API **ไม่แสดงใน LINE OA Manager** — UI โชว์ id + วันที่ + ปุ่มยกเลิกการเผยแพร่

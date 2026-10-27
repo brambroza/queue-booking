@@ -26,6 +26,14 @@ export const ICON_KEYS = [
   'hardhat',
   'document',
   'talk',
+  'lotus',
+  'ball',
+  'target',
+  'paw',
+  'tooth',
+  'camera',
+  'book',
+  'ticket',
 ] as const;
 
 export type IconKey = (typeof ICON_KEYS)[number];
@@ -215,6 +223,73 @@ export const ICONS: Record<IconKey, IconDef> = {
     svg: (c) => `
       <path d="M2 4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-4 3v-3H4a2 2 0 0 1-2-2z" fill="${c}"/>
       <path d="M22 11a2 2 0 0 0-2-2h-2v3a3 3 0 0 1-3 3H10v1a2 2 0 0 0 2 2h4l4 3v-3a2 2 0 0 0 2-2z" fill="${c}"/>`,
+  },
+  lotus: {
+    key: 'lotus',
+    name: 'สปา',
+    svg: (c, k) => `
+      <path d="M12 3c2.6 2.4 3.6 5 3.6 7.6S14 15.8 12 17c-2-1.2-3.6-3.8-3.6-6.4S9.4 5.4 12 3z" fill="${c}"/>
+      <path d="M3 9.5c3.3.2 6 1.8 7.4 4.6.6 1.3.9 2.3 1 2.9-3.5.2-6.3-1.1-7.6-3.7A8 8 0 0 1 3 9.5zM21 9.5c-3.3.2-6 1.8-7.4 4.6-.6 1.3-.9 2.3-1 2.9 3.5.2 6.3-1.1 7.6-3.7A8 8 0 0 0 21 9.5z" fill="${c}"/>
+      <rect x="4" y="18.6" width="16" height="2.4" rx="1.2" fill="${c}"/>
+      <path d="M12 7.5v6" stroke="${k}" stroke-width="1.4" stroke-linecap="round"/>`,
+  },
+  ball: {
+    key: 'ball',
+    name: 'กีฬา',
+    svg: (c, k) => `
+      <circle cx="12" cy="12" r="10" fill="${c}"/>
+      <path d="M4.6 6.6c3 1.7 4.6 4.3 4.6 7.6 0 2.4-.8 4.6-2.3 6.4M19.4 6.6c-3 1.7-4.6 4.3-4.6 7.6 0 2.4.8 4.6 2.3 6.4" fill="none" stroke="${k}" stroke-width="1.6" stroke-linecap="round"/>`,
+  },
+  target: {
+    key: 'target',
+    name: 'เป้า',
+    svg: (c, k) => `
+      <circle cx="12" cy="12" r="10" fill="${c}"/>
+      <circle cx="12" cy="12" r="6.6" fill="${k}"/>
+      <circle cx="12" cy="12" r="4.4" fill="${c}"/>
+      <circle cx="12" cy="12" r="1.8" fill="${k}"/>`,
+  },
+  paw: {
+    key: 'paw',
+    name: 'สัตว์เลี้ยง',
+    svg: (c) => `
+      <ellipse cx="6" cy="9.5" rx="2.2" ry="2.8" fill="${c}"/>
+      <ellipse cx="10" cy="5.5" rx="2.2" ry="2.8" fill="${c}"/>
+      <ellipse cx="14" cy="5.5" rx="2.2" ry="2.8" fill="${c}"/>
+      <ellipse cx="18" cy="9.5" rx="2.2" ry="2.8" fill="${c}"/>
+      <path d="M12 11c3 0 6.5 4.2 6.5 7a2.8 2.8 0 0 1-3.2 2.8c-1.3-.2-2.2-.8-3.3-.8s-2 .6-3.3.8A2.8 2.8 0 0 1 5.5 18c0-2.8 3.5-7 6.5-7z" fill="${c}"/>`,
+  },
+  tooth: {
+    key: 'tooth',
+    name: 'ฟัน / ความงาม',
+    svg: (c, k) => `
+      <path d="M7 2.5c1.8 0 3 .9 5 .9s3.2-.9 5-.9c2.8 0 4.5 2.3 4.5 5.3 0 3.2-1.5 5.2-2.3 8.5-.6 2.6-1.1 5.2-2.7 5.2-1.8 0-2-3.6-2.6-5.6-.3-1-.9-1.6-1.9-1.6s-1.6.6-1.9 1.6c-.6 2-.8 5.6-2.6 5.6-1.6 0-2.1-2.6-2.7-5.2-.8-3.3-2.3-5.3-2.3-8.5 0-3 1.7-5.3 4.5-5.3z" fill="${c}"/>
+      <path d="M8 6.5c1.2.4 2.5.6 4 .6" fill="none" stroke="${k}" stroke-width="1.5" stroke-linecap="round"/>`,
+  },
+  camera: {
+    key: 'camera',
+    name: 'กล้อง',
+    svg: (c, k) => `
+      <path d="M8.5 4h7l1.6 2.5H20a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.5a2 2 0 0 1 2-2h2.9z" fill="${c}"/>
+      <circle cx="12" cy="13" r="4.6" fill="${k}"/>
+      <circle cx="12" cy="13" r="3" fill="${c}"/>
+      <circle cx="18.4" cy="9.4" r="1" fill="${k}"/>`,
+  },
+  book: {
+    key: 'book',
+    name: 'คลาสเรียน',
+    svg: (c, k) => `
+      <path d="M2 5.2C4.8 3.8 8.4 3.8 11.2 5.6V21c-2.8-1.8-6.4-1.8-9.2-.4z" fill="${c}"/>
+      <path d="M22 5.2c-2.8-1.4-6.4-1.4-9.2.4V21c2.8-1.8 6.4-1.8 9.2-.4z" fill="${c}"/>
+      <path d="M15 9.2c1.5-.5 3-.5 4.6 0M15 12.6c1.5-.5 3-.5 4.6 0" fill="none" stroke="${k}" stroke-width="1.4" stroke-linecap="round"/>`,
+  },
+  ticket: {
+    key: 'ticket',
+    name: 'บัตรเข้างาน',
+    svg: (c, k) => `
+      <path d="M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2.6a2.4 2.4 0 0 0 0 4.8V17a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2.6a2.4 2.4 0 0 0 0-4.8z" fill="${c}"/>
+      <path d="M15.5 6.5v11" stroke="${k}" stroke-width="1.4" stroke-dasharray="1.6 1.6"/>
+      <path d="M6 10h6M6 13.6h4" stroke="${k}" stroke-width="1.6" stroke-linecap="round"/>`,
   },
 };
 

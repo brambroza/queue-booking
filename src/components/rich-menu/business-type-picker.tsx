@@ -11,7 +11,7 @@ type Props = {
   onChange: (type: BusinessType) => void;
 };
 
-/** Grid of the 12 business types; picking one applies its master template. */
+/** Grid of every business type; picking one applies its master template. */
 export function BusinessTypePicker({ value, onChange }: Props) {
   return (
     <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 1 }}>

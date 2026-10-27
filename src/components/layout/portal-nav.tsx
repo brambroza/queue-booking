@@ -32,6 +32,7 @@ import QrCodeRoundedIcon from '@mui/icons-material/QrCodeRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import TranslateRoundedIcon from '@mui/icons-material/TranslateRounded';
 import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRounded';
+import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
 import ScienceRoundedIcon from '@mui/icons-material/ScienceRounded';
 import ChecklistRoundedIcon from '@mui/icons-material/ChecklistRounded';
 import AppsRoundedIcon from '@mui/icons-material/AppsRounded';
@@ -119,6 +120,7 @@ const groups: NavGroup[] = [
     items: [
       { labelKey: 'menu.translations', fallback: 'การแปลภาษา', href: '/portal/translations', icon: <TranslateRoundedIcon fontSize="small" />, superAdminOnly: true },
       { labelKey: 'menu.shop_packages', fallback: 'แพ็กเกจร้าน', href: '/portal/shop-subscriptions', icon: <WorkspacePremiumRoundedIcon fontSize="small" />, superAdminOnly: true },
+      { labelKey: 'menu.shop_showcase', fallback: 'ร้านบนหน้าแรก', href: '/portal/shop-showcase', icon: <StorefrontRoundedIcon fontSize="small" />, superAdminOnly: true },
       { labelKey: 'menu.sales_inbox', fallback: 'Sales Inbox', href: '/portal/sales-inbox', icon: <MarkEmailUnreadRoundedIcon fontSize="small" />, superAdminOnly: true },
     ],
   },

@@ -111,12 +111,6 @@ export const pricingPlansEn: PricingPlan[] = [
   { code: 'enterprise', name: 'Enterprise', price: 'Contact sales', period: '', desc: 'Tailored for organisations', items: ['Custom features', 'Dedicated support', 'SLA', 'On-premise option'], contactSales: true },
 ];
 
-export const testimonials = [
-  { name: 'Narin Barber', type: 'ร้านตัดผม', quote: 'ลูกค้าจองคิวผ่าน LINE ได้เลย ลดเวลาตอบแชทหน้าร้านลงชัดเจน' },
-  { name: 'Care Plus Clinic', type: 'คลินิก', quote: 'จัดการแพทย์และคิวคนไข้ได้ง่ายขึ้น ทั้งแบบนัดและขออนุมัติ' },
-  { name: 'Service Hub Center', type: 'ศูนย์บริการ', quote: 'พนักงานเห็นคิวเรียลไทม์ทุกสาขา และรายงานช่วยวางกำลังคนได้ดี' },
-];
-
 export const featureCompare = [
   { key: 'จำนวนสาขา', starter: '1', pro: '5', business: 'ไม่จำกัด', enterprise: 'Custom' },
   { key: 'จำนวนบริการ', starter: '3', pro: 'ไม่จำกัด', business: 'ไม่จำกัด', enterprise: 'ไม่จำกัด' },

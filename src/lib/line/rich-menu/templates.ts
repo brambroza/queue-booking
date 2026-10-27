@@ -100,6 +100,68 @@ const SEEDS: Record<BusinessType, TemplateSeed> = {
     btn('talk', 'นัดปรึกษา', liffBooking),
     btn('contact', 'ติดต่อ', msg('ติดต่อสอบถาม')),
   ]),
+  spa: T('hero3', 'card', '#8a5a44', 'จองนวด', [
+    btn('lotus', 'จองคิวนวด', liffBooking),
+    btn('member', 'สมาชิก', liffMember),
+    btn('services', 'บริการ & ราคา', msg('ขอดูบริการและราคา')),
+    btn('contact', 'ติดต่อร้าน', msg('ติดต่อร้าน')),
+  ]),
+  sports_court: T('grid3x2', 'bold', '#0e7c4a', 'จองสนาม', [
+    btn('ball', 'จองสนาม', liffBooking),
+    btn('queue', 'การจองของฉัน', liffMember),
+    btn('hours', 'ตารางว่าง', liffBooking),
+    btn('promo', 'ราคา / โปร', msg('ขอดูราคาและโปรโมชัน')),
+    btn('location', 'แผนที่', url()),
+    btn('contact', 'ติดต่อ', msg('ติดต่อสนาม')),
+  ]),
+  outdoor: T('grid2x2', 'bold', '#4d5b2a', 'จองรอบ', [
+    btn('target', 'จองรอบเล่น', liffBooking),
+    btn('queue', 'การจองของฉัน', liffMember),
+    btn('services', 'แพ็กเกจ & ราคา', msg('ขอดูแพ็กเกจและราคา')),
+    btn('location', 'แผนที่', url()),
+  ]),
+  pet: T('grid2x2', 'card', '#d9822b', 'นัดน้อง', [
+    btn('paw', 'นัดอาบน้ำ / ตรวจ', liffBooking),
+    btn('queue', 'นัดของฉัน', liffMember),
+    btn('services', 'บริการ & ราคา', msg('ขอดูบริการและราคา')),
+    btn('contact', 'ติดต่อร้าน', msg('ติดต่อร้าน')),
+  ]),
+  beauty_clinic: T('grid3x2', 'clean', '#b0567a', 'นัดหมาย', [
+    btn('tooth', 'นัดหมาย', liffBooking),
+    btn('queue', 'เช็คคิว', liffMember),
+    btn('member', 'ประวัติของฉัน', liffMember),
+    btn('promo', 'โปรโมชัน', msg('ขอดูโปรโมชัน')),
+    btn('location', 'แผนที่', url()),
+    btn('contact', 'ปรึกษาแพทย์', msg('ขอปรึกษาแพทย์')),
+  ]),
+  car_care: T('hero3', 'card', '#1c6fb5', 'จองคิวล้างรถ', [
+    btn('car', 'จองคิวล้างรถ', liffBooking),
+    btn('queue', 'คิวของฉัน', liffMember),
+    btn('services', 'แพ็กเกจ & ราคา', msg('ขอดูแพ็กเกจและราคา')),
+    btn('location', 'แผนที่', url()),
+  ]),
+  photo_studio: T('grid2x2', 'clean', '#2b2b2b', 'จองถ่ายภาพ', [
+    btn('camera', 'จองคิวถ่าย', liffBooking),
+    btn('queue', 'นัดของฉัน', liffMember),
+    btn('promo', 'แพ็กเกจ', msg('ขอดูแพ็กเกจ')),
+    btn('contact', 'ติดต่อสตูดิโอ', msg('ติดต่อสตูดิโอ')),
+  ]),
+  tutoring: T('grid3x2', 'clean', '#3557b7', 'จองคลาส', [
+    btn('book', 'จองคลาส', liffBooking),
+    btn('queue', 'คลาสของฉัน', liffMember),
+    btn('hours', 'ตารางเรียน', url()),
+    btn('services', 'คอร์ส & ราคา', msg('ขอดูคอร์สและราคา')),
+    btn('location', 'แผนที่', url()),
+    btn('contact', 'ติดต่อ', msg('ติดต่อสอบถาม')),
+  ]),
+  event: T('grid3x2', 'bold', '#6b3fd4', 'ลงทะเบียน', [
+    btn('ticket', 'ลงทะเบียน', liffBooking),
+    btn('queue', 'บัตรของฉัน', liffMember),
+    btn('hours', 'กำหนดการ', url()),
+    btn('location', 'แผนที่ / ผังงาน', url()),
+    btn('promo', 'บูธ & กิจกรรม', msg('ขอดูบูธและกิจกรรม')),
+    btn('contact', 'ติดต่อผู้จัด', msg('ติดต่อผู้จัดงาน')),
+  ]),
 };
 
 /** Generic template when the shop has no business type yet. */

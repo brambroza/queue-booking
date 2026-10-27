@@ -4613,3 +4613,116 @@
     transition: none !important;
   }
 }
+
+/* Shop showcase (real shops that opted in via shop_showcase) */
+.showcaseSection {
+  position: relative;
+  padding: 124px 0;
+  border-top: 1px solid var(--landing-line);
+  background: var(--landing-white);
+}
+.showcaseStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 28px;
+  margin: 56px 0 0;
+  padding: 22px 0;
+  list-style: none;
+  border-top: 1px solid var(--landing-line);
+  border-bottom: 1px solid var(--landing-line);
+}
+.showcaseStrip li {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--landing-muted);
+  font-size: 15px;
+  font-weight: 600;
+}
+.showcaseMark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--landing-mint-strong);
+  color: var(--landing-green-dark);
+  font-size: 18px;
+  font-weight: 700;
+}
+.showcaseMarkSmall {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.showcaseGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 32px;
+}
+.showcaseCard {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  padding: 26px;
+  border: 1px solid var(--landing-line);
+  border-radius: 18px;
+  background: var(--landing-white);
+}
+.showcaseCard blockquote {
+  margin: 0;
+  color: var(--landing-ink);
+  font-size: 17px;
+  line-height: 1.7;
+}
+.showcaseCardFoot {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+.showcaseCardFoot strong,
+.showcaseCardFoot small {
+  display: block;
+}
+.showcaseCardFoot small {
+  color: var(--landing-muted);
+  font-size: 13px;
+}
+.showcaseLink {
+  justify-self: start;
+  color: var(--landing-green-dark);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.showcaseLink:hover {
+  text-decoration: underline;
+}
+.showcaseNote {
+  margin: 28px 0 0;
+  color: var(--landing-muted);
+  font-size: 14px;
+}
+
+@media (max-width: 980px) {
+  .showcaseSection {
+    padding: 88px 0;
+  }
+  .showcaseGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .showcaseGrid {
+    grid-template-columns: 1fr;
+  }
+  .showcaseStrip {
+    margin-top: 36px;
+  }
+}
