@@ -112,6 +112,7 @@ src/
 | `/api/notifications` | Notification center |
 | `/api/chat-inbox` | LINE chat inbox + push reply |
 | `/api/line-settings` | LINE OA configuration |
+| `/api/customer-guide` | Data for the customer how-to image on `/portal/line-settings`: OA `basic_id` + add-friend URL (LINE `/v2/bot/info` with the shop token), saved rich menu config (or business template) + `is_saved` / `is_published`, first 3 active services, example `slot_times` from working hours, first `branch_name`, `logo_url` (https only) |
 | `/api/settings` | Shop settings |
 | `/api/shop-display-settings` | Customer-facing flags on `shops`: `show_service_duration`, `one_booking_per_day`, `multi_slot_enabled` (GET all, staff may read; PATCH keys optional) |
 | `/api/fnb-settings` | F&B ordering switch (`shops.fnb_enabled`); turning ON needs Professional+ (`assertFnbPlan`, 402 `feature_locked`), OFF always allowed |
@@ -308,6 +309,14 @@ await safeCreateNotification({ shopId, type: 'booking_created', ... });
 - Window helper: `computeReminderWindow` / `isInReminderWindow` (`src/lib/line/booking-reminder.ts`) เทียบ `booking_date`+`start_time` ใน Asia/Bangkok
 
 ---
+
+## Customer Guide Image (`/portal/line-settings`, 2026-10-28)
+
+`CustomerGuideCard` (`src/components/line-settings/customer-guide-card.tsx`) draws **one** 1080×1920 PNG of this shop's booking flow for the shop to post on Facebook or send in LINE — 5 rows, text left + mock screen right: 1) scan the OA add-friend QR (`https://line.me/R/ti/p/%40{basicId}`) + id, 2) the shop's saved rich menu (`renderRichMenu`) with the booking button ringed + "แตะ", 3) up to 3 real active services (name, duration, price; first selected), 4) date strip (next 5 days from today, Bangkok) + 6 time chips from the shop's first active `working_hours` row (one picked, one "เต็ม"), 5) the **real** booking-confirmed Flex — `exampleConfirmBubble` calls `bookingConfirmFlex` (queue A001, first branch, picks from steps 3–4) and `src/lib/line/flex-canvas.ts` paints it on a LINE chat background (subset renderer: bubble header/body/footer, box, text, button, separator; LINE px sizes — a likeness, not LINE's renderer; a builder change shows up automatically). Step 4 hint says dates are examples. Theme color = rich menu color unless the shop picks a preset / custom color; logo = none, the shop's `logo_url` (needs CORS on storage, else disabled) or a local file (PNG/JPG/WebP ≤5 MB, never uploaded) — shown in the header and as the chat avatar; color/logo changes redraw live. Drawn in the browser only — nothing stored, no migration
+- Data `GET /api/customer-guide` (`services`, `slot_times`, `basic_id`, `add_friend_url`, rich menu config or business template + `is_saved` / `is_published`); card reloads after a passing "ทดสอบการเชื่อมต่อ" (`refreshKey`). No basic id (no/bad token) = button disabled with the reason; no rich menu / not published / no services = warning, image still drawn with fallbacks
+- Pure rules + vitest: `src/lib/line/customer-guide.ts` (`normalizeBasicId`, `lineAddFriendUrl`, `bookingButtonIndex`, `serviceSubtitle`, `sampleSlotTimes`, `guideFileName`, `isHexColor`, `exampleDays`, `exampleConfirmBubble`), `flex-canvas.ts` (`flexTextSize`, `flexSpace`, `flexBubbleWidth`); painter `customer-guide-render.ts` (browser only, `loadGuideAssets`, `drawGuideImage`)
+- Share = `navigator.share` with the PNG (mobile share sheet → LINE / Facebook), falls back to download
+- Not done: saving the chosen color/logo, per-branch QR / hours (uses the first working-hours row of any branch), real LIFF screenshots
 
 ## Reports (`/portal/reports`)
 

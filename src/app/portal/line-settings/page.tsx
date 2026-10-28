@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { PageShell } from '@/components/ui/page-shell';
 import { AutomationSettingsCard } from '@/components/automation/automation-settings-card';
+import { CustomerGuideCard } from '@/components/line-settings/customer-guide-card';
 import { useToast } from '@/components/ui/toast';
 import { track } from '@/lib/analytics/track';
 import { REMINDER_MINUTES_DEFAULT, REMINDER_PRESETS, reminderLeadLabel } from '@/lib/line/booking-reminder';
@@ -11,6 +12,9 @@ type ConnectionCheck = { key: string; ok: boolean; message: string };
 
 /** ฐาน URL ของแอป ใช้แสดงลิงก์ที่ต้องนำไปวางใน LINE Developer Console */
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://queuebooking.com';
+
+/** LINE OA ของทีมแอดมิน — ร้านแอดเพื่อนแล้วทักมาให้ช่วยตั้งค่า LINE ให้ */
+const ADMIN_LINE_FRIEND_URL = 'https://lin.ee/UE1TqpE';
 
 export default function LineSettingsPage() {
   const { push } = useToast();
@@ -28,6 +32,8 @@ export default function LineSettingsPage() {
   });
   const [checks, setChecks] = useState<ConnectionCheck[] | null>(null);
   const [testing, setTesting] = useState(false);
+  /** Bumped after a passing connection test so the guide card re-reads the LINE id. */
+  const [guideKey, setGuideKey] = useState(0);
 
   useEffect(() => {
     void (async () => {
@@ -89,6 +95,7 @@ export default function LineSettingsPage() {
       setChecks(json.data.checks as ConnectionCheck[]);
       if (json.data.ok) {
         track('line_connected');
+        setGuideKey((k) => k + 1);
         push('เชื่อมต่อ LINE ครบถ้วนแล้ว');
       } else {
         push('ตั้งค่า LINE ยังไม่ครบ ดูรายการตรวจสอบด้านล่าง', 'warning');
@@ -102,6 +109,23 @@ export default function LineSettingsPage() {
 
   return (
     <PageShell title="LINE Settings" description="ตั้งค่า LINE OA ต่อร้าน">
+      <section className="mb-4 max-w-2xl rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+        <h2 className="text-sm font-semibold text-emerald-900">ไม่ถนัดตั้งค่าเอง? ให้แอดมินช่วยตั้งค่าให้ฟรี</h2>
+        <p className="mt-1 text-sm text-emerald-800">
+          แอดเพื่อน LINE ทีมแอดมิน แล้วทักมาบอกชื่อร้าน — ทีมงานจะช่วยเชื่อม LINE OA, Webhook และ LIFF ให้ทีละขั้นจนใช้งานได้
+        </p>
+        <a
+          href={ADMIN_LINE_FRIEND_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-block"
+          onClick={() => track('cta_clicked', { cta: 'line_admin_help' })}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- ปุ่มทางการของ LINE ใช้รูปจาก CDN ของ LINE */}
+          <img src="https://scdn.line-apps.com/n/line_add_friends/btn/th.png" alt="เพิ่มเพื่อน" height={36} className="h-9 w-auto" />
+        </a>
+      </section>
+
       <section className="max-w-2xl rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
         <h2 className="text-sm font-semibold text-slate-800">ลิงก์สำหรับตั้งค่าใน LINE Developer</h2>
         <div className="mt-3 space-y-2 text-sm text-slate-600">
@@ -233,6 +257,8 @@ export default function LineSettingsPage() {
           </ul>
         )}
       </form>
+
+      <CustomerGuideCard refreshKey={guideKey} />
 
       <AutomationSettingsCard />
     </PageShell>
