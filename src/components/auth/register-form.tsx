@@ -1,6 +1,7 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useCallback, useRef, useState } from 'react';
+import Script from 'next/script';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '@/components/ui/toast';
 import { getStoredUtm, track } from '@/lib/analytics/track';
@@ -31,13 +32,49 @@ const BUSINESS_CATEGORIES = [
   { value: 'Consult', label: 'ที่ปรึกษา / นัดหมายส่วนตัว' },
 ];
 
-export function RegisterForm() {
+type TurnstileApi = {
+  render: (el: HTMLElement, opts: Record<string, unknown>) => string;
+  reset: (widgetId?: string) => void;
+};
+
+/** Without a site key (local dev) the widget is skipped and the server skips the check too. */
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '';
+
+/**
+ * Shop signup form.
+ *
+ * @param props.formToken - Server-signed issue time (bot "filled too fast" check).
+ */
+export function RegisterForm({ formToken }: { formToken: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { push } = useToast();
   const [loading, setLoading] = useState(false);
   const [phone, setPhone] = useState('');
+  const [captchaToken, setCaptchaToken] = useState('');
+  const captchaBox = useRef<HTMLDivElement>(null);
+  const captchaWidget = useRef<string | null>(null);
   const selectedPlan = searchParams.get('plan') ?? '';
+
+  const renderCaptcha = useCallback(() => {
+    const api = (window as unknown as { turnstile?: TurnstileApi }).turnstile;
+    if (!api || !captchaBox.current || captchaWidget.current) return;
+    captchaWidget.current = api.render(captchaBox.current, {
+      sitekey: TURNSTILE_SITE_KEY,
+      action: 'register',
+      appearance: 'interaction-only',
+      callback: (token: string) => setCaptchaToken(token),
+      'expired-callback': () => setCaptchaToken(''),
+      'error-callback': () => setCaptchaToken(''),
+    });
+  }, []);
+
+  /** Turnstile tokens are single-use: get a new one after every server answer that was not a success. */
+  function resetCaptcha() {
+    setCaptchaToken('');
+    const api = (window as unknown as { turnstile?: TurnstileApi }).turnstile;
+    if (api && captchaWidget.current) api.reset(captchaWidget.current);
+  }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -52,6 +89,7 @@ export function RegisterForm() {
       phone: normalizeThaiPhoneDigits(phone),
       utm: getStoredUtm(),
       showcase_consent: formData.get('showcase_consent') === 'on',
+      turnstile_token: captchaToken,
     };
     track('signup_started', { plan: selectedPlan || 'starter' });
 
@@ -65,6 +103,7 @@ export function RegisterForm() {
     setLoading(false);
 
     if (!res.ok) {
+      resetCaptcha();
       push(json.error ?? 'สมัครใช้งานไม่สำเร็จ', 'error');
       return;
     }
@@ -110,7 +149,27 @@ export function RegisterForm() {
         </span>
       </label>
       <input type="hidden" name="plan_name" value={selectedPlan} />
-      <button disabled={loading} className="btn-primary w-full" type="submit">{loading ? 'กำลังสมัคร...' : 'สมัครใช้งาน'}</button>
+      <input type="hidden" name="form_token" value={formToken} />
+      {/* Honeypot: off-screen, skipped by keyboard, screen readers and autofill. A filled value = bot. */}
+      <div aria-hidden="true" className="absolute -left-[9999px] h-px w-px overflow-hidden">
+        <label>
+          เว็บไซต์บริษัท
+          <input type="text" name="company_website" tabIndex={-1} autoComplete="off" defaultValue="" />
+        </label>
+      </div>
+      {TURNSTILE_SITE_KEY ? (
+        <>
+          <Script
+            src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+            strategy="afterInteractive"
+            onReady={renderCaptcha}
+          />
+          <div ref={captchaBox} />
+        </>
+      ) : null}
+      <button disabled={loading || (Boolean(TURNSTILE_SITE_KEY) && !captchaToken)} className="btn-primary w-full" type="submit">
+        {loading ? 'กำลังสมัคร...' : TURNSTILE_SITE_KEY && !captchaToken ? 'กำลังตรวจสอบความปลอดภัย...' : 'สมัครใช้งาน'}
+      </button>
     </form>
   );
 }

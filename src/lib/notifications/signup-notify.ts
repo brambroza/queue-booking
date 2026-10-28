@@ -1,3 +1,5 @@
+import { escapeHtml } from '@/lib/notifications/sales-email';
+
 type SignupPayload = {
   companyName: string;
   shopName: string;
@@ -6,6 +8,8 @@ type SignupPayload = {
   email: string;
   shopKey: string;
   createdAt: string;
+  /** Signup risk signals that fired below the block threshold, e.g. "gmail_dots". */
+  riskNote?: string;
 };
 
 function buildHtml(payload: SignupPayload) {
@@ -13,13 +17,14 @@ function buildHtml(payload: SignupPayload) {
   <div style="font-family:Arial,sans-serif;line-height:1.5;color:#0f172a">
     <h2 style="margin:0 0 12px">New Shop Registration</h2>
     <table style="border-collapse:collapse">
-      <tr><td style="padding:4px 10px 4px 0"><b>Company</b></td><td>${payload.companyName}</td></tr>
-      <tr><td style="padding:4px 10px 4px 0"><b>Shop</b></td><td>${payload.shopName}</td></tr>
-      <tr><td style="padding:4px 10px 4px 0"><b>Owner</b></td><td>${payload.ownerName}</td></tr>
-      <tr><td style="padding:4px 10px 4px 0"><b>Phone</b></td><td>${payload.phone}</td></tr>
-      <tr><td style="padding:4px 10px 4px 0"><b>Email</b></td><td>${payload.email}</td></tr>
-      <tr><td style="padding:4px 10px 4px 0"><b>Shop Key</b></td><td>${payload.shopKey}</td></tr>
-      <tr><td style="padding:4px 10px 4px 0"><b>Created At</b></td><td>${payload.createdAt}</td></tr>
+      <tr><td style="padding:4px 10px 4px 0"><b>Company</b></td><td>${escapeHtml(payload.companyName)}</td></tr>
+      <tr><td style="padding:4px 10px 4px 0"><b>Shop</b></td><td>${escapeHtml(payload.shopName)}</td></tr>
+      <tr><td style="padding:4px 10px 4px 0"><b>Owner</b></td><td>${escapeHtml(payload.ownerName)}</td></tr>
+      <tr><td style="padding:4px 10px 4px 0"><b>Phone</b></td><td>${escapeHtml(payload.phone)}</td></tr>
+      <tr><td style="padding:4px 10px 4px 0"><b>Email</b></td><td>${escapeHtml(payload.email)}</td></tr>
+      <tr><td style="padding:4px 10px 4px 0"><b>Shop Key</b></td><td>${escapeHtml(payload.shopKey)}</td></tr>
+      <tr><td style="padding:4px 10px 4px 0"><b>Created At</b></td><td>${escapeHtml(payload.createdAt)}</td></tr>
+      ${payload.riskNote ? `<tr><td style="padding:4px 10px 4px 0;color:#b45309"><b>Bot risk</b></td><td style="color:#b45309">${escapeHtml(payload.riskNote)}</td></tr>` : ''}
     </table>
   </div>
   `;

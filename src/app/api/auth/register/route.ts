@@ -10,6 +10,9 @@ import { env } from '@/lib/utils/env';
 import { normalizeBusinessType } from '@/lib/line/rich-menu/business-types';
 import { clientIp, hitRateLimit, tooManyRequests } from '@/lib/security/rate-limit';
 import { EXISTING_EMAIL_MESSAGE, isExistingEmailSignUp } from '@/lib/auth/signup-result';
+import { checkFormToken } from '@/lib/security/form-token';
+import { verifyTurnstile } from '@/lib/security/turnstile';
+import { normalizeEmailForDedup, scoreSignup, SIGNUP_RISK_BLOCK } from '@/lib/auth/signup-risk';
 import { applyOwnerPatch, emptyShowcaseRow } from '@/lib/showcase/showcase-rules';
 import { logShowcaseEvents, saveShowcaseRow } from '@/lib/showcase/showcase-server';
 
@@ -17,6 +20,23 @@ import { logShowcaseEvents, saveShowcaseRow } from '@/lib/showcase/showcase-serv
 function registerFailed(step: string, detail?: string) {
   console.error(`[register] ${step} failed`, detail);
   return NextResponse.json({ error: 'สมัครไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' }, { status: 500 });
+}
+
+const SUCCESS_MESSAGE = 'สมัครสำเร็จ กรุณาตรวจสอบอีเมลและยืนยันบัญชีก่อนเข้าสู่ระบบ';
+
+/**
+ * Looks like a normal signup to the caller but writes nothing, so a bot gets
+ * no signal about which check caught it. The reason stays in the server log.
+ */
+function fakeSuccess(reason: string) {
+  console.warn('[register] blocked as bot:', reason);
+  return NextResponse.json({ data: { seeded: true }, message: SUCCESS_MESSAGE });
+}
+
+/** Bot checks cannot run (missing secret, Cloudflare down): fail closed, ask to retry. */
+function registerUnavailable(detail: string) {
+  console.error('[register] bot check unavailable:', detail);
+  return NextResponse.json({ error: 'ระบบสมัครใช้งานขัดข้องชั่วคราว กรุณาลองใหม่ในอีกสักครู่' }, { status: 503 });
 }
 
 export async function POST(req: Request) {
@@ -28,10 +48,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
     }
 
-    const admin = createAdminClient();
-    if (!(await hitRateLimit(admin, 'register', clientIp(req)))) return tooManyRequests();
-
     const { company_name, shop_name, owner_name, phone, email, password, plan_name, business_category, utm, showcase_consent } = parsed.data;
+
+    const admin = createAdminClient();
+    const ip = clientIp(req);
+    if (!(await hitRateLimit(admin, 'register', ip))) return tooManyRequests();
+    if (!(await hitRateLimit(admin, 'registerEmail', normalizeEmailForDedup(email)))) return tooManyRequests();
+
+    // Cheap local checks before the outbound Turnstile call.
+    if (parsed.data.company_website.trim()) return fakeSuccess('honeypot');
+    const formToken = checkFormToken(parsed.data.form_token);
+    if (formToken === 'no_secret') return registerUnavailable('FORM_TOKEN_SECRET not set');
+    // A person can leave the tab open for hours; tell them instead of silently dropping the signup.
+    if (formToken === 'expired') {
+      return NextResponse.json({ error: 'หน้านี้เปิดไว้นานเกินไป กรุณารีเฟรชหน้าแล้วสมัครอีกครั้ง', code: 'form_expired' }, { status: 400 });
+    }
+    if (formToken !== 'ok') return fakeSuccess(`form_token_${formToken}`);
+
+    const captcha = await verifyTurnstile({ token: parsed.data.turnstile_token, ip, expectedAction: 'register' });
+    if (!captcha.ok) {
+      if (captcha.reason === 'unavailable' || captcha.reason === 'no_secret') return registerUnavailable(`turnstile ${captcha.reason}`);
+      console.warn('[register] captcha failed', captcha.reason);
+      return NextResponse.json({ error: 'ยืนยันตัวตนไม่ผ่าน กรุณาลองใหม่', code: 'captcha_failed' }, { status: 400 });
+    }
+
+    const risk = scoreSignup({ email, owner_name, shop_name, company_name });
+    if (risk.score >= SIGNUP_RISK_BLOCK) return fakeSuccess(`risk ${risk.reasons.join(',')}`);
 
   const { data: authData, error: authError } = await admin.auth.signUp({
     email,
@@ -206,6 +248,7 @@ export async function POST(req: Request) {
       email,
       shopKey,
       createdAt: new Date().toISOString(),
+      riskNote: risk.score > 0 ? `score ${risk.score}: ${risk.reasons.join(', ')}` : undefined,
     });
   } catch (mailErr) {
     console.error('[register] signup notification failed:', mailErr);
@@ -213,7 +256,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       data: { user_id: userId, company_id: company.id, shop_id: shop.id, shop_key: shopKey, seeded },
-      message: 'สมัครสำเร็จ กรุณาตรวจสอบอีเมลและยืนยันบัญชีก่อนเข้าสู่ระบบ',
+      message: SUCCESS_MESSAGE,
     });
   } catch (e) {
     // Never echo internal errors (env names, SQL) to an anonymous caller.

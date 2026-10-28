@@ -30,6 +30,8 @@ export const RATE_LIMITS = {
   /** Public reads that are served from cache (meta, slots, bookable days, payment status). */
   liffRead: { windowSeconds: 60, max: 120, noDb: true },
   register: { windowSeconds: 3600, max: 5 },
+  /** Per normalized email (gmail aliases folded) — stops one inbox retrying from rotating IPs. */
+  registerEmail: { windowSeconds: 86400, max: 3 },
   contactLead: { windowSeconds: 3600, max: 5 },
   /** Owner "test connection" for the slip verification key — each hit is a vendor call. */
   slipVerifyTest: { windowSeconds: 600, max: 5 },

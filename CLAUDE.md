@@ -267,6 +267,7 @@ import { xxx } from '../../lib/...';  // ผิด
 - secret ไม่ส่งกลับ client เต็ม ๆ (mask 4 ตัวท้าย); Omise key เก็บแบบ sealed (`sealOmiseSecretKey`)
 - ลิงก์ชำระเงิน public ต้องมี HMAC `t` (`signBookingToken`); prod ไม่มี `PAYMENT_LINK_SECRET` = 404 ทุกลิงก์; Omise webhook prod ต้องมี `OMISE_WEBHOOK_SECRET`
 - `users_profile.shop_id/company_id` และ `user_roles` เขียนได้เฉพาะ service role (migration `202610020002`); `requireAuthContext` ไม่ให้ role จาก `users_profile.shop_id` อีกแล้ว
+- **สมัครร้าน (`/api/auth/register`) กัน bot** (2026-10-28) ลำดับ: Zod (มือถือ `0[689]` 10 หลัก) → rate limit IP 5/ชม. + `registerEmail` 3/วัน (`normalizeEmailForDedup` รวม gmail จุด/`+tag`) → honeypot `company_website` + `form_token` (`src/lib/security/form-token.ts`, HMAC เวลาเปิดหน้า, <3 วิ = bot, >2 ชม. = 400 `form_expired`) → Turnstile (`src/lib/security/turnstile.ts`, action `register`, ไม่มี secret ใน dev = ข้าม, prod/Cloudflare ล่ม = 503) → `scoreSignup` (`src/lib/auth/signup-risk.ts`) ≥3 = block. Bot ที่โดนจับได้ **ตอบ success หลอก** ไม่เขียน DB (log `[register] blocked as bot:`), score 1–2 ผ่านแต่ติด "Bot risk" ในอีเมลแจ้ง admin. ยังไม่ทำ: สร้างร้านหลังยืนยันอีเมล, ลบร้าน bot เก่าอัตโนมัติ
 - CSV export ต้องกัน formula injection (`csvEscape` ใน `/api/reports`); HTML email ต้อง `escapeHtml`
 
 ---
@@ -559,6 +560,8 @@ Omise Mobile Banking: toggle `shops.mobile_banking_enabled` (migration `20260916
 | `SLIP_VERIFY_PROVIDER` / `EASYSLIP_API_KEY` | Slip | Platform slip-verification key (Professional+); shops may use their own instead |
 | `SLIP_VERIFY_EASYSLIP_ENABLED` | Slip | Kill switch for the EasySlip adapter (default on) |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Rush | Optional shared cache + rate limit + booking guards (memory-only without) |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | Signup | Cloudflare Turnstile on `/register` (prod without secret = signup 503) |
+| `FORM_TOKEN_SECRET` | Signup | HMAC for the signed form-open time (falls back to `PAYMENT_LINK_SECRET`; prod without either = signup 503) |
 
 ---
 

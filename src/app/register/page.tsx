@@ -5,11 +5,15 @@ import Link from 'next/link';
 import { RegisterForm } from '@/components/auth/register-form';
 import { LanguageSwitch } from '@/components/layout/language-switch';
 import { Suspense } from 'react';
+import { issueFormToken } from '@/lib/security/form-token';
 
 export const metadata: Metadata = {
   title: 'สมัครใช้งาน',
   robots: { index: false, follow: false },
 };
+
+// Each load needs a fresh signed form token (bot "filled too fast" check).
+export const dynamic = 'force-dynamic';
 
 export default function RegisterPage() {
   return (
@@ -22,7 +26,7 @@ export default function RegisterPage() {
         <p className="mt-1 text-sm text-slate-600">สร้างบริษัท ร้าน และ shop_key อัตโนมัติ</p>
         <div className="mt-4">
           <Suspense fallback={<div>กำลังโหลด...</div>}>
-            <RegisterForm />
+            <RegisterForm formToken={issueFormToken()} />
           </Suspense>
 
         </div>
