@@ -41,7 +41,7 @@ export default function PricingEnPage() {
           ))}
         </Grid>
       </Container>
-      <LandingFooter />
+      <LandingFooter lang="en" />
     </main>
   );
 }

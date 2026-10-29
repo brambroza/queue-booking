@@ -13,6 +13,7 @@ import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRigh
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
 import TvRoundedIcon from '@mui/icons-material/TvRounded';
+import { publicLangFromPath, toEnglishPath, toThaiPath, type PublicLang } from '@/lib/i18n/public-routes';
 import styles from './landing-page.module.css';
 
 export const lineFriendUrl = 'https://lin.ee/oViqAoh';
@@ -41,11 +42,54 @@ const navItems: NavItem[] = [
   { label: 'บทความ', href: '/blog' },
 ];
 
+/** English pages are separate routes (no home-page sections), so the menu links to them directly. */
+const navItemsEn: NavItem[] = [
+  { label: 'Home', href: '/en' },
+  { label: 'Pricing', href: '/en/pricing' },
+  { label: 'Use cases', href: '/en/use-cases' },
+  { label: 'Blog', href: '/en/blog' },
+  { label: 'Contact', href: '/en/contact' },
+];
+
+const navText: Record<PublicLang, Record<string, string>> = {
+  th: {
+    home: 'QueueBooking LINE หน้าแรก',
+    mainNav: 'เมนูหลัก',
+    features: 'ฟีเจอร์',
+    login: 'เข้าสู่ระบบ',
+    addFriend: 'เพิ่มเพื่อน',
+    addFriendAria: 'เพิ่มเพื่อนใน LINE',
+    start: 'เริ่มใช้ฟรี',
+    openMenu: 'เปิดเมนู',
+    closeMenu: 'ปิดเมนู',
+    mobileNav: 'เมนูมือถือ',
+    menu: 'เมนู',
+    switchLang: 'EN',
+    switchLangAria: 'View in English',
+  },
+  en: {
+    home: 'QueueBooking LINE home',
+    mainNav: 'Main menu',
+    features: 'Features',
+    login: 'Log in',
+    addFriend: 'Add friend',
+    addFriendAria: 'Add friend on LINE',
+    start: 'Start free',
+    openMenu: 'Open menu',
+    closeMenu: 'Close menu',
+    mobileNav: 'Mobile menu',
+    menu: 'Menu',
+    switchLang: 'ไทย',
+    switchLangAria: 'ดูภาษาไทย',
+  },
+};
+
 const sectionIds = navItems.flatMap((item) => (item.id ? [item.id] : []));
 
-export function Brand() {
+/** Brand mark linking to the home page of the given language. */
+export function Brand({ lang = 'th' }: { lang?: PublicLang }) {
   return (
-    <Link href="/" className={styles.brand} aria-label="QueueBooking LINE หน้าแรก">
+    <Link href={lang === 'en' ? '/en' : '/'} className={styles.brand} aria-label={navText[lang].home}>
       <span className={styles.brandMark} aria-hidden="true"><span /></span>
       <span>QueueBooking <strong>LINE</strong></span>
     </Link>
@@ -59,10 +103,15 @@ function ArrowIcon() {
 /**
  * Shared top navigation for the public landing family (/, /sandbox-demo, ...).
  * Hash links resolve to the home page when rendered elsewhere; the scroll spy
- * only runs on the home page.
+ * only runs on the home page. Under `/en` it shows the English menu.
  */
 export function LandingNavbar() {
   const pathname = usePathname();
+  const lang = publicLangFromPath(pathname);
+  const items = lang === 'en' ? navItemsEn : navItems;
+  const text = navText[lang];
+  // Language link only where the other language has a page.
+  const otherLangHref = lang === 'en' ? toThaiPath(pathname) : toEnglishPath(pathname);
   const onHome = pathname === '/';
   const resolveHref = (href: string) => (href.startsWith('#') && !onHome ? `/${href}` : href);
   const isRouteActive = (href: string) => !href.startsWith('#') && pathname === href;
@@ -137,16 +186,16 @@ export function LandingNavbar() {
     closeTimer.current = setTimeout(() => setFeaturesOpen(false), 140);
   };
 
-  const featureItem = navItems.find((item) => item.children);
+  const featureItem = items.find((item) => item.children);
 
   return (
     <>
     <header className={`${styles.navScope} ${styles.navbar} ${scrolled ? styles.navbarScrolled : ''}`}>
       <div className={styles.navInner}>
-        <Brand />
+        <Brand lang={lang} />
 
-        <nav className={styles.desktopNav} aria-label="เมนูหลัก">
-          {navItems.map((item) =>
+        <nav className={styles.desktopNav} aria-label={text.mainNav}>
+          {items.map((item) =>
             item.children ? (
               <div
                 key={item.href}
@@ -164,7 +213,7 @@ export function LandingNavbar() {
                 >
                   {item.label} <KeyboardArrowDownRoundedIcon className={styles.navCaret} />
                 </button>
-                <div className={styles.navMenu} role="menu" aria-label="ฟีเจอร์">
+                <div className={styles.navMenu} role="menu" aria-label={text.features}>
                   {item.children.map(({ label, desc, href, icon: Icon }) => (
                     <Link key={label} href={resolveHref(href)} role="menuitem" className={styles.navMenuItem} onClick={() => setFeaturesOpen(false)}>
                       <span className={styles.navMenuIcon}><Icon /></span>
@@ -192,15 +241,20 @@ export function LandingNavbar() {
         </nav>
 
         <div className={styles.navActions}>
-          <Link href="/login" className={styles.navGhost}>เข้าสู่ระบบ</Link>
-          <a href={lineFriendUrl} className={styles.lineFriendNav} target="_blank" rel="noopener noreferrer" aria-label="เพิ่มเพื่อนใน LINE">
-            <ChatBubbleOutlineRoundedIcon /> <span>เพิ่มเพื่อน</span>
+          {otherLangHref ? (
+            <Link href={otherLangHref} className={styles.navGhost} aria-label={text.switchLangAria} hrefLang={lang === 'en' ? 'th' : 'en'}>
+              {text.switchLang}
+            </Link>
+          ) : null}
+          <Link href="/login" className={styles.navGhost}>{text.login}</Link>
+          <a href={lineFriendUrl} className={styles.lineFriendNav} target="_blank" rel="noopener noreferrer" aria-label={text.addFriendAria}>
+            <ChatBubbleOutlineRoundedIcon /> <span>{text.addFriend}</span>
           </a>
-          <Link href="/register" className={styles.navCta}>เริ่มใช้ฟรี <ArrowIcon /></Link>
+          <Link href="/register" className={styles.navCta}>{text.start} <ArrowIcon /></Link>
           <button
             type="button"
             className={styles.menuButton}
-            aria-label={open ? 'ปิดเมนู' : 'เปิดเมนู'}
+            aria-label={open ? text.closeMenu : text.openMenu}
             aria-expanded={open}
             aria-controls="landing-mobile-menu"
             onClick={() => setOpen((v) => !v)}
@@ -215,21 +269,21 @@ export function LandingNavbar() {
     <div className={`${styles.navScope} ${styles.mobileBackdrop} ${open ? styles.mobileBackdropOpen : ''}`} aria-hidden="true" onClick={() => setOpen(false)} />
       <aside id="landing-mobile-menu" className={`${styles.navScope} ${styles.mobileMenu} ${open ? styles.mobileMenuOpen : ''}`} aria-hidden={!open}>
         <div className={styles.mobileMenuHeader}>
-          <Brand />
-          <button type="button" className={styles.menuButton} aria-label="ปิดเมนู" onClick={() => setOpen(false)}>
+          <Brand lang={lang} />
+          <button type="button" className={styles.menuButton} aria-label={text.closeMenu} onClick={() => setOpen(false)}>
             <CloseRoundedIcon />
           </button>
         </div>
-        <nav className={styles.mobileNav} aria-label="เมนูมือถือ">
-          <p className={styles.mobileGroupLabel}>เมนู</p>
-          {navItems.filter((item) => !item.children).map((item) => (
+        <nav className={styles.mobileNav} aria-label={text.mobileNav}>
+          <p className={styles.mobileGroupLabel}>{text.menu}</p>
+          {items.filter((item) => !item.children).map((item) => (
             <Link key={item.href} href={resolveHref(item.href)} className={`${styles.mobileLink} ${isRouteActive(item.href) ? styles.mobileLinkActive : ''}`} onClick={() => setOpen(false)}>
               {item.label} <KeyboardArrowRightRoundedIcon />
             </Link>
           ))}
           {featureItem?.children ? (
             <>
-              <p className={styles.mobileGroupLabel}>ฟีเจอร์</p>
+              <p className={styles.mobileGroupLabel}>{text.features}</p>
               <div className={styles.mobileFeatureGrid}>
                 {featureItem.children.map(({ label, desc, href, icon: Icon }) => (
                   <Link key={label} href={resolveHref(href)} className={styles.mobileFeature} onClick={() => setOpen(false)}>
@@ -244,14 +298,19 @@ export function LandingNavbar() {
             </>
           ) : null}
           <Link href="/login" className={styles.mobileLink} onClick={() => setOpen(false)}>
-            เข้าสู่ระบบ <KeyboardArrowRightRoundedIcon />
+            {text.login} <KeyboardArrowRightRoundedIcon />
           </Link>
+          {otherLangHref ? (
+            <Link href={otherLangHref} className={styles.mobileLink} hrefLang={lang === 'en' ? 'th' : 'en'} onClick={() => setOpen(false)}>
+              {lang === 'en' ? 'ภาษาไทย' : 'English'} <KeyboardArrowRightRoundedIcon />
+            </Link>
+          ) : null}
         </nav>
         <div className={styles.mobileMenuFooter}>
           <a href={lineFriendUrl} className={styles.mobileLineFriend} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)}>
-            <ChatBubbleOutlineRoundedIcon /> เพิ่มเพื่อนใน LINE
+            <ChatBubbleOutlineRoundedIcon /> {text.addFriendAria}
           </a>
-          <Link href="/register" className={styles.navCta} onClick={() => setOpen(false)}>เริ่มใช้ฟรี <ArrowIcon /></Link>
+          <Link href="/register" className={styles.navCta} onClick={() => setOpen(false)}>{text.start} <ArrowIcon /></Link>
         </div>
       </aside>
     </>

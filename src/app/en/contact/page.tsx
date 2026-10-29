@@ -41,7 +41,7 @@ export default function ContactEnPage() {
           </Grid>
         </Grid>
       </Container>
-      <LandingFooter />
+      <LandingFooter lang="en" />
     </main>
   );
 }

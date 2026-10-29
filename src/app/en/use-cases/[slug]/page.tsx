@@ -70,7 +70,7 @@ export default async function UseCaseDetailEnPage({ params }: { params: Promise<
           </CardContent>
         </Card>
       </Container>
-      <LandingFooter />
+      <LandingFooter lang="en" />
     </main>
   );
 }

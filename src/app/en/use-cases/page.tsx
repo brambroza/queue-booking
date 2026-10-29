@@ -64,7 +64,7 @@ export default function UseCasesEnPage() {
           })}
         </Grid>
       </Container>
-      <LandingFooter />
+      <LandingFooter lang="en" />
     </main>
   );
 }

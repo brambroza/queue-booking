@@ -5,18 +5,7 @@ import TranslateRoundedIcon from '@mui/icons-material/TranslateRounded';
 import { IconButton, ListItemText, Menu, MenuItem, Tooltip } from '@mui/material';
 import { useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-
-function toPublicLocalizedPath(pathname: string, nextLang: 'th' | 'en') {
-  const isEnPath = pathname === '/en' || pathname.startsWith('/en/');
-  if (nextLang === 'en') {
-    if (isEnPath) return pathname;
-    if (pathname === '/') return '/en';
-    return `/en${pathname}`;
-  }
-  if (!isEnPath) return pathname;
-  const stripped = pathname.replace(/^\/en/, '');
-  return stripped || '/';
-}
+import { toPublicLocalizedPath } from '@/lib/i18n/public-routes';
 
 export function LanguageSwitch() {
   const { lang, setLang, languages } = useI18n();
@@ -61,8 +50,8 @@ export function LanguageSwitch() {
               const nextLang = ((l.code as 'th' | 'en') ?? 'th');
               setLang(nextLang);
 
-              // Public pages are language-routed (/ and /en/*).
-              // Portal/admin pages remain same route and use dictionary switching.
+              // Public pages are language-routed (/ and /en/*) where an English page exists;
+              // other pages (register, login, portal, ...) stay put and switch the dictionary.
               if (!pathname.startsWith('/portal')) {
                 const localizedPath = toPublicLocalizedPath(pathname, nextLang);
                 const suffix = typeof window !== 'undefined' ? `${window.location.search}${window.location.hash}` : '';

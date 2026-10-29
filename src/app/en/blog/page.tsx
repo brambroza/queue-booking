@@ -54,7 +54,7 @@ export default function BlogEnPage() {
           ))}
         </Grid>
       </Container>
-      <LandingFooter />
+      <LandingFooter lang="en" />
     </main>
   );
 }

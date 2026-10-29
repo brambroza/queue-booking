@@ -153,7 +153,7 @@ export default async function BlogDetailEnPage({ params }: { params: Promise<Par
           </Typography>
         </Box>
       </Container>
-      <LandingFooter />
+      <LandingFooter lang="en" />
     </main>
   );
 }

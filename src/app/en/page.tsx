@@ -55,7 +55,7 @@ export default function HomeEnPage() {
           </Grid>
         </Container>
       </Box>
-      <LandingFooter />
+      <LandingFooter lang="en" />
     </main>
   );
 }
