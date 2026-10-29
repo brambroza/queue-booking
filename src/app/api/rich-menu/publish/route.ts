@@ -14,7 +14,10 @@ import {
   uploadRichMenuImage,
 } from '@/lib/line/rich-menu/line-api';
 import { buildRichMenuRequest, RichMenuConfigError } from '@/lib/line/rich-menu/line-request';
+import { configUsesFnbOrder } from '@/lib/line/rich-menu/schema';
 import { loadRichMenuShop, parseStoredConfig, toRichMenuState } from '@/lib/line/rich-menu/shop-state';
+import { assertFnbPlan, getFnbAccess } from '@/lib/subscription/features';
+import { subscriptionErrorResponse } from '@/lib/subscription/response';
 
 const BUCKET = 'shop-assets';
 
@@ -22,6 +25,8 @@ const PublishSchema = z.object({ set_default: z.boolean().default(true) });
 
 /** Map LINE / config errors to a response the portal can show. */
 function errorResponse(e: unknown) {
+  const paywall = subscriptionErrorResponse(e);
+  if (paywall) return paywall;
   if (e instanceof RichMenuConfigError) return NextResponse.json({ error: e.message }, { status: 400 });
   if (e instanceof LineApiError) {
     if (e.status === 401) return NextResponse.json({ error: 'Channel Access Token ไม่ถูกต้องหรือหมดอายุ — ตรวจสอบที่ LINE Settings' }, { status: 400 });
@@ -61,6 +66,8 @@ export async function POST(req: Request) {
     const config = parseStoredConfig(shop.rich_menu_config);
     if (!config) return NextResponse.json({ error: 'ยังไม่ได้บันทึกการตั้งค่า Rich Menu' }, { status: 400 });
     if (!shop.rich_menu_image_url) return NextResponse.json({ error: 'ยังไม่ได้บันทึกรูป Rich Menu ลงระบบ' }, { status: 400 });
+    // Re-checked here: the plan may have lapsed since the config was saved.
+    if (configUsesFnbOrder(config)) await assertFnbPlan(supabase, profile.shop_id as string);
 
     const request = buildRichMenuRequest(
       config,
@@ -112,8 +119,11 @@ export async function POST(req: Request) {
       payload: { rich_menu_id: richMenuId, previous_id: previousId ?? null, set_default: body.set_default, layout: config.layout },
     });
 
-    const after = await loadRichMenuShop(supabase, profile.shop_id as string);
-    return NextResponse.json({ data: toRichMenuState(after) });
+    const [after, fnb] = await Promise.all([
+      loadRichMenuShop(supabase, profile.shop_id as string),
+      getFnbAccess(supabase, profile.shop_id as string),
+    ]);
+    return NextResponse.json({ data: toRichMenuState(after, fnb) });
   } catch (e) {
     return errorResponse(e);
   }
@@ -150,8 +160,11 @@ export async function DELETE() {
       payload: { rich_menu_id: shop.line_rich_menu_id },
     });
 
-    const after = await loadRichMenuShop(supabase, profile.shop_id as string);
-    return NextResponse.json({ data: toRichMenuState(after) });
+    const [after, fnb] = await Promise.all([
+      loadRichMenuShop(supabase, profile.shop_id as string),
+      getFnbAccess(supabase, profile.shop_id as string),
+    ]);
+    return NextResponse.json({ data: toRichMenuState(after, fnb) });
   } catch (e) {
     return errorResponse(e);
   }

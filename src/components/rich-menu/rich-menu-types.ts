@@ -2,7 +2,7 @@ import type { RichMenuState } from '@/lib/line/rich-menu/shop-state';
 import type { RichMenuConfig } from '@/lib/line/rich-menu/schema';
 
 /** Capabilities of the shop relevant to publishing. */
-export type RichMenuCaps = Pick<RichMenuState, 'has_token' | 'has_liff_booking' | 'has_liff_member'>;
+export type RichMenuCaps = Pick<RichMenuState, 'has_token' | 'has_liff_booking' | 'has_liff_member' | 'fnb_plan_allowed' | 'fnb_enabled'>;
 
 export type BuilderBusy = null | 'save' | 'export' | 'upload' | 'publish' | 'unpublish';
 

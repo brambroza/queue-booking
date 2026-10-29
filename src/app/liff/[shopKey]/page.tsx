@@ -1,10 +1,14 @@
 import { redirect } from 'next/navigation';
 import { LiffBookingClient } from '@/components/line/liff-booking-client';
 
+function requestedTab(qs: Record<string, string | string[] | undefined>): string {
+  const pick = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? '';
+  return (pick(qs.tab) || pick(qs.view)).toLowerCase();
+}
+
 /** True when the query (or LIFF's `liff.state` wrapper of it) asks for the "my queues" tab. */
 function wantsAccountTab(qs: Record<string, string | string[] | undefined>): boolean {
-  const pick = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? '';
-  const tab = (pick(qs.tab) || pick(qs.view)).toLowerCase();
+  const tab = requestedTab(qs);
   return tab === 'account' || tab === 'member';
 }
 
@@ -25,6 +29,10 @@ export default async function LiffBookingPage({
     const bookingId = Array.isArray(qs.booking_id) ? qs.booking_id[0] : qs.booking_id;
     const query = bookingId ? `?booking_id=${encodeURIComponent(bookingId)}` : '';
     redirect(`/liff/${encodeURIComponent(shopKey)}/member${query}`);
+  }
+  // Rich menu "สั่งอาหาร" (`tab=order`): the order page.
+  if (!qs['liff.state'] && requestedTab(qs) === 'order') {
+    redirect(`/liff/${encodeURIComponent(shopKey)}/order`);
   }
   return <LiffBookingClient shopKey={shopKey} initialTab="booking" />;
 }

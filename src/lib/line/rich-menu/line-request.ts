@@ -89,6 +89,11 @@ function toLineAction(label: string, action: RichMenuConfig['buttons'][number]['
       const { liffId, tab } = resolveLiff(ctx, 'member');
       return { type: 'uri', label, uri: buildLiffUri(liffId, ctx.shopKey, tab) };
     }
+    case 'liff_order': {
+      // Same LIFF app as the member button; `tab=order` opens the order sheet.
+      const { liffId } = resolveLiff(ctx, 'member');
+      return { type: 'uri', label, uri: buildLiffUri(liffId, ctx.shopKey, 'order') };
+    }
     case 'url':
       return { type: 'uri', label, uri: action.url };
     case 'message':

@@ -3,8 +3,10 @@ import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { writeAuditLog } from '@/lib/audit/activity-log';
 import { BUSINESS_TYPES } from '@/lib/line/rich-menu/business-types';
-import { RichMenuConfigSchema } from '@/lib/line/rich-menu/schema';
+import { configUsesFnbOrder, RichMenuConfigSchema } from '@/lib/line/rich-menu/schema';
 import { loadRichMenuShop, toRichMenuState } from '@/lib/line/rich-menu/shop-state';
+import { assertFnbPlan, getFnbAccess } from '@/lib/subscription/features';
+import { subscriptionErrorResponse } from '@/lib/subscription/response';
 
 const PatchSchema = z
   .object({
@@ -17,8 +19,9 @@ const PatchSchema = z
 export async function GET() {
   try {
     const { supabase, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
-    const shop = await loadRichMenuShop(supabase, profile.shop_id as string);
-    return NextResponse.json({ data: toRichMenuState(shop) });
+    const shopId = profile.shop_id as string;
+    const [shop, fnb] = await Promise.all([loadRichMenuShop(supabase, shopId), getFnbAccess(supabase, shopId)]);
+    return NextResponse.json({ data: toRichMenuState(shop, fnb) });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });
   }
@@ -29,6 +32,9 @@ export async function PATCH(req: Request) {
   try {
     const { supabase, user, profile } = await requireAuthContext({ roles: ['super_admin', 'shop_owner'] });
     const body = PatchSchema.parse(await req.json());
+    const shopId = profile.shop_id as string;
+    // A "สั่งอาหาร" button needs F&B ordering in the plan (Professional+).
+    const fnb = body.config && configUsesFnbOrder(body.config) ? await assertFnbPlan(supabase, shopId) : await getFnbAccess(supabase, shopId);
 
     const patch: Record<string, unknown> = { updated_by: user.id };
     if (body.business_type !== undefined) patch.business_type = body.business_type;
@@ -52,9 +58,11 @@ export async function PATCH(req: Request) {
       },
     });
 
-    const shop = await loadRichMenuShop(supabase, profile.shop_id as string);
-    return NextResponse.json({ data: toRichMenuState(shop) });
+    const shop = await loadRichMenuShop(supabase, shopId);
+    return NextResponse.json({ data: toRichMenuState(shop, fnb) });
   } catch (e) {
+    const paywall = subscriptionErrorResponse(e);
+    if (paywall) return paywall;
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });
   }
 }

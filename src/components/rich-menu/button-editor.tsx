@@ -1,6 +1,6 @@
 'use client';
 
-import { Box, Chip, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, Chip, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { ICON_KEYS, ICONS, iconDataUrl, type IconKey } from '@/lib/line/rich-menu/icons';
 import { LAYOUTS } from '@/lib/line/rich-menu/layouts';
 import { RICH_MENU_LABEL_MAX, type RichMenuAction, type RichMenuConfig } from '@/lib/line/rich-menu/schema';
@@ -11,6 +11,7 @@ type ActionType = RichMenuAction['type'];
 const ACTION_LABELS: Record<ActionType, string> = {
   liff_booking: 'เปิด LIFF จองคิว',
   liff_member: 'เปิด LIFF สมาชิก / เช็คคิว',
+  liff_order: 'สั่งอาหาร / เครื่องดื่ม (Professional)',
   url: 'เปิดลิงก์',
   message: 'ส่งข้อความหาร้าน',
 };
@@ -21,6 +22,8 @@ function actionOfType(type: ActionType, previous: RichMenuAction, label: string)
     case 'liff_booking':
       return { type };
     case 'liff_member':
+      return { type };
+    case 'liff_order':
       return { type };
     case 'url':
       return { type, url: previous.type === 'url' ? previous.url : 'https://' };
@@ -35,10 +38,12 @@ type Props = {
   config: RichMenuConfig;
   caps: RichMenuCaps;
   onChange: (index: number, patch: Partial<RichMenuConfig['buttons'][number]>) => void;
+  /** Opens the upgrade dialog (the "สั่งอาหาร" action needs Professional+). */
+  onUpgrade: () => void;
 };
 
 /** One row per layout cell: icon, label, and what happens on tap. */
-export function ButtonEditor({ config, caps, onChange }: Props) {
+export function ButtonEditor({ config, caps, onChange, onUpgrade }: Props) {
   const cells = LAYOUTS[config.layout].cells;
   return (
     <Stack spacing={1}>
@@ -47,7 +52,8 @@ export function ButtonEditor({ config, caps, onChange }: Props) {
         const missingLiff =
           (button.action.type === 'liff_booking' && !caps.has_liff_booking) ||
           // Member buttons fall back to the booking LIFF (account tab) when no member LIFF is set.
-          (button.action.type === 'liff_member' && !caps.has_liff_member && !caps.has_liff_booking);
+          ((button.action.type === 'liff_member' || button.action.type === 'liff_order') && !caps.has_liff_member && !caps.has_liff_booking);
+        const isOrder = button.action.type === 'liff_order';
         return (
           <Box
             key={index}
@@ -97,7 +103,10 @@ export function ButtonEditor({ config, caps, onChange }: Props) {
                 onChange={(e) => onChange(index, { action: actionOfType(e.target.value as ActionType, button.action, button.label) })}
               >
                 {(Object.keys(ACTION_LABELS) as ActionType[]).map((type) => (
-                  <MenuItem key={type} value={type}>{ACTION_LABELS[type]}</MenuItem>
+                  // Starter cannot pick it; a menu that already has one still shows it.
+                  <MenuItem key={type} value={type} disabled={type === 'liff_order' && !caps.fnb_plan_allowed && !isOrder}>
+                    {ACTION_LABELS[type]}
+                  </MenuItem>
                 ))}
               </TextField>
               {button.action.type === 'url' ? (
@@ -116,6 +125,15 @@ export function ButtonEditor({ config, caps, onChange }: Props) {
                   inputProps={{ maxLength: 300 }}
                   onChange={(e) => onChange(index, { action: { type: 'message', text: e.target.value } })}
                 />
+              ) : null}
+              {isOrder && !caps.fnb_plan_allowed ? (
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Chip size="small" color="warning" variant="outlined" label="ใช้ได้ตั้งแต่แพ็กเกจ Professional" />
+                  <Button size="small" onClick={onUpgrade}>อัปเกรด</Button>
+                </Stack>
+              ) : null}
+              {isOrder && caps.fnb_plan_allowed && !caps.fnb_enabled ? (
+                <Chip size="small" color="warning" variant="outlined" label="ยังไม่ได้เปิดสั่งอาหาร — เปิดที่หน้าเมนูอาหาร" />
               ) : null}
               {missingLiff ? <Chip size="small" color="warning" variant="outlined" label="ยังไม่ตั้ง LIFF ID — ตั้งค่าที่ LINE Settings" /> : null}
             </Stack>

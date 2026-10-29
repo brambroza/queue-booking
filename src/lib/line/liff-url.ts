@@ -1,7 +1,10 @@
 import { isValidLiffId, normalizeLiffId } from '@/lib/line/liff-id';
 
-/** Which LIFF tab the link should open: the booking form or the customer's own queues. */
-export type LiffTab = 'booking' | 'account';
+/**
+ * Which LIFF tab the link should open: the booking form, the customer's own
+ * queues, or the order page for today's on-site queue (`/liff/{shopKey}/order`).
+ */
+export type LiffTab = 'booking' | 'account' | 'order';
 
 /**
  * Same URL shape the LIFF client, the rich menu and the bank-return page use
@@ -57,7 +60,7 @@ export function resolveCustomerLiffUrl(input: CustomerLiffUrlInput): string | un
   const fromShop = input.liffId ?? null;
   const fromLogin = input.liffIdLoginShop ?? null;
   const fromEnv = process.env.LIFF_ID ?? process.env.NEXT_PUBLIC_LIFF_ID ?? null;
-  const ordered = input.tab === 'account' ? [fromLogin, fromShop, fromEnv] : [fromShop, fromLogin, fromEnv];
+  const ordered = input.tab === 'booking' ? [fromShop, fromLogin, fromEnv] : [fromLogin, fromShop, fromEnv];
   for (const raw of ordered) {
     const id = usableLiffId(raw);
     if (id) return buildLiffUri(id, shopKey, input.tab, input.bookingId);
@@ -66,6 +69,6 @@ export function resolveCustomerLiffUrl(input: CustomerLiffUrlInput): string | un
   const appUrl = (input.appUrl ?? '').replace(/\/+$/, '');
   if (!appUrl) return undefined;
   const base = `${appUrl}/liff/${encodeURIComponent(shopKey)}`;
-  const path = input.tab === 'account' ? `${base}/member` : base;
+  const path = input.tab === 'booking' ? base : input.tab === 'order' ? `${base}/order` : `${base}/member`;
   return input.bookingId ? `${path}?booking_id=${encodeURIComponent(input.bookingId)}` : path;
 }

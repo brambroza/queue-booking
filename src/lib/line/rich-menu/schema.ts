@@ -17,6 +17,8 @@ const HexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'สีต้องเป
 export const RichMenuActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('liff_booking') }),
   z.object({ type: z.literal('liff_member') }),
+  /** Opens the member LIFF straight on the F&B order sheet (Professional+, see `configUsesFnbOrder`). */
+  z.object({ type: z.literal('liff_order') }),
   z.object({ type: z.literal('url'), url: z.string().trim().url().startsWith('https://', 'ลิงก์ต้องขึ้นต้นด้วย https://') }),
   z.object({ type: z.literal('message'), text: z.string().trim().min(1).max(300) }),
 ]);
@@ -60,3 +62,13 @@ export const RichMenuConfigSchema = z
     }
   });
 export type RichMenuConfig = z.infer<typeof RichMenuConfigSchema>;
+
+/**
+ * Whether any button opens the F&B order sheet — such a menu needs a plan with
+ * F&B ordering (Professional and above) to be saved or published.
+ *
+ * @param config - Rich menu config.
+ */
+export function configUsesFnbOrder(config: Pick<RichMenuConfig, 'buttons'>): boolean {
+  return config.buttons.some((b) => b.action.type === 'liff_order');
+}

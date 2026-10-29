@@ -49,10 +49,15 @@ type Props = {
   lineUserId: string;
   /** Live LIFF ID token (the server verifies it to know who is ordering). */
   getIdToken: () => string;
+  /**
+   * `sheet` (default) = bottom drawer over the queue list; `page` = the whole
+   * screen of the order page (rich menu "สั่งอาหาร"), no drawer and no close button.
+   */
+  variant?: 'sheet' | 'page';
 };
 
 /** LIFF bottom sheet: pick from the menu, send the order, follow its status. */
-export function LiffFnbOrderSheet({ open, onClose, shopKey, bookingId, placeLabel, lineUserId, getIdToken }: Props) {
+export function LiffFnbOrderSheet({ open, onClose, shopKey, bookingId, placeLabel, lineUserId, getIdToken, variant = 'sheet' }: Props) {
   const { push } = useToast();
   const [items, setItems] = useState<MenuItem[]>([]);
   const [enabled, setEnabled] = useState(true);
@@ -190,16 +195,21 @@ export function LiffFnbOrderSheet({ open, onClose, shopKey, bookingId, placeLabe
     await loadOrders();
   }
 
-  return (
-    <Drawer anchor="bottom" open={open} onClose={onClose} PaperProps={{ sx: { borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '92vh' } }}>
-      <Box sx={{ p: 2, pb: 12, overflowY: 'auto' }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-          <Box>
-            <Typography variant="h6" fontWeight={800}>สั่งอาหาร / เครื่องดื่ม</Typography>
-            <Typography variant="caption" color="text.secondary">เสิร์ฟที่ {placeLabel}</Typography>
-          </Box>
-          <IconButton aria-label="ปิด" onClick={onClose}><CloseRoundedIcon /></IconButton>
-        </Stack>
+  const isPage = variant === 'page';
+  const body = (
+    <>
+      <Box sx={isPage ? { pb: 10 } : { p: 2, pb: 12, overflowY: 'auto' }}>
+        {isPage ? (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>เสิร์ฟที่ {placeLabel}</Typography>
+        ) : (
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+            <Box>
+              <Typography variant="h6" fontWeight={800}>สั่งอาหาร / เครื่องดื่ม</Typography>
+              <Typography variant="caption" color="text.secondary">เสิร์ฟที่ {placeLabel}</Typography>
+            </Box>
+            <IconButton aria-label="ปิด" onClick={onClose}><CloseRoundedIcon /></IconButton>
+          </Stack>
+        )}
 
         {(() => {
           const callReq = requests.find((r) => r.request_type === 'call_staff');
@@ -325,12 +335,32 @@ export function LiffFnbOrderSheet({ open, onClose, shopKey, bookingId, placeLabe
       </Box>
 
       {view === 'menu' && lines.length > 0 ? (
-        <Box sx={{ position: 'sticky', bottom: 0, p: 2, bgcolor: 'background.paper', borderTop: 1, borderColor: 'divider' }}>
+        <Box
+          sx={{
+            position: isPage ? 'fixed' : 'sticky',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            p: 2,
+            pb: isPage ? 'calc(16px + env(safe-area-inset-bottom, 0px))' : 2,
+            bgcolor: 'background.paper',
+            borderTop: 1,
+            borderColor: 'divider',
+            zIndex: 2,
+          }}
+        >
           <Button fullWidth variant="contained" size="large" disabled={sending} onClick={() => void send()} sx={{ minHeight: 48 }}>
             {sending ? 'กำลังส่ง…' : `ส่งออเดอร์ ${count} รายการ · ${baht(total)}`}
           </Button>
         </Box>
       ) : null}
+    </>
+  );
+
+  if (isPage) return <Box>{body}</Box>;
+  return (
+    <Drawer anchor="bottom" open={open} onClose={onClose} PaperProps={{ sx: { borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '92vh' } }}>
+      {body}
     </Drawer>
   );
 }

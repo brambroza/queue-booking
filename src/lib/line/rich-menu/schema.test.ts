@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BUSINESS_TYPES } from './business-types';
 import { LAYOUT_KEYS, LAYOUTS } from './layouts';
 import { buildLineAreas, buildRichMenuRequest, RichMenuConfigError } from './line-request';
-import { RichMenuConfigSchema } from './schema';
+import { configUsesFnbOrder, RichMenuConfigSchema } from './schema';
 import { refitButtonsForLayout, templateForBusiness } from './templates';
 
 describe('templates', () => {
@@ -76,6 +76,17 @@ describe('buildLineAreas', () => {
     const areas = buildLineAreas(cfg, { ...ctx, liffBookingId: 'https://liff.line.me/1234567890-abcdefgh' });
     expect(areas[0].action).toEqual({ type: 'uri', label: 'นัดปรึกษา', uri: 'https://liff.line.me/1234567890-abcdefgh?shop_key=SHOP-ABC123&tab=booking' });
     expect(areas[1].action).toEqual({ type: 'message', label: 'ติดต่อ', text: 'ติดต่อสอบถาม' });
+  });
+
+  it('opens the member LIFF on tab=order for a "สั่งอาหาร" button', () => {
+    const cfg = templateForBusiness('restaurant');
+    cfg.buttons[2] = { iconKey: 'food', label: 'สั่งอาหาร', action: { type: 'liff_order' } };
+    expect(configUsesFnbOrder(cfg)).toBe(true);
+    expect(configUsesFnbOrder(templateForBusiness('restaurant'))).toBe(false);
+    const areas = buildLineAreas(cfg, ctx);
+    expect(areas[2].action).toEqual({ type: 'uri', label: 'สั่งอาหาร', uri: 'https://liff.line.me/1234567890-ijklmnop?shop_key=SHOP-ABC123&tab=order' });
+    const fallback = buildLineAreas(cfg, { ...ctx, liffMemberId: null });
+    expect(fallback[2].action).toMatchObject({ uri: 'https://liff.line.me/1234567890-abcdefgh?shop_key=SHOP-ABC123&tab=order' });
   });
 
   it('falls back to the booking LIFF (account tab) when no member LIFF is set', () => {

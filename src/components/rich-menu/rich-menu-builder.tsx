@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Alert, Box, Button, Card, CardContent, Grid, Skeleton, Stack, TextField, Typography } from '@mui/material';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade-provider';
 import { BUSINESS_TYPE_LABELS, type BusinessType } from '@/lib/line/rich-menu/business-types';
 import { canvasToBlobUnderCap, downloadBlob, ensureFontsLoaded, loadSvgImage, resolveFontStack } from '@/lib/line/rich-menu/canvas';
 import { LAYOUTS, type LayoutKey } from '@/lib/line/rich-menu/layouts';
@@ -33,7 +34,13 @@ function stateFromServer(data: RichMenuState, previous?: BuilderState): BuilderS
     imageUrl: data.image_url,
     lineRichMenuId: data.line_rich_menu_id,
     publishedAt: data.published_at,
-    caps: { has_token: data.has_token, has_liff_booking: data.has_liff_booking, has_liff_member: data.has_liff_member },
+    caps: {
+      has_token: data.has_token,
+      has_liff_booking: data.has_liff_booking,
+      has_liff_member: data.has_liff_member,
+      fnb_plan_allowed: data.fnb_plan_allowed,
+      fnb_enabled: data.fnb_enabled,
+    },
     busy: null,
   };
 }
@@ -46,7 +53,7 @@ const EMPTY: BuilderState = {
   imageUrl: null,
   lineRichMenuId: null,
   publishedAt: null,
-  caps: { has_token: false, has_liff_booking: false, has_liff_member: false },
+  caps: { has_token: false, has_liff_booking: false, has_liff_member: false, fnb_plan_allowed: false, fnb_enabled: false },
   busy: null,
 };
 
@@ -86,6 +93,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
 export function RichMenuBuilder() {
   const { push } = useToast();
   const confirm = useConfirm();
+  const { openPaywall, openUpgrade } = useUpgrade();
   const [state, setState] = useState<BuilderState>(EMPTY);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -167,11 +175,14 @@ export function RichMenuBuilder() {
         body: JSON.stringify({ business_type: config.businessType, config }),
       });
       const json = (await res.json()) as ApiResponse;
+      // "สั่งอาหาร" button on a plan below Professional.
+      const paywall = readPaywallDetail(res, json);
+      if (paywall) return openPaywall(paywall);
       if (!res.ok || !json.data) throw new Error(json.error ?? 'บันทึกไม่สำเร็จ');
       setState((prev) => ({ ...stateFromServer(json.data as RichMenuState), config: prev.config }));
       push('บันทึกการตั้งค่าแล้ว');
     });
-  }, [push, run, validate]);
+  }, [openPaywall, push, run, validate]);
 
   const download = useCallback(async () => {
     const config = validate();
@@ -218,11 +229,13 @@ export function RichMenuBuilder() {
     await run('publish', async () => {
       const res = await fetch('/api/rich-menu/publish', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ set_default: true }) });
       const json = (await res.json()) as ApiResponse;
+      const paywall = readPaywallDetail(res, json);
+      if (paywall) return openPaywall(paywall);
       if (!res.ok || !json.data) throw new Error(json.error ?? 'เผยแพร่ไม่สำเร็จ');
       setState((prev) => stateFromServer(json.data as RichMenuState, prev));
       push('เผยแพร่ไป LINE แล้ว');
     });
-  }, [confirm, push, run, state.config.businessType, state.config.layout, state.shopName]);
+  }, [confirm, openPaywall, push, run, state.config.businessType, state.config.layout, state.shopName]);
 
   const unpublish = useCallback(async () => {
     const ok = await confirm({
@@ -309,7 +322,7 @@ export function RichMenuBuilder() {
             </Section>
 
             <Section title="4. ปุ่มและลิงก์" hint="ตามจำนวนช่องของเลย์เอาต์ · ★ = ช่องใหญ่">
-              <ButtonEditor config={config} caps={state.caps} onChange={updateButton} />
+              <ButtonEditor config={config} caps={state.caps} onChange={updateButton} onUpgrade={() => openUpgrade('portal')} />
             </Section>
 
             <Section title="5. บันทึกและเผยแพร่">

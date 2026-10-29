@@ -5,6 +5,26 @@ const BOOKING_ID = '2001234567-AbCdEfGh';
 const MEMBER_ID = '2007654321-ZyXwVuTs';
 const ENV_ID = '2000000001-EnvEnvEn';
 
+describe('order tab', () => {
+  it('prefers the member LIFF and falls back to /order without one', () => {
+    expect(resolveCustomerLiffUrl({ shopKey: 'fit', liffId: BOOKING_ID, liffIdLoginShop: MEMBER_ID, tab: 'order' })).toBe(
+      `https://liff.line.me/${MEMBER_ID}?shop_key=fit&tab=order`,
+    );
+    const prev = process.env.LIFF_ID;
+    const prevPublic = process.env.NEXT_PUBLIC_LIFF_ID;
+    delete process.env.LIFF_ID;
+    delete process.env.NEXT_PUBLIC_LIFF_ID;
+    try {
+      expect(resolveCustomerLiffUrl({ shopKey: 'fit', tab: 'order', appUrl: 'https://app.test/' })).toBe(
+        'https://app.test/liff/fit/order',
+      );
+    } finally {
+      if (prev !== undefined) process.env.LIFF_ID = prev;
+      if (prevPublic !== undefined) process.env.NEXT_PUBLIC_LIFF_ID = prevPublic;
+    }
+  });
+});
+
 describe('buildLiffUri', () => {
   it('builds the shared liff.line.me shape with shop_key and tab', () => {
     expect(buildLiffUri(BOOKING_ID, 'SHOP-1', 'account')).toBe(

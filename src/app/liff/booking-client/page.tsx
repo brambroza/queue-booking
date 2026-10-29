@@ -19,6 +19,10 @@ export default async function LiffBookingClientEntry({
     if (tab === 'account' || tab === 'member') {
       redirect(`/liff/${encodeURIComponent(ref)}/member${query}`);
     }
+    // Rich menu "สั่งอาหาร": straight to the order page.
+    if (tab === 'order') {
+      redirect(`/liff/${encodeURIComponent(ref)}/order`);
+    }
     redirect(`/liff/${encodeURIComponent(ref)}${query}`);
   }
 

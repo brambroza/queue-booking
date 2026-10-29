@@ -38,7 +38,7 @@ import { resourceHistoryBadge, sortResourcesByHistory, summarizeResourceHistory 
 import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 import { buildBookingEchoText } from '@/lib/line/booking-echo';
 import { CUSTOMER_CANCELLABLE_STATUSES, checkInEligibility } from '@/lib/booking/status-flow';
-import { FNB_ORDERABLE_BOOKING_STATUSES } from '@/lib/fnb/schemas';
+import { canOrderFoodFor, orderEntryMessage, resolveOrderEntry } from '@/lib/fnb/order-entry';
 import { LiffFnbOrderSheet } from '@/components/line/liff-fnb-order-sheet';
 import { DAILY_LIMIT_CODE, dailyLimitMessage, findSameDayBooking } from '@/lib/booking/daily-limit';
 import { BOOKING_WINDOW_CODE } from '@/lib/booking/booking-window';
@@ -268,7 +268,10 @@ function resolveLiffId(shopLiffId?: string | null) {
   return '';
 }
 
-function buildLiffOpenUrl(liffId: string, shopKey: string, tab: 'booking' | 'account', bookingId?: string | null) {
+/** Which page this LIFF client renders: booking form, "คิวของฉัน", or the rich menu order page. */
+type LiffEntry = 'booking' | 'account' | 'order';
+
+function buildLiffOpenUrl(liffId: string, shopKey: string, tab: LiffEntry, bookingId?: string | null) {
   const params = new URLSearchParams({ shop_key: shopKey, tab });
   if (bookingId) params.set('booking_id', bookingId);
   return `https://liff.line.me/${encodeURIComponent(liffId)}?${params.toString()}`;
@@ -279,15 +282,16 @@ function formatPrice(value?: number | null) {
   return n > 0 ? `${n.toLocaleString('th-TH')} บาท` : '';
 }
 
-function getLiffCandidates(shopLiffId?: string | null, shopLoginLiffId?: string | null, initialTab: 'booking' | 'account' = 'booking') {
+function getLiffCandidates(shopLiffId?: string | null, shopLoginLiffId?: string | null, initialTab: LiffEntry = 'booking') {
   const fromShop = normalizeLiffId(shopLiffId);
   const fromShopLogin = normalizeLiffId(shopLoginLiffId);
   const fromEnv = normalizeLiffId(process.env.NEXT_PUBLIC_LIFF_ID);
   const fromMemberEnv = normalizeLiffId(process.env.NEXT_PUBLIC_LIFF_MEMBER_ID);
   const fromBookingEnv = normalizeLiffId(process.env.NEXT_PUBLIC_LIFF_BOOKING_ID);
 
+  // The order page is a member feature: same LIFF app as the account tab.
   const ordered =
-    initialTab === 'account'
+    initialTab !== 'booking'
       ? [fromShopLogin, fromShop, fromMemberEnv, fromEnv, fromBookingEnv]
       : [fromShop, fromShopLogin, fromBookingEnv, fromEnv, fromMemberEnv];
 
@@ -385,7 +389,7 @@ function resourcePickerLabel(resourceType?: string | null, serviceName?: string)
   return 'เลือกผู้ให้บริการ';
 }
 
-export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey: string; initialTab?: 'booking' | 'account' }) {
+export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey: string; initialTab?: LiffEntry }) {
   const { push } = useToast();
   const theme = useTheme();
 
@@ -443,7 +447,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const [memberStatus, setMemberStatus] = useState<'idle' | 'checking' | 'ready' | 'error'>('idle');
   const [memberError, setMemberError] = useState('');
   const [step, setStep] = useState<1 | 2>(1);
-  const [tab, setTab] = useState<'booking' | 'account'>(initialTab);
+  const [tab, setTab] = useState<'booking' | 'account'>(initialTab === 'booking' ? 'booking' : 'account');
   const [upcoming, setUpcoming] = useState<MyBooking[]>([]);
   const [history, setHistory] = useState<MyBooking[]>([]);
   const [accountLoading, setAccountLoading] = useState(false);
@@ -697,6 +701,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
             window.history.replaceState(window.history.state, '', url.toString());
           } catch { /* keep the URL as is */ }
         }
+
         setMemberReady(true);
         setMemberStatus('ready');
       } catch (e) {
@@ -1387,6 +1392,90 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       </Alert>
     ) : null;
 
+  // Rich menu "สั่งอาหาร" (`/liff/{shopKey}/order`): only the order screen —
+  // no member card, no queue list. Same LIFF login and `/me` as the account tab.
+  if (initialTab === 'order') {
+    const fnbOn = Boolean(shop?.fnb_enabled);
+    const orderable = upcoming.filter((b) => canOrderFoodFor(b, todayIso, fnbOn));
+    const entry = resolveOrderEntry(upcoming, todayIso, fnbOn);
+    const activeId = entry.kind === 'open' ? entry.bookingId : orderingFor;
+    const active = orderable.find((b) => b.id === activeId) ?? null;
+    const checkInToday = upcoming.filter(
+      (b) => Boolean(todayIso) && checkInEligibility({ status: b.status, booking_date: b.booking_date }, todayIso).ok,
+    );
+    const placeOf = (b: MyBooking) => b.resource_name || b.queue_number || 'ที่นั่งของคุณ';
+    const myQueuesButton = (
+      <Button variant="text" color="inherit" size="large" fullWidth sx={{ color: 'text.secondary' }} href={`/liff/${encodeURIComponent(shopKey)}/member`}>
+        ดูคิวของฉัน
+      </Button>
+    );
+
+    return (
+      <LiffShell {...shellProps} title="สั่งอาหาร / เครื่องดื่ม">
+        {shopMetaError ? <Alert severity="error">โหลดข้อมูลร้านไม่สำเร็จ: {shopMetaError}</Alert> : null}
+        {memberStatus !== 'ready' ? (
+          memberBlock ?? <LiffSkeleton rows={4} />
+        ) : active && lineUserId ? (
+          <Stack spacing={1}>
+            {orderable.length > 1 ? (
+              <Button variant="text" size="small" sx={{ alignSelf: 'flex-start' }} onClick={() => setOrderingFor('')}>
+                เปลี่ยนคิว ({active.queue_number})
+              </Button>
+            ) : null}
+            <LiffFnbOrderSheet
+              variant="page"
+              open
+              onClose={() => setOrderingFor('')}
+              shopKey={shopKey}
+              bookingId={active.id}
+              placeLabel={placeOf(active)}
+              lineUserId={lineUserId}
+              getIdToken={currentIdToken}
+            />
+          </Stack>
+        ) : entry.kind === 'choose' ? (
+          <Stack spacing={1.25}>
+            <Alert severity="info">คุณมีหลายคิวที่ร้าน เลือกคิวที่ต้องการสั่งอาหาร</Alert>
+            {orderable.map((b) => (
+              <Button
+                key={b.id}
+                variant="outlined"
+                size="large"
+                fullWidth
+                onClick={() => setOrderingFor(b.id)}
+                sx={{ justifyContent: 'space-between', minHeight: 56, borderRadius: '14px' }}
+              >
+                <span>{b.queue_number}</span>
+                <span>{[placeOf(b), String(b.start_time).slice(0, 5)].join(' · ')}</span>
+              </Button>
+            ))}
+          </Stack>
+        ) : (
+          <Stack spacing={1.25}>
+            <Alert severity={entry.kind === 'disabled' ? 'info' : 'warning'}>{orderEntryMessage(entry)}</Alert>
+            {entry.kind === 'none'
+              ? checkInToday.map((b) => (
+                  <Button
+                    key={b.id}
+                    variant="contained"
+                    size="large"
+                    fullWidth
+                    startIcon={<HowToRegRoundedIcon />}
+                    disabled={checkingIn === b.id}
+                    onClick={() => void checkIn(b.id)}
+                    sx={{ minHeight: 52 }}
+                  >
+                    {checkingIn === b.id ? 'กำลังเช็คอิน…' : `ฉันมาถึงแล้ว · คิว ${b.queue_number}`}
+                  </Button>
+                ))
+              : null}
+            {myQueuesButton}
+          </Stack>
+        )}
+      </LiffShell>
+    );
+  }
+
   const nameField = (
     <TextField
       label="ชื่อผู้จอง"
@@ -1469,7 +1558,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     const canCheckIn = Boolean(todayIso) && checkInEligibility({ status: b.status, booking_date: b.booking_date }, todayIso).ok;
     const isCalled = b.status === 'called';
     // Same rule as the API: on site today and the shop has F&B on.
-    const canOrderFood = Boolean(shop?.fnb_enabled) && Boolean(todayIso) && b.booking_date === todayIso && FNB_ORDERABLE_BOOKING_STATUSES.includes(b.status);
+    const canOrderFood = canOrderFoodFor(b, todayIso, Boolean(shop?.fnb_enabled));
     return (
       <Box
         key={b.id}

@@ -36,7 +36,14 @@ export type RichMenuState = {
   has_token: boolean;
   has_liff_booking: boolean;
   has_liff_member: boolean;
+  /** Plan includes F&B ordering (Professional+) — gates the "สั่งอาหาร" button action. */
+  fnb_plan_allowed: boolean;
+  /** F&B ordering is live for customers (plan allows AND the owner switch is on). */
+  fnb_enabled: boolean;
 };
+
+/** F&B availability passed into the builder state (see `getFnbAccess`). */
+export type RichMenuFnbAccess = { planAllowed: boolean; enabled: boolean };
 
 /** Parse a stored config; corrupt/old data yields null instead of an error. */
 export function parseStoredConfig(raw: unknown): RichMenuConfig | null {
@@ -58,8 +65,13 @@ function hasUsableLiffId(raw: string | null): boolean {
   return Boolean(id) && isValidLiffId(id);
 }
 
-/** Turn a shop row into the builder state. */
-export function toRichMenuState(shop: RichMenuShopRow): RichMenuState {
+/**
+ * Turn a shop row into the builder state.
+ *
+ * @param shop - Row from `loadRichMenuShop`.
+ * @param fnb - F&B access; omitted = locked.
+ */
+export function toRichMenuState(shop: RichMenuShopRow, fnb?: RichMenuFnbAccess): RichMenuState {
   const businessType = normalizeBusinessType(shop.business_type);
   return {
     shop_name: shop.name,
@@ -72,5 +84,7 @@ export function toRichMenuState(shop: RichMenuShopRow): RichMenuState {
     has_token: Boolean(shop.line_channel_access_token),
     has_liff_booking: hasUsableLiffId(shop.liff_id),
     has_liff_member: hasUsableLiffId(shop.liff_id_login_shop),
+    fnb_plan_allowed: fnb?.planAllowed ?? false,
+    fnb_enabled: fnb?.enabled ?? false,
   };
 }
