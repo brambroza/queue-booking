@@ -10,6 +10,7 @@ import { addDays } from './fixtures.mts';
 import type { BusinessKey } from './catalogs.mts';
 import { FNB_ORDER_GUIDE } from './shots-fnb-order.mts';
 import { PAYMENT_GUIDE } from './shots-payment.mts';
+import { SIGNAGE_SCENES } from './shots-signage-scenes.mts';
 
 export type ShotKind = 'portal' | 'liff' | 'display';
 
@@ -82,6 +83,8 @@ export type Shot = {
   me?: FixtureBody;
   /** Extra wait before the capture, e.g. for a toast to close. */
   delayMs?: number;
+  /** Freeze the page's clock at this Bangkok time today ('HH:MM:SS'), so a board that reads the time always looks the same. */
+  fixedTime?: string;
 };
 
 export const DESKTOP: Viewport = { width: 1440, height: 900 };
@@ -278,6 +281,7 @@ export const SHOTS: Shot[] = [
   ...BOOKING_WINDOW,
   ...PAYMENT_GUIDE,
   ...FNB_ORDER_GUIDE,
+  ...SIGNAGE_SCENES,
   { name: 'portal-dashboard', kind: 'portal', path: '/portal/dashboard', viewport: DESKTOP },
   { name: 'portal-queue-board', kind: 'portal', path: '/portal/queue-board', viewport: DESKTOP },
   { name: 'portal-bookings', kind: 'portal', path: '/portal/bookings', viewport: DESKTOP_TALL, clipSelector: PORTAL_CONTENT },

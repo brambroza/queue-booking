@@ -336,6 +336,7 @@ async function capture(
   const context = await newContext(browser, shot, shot.kind === 'portal' ? statePath : undefined);
   await guardApi(context, env, sample ?? (await loadCatalog(context, env)), sample, shot.routes, shot.patch, shot.writes, shot.me);
   if (shot.kind === 'liff') await stubLiff(context);
+  if (shot.fixedTime) await context.clock.setFixedTime(new Date(`${bangkokToday()}T${shot.fixedTime}+07:00`));
 
   try {
     const page = await context.newPage();

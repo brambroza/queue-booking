@@ -74,6 +74,18 @@ relative to the capture day, so re-run them when the dates in the images get old
 npm run screenshots -- window-portal-branch-form window-liff-event-days window-liff-advance-1w window-liff-waiting-room
 ```
 
+## Blog: signage scenes (`scene-*`)
+
+Nine shots for the illustrated signage post, written to
+`public/images/product/signage-scenes/`: the real `/display` page on sample feeds
+(`shots-signage-scenes.mts`). The per-shot option
+`fixedTime` freezes the browser clock at 18:30 Bangkok time, so the boards read the
+same on every run.
+
+```bash
+npm run screenshots -- scene-cover scene-lane-before scene-lane-after scene-timeline scene-route scene-floor scene-invite scene-flap scene-timeline-portrait
+```
+
 ## Before using a new image
 
 Open it and check: no real names or phone numbers, no loading state, light mode,

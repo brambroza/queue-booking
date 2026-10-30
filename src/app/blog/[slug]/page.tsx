@@ -5,11 +5,37 @@ import Image from 'next/image';
 import { Box, Button, Chip, Container, Divider, Paper, Stack, Typography } from '@mui/material';
 import { LandingNavbar } from '@/components/public/landing-navbar';
 import { LandingFooter } from '@/components/public/landing-footer';
-import { blogPosts, getBlogBySlug } from '@/components/public/blog-content';
+import { allBlogImages, blogPosts, getBlogBySlug, type BlogImage } from '@/components/public/blog-content';
 import { getBlogBySlugEn } from '@/components/public/blog-content-en';
 import { formatDateDMY } from '@/lib/utils/date-format';
 
 type Params = { slug: string };
+
+/**
+ * One image with its caption, inside the article flow.
+ * @param image Image to show.
+ * @param priority Load right away (the cover).
+ */
+function ArticleFigure({ image, priority = false }: { image: BlogImage; priority?: boolean }) {
+  return (
+    <Box component="figure" sx={{ m: 0, ...(image.narrow ? { maxWidth: 360, mx: 'auto' } : {}) }}>
+      <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, overflow: 'hidden', lineHeight: 0 }}>
+        <Image
+          src={image.src}
+          alt={image.alt}
+          width={1600}
+          height={image.narrow ? 2844 : 900}
+          priority={priority}
+          sizes="(max-width: 900px) 100vw, 860px"
+          style={{ width: '100%', height: 'auto', display: 'block' }}
+        />
+      </Box>
+      <Typography component="figcaption" variant="body2" color="text.secondary" sx={{ mt: 1, lineHeight: 1.65 }}>
+        {image.caption}
+      </Typography>
+    </Box>
+  );
+}
 
 export function generateStaticParams() {
   return blogPosts.map((p) => ({ slug: p.slug }));
@@ -22,7 +48,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   // Point hreflang at the English page only when it exists; a missing
   // translation used to send crawlers to a 404.
   const hasEn = getBlogBySlugEn(post.slug) !== null;
-  const ogImage = post.assets?.images?.[0]?.src;
+  const shareImage = allBlogImages(post)[0];
   return {
     title: `${post.title} | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE`,
     description: post.description,
@@ -43,7 +69,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
       locale: 'th_TH',
       publishedTime: `${post.publishedAt}T00:00:00+07:00`,
       modifiedTime: `${post.updatedAt ?? post.publishedAt}T00:00:00+07:00`,
-      ...(ogImage ? { images: [{ url: ogImage, alt: post.assets?.images?.[0]?.alt }] } : {}),
+      ...(shareImage ? { images: [{ url: shareImage.src, alt: shareImage.alt }] } : {}),
     },
   };
 }
@@ -54,6 +80,7 @@ export default async function BlogDetailPage({ params }: { params: Promise<Param
   if (!post) notFound();
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://queuebooking.com';
+  const images = allBlogImages(post);
   const articleSchema = {
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -64,9 +91,7 @@ export default async function BlogDetailPage({ params }: { params: Promise<Param
     inLanguage: 'th-TH',
     keywords: post.keywords.join(', '),
     articleSection: post.category,
-    ...(post.assets?.images?.length
-      ? { image: post.assets.images.map((img) => `${appUrl}${img.src}`) }
-      : {}),
+    ...(images.length ? { image: images.map((img) => `${appUrl}${img.src}`) } : {}),
     author: {
       '@type': 'Organization',
       name: 'QueueBooking LINE',
@@ -120,6 +145,12 @@ export default async function BlogDetailPage({ params }: { params: Promise<Param
         </Stack>
         <Divider sx={{ my: 3 }} />
 
+        {post.cover ? (
+          <Box sx={{ mb: 4 }}>
+            <ArticleFigure image={post.cover} priority />
+          </Box>
+        ) : null}
+
         {post.summary ? (
           <Paper
             elevation={0}
@@ -139,6 +170,13 @@ export default async function BlogDetailPage({ params }: { params: Promise<Param
                   <Typography key={p} color="text.secondary">{p}</Typography>
                 ))}
               </Stack>
+              {s.images?.length ? (
+                <Stack spacing={2.5} sx={{ mt: 2 }}>
+                  {s.images.map((img) => (
+                    <ArticleFigure key={img.src} image={img} />
+                  ))}
+                </Stack>
+              ) : null}
             </Box>
           ))}
         </Stack>

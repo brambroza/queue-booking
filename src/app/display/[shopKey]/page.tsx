@@ -2,16 +2,10 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { z } from 'zod';
-import { SIGNAGE_LAYOUTS, SIGNAGE_TEMPLATES, SIGNAGE_THEMES, type SignageConfig } from '@/lib/signage/types';
+import type { SignageConfig } from '@/lib/signage/types';
+import { parseSignageOverrides } from '@/lib/signage/overrides';
 import { SignageBoard, SignageDisabled } from '@/components/signage/signage-board';
 import { useSignageFeed } from '@/components/signage/use-signage-feed';
-
-const OverrideSchema = z.object({
-  template: z.enum(SIGNAGE_TEMPLATES).optional(),
-  theme: z.enum(SIGNAGE_THEMES).optional(),
-  layout: z.enum(SIGNAGE_LAYOUTS).optional(),
-});
 
 type FullscreenElement = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
 type FullscreenDocument = Document & { webkitExitFullscreen?: () => Promise<void> | void; webkitFullscreenElement?: Element | null };
@@ -24,14 +18,7 @@ function DisplayInner() {
   const [canFullscreen, setCanFullscreen] = useState(false);
 
   const branchId = searchParams.get('branch_id');
-  const overrides = useMemo(() => {
-    const parsed = OverrideSchema.safeParse({
-      template: searchParams.get('template') ?? undefined,
-      theme: searchParams.get('theme') ?? undefined,
-      layout: searchParams.get('layout') ?? undefined,
-    });
-    return parsed.success ? parsed.data : {};
-  }, [searchParams]);
+  const overrides = useMemo(() => parseSignageOverrides(searchParams), [searchParams]);
 
   const feedUrl = useMemo(() => {
     if (!shopKey) return null;
