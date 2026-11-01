@@ -35,6 +35,8 @@ export const RATE_LIMITS = {
   contactLead: { windowSeconds: 3600, max: 5 },
   /** Owner "test connection" for the slip verification key — each hit is a vendor call. */
   slipVerifyTest: { windowSeconds: 600, max: 5 },
+  /** Per shop — each hit emails someone, and the form takes any address. */
+  staffInvite: { windowSeconds: 3600, max: 20 },
 } as const satisfies Record<string, RateLimit>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

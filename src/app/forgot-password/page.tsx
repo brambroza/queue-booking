@@ -5,6 +5,7 @@ import Link from 'next/link';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { createClient } from '@/lib/supabase/client';
+import { OTP_MAX, isOtpComplete } from '@/lib/auth/otp';
 
 type Step = 'email' | 'otp' | 'password' | 'done';
 
@@ -90,7 +91,7 @@ export default function ForgotPasswordPage() {
         {step === 'otp' && (
           <>
             <p className="mt-1 text-sm text-slate-600">
-              กรอกรหัส 6 หลักที่ส่งไปยัง{' '}
+              กรอกรหัสที่ส่งไปยัง{' '}
               <span className="font-medium text-slate-800">{email}</span>
             </p>
             <div className="mt-4 space-y-3">
@@ -98,8 +99,8 @@ export default function ForgotPasswordPage() {
                 className="input text-center tracking-[0.4em] text-xl font-mono"
                 type="text"
                 inputMode="numeric"
-                maxLength={6}
-                placeholder="000000"
+                maxLength={OTP_MAX}
+                placeholder="รหัสจากอีเมล"
                 value={otp}
                 onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
                 autoComplete="one-time-code"
@@ -107,7 +108,7 @@ export default function ForgotPasswordPage() {
               />
               {error && <p className="text-sm text-red-600">{error}</p>}
               <button
-                disabled={loading || otp.length !== 6}
+                disabled={loading || !isOtpComplete(otp)}
                 onClick={verifyOtp}
                 className="btn-primary w-full"
               >

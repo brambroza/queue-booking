@@ -99,7 +99,8 @@ src/
 | `/api/bookings` | Booking CRUD + status update |
 | `/api/branches` | Branch CRUD |
 | `/api/services` | Service CRUD |
-| `/api/staff` | Staff management |
+| `/api/staff` | Staff management: invite by email (`redirectTo` = `/auth/accept-invite`, refuses accounts of another shop 409, branch required, rate limit `staffInvite`); delete / `active:false` revoke the staff grants and detach `users_profile` (`src/lib/staff/`) |
+| `/api/staff/resend-invite` | Email a staff member a new password link (invite if unconfirmed, else reset) |
 | `/api/customers` | Customer list |
 | `/api/resources` | Resource management |
 | `/api/working-hours` | Shop working hours |

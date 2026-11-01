@@ -14,6 +14,7 @@ import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import MailOutlineRoundedIcon from '@mui/icons-material/MailOutlineRounded';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
 
 type RefUser = { id: string; full_name: string | null; email: string | null; phone: string | null };
@@ -108,8 +109,8 @@ export function StaffCrud() {
       push(invitingNew ? t('err_email', 'กรุณากรอกอีเมลผู้ใช้ใหม่') : t('err_user', 'กรุณาเลือกผู้ใช้'), 'error');
       return;
     }
-    if (invitingNew && form.role === 'branch_manager' && form.branch_ids.length === 0) {
-      push(t('err_manager_branch', 'ผู้จัดการสาขาต้องผูกอย่างน้อย 1 สาขา'), 'error');
+    if (invitingNew && form.branch_ids.length === 0) {
+      push(t('err_branch_required', 'กรุณาเลือกสาขาอย่างน้อย 1 สาขา ไม่งั้นพนักงานจะไม่เห็นคิว'), 'error');
       return;
     }
 
@@ -144,7 +145,10 @@ export function StaffCrud() {
       return;
     }
 
-    push(editing ? t('updated', 'อัปเดตพนักงานแล้ว') : t('added', 'เพิ่มพนักงานแล้ว'));
+    if (editing) push(t('updated', 'อัปเดตพนักงานแล้ว'));
+    else if (json.invited) push(t('invite_sent', 'ส่งอีเมลเชิญแล้ว ให้พนักงานกดลิงก์ในอีเมลเพื่อตั้งรหัสผ่าน'));
+    else if (invitingNew) push(t('added_existing_account', 'เพิ่มพนักงานแล้ว บัญชีนี้มีอยู่แล้วจึงไม่ได้ส่งอีเมล ใช้รหัสผ่านเดิมเข้าสู่ระบบได้เลย'));
+    else push(t('added', 'เพิ่มพนักงานแล้ว'));
     setDrawerOpen(false);
     setForm(initialForm);
     void load();
@@ -167,6 +171,25 @@ export function StaffCrud() {
     if (!res.ok) return push(json.error ?? t('delete_failed', 'ลบไม่สำเร็จ'), 'error');
     push(t('deleted', 'ลบพนักงานแล้ว'));
     void load();
+  }
+
+  async function onResendInvite(row: StaffRow) {
+    const ok = await confirm({
+      tone: 'primary',
+      title: t('resend_title', 'ส่งลิงก์ตั้งรหัสผ่าน?'),
+      description: t('resend_desc', 'ส่งอีเมลให้พนักงานตั้งรหัสผ่านใหม่ รหัสเดิมยังใช้ได้จนกว่าจะตั้งใหม่'),
+      context: { primary: row.display_name },
+      confirmLabel: t('resend_confirm', 'ส่งลิงก์'),
+    });
+    if (!ok) return;
+    const res = await fetch('/api/staff/resend-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: row.id }),
+    }).catch(() => null);
+    const json = res ? await res.json().catch(() => ({})) : {};
+    if (!res?.ok) return push(json.error ?? t('resend_failed', 'ส่งลิงก์ไม่สำเร็จ'), 'error');
+    push(t('resend_sent', 'ส่งลิงก์ตั้งรหัสผ่านแล้ว'));
   }
 
   function toggleBranch(branchId: string) {
@@ -218,6 +241,12 @@ export function StaffCrud() {
                 onDelete={() => void onDelete(r)}
                 editLabel={t('edit', 'แก้ไข')}
                 deleteLabel={t('delete', 'ลบ')}
+                note={
+                  <button type="button" className="btn-outline inline-flex min-h-[44px] w-full items-center justify-center gap-1.5" onClick={() => void onResendInvite(r)}>
+                    <MailOutlineRoundedIcon fontSize="small" />
+                    {t('resend', 'ส่งลิงก์ตั้งรหัสผ่าน')}
+                  </button>
+                }
               />
             );
           }}
@@ -249,6 +278,7 @@ export function StaffCrud() {
                   <td className="px-3 py-2">
                     <ActionIconGroup
                       actions={[
+                        { key: 'resend', icon: <MailOutlineRoundedIcon fontSize="small" />, fallbackLabel: t('resend', 'ส่งลิงก์ตั้งรหัสผ่าน'), onClick: () => void onResendInvite(r) },
                         { key: 'edit', icon: <EditOutlinedIcon fontSize="small" />, labelKey: 'common.edit', fallbackLabel: t('edit', 'แก้ไข'), onClick: () => openEdit(r) },
                         { key: 'delete', icon: <DeleteOutlineIcon fontSize="small" />, labelKey: 'common.delete', fallbackLabel: t('delete', 'ลบ'), color: 'error', onClick: () => void onDelete(r) },
                       ]}

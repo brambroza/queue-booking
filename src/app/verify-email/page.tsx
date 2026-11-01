@@ -5,15 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { identifyUser, track } from '@/lib/analytics/track';
-
-/**
- * Supabase's "Email OTP Length" is a project setting (6–10 digits; this project
- * uses 8). Accept the whole range so a dashboard change never locks customers
- * out of the form again.
- */
-const OTP_MIN = 6;
-const OTP_MAX = 10;
-const isOtpComplete = (value: string) => value.length >= OTP_MIN && value.length <= OTP_MAX;
+import { OTP_MAX, isOtpComplete } from '@/lib/auth/otp';
 
 export default function VerifyEmailPage() {
   const router = useRouter();

@@ -539,6 +539,15 @@ export const fallbackTh: TranslationMap = {
   'staff.err_email': 'กรุณากรอกอีเมลผู้ใช้ใหม่',
   'staff.err_user': 'กรุณาเลือกผู้ใช้',
   'staff.err_manager_branch': 'ผู้จัดการสาขาต้องผูกอย่างน้อย 1 สาขา',
+  'staff.err_branch_required': 'กรุณาเลือกสาขาอย่างน้อย 1 สาขา ไม่งั้นพนักงานจะไม่เห็นคิว',
+  'staff.invite_sent': 'ส่งอีเมลเชิญแล้ว ให้พนักงานกดลิงก์ในอีเมลเพื่อตั้งรหัสผ่าน',
+  'staff.added_existing_account': 'เพิ่มพนักงานแล้ว บัญชีนี้มีอยู่แล้วจึงไม่ได้ส่งอีเมล ใช้รหัสผ่านเดิมเข้าสู่ระบบได้เลย',
+  'staff.resend': 'ส่งลิงก์ตั้งรหัสผ่าน',
+  'staff.resend_title': 'ส่งลิงก์ตั้งรหัสผ่าน?',
+  'staff.resend_desc': 'ส่งอีเมลให้พนักงานตั้งรหัสผ่านใหม่ รหัสเดิมยังใช้ได้จนกว่าจะตั้งใหม่',
+  'staff.resend_confirm': 'ส่งลิงก์',
+  'staff.resend_failed': 'ส่งลิงก์ไม่สำเร็จ',
+  'staff.resend_sent': 'ส่งลิงก์ตั้งรหัสผ่านแล้ว',
 };
 
 export const fallbackEn: TranslationMap = {
@@ -1081,6 +1090,15 @@ export const fallbackEn: TranslationMap = {
   'staff.err_email': 'Please enter the new user’s email',
   'staff.err_user': 'Please select a user',
   'staff.err_manager_branch': 'A branch manager needs at least 1 branch',
+  'staff.err_branch_required': 'Pick at least 1 branch, or this person will not see any queues',
+  'staff.invite_sent': 'Invite sent. They set a password from the link in the email.',
+  'staff.added_existing_account': 'Staff added. This account already exists, so no email was sent; they sign in with their current password.',
+  'staff.resend': 'Send password link',
+  'staff.resend_title': 'Send a password link?',
+  'staff.resend_desc': 'Emails a link to set a new password. The current one keeps working until then.',
+  'staff.resend_confirm': 'Send link',
+  'staff.resend_failed': 'Could not send the link',
+  'staff.resend_sent': 'Password link sent',
 };
 
 export function getFallbackByLang(lang: string): TranslationMap {

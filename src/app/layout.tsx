@@ -7,6 +7,7 @@ import { I18nProvider } from '@/components/i18n/i18n-provider';
 import { MuiAppProvider } from '@/components/theme/mui-provider';
 import { PostHogProvider } from '@/components/analytics/posthog-provider';
 import { CookieConsent } from '@/components/consent/cookie-consent';
+import { AuthLinkRedirect } from '@/components/auth/auth-link-redirect';
 import { BreadcrumbSchema } from '@/components/seo/breadcrumb-schema';
 import { lightSurface } from '@/theme/tokens';
 
@@ -137,7 +138,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <ToastProvider>
                 <ConfirmProvider>{children}</ConfirmProvider>
               </ToastProvider>
-              <CookieConsent />
+            <AuthLinkRedirect />
+            <CookieConsent />
             </MuiAppProvider>
           </I18nProvider>
         </PostHogProvider>

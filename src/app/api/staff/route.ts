@@ -7,9 +7,16 @@ import { assertFeatureQuota } from '@/lib/subscription/enforcement';
 import { subscriptionErrorResponse } from '@/lib/subscription/response';
 import { writeAuditLog } from '@/lib/audit/activity-log';
 import { escapePostgrestSearch } from '@/lib/utils/postgrest';
-
-/** Roles a shop owner may hand out from the staff screen. Never shop_owner or super_admin. */
-const ASSIGNABLE_ROLES = ['branch_manager', 'staff'] as const;
+import { acceptInviteUrl } from '@/lib/auth/invite-link';
+import { hitRateLimit, tooManyRequests } from '@/lib/security/rate-limit';
+import { ASSIGNABLE_ROLES } from '@/lib/staff/staff-access';
+import {
+  StaffAccessError,
+  assertAttachable,
+  grantShopRole,
+  restoreStaffAccess,
+  revokeStaffAccess,
+} from '@/lib/staff/staff-access-server';
 
 /**
  * Managing staff and their branch assignments is owner-level: a branch_manager who
@@ -38,7 +45,9 @@ const staffSchema = z
  * Registration only ever produced shop_owner accounts, so before this there was no
  * way to bring a branch_manager or staff login into existence.
  *
- * @returns The auth user id to attach the staff row to.
+ * @returns The auth user id, and whether an invite email went out. An account that
+ *          already has a confirmed email is attached without one.
+ * @throws StaffAccessError when the account belongs elsewhere or is already staff here.
  */
 async function provisionStaffUser(input: {
   email: string;
@@ -47,61 +56,63 @@ async function provisionStaffUser(input: {
   companyId: string;
   shopId: string;
   actorId: string;
-}): Promise<string> {
+  redirectTo: string;
+}): Promise<{ userId: string; invited: boolean }> {
   const admin = createAdminClient();
 
-  const { data: roleRow, error: roleError } = await admin
-    .from('roles')
-    .select('id')
-    .eq('code', input.role)
-    .eq('is_deleted', false)
-    .single();
-  if (roleError || !roleRow) throw new Error(`Role ${input.role} not found in seed data`);
+  // Check before the invite call: nothing may be sent or written for a refused account.
+  let userId = await findAuthUserByEmail(admin, input.email);
+  let needsInvite = true;
+  if (userId) {
+    await assertAttachable(admin, userId, input.shopId);
 
-  const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(input.email);
-  let userId = invited?.user?.id ?? null;
+    const { data: existed } = await admin
+      .from('staff')
+      .select('id')
+      .eq('shop_id', input.shopId)
+      .eq('user_id', userId)
+      .eq('is_deleted', false)
+      .maybeSingle();
+    if (existed) throw new StaffAccessError('This user is already staff in this shop', 400);
 
-  if (!userId) {
-    // Already registered (or invites are disabled) — fall back to looking the user up.
-    const existing = await findAuthUserByEmail(admin, input.email);
-    if (!existing) throw new Error(inviteError?.message ?? 'Unable to invite user');
-    userId = existing;
+    const { data: account, error: accountError } = await admin.auth.admin.getUserById(userId);
+    if (accountError) throw accountError;
+    needsInvite = !account.user?.email_confirmed_at;
   }
 
+  if (needsInvite) {
+    const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(input.email, {
+      redirectTo: input.redirectTo,
+    });
+    if (inviteError || !invited?.user?.id) {
+      console.error('[staff] invite failed:', inviteError?.message);
+      throw new StaffAccessError('ส่งอีเมลเชิญไม่สำเร็จ กรุณารอสักครู่แล้วลองใหม่', 502);
+    }
+    userId = invited.user.id;
+  }
+  if (!userId) throw new Error('Unable to invite user');
+
+  const { data: existingProfile } = await admin.from('users_profile').select('id').eq('id', userId).maybeSingle();
   const { error: profileError } = await admin.from('users_profile').upsert({
     id: userId,
     company_id: input.companyId,
     shop_id: input.shopId,
-    full_name: input.displayName,
     email: input.email,
     active: true,
-    created_by: input.actorId,
     updated_by: input.actorId,
+    ...(existingProfile ? {} : { full_name: input.displayName, created_by: input.actorId }),
   });
   if (profileError) throw profileError;
 
-  const { data: existingRole } = await admin
-    .from('user_roles')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('role_id', roleRow.id)
-    .eq('shop_id', input.shopId)
-    .eq('is_deleted', false)
-    .maybeSingle();
+  await grantShopRole(admin, {
+    userId,
+    shopId: input.shopId,
+    companyId: input.companyId,
+    actorId: input.actorId,
+    role: input.role,
+  });
 
-  if (!existingRole) {
-    const { error: roleInsertError } = await admin.from('user_roles').insert({
-      user_id: userId,
-      role_id: roleRow.id,
-      company_id: input.companyId,
-      shop_id: input.shopId,
-      created_by: input.actorId,
-      updated_by: input.actorId,
-    });
-    if (roleInsertError) throw roleInsertError;
-  }
-
-  return userId;
+  return { userId, invited: needsInvite };
 }
 
 /** auth.users is not queryable directly, so page through the admin listing. */
@@ -236,8 +247,24 @@ export async function POST(req: Request) {
       .eq('is_deleted', false);
     await assertFeatureQuota(profile.shop_id, 'staff', staffCount ?? 0);
 
-    const staffUserId = payload.user_id
-      ? payload.user_id
+    if (!payload.user_id) {
+      if (payload.branch_ids.length === 0) {
+        return NextResponse.json({ error: 'กรุณาเลือกสาขาอย่างน้อย 1 สาขา' }, { status: 400 });
+      }
+      if (!(await hitRateLimit(createAdminClient(), 'staffInvite', profile.shop_id))) return tooManyRequests();
+    } else {
+      const { data: member, error: memberError } = await supabase
+        .from('users_profile')
+        .select('id')
+        .eq('id', payload.user_id)
+        .eq('shop_id', profile.shop_id)
+        .maybeSingle();
+      if (memberError) throw memberError;
+      if (!member) return NextResponse.json({ error: 'ไม่พบผู้ใช้นี้ในร้าน' }, { status: 400 });
+    }
+
+    const provisioned = payload.user_id
+      ? null
       : await provisionStaffUser({
           email: payload.email!,
           displayName: payload.display_name,
@@ -245,7 +272,9 @@ export async function POST(req: Request) {
           companyId: profile.company_id,
           shopId: profile.shop_id,
           actorId: user.id,
+          redirectTo: acceptInviteUrl(process.env.NEXT_PUBLIC_APP_URL, new URL(req.url).origin),
         });
+    const staffUserId = provisioned?.userId ?? payload.user_id!;
 
     const { data: existed } = await supabase
       .from('staff')
@@ -280,7 +309,11 @@ export async function POST(req: Request) {
     });
     if (mapError) throw mapError;
 
-    return NextResponse.json({ data: true });
+    if (!payload.active) {
+      await revokeStaffAccess(createAdminClient(), { userId: staffUserId, shopId: profile.shop_id, actorId: user.id });
+    }
+
+    return NextResponse.json({ data: true, invited: provisioned?.invited ?? false });
   } catch (e) {
     const quota = subscriptionErrorResponse(e);
     if (quota) return quota;
@@ -299,6 +332,21 @@ export async function PATCH(req: Request) {
     if (!parsed.success) return NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues }, { status: 400 });
 
     const payload = parsed.data;
+
+    const { data: current, error: currentError } = await supabase
+      .from('staff')
+      .select('user_id,active')
+      .eq('id', id)
+      .eq('shop_id', profile.shop_id)
+      .eq('is_deleted', false)
+      .maybeSingle();
+    if (currentError) throw currentError;
+    if (!current) return NextResponse.json({ error: 'ไม่พบพนักงาน' }, { status: 404 });
+
+    const access = { userId: current.user_id as string, shopId: profile.shop_id as string, actorId: user.id };
+    if (payload.active && !current.active) {
+      await restoreStaffAccess(createAdminClient(), { ...access, companyId: profile.company_id as string });
+    }
 
     // `user_id` is fixed at creation: re-pointing a staff row at another auth
     // account would hand that account this staff member's branch access.
@@ -323,6 +371,8 @@ export async function PATCH(req: Request) {
     });
     if (mapError) throw mapError;
 
+    if (!payload.active) await revokeStaffAccess(createAdminClient(), access);
+
     return NextResponse.json({ data: true });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });
@@ -335,6 +385,15 @@ export async function DELETE(req: Request) {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+
+    const { data: target, error: targetError } = await supabase
+      .from('staff')
+      .select('user_id')
+      .eq('id', id)
+      .eq('shop_id', profile.shop_id)
+      .maybeSingle();
+    if (targetError) throw targetError;
+    if (!target) return NextResponse.json({ error: 'ไม่พบพนักงาน' }, { status: 404 });
 
     const { error } = await supabase
       .from('staff')
@@ -349,6 +408,12 @@ export async function DELETE(req: Request) {
       .eq('staff_id', id)
       .eq('shop_id', profile.shop_id)
       .eq('is_deleted', false);
+
+    await revokeStaffAccess(createAdminClient(), {
+      userId: target.user_id as string,
+      shopId: profile.shop_id as string,
+      actorId: user.id,
+    });
 
     await writeAuditLog({
       companyId: profile.company_id,
