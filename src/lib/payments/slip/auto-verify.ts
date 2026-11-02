@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { decodeSlipQr } from './decode-image';
 import { parseThaiSlipQr } from './slip-qr';
 import { resolveSlipProvider } from './provider';
+import { getSlipAutoMode } from './auto-mode';
 import { evaluateSlip, type SlipEvaluation, type SlipProviderOutcome } from './evaluate';
 import { nextRecheckAt, shouldRecheck } from './recheck';
 import { notifySlipProviderProblemOnce } from './notify-provider';
@@ -90,20 +91,22 @@ export async function verifySlipPayload(admin: SupabaseClient, opts: VerifySlipP
     const parsed = qrPayload ? parseThaiSlipQr(qrPayload) : null;
     const slip = parsed?.ok ? parsed.slip : null;
 
-    const [duplicate, shopRow, bookingRow] = await Promise.all([
+    const [duplicate, shopRow, bookingRow, autoMode] = await Promise.all([
       slip
         ? isDuplicateTransRef(admin, { transRef: slip.transRef, sendingBankCode: slip.sendingBankCode, bookingId: opts.bookingId })
         : Promise.resolve(false),
       admin.from('shops').select('promptpay_id,bank_account_no').eq('id', opts.shopId).maybeSingle(),
       admin.from('bookings').select('created_at,is_demo').eq('id', opts.bookingId).eq('shop_id', opts.shopId).maybeSingle(),
+      getSlipAutoMode(admin, opts.shopId),
     ]);
     const isDemo = bookingRow.data?.is_demo === true;
 
-    // Only spend a bank lookup on a slip that survived the free checks, and
-    // never on demo bookings — they would burn the platform's quota.
+    // Only spend a bank lookup on a slip that survived the free checks, never
+    // on demo bookings (they would burn the platform's quota), and never for a
+    // shop that turned the bank check off.
     let provider: SlipProviderOutcome | null = null;
     let hadProvider = false;
-    if (slip && slip.crcValid && !duplicate && qrPayload && !isDemo) {
+    if (slip && slip.crcValid && !duplicate && qrPayload && !isDemo && autoMode !== 'off') {
       const source = await resolveSlipProvider(admin, opts.shopId);
       if (source) {
         hadProvider = true;
@@ -141,6 +144,7 @@ export async function verifySlipPayload(admin: SupabaseClient, opts: VerifySlipP
         (v): v is string => typeof v === 'string' && v.length > 0,
       ),
       provider,
+      autoMode,
     });
 
     const bank = provider && 'result' in provider && provider.result.found

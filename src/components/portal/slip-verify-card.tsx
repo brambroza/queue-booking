@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { useUpgrade } from '@/components/subscription/upgrade-provider';
+import { useConfirm } from '@/components/ui/confirm-dialog';
+import type { SlipAutoMode } from '@/lib/payments/slip/auto-mode';
 
 export interface SlipVerifyProviderView {
   provider: string;
@@ -16,6 +18,7 @@ export interface SlipVerifyProviderView {
 }
 
 export interface SlipVerifyView {
+  auto_mode: SlipAutoMode;
   source: 'shop' | 'platform' | 'none';
   provider: string | null;
   plan_locked: boolean;
@@ -24,6 +27,24 @@ export interface SlipVerifyView {
   credentials_key_configured: boolean;
   providers: SlipVerifyProviderView[];
 }
+
+const AUTO_MODE_OPTIONS: { value: SlipAutoMode; title: string; detail: string }[] = [
+  {
+    value: 'auto_approve',
+    title: 'ตรวจและอนุมัติให้อัตโนมัติ',
+    detail: 'ธนาคารยืนยันครบ (รายการจริง ยอดตรง เข้าบัญชีร้าน เวลาถูกต้อง) = อนุมัติทันที ลูกค้าได้คิวโดยไม่ต้องรอ',
+  },
+  {
+    value: 'check_only',
+    title: 'ตรวจให้ แต่พนักงานกดอนุมัติเอง',
+    detail: 'ระบบแสดงผลจากธนาคารให้ดูในหน้าตรวจสลิป ไม่มีสลิปไหนถูกอนุมัติถ้าคนยังไม่กด',
+  },
+  {
+    value: 'off',
+    title: 'ไม่ตรวจกับธนาคาร',
+    detail: 'พนักงานตรวจเองทุกใบ ไม่ใช้โควต้าตรวจสลิป — ยังเช็กสลิปซ้ำจาก QR ให้เหมือนเดิม',
+  },
+];
 
 const ONBOARDING: Record<string, string[]> = {
   easyslip: [
@@ -56,20 +77,35 @@ function SourceBadge({ view }: { view: SlipVerifyView }) {
 export function SlipVerifyCard({ view, onSaved }: { view: SlipVerifyView; onSaved: () => void }) {
   const { push } = useToast();
   const { openUpgrade } = useUpgrade();
+  const confirm = useConfirm();
   const vendor = view.providers[0];
+  const [autoMode, setAutoMode] = useState<SlipAutoMode>(view.auto_mode);
   const [enabled, setEnabled] = useState(vendor?.enabled ?? false);
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
 
   useEffect(() => setEnabled(vendor?.enabled ?? false), [vendor?.enabled]);
+  useEffect(() => setAutoMode(view.auto_mode), [view.auto_mode]);
 
   if (!vendor) return null;
 
   async function save() {
+    const modeChanged = autoMode !== view.auto_mode;
+    if (modeChanged && autoMode === 'auto_approve') {
+      const ok = await confirm({
+        tone: 'warning',
+        title: 'ให้ระบบอนุมัติสลิปแทนพนักงาน?',
+        description: 'สลิปที่ธนาคารยืนยันครบจะถูกนับว่าชำระแล้วทันที โดยไม่มีคนกดอนุมัติ สลิปที่มีข้อสงสัยยังเข้าคิวให้คนตรวจเหมือนเดิม',
+        confirmLabel: 'เปิดอนุมัติอัตโนมัติ',
+      });
+      if (!ok) return;
+    }
+
     setSaving(true);
     const body: Record<string, unknown> = { provider: vendor.provider, enabled };
     if (apiKey.trim()) body.credentials = { apiKey: apiKey.trim() };
+    if (modeChanged) body.auto_mode = autoMode;
     const res = await fetch('/api/shop-payment-settings/slip-verify', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -108,11 +144,41 @@ export function SlipVerifyCard({ view, onSaved }: { view: SlipVerifyView; onSave
           <h2 className="text-base font-semibold text-slate-800">ตรวจสลิปอัตโนมัติกับธนาคาร</h2>
           <p className="mt-1 text-xs text-slate-500">
             ระบบอ่าน QR บนสลิป แล้วถามผู้ให้บริการที่เชื่อมกับธนาคารว่ามีรายการโอนจริง ยอดตรง และเข้าบัญชีร้านนี้
-            ถ้าครบทุกข้อจะอนุมัติให้ทันที ที่เหลือเข้าคิวให้คนตรวจ — ไม่มีการปฏิเสธอัตโนมัติ
+            ร้านเลือกได้ว่าจะให้ระบบทำแค่ไหน สลิปที่มีข้อสงสัยเข้าคิวให้คนตรวจเสมอ — ไม่มีการปฏิเสธอัตโนมัติ
           </p>
         </div>
         <SourceBadge view={view} />
       </div>
+
+      <fieldset className="space-y-2">
+        <legend className="mb-2 text-sm font-semibold text-slate-800">เมื่อลูกค้าส่งสลิป ให้ระบบ</legend>
+        {AUTO_MODE_OPTIONS.map((option) => (
+          <label
+            key={option.value}
+            className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 ${
+              autoMode === option.value ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'
+            }`}
+          >
+            <input
+              type="radio"
+              name="slip-auto-mode"
+              className="mt-0.5 h-4 w-4 accent-blue-600"
+              checked={autoMode === option.value}
+              onChange={() => setAutoMode(option.value)}
+            />
+            <span>
+              <span className="text-sm font-medium text-slate-800">{option.title}</span>
+              <span className="mt-0.5 block text-xs text-slate-500">{option.detail}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
+
+      {view.source === 'none' && autoMode !== 'off' && !view.plan_locked && view.platform_available && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+          ยังไม่มี key ที่ใช้งานได้ ระบบจึงยังถามธนาคารไม่ได้ สลิปทุกใบเข้าคิวให้คนตรวจ
+        </div>
+      )}
 
       {view.source === 'none' && view.plan_locked && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">

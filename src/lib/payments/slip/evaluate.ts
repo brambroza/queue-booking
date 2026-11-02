@@ -10,6 +10,7 @@
 import type { SlipQrParseResult } from './slip-qr';
 import type { SlipProviderResult } from './provider';
 import type { SlipProviderErrorCode, SlipProviderSource } from './providers/types';
+import type { SlipAutoMode } from './auto-mode';
 
 export type SlipCheckKey =
   | 'qr_found'
@@ -79,6 +80,8 @@ export interface SlipEvaluationInput {
   /** The shop's own receiving ids (PromptPay id, bank account no), unmasked. */
   receiverTargets: string[];
   provider: SlipProviderOutcome | null;
+  /** What the shop allows. Only `auto_approve` lets a verified slip settle without a human. */
+  autoMode: SlipAutoMode;
 }
 
 /** Tolerance between bank clock, our clock, and the customer's booking time. */
@@ -122,7 +125,10 @@ function evaluateProvider(input: SlipEvaluationInput, checks: SlipCheck[]): Prov
   const none: ProviderVerdict = { confirmed: false, amount: null, held: false, retryReason: null };
   const outcome = input.provider;
   if (!outcome) {
-    checks.push({ key: 'bank_found', status: 'skip', detail: 'ยังไม่ได้เชื่อมต่อระบบยืนยันกับธนาคาร — ยอดเงินและผู้รับยังไม่ถูกยืนยัน' });
+    const detail = input.autoMode === 'off'
+      ? 'ร้านปิดการตรวจกับธนาคารไว้ — ยอดเงินและผู้รับยังไม่ถูกยืนยัน'
+      : 'ยังไม่ได้เชื่อมต่อระบบยืนยันกับธนาคาร — ยอดเงินและผู้รับยังไม่ถูกยืนยัน';
+    checks.push({ key: 'bank_found', status: 'skip', detail });
     return none;
   }
   if ('error' in outcome) {
@@ -251,7 +257,8 @@ export function evaluateSlip(input: SlipEvaluationInput): SlipEvaluation {
   // A claimed-amount typo does not block: the bank's answer outranks it. A late
   // upload does — the slot may already have been released, so a human decides.
   if (bank.confirmed) {
-    return { status: 'verified', autoApprove: !late && !bank.held, checks, ...base, verifiedAmountTHB: bank.amount };
+    const autoApprove = input.autoMode === 'auto_approve' && !late && !bank.held;
+    return { status: 'verified', autoApprove, checks, ...base, verifiedAmountTHB: bank.amount };
   }
 
   return { status: 'plausible', autoApprove: false, checks, ...base, retryReason: bank.retryReason };

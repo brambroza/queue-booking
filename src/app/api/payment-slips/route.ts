@@ -3,6 +3,7 @@ import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { signSlipUrls } from '@/lib/storage/buckets';
 import { resolveSlipProviderSource } from '@/lib/payments/slip/providers/settings';
+import { getSlipAutoMode } from '@/lib/payments/slip/auto-mode';
 
 const VALID_STATUSES = new Set(['pending', 'approved', 'rejected', 'superseded']);
 
@@ -48,9 +49,10 @@ export async function GET(req: Request) {
     // thing that would leak an image across tenants if it ever did not.
     const paths = rows.map((r) => r.storage_path as string).filter(Boolean);
     const admin = createAdminClient();
-    const [signed, slipVerify] = await Promise.all([
+    const [signed, slipVerify, autoMode] = await Promise.all([
       signSlipUrls(admin, paths),
       resolveSlipProviderSource(admin, profile.shop_id).catch(() => null),
+      getSlipAutoMode(admin, profile.shop_id),
     ]);
     const canConfigure = roles.includes('super_admin') || roles.includes('shop_owner');
 
@@ -63,6 +65,7 @@ export async function GET(req: Request) {
         // Lets the inbox explain *why* a slip stopped at "plausible" and where to fix it.
         slip_verify: {
           source: slipVerify?.source ?? 'none',
+          auto_mode: autoMode,
           plan_locked: slipVerify?.source === 'none' && slipVerify.reason === 'plan_locked',
           can_configure: canConfigure,
         },

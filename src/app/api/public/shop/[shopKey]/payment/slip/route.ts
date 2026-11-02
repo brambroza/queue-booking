@@ -199,13 +199,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   }
 
   const suspicious = evaluation.status === 'suspicious';
+  const bankVerified = evaluation.status === 'verified';
   await safeCreateNotification(admin, {
     companyId: shop.company_id,
     shopId: shop.id,
     type: 'payment_slip_uploaded',
     category: 'billing',
     priority: 'high',
-    title: suspicious ? 'สลิปน่าสงสัย — กรุณาตรวจสอบ' : 'สลิปใหม่รอตรวจสอบ',
+    title: suspicious ? 'สลิปน่าสงสัย — กรุณาตรวจสอบ' : bankVerified ? 'ธนาคารยืนยันสลิปแล้ว — รอกดอนุมัติ' : 'สลิปใหม่รอตรวจสอบ',
     message: suspicious
       ? `คิว ${booking.queue_number} อัปโหลดสลิปที่ไม่ผ่านการตรวจอัตโนมัติ ยอด ${amount.toLocaleString('th-TH')} บาท`
       : `คิว ${booking.queue_number} อัปโหลดสลิปแล้ว ยอด ${amount.toLocaleString('th-TH')} บาท`,

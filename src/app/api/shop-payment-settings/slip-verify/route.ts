@@ -13,6 +13,7 @@ import {
   resolveSlipProviderSource,
   type SlipProviderRow,
 } from '@/lib/payments/slip/providers/settings';
+import { SLIP_AUTO_MODES, getSlipAutoMode } from '@/lib/payments/slip/auto-mode';
 
 /**
  * Per-shop slip verification key.
@@ -30,6 +31,8 @@ const patchSchema = z.object({
   enabled: z.boolean().optional(),
   /** Adapter-specific credential fields; validated by the adapter, sealed before storage. */
   credentials: z.record(z.string(), z.string()).optional(),
+  /** Stored on `shops`, not per vendor: it applies to the platform key too. */
+  auto_mode: z.enum(SLIP_AUTO_MODES).optional(),
 });
 
 function present(row: SlipProviderRow | undefined, provider: string, displayName: string, available: boolean) {
@@ -49,13 +52,15 @@ export async function GET() {
   try {
     const { profile } = await requireAuthContext({ roles: [...ROLES] });
     const admin = createAdminClient();
-    const [rows, resolved] = await Promise.all([
+    const [rows, resolved, autoMode] = await Promise.all([
       loadShopSlipProviderRows(admin, profile.shop_id),
       resolveSlipProviderSource(admin, profile.shop_id),
+      getSlipAutoMode(admin, profile.shop_id),
     ]);
 
     return NextResponse.json({
       data: {
+        auto_mode: autoMode,
         source: resolved.source,
         provider: resolved.source === 'none' ? null : resolved.provider,
         plan_locked: resolved.source === 'none' && resolved.reason === 'plan_locked',
@@ -113,6 +118,14 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: 'ต้องใส่ API key ก่อนเปิดใช้ key ของร้าน' }, { status: 400 });
     }
 
+    if (d.auto_mode) {
+      const { error } = await admin.from('shops').update({ slip_auto_mode: d.auto_mode }).eq('id', profile.shop_id);
+      if (error) {
+        console.error('[slip] auto mode update failed:', error.message);
+        return NextResponse.json({ error: 'บันทึกโหมดตรวจสลิปไม่สำเร็จ ลองใหม่อีกครั้ง' }, { status: 500 });
+      }
+    }
+
     if (existing) {
       const { error } = await admin.from(SLIP_PROVIDER_TABLE).update(updates).eq('id', existing.id).eq('shop_id', profile.shop_id);
       if (error) throw error;
@@ -135,7 +148,7 @@ export async function PATCH(req: Request) {
       action: 'data_updated',
       targetTable: SLIP_PROVIDER_TABLE,
       targetId: existing?.id ?? null,
-      payload: { provider: d.provider, enabled: enabledAfter, credentials_rotated: rotated },
+      payload: { provider: d.provider, enabled: enabledAfter, credentials_rotated: rotated, auto_mode: d.auto_mode ?? null },
     });
 
     return NextResponse.json({ data: true });

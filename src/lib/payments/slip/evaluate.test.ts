@@ -34,11 +34,33 @@ function input(overrides: Partial<SlipEvaluationInput> = {}): SlipEvaluationInpu
     bookingCreatedAt: new Date('2026-09-19T03:00:00.000Z'),
     receiverTargets: ['0812345678', '1234556780'],
     provider: null,
+    autoMode: 'auto_approve',
     ...overrides,
   };
 }
 
 const statusOf = (result: ReturnType<typeof evaluateSlip>, key: string) => result.checks.find((c) => c.key === key)?.status;
+
+describe('evaluateSlip — shop auto mode', () => {
+  const confirmed = { provider: { id: 'easyslip', result: bankOk } };
+
+  it('auto-approves a bank-confirmed slip only in auto_approve mode', () => {
+    expect(evaluateSlip(input({ ...confirmed, autoMode: 'auto_approve' })).autoApprove).toBe(true);
+  });
+
+  it('keeps a bank-confirmed slip for a human in check_only mode', () => {
+    const result = evaluateSlip(input({ ...confirmed, autoMode: 'check_only' }));
+    expect(result.status).toBe('verified');
+    expect(result.autoApprove).toBe(false);
+    expect(result.verifiedAmountTHB).toBe(500);
+  });
+
+  it('says the shop turned the bank check off when no lookup ran', () => {
+    const result = evaluateSlip(input({ autoMode: 'off' }));
+    expect(result.status).toBe('plausible');
+    expect(result.checks.find((c) => c.key === 'bank_found')?.detail).toContain('ร้านปิด');
+  });
+});
 
 describe('evaluateSlip — local evidence only', () => {
   it('never auto-approves without bank-side evidence, however clean the QR', () => {

@@ -52,7 +52,7 @@ type SlipRow = {
   } | null;
 };
 
-type SlipVerifyMeta = { source: 'shop' | 'platform' | 'none'; plan_locked: boolean; can_configure: boolean };
+type SlipVerifyMeta = { source: 'shop' | 'platform' | 'none'; auto_mode: 'off' | 'check_only' | 'auto_approve'; plan_locked: boolean; can_configure: boolean };
 
 /** Vendor id → name, kept client-side so the inbox does not import the server registry. */
 const PROVIDER_NAME: Record<string, string> = { easyslip: 'EasySlip' };
@@ -337,7 +337,17 @@ export function PaymentVerificationInbox({ initialBookingId }: { initialBookingI
                     QR บนสลิปบอกได้แค่ธนาคารและเลขอ้างอิง — กรุณาตรวจยอดเงินและบัญชีผู้รับจากรูป หรือเช็กยอดเข้าในแอปธนาคารก่อนอนุมัติ
                   </p>
                 )}
-                {selected.auto_check_status === 'plausible' && !selected.auto_check_result?.provider && verifyMeta?.source === 'none' && (
+                {selected.auto_check_status === 'verified' && selected.status === 'pending' && verifyMeta?.auto_mode === 'check_only' && (
+                  <p className="mt-2 text-xs text-slate-600">
+                    ธนาคารยืนยันสลิปนี้แล้ว รอกดอนุมัติ เพราะร้านตั้งให้คนอนุมัติเอง
+                    {verifyMeta.can_configure && (
+                      <>
+                        {' '}— <Link href="/portal/payment-settings#slip-verify" className="font-medium text-blue-600 underline">เปิดอนุมัติอัตโนมัติ</Link>
+                      </>
+                    )}
+                  </p>
+                )}
+                {selected.auto_check_status === 'plausible' && !selected.auto_check_result?.provider && verifyMeta?.source === 'none' && verifyMeta.auto_mode !== 'off' && (
                   <p className="mt-2 text-xs text-slate-600">
                     {verifyMeta.plan_locked ? (
                       <>
