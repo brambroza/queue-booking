@@ -1,13 +1,15 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { applyBranchScope, assertBranchAllowed } from '@/lib/auth/branch-scope';
 import { bookingSchema } from '@/lib/booking/schemas';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { pushMessage } from '@/lib/line/client';
 import { bookingConfirmFlex } from '@/lib/line/messages';
-import { assertFeatureQuota } from '@/lib/subscription/enforcement';
+import { assertFeatureQuota, SubscriptionInactiveError, SubscriptionQuotaError } from '@/lib/subscription/enforcement';
 import { subscriptionErrorResponse } from '@/lib/subscription/response';
 import { monthBounds } from '@/lib/subscription/usage';
+import { quotaPeriod } from '@/lib/subscription/quota-alerts';
+import { safeNotifyQuotaExceeded, safeNotifyQuotaThreshold } from '@/lib/subscription/quota-alerts-server';
 import { safeCreateNotification } from '@/lib/notifications/createNotification';
 import { resolvePaymentForBooking } from '@/lib/payments/resolve';
 import { detectOmisePlatform } from '@/lib/payments/mobile-banking/banks';
@@ -160,7 +162,22 @@ export async function POST(req: Request) {
       console.error('[bookings] monthly quota count failed', monthlyError.message);
       return NextResponse.json({ error: 'ไม่สามารถตรวจสอบโควต้าการจองได้ กรุณาลองใหม่อีกครั้ง' }, { status: 500 });
     }
-    await assertFeatureQuota(profile.shop_id, 'bookings', monthlyCount ?? 0);
+    let monthlyLimit: number | null = null;
+    try {
+      monthlyLimit = (await assertFeatureQuota(profile.shop_id, 'bookings', monthlyCount ?? 0)).limits.max_monthly_bookings;
+    } catch (quotaErr) {
+      // Staff see the paywall toast; the owner hears it too (once per day), in the bell and on LINE.
+      if (quotaErr instanceof SubscriptionQuotaError || quotaErr instanceof SubscriptionInactiveError) {
+        await safeNotifyQuotaExceeded(createAdminClient(), {
+          companyId: profile.company_id,
+          shopId: profile.shop_id,
+          source: 'staff',
+          inactive: quotaErr instanceof SubscriptionInactiveError,
+          metadata: { user_id: user.id },
+        });
+      }
+      throw quotaErr;
+    }
 
     const partySize = payload.party_size ?? null;
     const lineUserPk = payload.line_user_pk ?? null;
@@ -475,6 +492,18 @@ export async function POST(req: Request) {
         console.error('[payments] setup error (booking still created):', payErr instanceof Error ? payErr.message : payErr);
       }
     }
+
+    // 80 / 90 / 100 % of the monthly quota → bell + owner LINE, once per threshold.
+    after(() =>
+      safeNotifyQuotaThreshold(createAdminClient(), {
+        companyId: profile.company_id,
+        shopId: profile.shop_id,
+        before: monthlyCount ?? 0,
+        after: (monthlyCount ?? 0) + 1,
+        limit: monthlyLimit,
+        period: quotaPeriod(payload.booking_date),
+      }),
+    );
 
     return NextResponse.json({ data: { ok: true, queue_number: queueNumber, line_push_sent: linePushSent, line_push_error: linePushError, qr_payment_created: qrPaymentCreated } });
   } catch (e) {

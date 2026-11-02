@@ -6,7 +6,9 @@ import { pushMessage } from '@/lib/line/client';
 import { bookingConfirmFlex } from '@/lib/line/messages';
 import { assertFeatureQuota, SubscriptionInactiveError, SubscriptionQuotaError } from '@/lib/subscription/enforcement';
 import { monthBounds } from '@/lib/subscription/usage';
-import { createNotification, safeCreateNotification } from '@/lib/notifications/createNotification';
+import { quotaPeriod } from '@/lib/subscription/quota-alerts';
+import { safeNotifyQuotaExceeded, safeNotifyQuotaThreshold } from '@/lib/subscription/quota-alerts-server';
+import { createNotification } from '@/lib/notifications/createNotification';
 import { resolvePaymentForBooking, type PaymentBankInfo, type PaymentDeeplinkInfo } from '@/lib/payments/resolve';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
 import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
@@ -257,21 +259,20 @@ async function createBooking(
   // The quota belongs to the shop, not to the person booking. Never surface a
   // plan error (or an unhandled 500) to an end customer on the LIFF screen —
   // tell them politely and alert the shop owner, who is the one who can act.
+  let monthlyLimit: number | null = null;
   try {
     // Each picked slot is its own booking, so the quota must have room for all.
-    await assertFeatureQuota(shop.id, 'bookings', (monthlyCount ?? 0) + pickedTimes.length - 1);
+    const quotaState = await assertFeatureQuota(shop.id, 'bookings', (monthlyCount ?? 0) + pickedTimes.length - 1);
+    monthlyLimit = quotaState.limits.max_monthly_bookings;
   } catch (quotaErr) {
     if (quotaErr instanceof SubscriptionQuotaError || quotaErr instanceof SubscriptionInactiveError) {
-      await safeCreateNotification(admin, {
+      // Once per Bangkok day: a rush of refused taps must not flood the bell / owner LINE.
+      await safeNotifyQuotaExceeded(admin, {
         companyId: shop.company_id,
         shopId: shop.id,
-        type: 'quota_exceeded',
-        category: 'system',
-        priority: 'high',
-        title: 'ลูกค้าจองไม่ได้ — โควต้าแพ็กเกจเต็ม',
-        message: 'มีลูกค้าพยายามจองคิวแต่ระบบปฏิเสธเพราะโควต้าการจองของแพ็กเกจเต็มแล้ว อัปเกรดแพ็กเกจเพื่อเปิดรับการจองต่อ',
-        actionUrl: '/portal/settings',
-        metadata: { feature: 'bookings', shop_key: shopKey },
+        source: 'liff',
+        inactive: quotaErr instanceof SubscriptionInactiveError,
+        metadata: { shop_key: shopKey },
       });
       return NextResponse.json(
         { error: 'ขออภัย ขณะนี้ร้านยังไม่สามารถรับการจองเพิ่มได้ กรุณาติดต่อร้านโดยตรง' },
@@ -789,6 +790,15 @@ async function createBooking(
       customerId,
       bookingId: booking.id,
       revenue: unitPrice * slotCount * created.length,
+    });
+    // 80 / 90 / 100 % of the monthly quota → bell + owner LINE, once per threshold.
+    await safeNotifyQuotaThreshold(admin, {
+      companyId: shop.company_id,
+      shopId: shop.id,
+      before: monthlyCount ?? 0,
+      after: (monthlyCount ?? 0) + created.length,
+      limit: monthlyLimit,
+      period: quotaPeriod(payload.booking_date),
     });
   });
 

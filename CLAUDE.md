@@ -111,6 +111,7 @@ src/
 | `/api/automation` | Customer automations: GET settings + this month's cap usage, ROI (`automation_sends` converted) and win-back preview (also creates a `quota_80` upgrade lead once/month when a Starter shop passes 80% of its booking quota); PATCH settings (win-back ON needs Professional+, 402) |
 | `/api/cron/customer-automations` | pg_cron (`Bearer CRON_SECRET`): `?job=followup` every 5 min, `?job=winback` daily 10:00 Bangkok |
 | `/api/notifications` | Notification center |
+| `/api/owner-line` | Owner LINE for shop alerts: GET status, POST `create_code` (one-time `OWNER-XXXXXXXX`, 15 min, hash only stored; owner sends it to the shop OA, webhook links the sender) / `test` (push), DELETE unlink. Rate limit `ownerLine` |
 | `/api/chat-inbox` | LINE chat inbox + push reply |
 | `/api/line-settings` | LINE OA configuration |
 | `/api/customer-guide` | Data for the customer how-to image on `/portal/line-settings`: OA `basic_id` + add-friend URL (LINE `/v2/bot/info` with the shop token), saved rich menu config (or business template) + `is_saved` / `is_published`, first 3 active services, example `slot_times` from working hours, first `branch_name`, `logo_url` (https only) |
@@ -311,6 +312,16 @@ await safeCreateNotification({ shopId, type: 'booking_created', ... });
 - Window helper: `computeReminderWindow` / `isInReminderWindow` (`src/lib/line/booking-reminder.ts`) เทียบ `booking_date`+`start_time` ใน Asia/Bangkok
 
 ---
+
+## Booking Quota Alerts + Owner LINE (2026-11-02)
+
+Monthly booking quota (`max_monthly_bookings`, counted by `booking_date` month) alerts the shop in the bell **and** the owner's linked LINE
+- `quota_near_limit` at 80 / 90 / 100 % — once per threshold per quota month (dedup on `notifications.metadata->>period` + `->>threshold`); fired in `after()` from `/api/public/shop/[shopKey]/book` and `/api/bookings` POST. Multi-pick jumping past several thresholds reports the highest only
+- `quota_exceeded` when a booking is refused (LIFF customer or portal staff, also suspended plan) — once per shop per Bangkok day (was one per refused tap)
+- Rules + vitest `src/lib/subscription/quota-alerts.ts`; senders `quota-alerts-server.ts` (never throw)
+- **Owner LINE**: card `OwnerLineCard` on `/portal/line-settings#owner-line` → `/api/owner-line` creates a one-time code → owner sends `OWNER-XXXXXXXX` to the shop OA (button opens `line.me/R/oaMessage/@basicId/?…` prefilled) → webhook `handleOwnerLinkEvent` (runs before the `auto_reply_enabled` gate, not logged to the chat inbox) stores `shops.owner_line_user_id`. Push via the **shop's own token only** (`safePushOwnerLine`, `src/lib/line/owner-line-server.ts`) — each alert spends the shop's LINE OA quota. Pure helpers + vitest `src/lib/line/owner-line.ts`
+- Migration `202611020002_shop_owner_line.sql` (**run before deploy** for the card / LINE push; without it the bell alerts still work, card shows "ยังไม่พร้อม")
+- Not done: several owner/manager LINE accounts per shop, choosing which alerts go to LINE, alerts for other quotas (branches/services/staff)
 
 ## Customer Guide Image (`/portal/line-settings`, 2026-10-28)
 

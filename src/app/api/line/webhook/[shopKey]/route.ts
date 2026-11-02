@@ -14,6 +14,8 @@ import {
 } from '@/lib/line/messages';
 import { resolveCustomerLiffUrl } from '@/lib/line/liff-url';
 import { isBookingEcho } from '@/lib/line/booking-echo';
+import { looksLikeOwnerLinkMessage, parseOwnerLinkMessage } from '@/lib/line/owner-line';
+import { linkOwnerLineFromCode } from '@/lib/line/owner-line-server';
 import { isFallbackReplyEnabled } from '@/lib/line/fallback-reply';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import type { LineWebhookBody, LineWebhookEvent } from '@/lib/line/types';
@@ -398,6 +400,34 @@ async function handlePostbackEvent(
   }
 }
 
+/**
+ * Owner sends the one-time code from /portal/line-settings: store the sender as
+ * the shop's owner LINE for alerts.
+ */
+async function handleOwnerLinkEvent(
+  admin: ReturnType<typeof createAdminClient>,
+  shop: WebhookShop,
+  event: LineWebhookEvent,
+  token: string,
+) {
+  const userId = event.source?.userId;
+  const replyToken = event.replyToken;
+  if (!userId || !replyToken) return;
+
+  const code = parseOwnerLinkMessage(event.message?.text);
+  const profile = code ? await fetchLineProfile(token, userId) : null;
+  const outcome = code
+    ? await linkOwnerLineFromCode(admin, shop.id, { userId, code, displayName: profile?.display_name ?? null })
+    : 'invalid';
+
+  const text = outcome === 'linked'
+    ? `เชื่อม LINE นี้เป็นเจ้าของร้าน "${shop.name}" แล้ว ✅\nระบบจะแจ้งเรื่องสำคัญ เช่น โควต้าการจองใกล้เต็ม มาที่แชทนี้`
+    : outcome === 'error'
+      ? 'เชื่อมไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'
+      : 'รหัสไม่ถูกต้องหรือหมดอายุ กรุณาสร้างรหัสใหม่ที่หน้า LINE Settings ในระบบหลังร้าน';
+  await replyMessage(token, replyToken, [{ type: 'text', text }]);
+}
+
 export async function POST(req: Request, { params }: { params: Promise<{ shopKey: string }> }) {
   const { shopKey } = await params;
   const rawBody = await req.text();
@@ -439,12 +469,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   const postbacks = events.filter((e) => e.type === 'postback');
   await Promise.all(postbacks.map((event) => handlePostbackEvent(admin, webhookShop, event, channelToken)));
 
+  // "OWNER-XXXXXXXX" comes from the owner, not a customer: answered even with
+  // auto-reply off, and kept out of the customer chat inbox.
+  const ownerLinks = events.filter((e) => e.type === 'message' && e.message?.type === 'text' && looksLikeOwnerLinkMessage(e.message.text));
+  await Promise.all(ownerLinks.map((event) => handleOwnerLinkEvent(admin, webhookShop, event, channelToken)));
+
   if (!shop.auto_reply_enabled) {
     return NextResponse.json({ ok: true, skipped: 'auto_reply_disabled', postbacks: postbacks.length });
   }
 
   await Promise.all(
     events.map(async (event) => {
+      if (ownerLinks.includes(event)) return;
       if (event.type === 'message' && event.message?.type === 'text') {
         await handleTextEvent(admin, webhookShop, event, channelToken);
       } else if (event.type === 'message') {
