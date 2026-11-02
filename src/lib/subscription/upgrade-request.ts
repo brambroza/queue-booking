@@ -16,6 +16,8 @@ export type UpgradeRequestInput = {
   createdBy?: string | null;
   /** Shop name, used only to make the sales email readable. */
   shopName?: string | null;
+  /** false = caller sends its own sales email (e.g. the quota alert). Default true. */
+  notifySales?: boolean;
 };
 
 /**
@@ -63,6 +65,8 @@ export async function createUpgradeRequest(
   } catch (err) {
     console.warn('[upgrade-request] insert threw:', err);
   }
+
+  if (input.notifySales === false) return requestId;
 
   try {
     await sendSalesEmail({

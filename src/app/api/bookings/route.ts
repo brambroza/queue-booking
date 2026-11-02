@@ -163,8 +163,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'ไม่สามารถตรวจสอบโควต้าการจองได้ กรุณาลองใหม่อีกครั้ง' }, { status: 500 });
     }
     let monthlyLimit: number | null = null;
+    let planCode: string | null = null;
     try {
-      monthlyLimit = (await assertFeatureQuota(profile.shop_id, 'bookings', monthlyCount ?? 0)).limits.max_monthly_bookings;
+      const quotaState = await assertFeatureQuota(profile.shop_id, 'bookings', monthlyCount ?? 0);
+      monthlyLimit = quotaState.limits.max_monthly_bookings;
+      planCode = quotaState.planCode;
     } catch (quotaErr) {
       // Staff see the paywall toast; the owner hears it too (once per day), in the bell and on LINE.
       if (quotaErr instanceof SubscriptionQuotaError || quotaErr instanceof SubscriptionInactiveError) {
@@ -502,6 +505,7 @@ export async function POST(req: Request) {
         after: (monthlyCount ?? 0) + 1,
         limit: monthlyLimit,
         period: quotaPeriod(payload.booking_date),
+        planCode,
       }),
     );
 

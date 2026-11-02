@@ -10,6 +10,8 @@ import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import { SETUP_STEP_LABEL_TH, type SetupStatus } from '@/lib/onboarding/status';
+import { PlatformOaSetup, ShopLineCell, ShopLinePanel, useShopLineStatuses } from '@/components/admin/shop-line-link';
+import { QuotaEmailPanel } from '@/components/admin/quota-email-panel';
 
 /** Plan code every shop falls back to. Mirrors FREE_PLAN_CODE in src/lib/subscription/enforcement.ts */
 const FREE_PLAN_CODE = 'starter';
@@ -570,6 +572,7 @@ export function ShopSubscriptionsCrud() {
   const [setupByShop, setSetupByShop] = useState<Record<string, SetupStatus>>({});
   const [emailLog, setEmailLog] = useState<Record<string, EmailLog>>({});
   const [sendingKey, setSendingKey] = useState('');
+  const shopLine = useShopLineStatuses();
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(20);
@@ -884,6 +887,7 @@ export function ShopSubscriptionsCrud() {
             <strong style={{ color: summary.dormant > 0 ? TONE_COLOR.warn : 'var(--text)' }}>{summary.dormant}</strong>
           </span>
         </div>
+        <PlatformOaSetup data={shopLine.data} error={shopLine.error} />
       </div>
 
       <div className="card p-4">
@@ -899,7 +903,7 @@ export function ShopSubscriptionsCrud() {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1250px] text-sm">
+            <table className="w-full min-w-[1400px] text-sm">
               <thead>
                 <tr style={{ color: 'var(--muted)' }}>
                   <th className="px-2 py-2 text-left">ร้านค้า</th>
@@ -907,6 +911,7 @@ export function ShopSubscriptionsCrud() {
                   <th className="px-2 py-2 text-left">ติดต่อ</th>
                   <th className="px-2 py-2 text-left">เข้าใช้ล่าสุด / ยืนยันบัญชี</th>
                   <th className="px-2 py-2 text-left">โหมด / การตั้งค่า</th>
+                  <th className="px-2 py-2 text-left">LINE เจ้าของ</th>
                   <th className="px-2 py-2 text-left">แพ็กเกจ</th>
                   <th className="px-2 py-2 text-left">สิทธิ์ที่มีผลจริง</th>
                   <th className="px-2 py-2 text-left">หมดอายุ</th>
@@ -937,6 +942,9 @@ export function ShopSubscriptionsCrud() {
                       </td>
                       <td className="px-2 py-2">
                         <SetupCell setup={setup} demo={Boolean(shop.demo_mode_enabled)} sent={emailLog[shop.id]} />
+                      </td>
+                      <td className="px-2 py-2">
+                        <ShopLineCell status={shopLine.data?.shops[shop.id]} />
                       </td>
                       <td className="px-2 py-2 whitespace-nowrap">
                         <div style={{ color: 'var(--text)' }}>{state.planName ?? (state.hasSub ? state.planCode : 'ยังไม่กำหนด')}</div>
@@ -1110,6 +1118,17 @@ export function ShopSubscriptionsCrud() {
                 </p>
               )}
             </div>
+
+            <ShopLinePanel
+              shopId={editing.id}
+              shopName={editing.name}
+              status={shopLine.data?.shops[editing.id]}
+              oa={shopLine.data?.platform_oa}
+              available={Boolean(shopLine.data?.available)}
+              onChanged={shopLine.reload}
+            />
+
+            <QuotaEmailPanel shopId={editing.id} shopName={editing.name} />
 
             <div className="mb-4 rounded-xl border p-3" style={{ borderColor: 'var(--line)', background: 'var(--surface-soft)' }}>
               <p className="mb-2 text-xs font-medium" style={{ color: 'var(--muted)' }}>

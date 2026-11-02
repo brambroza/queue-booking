@@ -39,6 +39,8 @@ export const RATE_LIMITS = {
   staffInvite: { windowSeconds: 3600, max: 20 },
   /** Per shop — owner LINE link code / test push; each test spends the shop's LINE quota. */
   ownerLine: { windowSeconds: 600, max: 10 },
+  /** Per super_admin — quota email test sends from the package page; each one is a real email. */
+  quotaEmailTest: { windowSeconds: 600, max: 10 },
 } as const satisfies Record<string, RateLimit>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

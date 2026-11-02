@@ -260,10 +260,12 @@ async function createBooking(
   // plan error (or an unhandled 500) to an end customer on the LIFF screen —
   // tell them politely and alert the shop owner, who is the one who can act.
   let monthlyLimit: number | null = null;
+  let planCode: string | null = null;
   try {
     // Each picked slot is its own booking, so the quota must have room for all.
     const quotaState = await assertFeatureQuota(shop.id, 'bookings', (monthlyCount ?? 0) + pickedTimes.length - 1);
     monthlyLimit = quotaState.limits.max_monthly_bookings;
+    planCode = quotaState.planCode;
   } catch (quotaErr) {
     if (quotaErr instanceof SubscriptionQuotaError || quotaErr instanceof SubscriptionInactiveError) {
       // Once per Bangkok day: a rush of refused taps must not flood the bell / owner LINE.
@@ -799,6 +801,7 @@ async function createBooking(
       after: (monthlyCount ?? 0) + created.length,
       limit: monthlyLimit,
       period: quotaPeriod(payload.booking_date),
+      planCode,
     });
   });
 

@@ -163,12 +163,15 @@ src/
 | `/api/public/shop/[shopKey]/me` | LIFF user profile |
 | `/api/public/shop/[shopKey]/member-context` | Member context |
 | `/api/line/webhook/[shopKey]` | LINE Webhook handler |
+| `/api/line/webhook/platform` | Webhook of the platform OA (QueueBooking), signed with env `LINE_CHANNEL_SECRET`; only links shop owners by `OWNER-XXXXXXXX` code (`linkPlatformLineFromCode`), no auto reply |
 
 ### Admin (`super_admin` only)
 | Route | Resource |
 |---|---|
 | `/api/admin/shop-subscriptions` | Manage shop plans; GET also returns `setup` (5-step progress per shop, `src/lib/onboarding/status.ts`, same rules as the dashboard checklist) and `email_log` (last onboarding email per shop) |
 | `/api/admin/shop-subscriptions/send-email` | Send an onboarding email to the shop owner: `kind=setup_guide` (LINE OA setup nudge + PDF `public/docs/line-setup-guide.pdf`, source `docs/guides/line-setup-guide.html`) or `kind=go_live` (needs 5/5 steps; closes demo mode via `disableDemoMode` then sends). 409 `line_already_connected` / `recently_sent` need `force`; every send is audit-logged `onboarding_email_sent` |
+| `/api/admin/shop-line` | Owner LINE on the platform OA per shop: GET status of all shops + platform OA (`webhook_url`, `basic_id`, configured), POST `{ shop_id, action: create_code\|test }`, DELETE `{ shop_id }` unlink; audit-logged. UI on `/portal/shop-subscriptions` (column "LINE เจ้าของ" + drawer panel) |
+| `/api/admin/shop-subscriptions/quota-email` | Preview / send one quota email for a shop (`threshold` 80\|90\|100, `audience` owner\|team, `recipient` me\|owner\|team; numbers set to the threshold of the real limit; `me` = admin's login email with `[ทดสอบ]` subject). Rate limit `quotaEmailTest`, audit-logged. UI `QuotaEmailPanel` in the shop-subscriptions drawer |
 | `/api/admin/active-shop` | Acting shop for super_admin (GET list + current, POST select, DELETE clear) — stored in httpOnly cookie `portal_admin_shop_id`, applied by `requireAuthContext` |
 | `/api/admin/shop-showcase` | Showcase review queue (GET, with real-booking count + LINE flag) and `approve\|reject\|unpublish\|feature\|unfeature` (PATCH, reason required for reject/unpublish, notifies the shop, audit-logged) |
 | `/api/shop-subscription/current` | Current plan status |
@@ -260,7 +263,7 @@ import { xxx } from '../../lib/...';  // ผิด
 
 - ทุก API route ต้องผ่าน `requireAuthContext` (ยกเว้น `/api/public/*` และ `/api/line/webhook/*`)
 - ห้าม leak error detail ใน response body (public route: ข้อความไทยทั่วไป + `console.error` ฝั่ง server)
-- ต้อง verify LINE signature ใน webhook (`src/lib/line/signature.ts`, constant-time) ด้วย secret **ของร้าน** เท่านั้น — ไม่ fallback env
+- ต้อง verify LINE signature ใน webhook (`src/lib/line/signature.ts`, constant-time) ด้วย secret **ของร้าน** เท่านั้น — ไม่ fallback env (ยกเว้น `/api/line/webhook/platform` ซึ่งเป็น OA กลางเอง ใช้ env secret)
 - ห้าม query ข้าม tenant (`company_id`/`shop_id` บังคับ)
 - ต้อง validate Zod schema ก่อน process ทุก route
 - **ตัวตนลูกค้า LIFF** = `resolveLiffCaller` (`src/lib/line/liff-identity.ts`) ตรวจ LIFF ID token กับ LINE แล้วใช้ `sub` — ห้ามเชื่อ `line_user_id` ใน body ตรง ๆ. client ส่ง `id_token` (`liff.getIDToken()`) ทุก call. prod บังคับเสมอ (`LIFF_ID_TOKEN_REQUIRED=false` = ทางหนีชั่วคราวเท่านั้น)
@@ -319,8 +322,10 @@ Monthly booking quota (`max_monthly_bookings`, counted by `booking_date` month) 
 - `quota_near_limit` at 80 / 90 / 100 % — once per threshold per quota month (dedup on `notifications.metadata->>period` + `->>threshold`); fired in `after()` from `/api/public/shop/[shopKey]/book` and `/api/bookings` POST. Multi-pick jumping past several thresholds reports the highest only
 - `quota_exceeded` when a booking is refused (LIFF customer or portal staff, also suspended plan) — once per shop per Bangkok day (was one per refused tap)
 - Rules + vitest `src/lib/subscription/quota-alerts.ts`; senders `quota-alerts-server.ts` (never throw)
+- Each threshold (80/90/100, once per month) also: **owner email** (`buildOwnerQuotaEmail`, to `resolveShopOwnerContact` via `sendCustomerEmail` = SMTP sender info@goalong.co.th), **team email** (`buildAdminQuotaEmail` → `SALES_NOTIFY_EMAIL` via `sendSalesEmail`, says whether owner email/LINE got through) and **one Sales Inbox lead per shop per Bangkok month** (`upgrade_requests` source `quota_80`, shared dedup with `/api/automation`, `notifySales: false` so no second plain email). Only the earliest notification row of a race sends LINE/email. Builders + vitest `src/lib/notifications/quota-emails.ts` (layout/`contactBox` exported from `onboarding-emails.ts`). Refused-booking `quota_exceeded` stays bell + LINE only (no email)
 - **Owner LINE**: card `OwnerLineCard` on `/portal/line-settings#owner-line` → `/api/owner-line` creates a one-time code → owner sends `OWNER-XXXXXXXX` to the shop OA (button opens `line.me/R/oaMessage/@basicId/?…` prefilled) → webhook `handleOwnerLinkEvent` (runs before the `auto_reply_enabled` gate, not logged to the chat inbox) stores `shops.owner_line_user_id`. Push via the **shop's own token only** (`safePushOwnerLine`, `src/lib/line/owner-line-server.ts`) — each alert spends the shop's LINE OA quota. Pure helpers + vitest `src/lib/line/owner-line.ts`
 - Migration `202611020002_shop_owner_line.sql` (**run before deploy** for the card / LINE push; without it the bell alerts still work, card shows "ยังไม่พร้อม")
+- **Platform OA link (super_admin)**: `/portal/shop-subscriptions` drawer `ShopLinePanel` (`src/components/admin/shop-line-link.tsx`) → `/api/admin/shop-line` creates a code → admin copies a ready message for the owner (add-friend URL + code + prefilled link) → owner sends it to the QueueBooking OA → `/api/line/webhook/platform` finds the shop by code hash and stores `shops.platform_line_user_id`. Separate columns from the shop-OA link because LINE user ids are per provider. `safePushOwnerLine` tries **platform first** (env token), then the shop OA link; test buttons use `only`. Migration `202611020003_platform_line_link.sql` (**run before deploy**; without it alerts use the shop OA link only). Set the webhook URL `${NEXT_PUBLIC_APP_URL}/api/line/webhook/platform` in LINE Developers for the QueueBooking channel and turn on Use webhook
 - Not done: several owner/manager LINE accounts per shop, choosing which alerts go to LINE, alerts for other quotas (branches/services/staff)
 
 ## Customer Guide Image (`/portal/line-settings`, 2026-10-28)

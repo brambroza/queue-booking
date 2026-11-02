@@ -15,11 +15,13 @@ export const SUPPORT_CONTACT = {
 
 export type BuiltEmail = { subject: string; html: string; text: string };
 
-const BRAND = '#0e9f5a';
-const BRAND_DEEP = '#0a6b3d';
+export const EMAIL_BRAND = '#0e9f5a';
+export const EMAIL_BRAND_DEEP = '#0a6b3d';
+const BRAND = EMAIL_BRAND;
+const BRAND_DEEP = EMAIL_BRAND_DEEP;
 
 /** Wraps paragraphs in the shared card layout. Table-based and inline-styled for mail clients. */
-function layout(innerHtml: string): string {
+export function layout(innerHtml: string): string {
   return `<!doctype html>
 <html lang="th"><body style="margin:0;padding:0;background:#f1f5f2;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f2;padding:24px 12px;">
@@ -32,9 +34,9 @@ function layout(innerHtml: string): string {
 </td></tr></table></body></html>`;
 }
 
-const p = (html: string) => `<p style="margin:0 0 14px;">${html}</p>`;
+export const p = (html: string) => `<p style="margin:0 0 14px;">${html}</p>`;
 
-function contactBox(rows: Array<[string, string]>): string {
+export function contactBox(rows: Array<[string, string]>): string {
   const lines = rows
     .map(([label, value]) => `<tr><td style="padding:3px 14px 3px 0;color:#5b6b62;white-space:nowrap;">${escapeHtml(label)}</td><td style="padding:3px 0;font-weight:700;">${escapeHtml(value)}</td></tr>`)
     .join('');

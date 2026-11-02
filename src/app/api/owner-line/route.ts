@@ -4,7 +4,6 @@ import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { writeAuditLog } from '@/lib/audit/activity-log';
 import { hitRateLimit, tooManyRequests } from '@/lib/security/rate-limit';
-import { normalizeBasicId } from '@/lib/line/customer-guide';
 import {
   OWNER_LINK_CODE_TTL_MINUTES,
   generateOwnerLinkCode,
@@ -12,7 +11,7 @@ import {
   oaMessageUrl,
   ownerLinkMessage,
 } from '@/lib/line/owner-line';
-import { safePushOwnerLine } from '@/lib/line/owner-line-server';
+import { fetchOaBasicId, safePushOwnerLine } from '@/lib/line/owner-line-server';
 
 /**
  * Owner LINE for shop alerts (quota near / at limit).
@@ -30,18 +29,6 @@ type OwnerLineRow = {
 };
 
 const OWNER_COLUMNS = 'line_channel_access_token,owner_line_user_id,owner_line_display_name,owner_line_linked_at,owner_line_link_code_expires_at';
-
-/** OA basic id via the shop token; null on any failure. */
-async function fetchBasicId(token: string): Promise<string | null> {
-  try {
-    const res = await fetch('https://api.line.me/v2/bot/info', { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) return null;
-    const info = (await res.json()) as { basicId?: string };
-    return normalizeBasicId(info.basicId);
-  } catch {
-    return null;
-  }
-}
 
 /** Load the owner columns; `null` when the migration has not run. */
 async function loadOwnerRow(admin: ReturnType<typeof createAdminClient>, shopId: string): Promise<OwnerLineRow | null> {
@@ -95,7 +82,7 @@ export async function POST(req: Request) {
     }
 
     if (parsed.data.action === 'test') {
-      const result = await safePushOwnerLine(admin, shopId, 'ทดสอบการแจ้งเตือนเจ้าของร้าน ✅\nต่อไปนี้ระบบจะแจ้งเรื่องสำคัญของร้านมาที่แชทนี้');
+      const result = await safePushOwnerLine(admin, shopId, 'ทดสอบการแจ้งเตือนเจ้าของร้าน ✅\nต่อไปนี้ระบบจะแจ้งเรื่องสำคัญของร้านมาที่แชทนี้', { only: 'shop' });
       if (!result.sent) {
         const message = result.reason === 'not_linked' ? 'ยังไม่ได้เชื่อม LINE เจ้าของร้าน' : 'ส่งข้อความไม่สำเร็จ — ตรวจว่ายังเป็นเพื่อนกับ LINE OA ของร้านอยู่';
         return NextResponse.json({ error: message }, { status: 400 });
@@ -112,7 +99,7 @@ export async function POST(req: Request) {
     if (error) throw error;
 
     const message = ownerLinkMessage(code);
-    const basicId = await fetchBasicId(row.line_channel_access_token);
+    const basicId = await fetchOaBasicId(row.line_channel_access_token);
     await writeAuditLog({
       companyId: profile.company_id,
       shopId,
