@@ -39,6 +39,7 @@ import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded';
 import PersonOffRoundedIcon from '@mui/icons-material/PersonOffRounded';
 import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import RestoreRoundedIcon from '@mui/icons-material/RestoreRounded';
 import CampaignRoundedIcon from '@mui/icons-material/CampaignRounded';
 import NotificationsActiveRoundedIcon from '@mui/icons-material/NotificationsActiveRounded';
 import ThumbUpAltRoundedIcon from '@mui/icons-material/ThumbUpAltRounded';
@@ -49,13 +50,14 @@ import { ActionIconGroup } from '@/components/ui/action-icon-group';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import { useTranslation } from '@/lib/i18n/useTranslation';
-import { formatDateDMY } from '@/lib/utils/date-format';
+import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import type { PaymentStatus } from '@/types/db';
 import {
   CANCELLABLE,
   MOVABLE,
   NEXT_STATUSES,
   PAYMENT_META,
+  RESTORABLE,
   changeAckState,
   customerName,
   customerPhone,
@@ -158,6 +160,7 @@ function BookingMobileCard({
   busy,
   resourceLabel,
   onStatus,
+  onRestore,
   onMove,
   onEdit,
 }: {
@@ -165,6 +168,7 @@ function BookingMobileCard({
   busy: boolean;
   resourceLabel: string;
   onStatus: (b: BookingRow, status: string) => void;
+  onRestore?: (b: BookingRow) => void;
   onMove: (b: BookingRow) => void;
   onEdit: (b: BookingRow) => void;
 }) {
@@ -177,7 +181,8 @@ function BookingMobileCard({
   const secondary = next.filter((o) => !o.primary);
   const canMove = MOVABLE.has(b.status);
   const canCancel = CANCELLABLE.has(b.status);
-  const hasMenu = canMove || secondary.length > 0 || canCancel;
+  const canRestore = Boolean(onRestore) && RESTORABLE.has(b.status) && b.booking_date >= getTodayISOInBangkok();
+  const hasMenu = canMove || secondary.length > 0 || canCancel || canRestore;
 
   async function cancelBooking() {
     setMenuEl(null);
@@ -283,6 +288,12 @@ function BookingMobileCard({
                     <ListItemText>{o.label}</ListItemText>
                   </MenuItem>
                 ))}
+                {canRestore ? (
+                  <MenuItem onClick={() => { setMenuEl(null); onRestore?.(b); }} sx={{ color: 'success.main' }}>
+                    <ListItemIcon sx={{ color: 'inherit' }}><RestoreRoundedIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText>{t('restore_confirm', 'กู้คิวกลับ')}</ListItemText>
+                  </MenuItem>
+                ) : null}
                 {canCancel ? (
                   <>
                     {canMove || secondary.length > 0 ? <Divider /> : null}
@@ -318,6 +329,7 @@ export function BookingsTable({
   onPageChange,
   onPageSizeChange,
   onStatus,
+  onRestore,
   onMove,
   onEdit,
   onCreate,
@@ -336,11 +348,14 @@ export function BookingsTable({
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
   onStatus: (b: BookingRow, status: string) => void;
+  /** "กู้คิวกลับ" for cancelled rows; hidden when omitted. */
+  onRestore?: (b: BookingRow) => void;
   onMove: (b: BookingRow) => void;
   onEdit: (b: BookingRow) => void;
   onCreate: () => void;
 }) {
   const { t } = useTranslation('bookings');
+  const today = getTodayISOInBangkok();
 
   const sortHeader = (key: BookingSortKey, label: string) => (
     <TableSortLabel
@@ -377,7 +392,7 @@ export function BookingsTable({
               rowKey={(b) => b.id}
               columns={[]}
               renderCard={(b) => (
-                <BookingMobileCard booking={b} busy={busy} resourceLabel={resourceLabel} onStatus={onStatus} onMove={onMove} onEdit={onEdit} />
+                <BookingMobileCard booking={b} busy={busy} resourceLabel={resourceLabel} onStatus={onStatus} onRestore={onRestore} onMove={onMove} onEdit={onEdit} />
               )}
               sx={{ p: 1.5, bgcolor: 'action.hover', opacity: loading ? 0.6 : 1, transition: 'opacity .15s' }}
             />
@@ -466,6 +481,15 @@ export function BookingsTable({
                               color: primary ? NEXT_COLOR[primary.kind] : 'default',
                               disabled: busy,
                               onClick: () => { if (primary) onStatus(b, primary.status); },
+                            },
+                            {
+                              key: 'restore',
+                              hidden: !onRestore || !RESTORABLE.has(b.status) || b.booking_date < today,
+                              icon: <RestoreRoundedIcon fontSize="small" />,
+                              fallbackLabel: t('restore_confirm', 'กู้คิวกลับ'),
+                              color: 'success',
+                              disabled: busy,
+                              onClick: () => onRestore?.(b),
                             },
                             {
                               key: 'move',

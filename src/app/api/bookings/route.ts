@@ -13,7 +13,7 @@ import { safeNotifyQuotaExceeded, safeNotifyQuotaThreshold } from '@/lib/subscri
 import { safeCreateNotification } from '@/lib/notifications/createNotification';
 import { resolvePaymentForBooking } from '@/lib/payments/resolve';
 import { detectOmisePlatform } from '@/lib/payments/mobile-banking/banks';
-import { formatThaiDateLabel } from '@/lib/utils/date-format';
+import { formatThaiDateLabel, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
 import { isPersonResourceType, resourceBusyMessage, resourceTypeLabel } from '@/lib/booking/resource-types';
 import { resourceServesService, resourceServiceMismatchMessage } from '@/lib/booking/resource-service-link';
@@ -33,6 +33,15 @@ import {
   resolveMinBookingDate,
 } from '@/lib/booking/booking-window';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
+import {
+  RESTORE_LOG_ACTION,
+  RESTORE_PAST_CODE,
+  RESTORED_STATUS,
+  checkRestorable,
+  restoreGroup,
+  restoreRefusedMessage,
+  restoredNote,
+} from '@/lib/booking/restore';
 import { isMultiSlotEnabled } from '@/lib/booking/display-settings';
 import { escapePostgrestSearch } from '@/lib/utils/postgrest';
 import { bookingOrderColumns, parseBookingSort } from '@/lib/booking/list-sort';
@@ -54,6 +63,8 @@ import {
 
 /** Minimal shape needed to call a Postgres function — works for both the session and admin clients. */
 type RpcClient = { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown }> };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function toInt(v: string | null, fallback: number) {
   const n = Number(v);
@@ -103,6 +114,12 @@ export async function GET(req: Request) {
       .eq('is_deleted', false);
     for (const { column, ascending } of bookingOrderColumns(sort)) query = query.order(column, { ascending });
 
+    // `id` = one booking (deep link from a notification, `/portal/bookings?booking_id=`).
+    const bookingId = searchParams.get('id');
+    if (bookingId) {
+      if (!UUID_RE.test(bookingId)) return NextResponse.json({ error: 'ข้อมูลไม่ถูกต้อง: id' }, { status: 400 });
+      query = query.eq('id', bookingId);
+    }
     if (date) query = query.eq('booking_date', date);
     if (status) query = query.eq('status', status);
     query = applyBranchScope(query, branchScope, branchId);
@@ -517,9 +534,192 @@ export async function POST(req: Request) {
   }
 }
 
+/** Roles allowed to bring a cancelled booking back. */
+const RESTORE_ROLES = new Set<string>(['super_admin', 'shop_owner', 'branch_manager']);
+
+type RestoreRow = {
+  id: string;
+  queue_number: string | null;
+  status: string;
+  branch_id: string | null;
+  service_id: string | null;
+  booking_date: string;
+  start_time: string;
+  end_time: string | null;
+  resource_id: string | null;
+  resource_name: string | null;
+  note: string | null;
+  is_deleted: boolean | null;
+  payment_hold_booking_id?: string | null;
+};
+
+const RESTORE_COLUMNS = 'id,queue_number,status,branch_id,service_id,booking_date,start_time,end_time,resource_id,resource_name,note,is_deleted';
+
+/**
+ * Bring a cancelled booking back as `confirmed` (e.g. the payment cron
+ * cancelled it and the customer paid late). Every queue of the same held LIFF
+ * order comes back with it. Each queue is checked first: its resource must be
+ * free and its slot not full — a full slot returns 409 `slot_full` once so
+ * staff can confirm the overbook, same as create / move. The payment hold is
+ * cleared so the cron never touches the queue again; payment rows are left as
+ * they are (collect at the counter or check the slip inbox).
+ */
+async function restoreCancelledBooking(args: {
+  supabase: Awaited<ReturnType<typeof requireAuthContext>>['supabase'];
+  userId: string;
+  shopId: string;
+  companyId: string;
+  bookingId: string;
+  allowOverbook: boolean;
+}): Promise<NextResponse> {
+  const { supabase, shopId, bookingId } = args;
+
+  // `payment_hold_booking_id` exists only after migration 202610250002.
+  let withHold = true;
+  let target: RestoreRow | null = null;
+  {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(`${RESTORE_COLUMNS},payment_hold_booking_id`)
+      .eq('id', bookingId)
+      .eq('shop_id', shopId)
+      .maybeSingle();
+    if (error) {
+      withHold = false;
+      const fallback = await supabase.from('bookings').select(RESTORE_COLUMNS).eq('id', bookingId).eq('shop_id', shopId).maybeSingle();
+      if (fallback.error) throw fallback.error;
+      target = fallback.data as RestoreRow | null;
+    } else {
+      target = data as RestoreRow | null;
+    }
+  }
+  if (!target) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+
+  const today = getTodayISOInBangkok();
+  const check = checkRestorable(target, today);
+  if (!check.ok) {
+    return NextResponse.json(
+      { error: restoreRefusedMessage(check.reason), code: check.reason === 'past' ? RESTORE_PAST_CODE : undefined },
+      { status: 400 },
+    );
+  }
+
+  let siblings: RestoreRow[] = [];
+  if (withHold && target.payment_hold_booking_id) {
+    const { data } = await supabase
+      .from('bookings')
+      .select(RESTORE_COLUMNS)
+      .eq('shop_id', shopId)
+      .eq('payment_hold_booking_id', target.payment_hold_booking_id)
+      .eq('status', 'cancelled')
+      .eq('is_deleted', false);
+    siblings = (data ?? []) as RestoreRow[];
+  }
+  const group = restoreGroup(target, siblings, today);
+
+  // Validate every queue before writing any.
+  for (const row of group) {
+    const label = row.queue_number ?? row.id;
+    if (row.resource_id) {
+      const startMin = timeToMinutes(String(row.start_time)) ?? 0;
+      const endMin = endTimeMinutes(row.end_time, startMin);
+      const durationMin = endMin !== null && endMin > startMin ? endMin - startMin : 30;
+      const startAt = new Date(`${row.booking_date}T${String(row.start_time).slice(0, 5)}:00+07:00`);
+      const endAt = new Date(startAt.getTime() + durationMin * 60_000);
+      const free = await isResourceFree(supabase, { shopId, resourceId: row.resource_id, startAt, endAt, excludeBookingId: row.id });
+      if (!free) {
+        const { data: res } = await supabase
+          .from('booking_resources')
+          .select('resource_type')
+          .eq('id', row.resource_id)
+          .eq('shop_id', shopId)
+          .maybeSingle();
+        return NextResponse.json(
+          { error: `คิว ${label}: ${resourceBusyMessage(res?.resource_type ?? null)} — ย้ายคิวที่ทับออกก่อน หรือสร้างคิวใหม่` },
+          { status: 409 },
+        );
+      }
+    } else if (!args.allowOverbook && row.service_id && row.branch_id) {
+      const slotKey = { shopId, branchId: row.branch_id, serviceId: row.service_id, date: row.booking_date, startTime: String(row.start_time) };
+      const { data: svc } = await supabase.from('services').select('capacity_per_slot').eq('id', row.service_id).eq('shop_id', shopId).maybeSingle();
+      const [capacity, bookedCount] = await Promise.all([
+        fetchSlotCapacity(supabase, slotKey, svc?.capacity_per_slot),
+        countSlotBookings(supabase, { ...slotKey, excludeBookingId: row.id }),
+      ]);
+      if (isSlotFull(bookedCount, capacity)) {
+        return NextResponse.json(
+          { error: `คิว ${label}: ${slotFullStaffMessage(String(row.start_time), bookedCount, capacity)}`, code: SLOT_FULL_CODE },
+          { status: 409 },
+        );
+      }
+    }
+  }
+
+  const restored: RestoreRow[] = [];
+  for (const row of group) {
+    const update: Record<string, unknown> = { status: RESTORED_STATUS, note: restoredNote(row.note), updated_by: args.userId };
+    if (withHold) update.payment_hold_booking_id = null;
+    const { data: updated, error } = await supabase
+      .from('bookings')
+      .update(update)
+      .eq('id', row.id)
+      .eq('shop_id', shopId)
+      .eq('status', 'cancelled')
+      .select('id');
+    if (error) throw error;
+    if (updated && updated.length > 0) restored.push(row);
+  }
+  if (restored.length === 0) {
+    return NextResponse.json({ error: 'คิวนี้ถูกเปลี่ยนสถานะไปแล้ว กรุณารีเฟรช' }, { status: 409 });
+  }
+
+  await supabase.from('booking_logs').insert(
+    restored.map((r) => ({
+      company_id: args.companyId,
+      shop_id: shopId,
+      booking_id: r.id,
+      action: RESTORE_LOG_ACTION,
+      description: `Restored ${r.queue_number ?? r.id} from cancelled to ${RESTORED_STATUS}${args.allowOverbook ? ' (overbook allowed)' : ''}`,
+      created_by: args.userId,
+    })),
+  );
+
+  const queues = restored.map((r) => r.queue_number ?? '-').join(', ');
+  await safeCreateNotification(supabase, {
+    companyId: args.companyId,
+    shopId,
+    branchId: target.branch_id,
+    userId: args.userId,
+    type: 'booking_confirmed',
+    category: 'bookings',
+    priority: 'medium',
+    title: `${queues} — กู้คิวกลับแล้ว`,
+    message: `คิว ${queues} (${target.booking_date} ${String(target.start_time).slice(0, 5)}) ถูกกู้กลับจากสถานะยกเลิกเป็นยืนยันแล้ว`,
+    relatedType: 'booking',
+    relatedId: target.id,
+    actionUrl: `/portal/bookings?booking_id=${target.id}`,
+    icon: 'EventAvailable',
+    color: '#2e7d32',
+    metadata: { prev_status: 'cancelled', next_status: RESTORED_STATUS, restored_ids: restored.map((r) => r.id) },
+    createdBy: args.userId,
+  });
+  for (const r of restored) await safeSyncBookingToGoogleCalendar(shopId, r.id);
+
+  // One "ร้านยืนยันคิวของคุณแล้ว" per restored queue (each card has its own cancel button).
+  let lineNotified = false;
+  for (const r of restored) {
+    const notice = await safeNotifyBookingStatus({ shopId, bookingId: r.id, kind: 'approved' });
+    lineNotified = lineNotified || notice.sent;
+  }
+
+  return NextResponse.json({
+    data: { ok: true, line_notified: lineNotified, restored: restored.map((r) => ({ id: r.id, queue_number: r.queue_number })) },
+  });
+}
+
 export async function PATCH(req: Request) {
   try {
-    const { supabase, user, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
+    const { supabase, user, profile, roles, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'] });
     const body = await req.json();
     const id = body.id as string;
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
@@ -532,6 +732,21 @@ export async function PATCH(req: Request) {
       .maybeSingle();
     if (!before) return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     assertBranchAllowed(branchScope, before.branch_id);
+
+    // --- Restore ("กู้คิวกลับ"): cancelled → confirmed, owner / manager only ---
+    if (body.restore === true) {
+      if (!roles.some((r) => RESTORE_ROLES.has(r))) {
+        return NextResponse.json({ error: 'เฉพาะเจ้าของร้านหรือผู้จัดการสาขาที่กู้คิวกลับได้' }, { status: 403 });
+      }
+      return restoreCancelledBooking({
+        supabase,
+        userId: user.id,
+        shopId: profile.shop_id,
+        companyId: profile.company_id,
+        bookingId: id,
+        allowOverbook: body.allow_overbook === true,
+      });
+    }
 
     // --- Extend ("ต่อเวลา"): change only end_time of a resource booking ---
     if (body.end_time !== undefined) {

@@ -58,7 +58,8 @@ export async function holdBookingsForPayment(
 /**
  * The paying booking was just marked paid: confirm every queue of its order
  * still on hold. A queue the cron already cancelled is not revived — staff get
- * a high-priority notice to refund or rebook by hand. Never throws.
+ * a high-priority notice linking to the booking, where "กู้คิวกลับ" brings it
+ * back (`PATCH /api/bookings { restore: true }`) or they refund. Never throws.
  *
  * Call it from every path that sets `payment_status = 'paid'`, before the receipt push.
  */
@@ -109,7 +110,7 @@ export async function releasePaymentHold(
         category: 'billing',
         priority: 'high',
         title: `${queues} — ชำระเงินหลังคิวถูกยกเลิก`,
-        message: `ลูกค้าชำระเงินคิว ${queues} (${first.booking_date} ${first.start_time.slice(0, 5)}) หลังระบบยกเลิกเพราะเลยเวลาชำระ กรุณาติดต่อลูกค้าเพื่อคืนเงินหรือจองคิวให้ใหม่`,
+        message: `ลูกค้าชำระเงินคิว ${queues} (${first.booking_date} ${first.start_time.slice(0, 5)}) หลังระบบยกเลิกเพราะเลยเวลาชำระ — เปิดคิวแล้วกด "กู้คิวกลับ" ถ้ารอบยังว่าง หรือติดต่อลูกค้าเพื่อคืนเงิน`,
         relatedType: 'booking',
         relatedId: opts.bookingId,
         actionUrl: `/portal/bookings?booking_id=${opts.bookingId}`,

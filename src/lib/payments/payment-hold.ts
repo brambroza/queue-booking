@@ -19,7 +19,8 @@ export const PAYMENT_EXPIRY_GRACE_MINUTES = 5;
 /** `booking_logs.action` written when the cron cancels an unpaid hold. */
 export const PAYMENT_EXPIRED_LOG_ACTION = 'cancel_payment_expired';
 
-const NOTE_MARKER = 'ยกเลิกอัตโนมัติ: เลยเวลาชำระเงิน';
+/** Shared with the restore rules so a restore can strip it. */
+export const NOTE_MARKER = 'ยกเลิกอัตโนมัติ: เลยเวลาชำระเงิน';
 
 /**
  * Whether a new LIFF booking should be held until it is paid.

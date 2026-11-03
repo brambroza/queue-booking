@@ -146,6 +146,9 @@ export const NEXT_STATUSES: Record<string, NextStatusOption[]> = {
 
 export const CANCELLABLE = new Set(['pending', 'pending_approval', 'confirmed', 'checked_in', 'waiting', 'called', 'serving']);
 
+/** Statuses staff can bring back with "กู้คิวกลับ" (`PATCH /api/bookings { restore: true }`). */
+export const RESTORABLE = new Set(['cancelled']);
+
 /** Statuses that can still be moved to another slot or resource. */
 export const MOVABLE = new Set(['pending', 'pending_approval', 'confirmed', 'checked_in', 'waiting']);
 

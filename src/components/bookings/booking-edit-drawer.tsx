@@ -1,16 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Box, Button, Card, CardContent, Divider, Drawer, IconButton, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Divider, Drawer, IconButton, Stack, Typography } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
 import MoreTimeRoundedIcon from '@mui/icons-material/MoreTimeRounded';
+import RestoreRoundedIcon from '@mui/icons-material/RestoreRounded';
+import { isPaymentExpiredCancel } from '@/lib/booking/restore';
 import { END_OF_DAY_MINUTES, effectiveEndMinutes, isExtendableStatus, minutesToTime } from '@/lib/booking/multi-slot';
 import { StatusChip } from '@/components/shared/status-chip';
 import { useTranslation } from '@/lib/i18n/useTranslation';
-import { formatDateDMY, formatDateTimeDMY } from '@/lib/utils/date-format';
+import { formatDateDMY, formatDateTimeDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import { AckChip, PaymentChip } from './bookings-table';
-import { CANCELLABLE, MOVABLE, NEXT_STATUSES, changeAckState, customerName, customerPhone, hhmm, paymentMethodLabel, type BookingRow } from './booking-types';
+import { CANCELLABLE, MOVABLE, NEXT_STATUSES, RESTORABLE, changeAckState, customerName, customerPhone, hhmm, paymentMethodLabel, type BookingRow } from './booking-types';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -51,6 +53,7 @@ export function BookingEditDrawer({
   saving,
   onClose,
   onStatus,
+  onRestore,
   onMove,
   slotMinutes,
   onExtend,
@@ -60,6 +63,8 @@ export function BookingEditDrawer({
   saving: boolean;
   onClose: () => void;
   onStatus: (b: BookingRow, status: string) => void;
+  /** "กู้คิวกลับ" a cancelled booking (owner / manager; the API enforces the role). */
+  onRestore?: (b: BookingRow) => void;
   onMove: (b: BookingRow) => void;
   /** Length of one slot of the booking's service; adds a "+1 รอบ" button when not 30. */
   slotMinutes?: number | null;
@@ -76,6 +81,8 @@ export function BookingEditDrawer({
   const ack = b ? changeAckState(b) : 'none';
   const extendSteps = Array.from(new Set([30, Number(slotMinutes) || 0].filter((m) => m >= 5))).sort((x, y) => x - y);
   const canExtend = Boolean(b && onExtend && b.resource_id && isExtendableStatus(b.status));
+  const canRestore = Boolean(b && onRestore && RESTORABLE.has(b.status));
+  const restorePast = Boolean(b && b.booking_date < getTodayISOInBangkok());
 
   return (
     <Drawer anchor="right" open={Boolean(b)} onClose={saving ? undefined : onClose} PaperProps={{ sx: { width: { xs: '100%', sm: 460 } } }}>
@@ -173,6 +180,39 @@ export function BookingEditDrawer({
                       {o.label}
                     </Button>
                   ))}
+                </Stack>
+              </Section>
+            ) : null}
+
+            {canRestore ? (
+              <Section title={t('restore_section', 'กู้คิวกลับ')}>
+                <Stack spacing={1.5}>
+                  {isPaymentExpiredCancel(b.note) ? (
+                    <Alert severity={b.payment_status === 'paid' ? 'warning' : 'info'}>
+                      {b.payment_status === 'paid'
+                        ? t('restore_hint_paid_late', 'ระบบยกเลิกคิวนี้เพราะเลยเวลาชำระ แต่ลูกค้าชำระเงินแล้ว — กู้คิวกลับ หรือคืนเงินลูกค้า')
+                        : t('restore_hint_expired', 'ระบบยกเลิกคิวนี้อัตโนมัติเพราะเลยเวลาชำระเงิน ถ้าลูกค้าโอนมาแล้ว / จ่ายหน้าร้าน กู้คิวกลับได้')}
+                    </Alert>
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">
+                      {t('restore_hint', 'เปลี่ยนคิวที่ยกเลิกแล้วกลับเป็น "ยืนยันแล้ว" ระบบตรวจว่ารอบ / ผู้ให้บริการยังว่างก่อนบันทึก')}
+                    </Typography>
+                  )}
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    color="success"
+                    startIcon={<RestoreRoundedIcon />}
+                    disabled={saving || restorePast}
+                    onClick={() => onRestore?.(b)}
+                  >
+                    {t('restore_this', 'กู้คิวกลับ (ยืนยันคิว)')}
+                  </Button>
+                  {restorePast ? (
+                    <Typography variant="caption" color="text.secondary">
+                      {t('restore_past', 'วันที่ของคิวนี้ผ่านไปแล้ว กู้กลับไม่ได้ กรุณาสร้างคิวใหม่')}
+                    </Typography>
+                  ) : null}
                 </Stack>
               </Section>
             ) : null}

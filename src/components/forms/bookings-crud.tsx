@@ -10,18 +10,20 @@ import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade
 import { useBranchScope } from '@/components/layout/branch-scope-provider';
 import { track } from '@/lib/analytics/track';
 import { useTranslation } from '@/lib/i18n/useTranslation';
-import { getTodayISOInBangkok } from '@/lib/utils/date-format';
+import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import { DEFAULT_BOOKING_SORT } from '@/lib/booking/list-sort';
 import { resourceTypeLabel } from '@/lib/booking/resource-types';
 import { SLOT_FULL_CODE } from '@/lib/booking/slot-capacity';
+import { isPaymentExpiredCancel } from '@/lib/booking/restore';
 import { BookingsFilterBar, dateForRange, type BookingsFilter } from '@/components/bookings/bookings-filter-bar';
 import { BookingsTable } from '@/components/bookings/bookings-table';
 import { BookingMoveDialog, type MoveDraft } from '@/components/bookings/booking-move-dialog';
 import { BookingCreateDrawer, type CreateDraft, type CreateResult } from '@/components/bookings/booking-create-drawer';
 import { BookingEditDrawer } from '@/components/bookings/booking-edit-drawer';
-import { hhmm, type BookingRow, type Branch, type LineUser, type Resource, type Service } from '@/components/bookings/booking-types';
+import { PAYMENT_META, customerName, hhmm, type BookingRow, type Branch, type LineUser, type Resource, type Service } from '@/components/bookings/booking-types';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Initial filter: `?date=YYYY-MM-DD` deep-links from the dashboard into one day. */
 function initialFilter(): BookingsFilter {
@@ -130,6 +132,23 @@ export function BookingsCrud() {
   }, [queryString, reloadKey, filter.range, filter.date, t]);
 
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
+
+  // `?booking_id=` (links in notifications, e.g. "ชำระเงินหลังคิวถูกยกเลิก") opens that booking's drawer.
+  useEffect(() => {
+    const bookingId = new URLSearchParams(window.location.search).get('booking_id') ?? '';
+    if (!UUID.test(bookingId)) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/bookings?id=${bookingId}`, { cache: 'no-store' });
+        const j = (await res.json().catch(() => ({}))) as { data?: BookingRow[] };
+        const row = res.ok ? j.data?.[0] : undefined;
+        if (row) setEditTarget(row);
+        else push(t('deep_link_missing', 'ไม่พบคิวที่ลิงก์ไว้ อาจถูกลบหรืออยู่สาขาอื่น'), 'error');
+      } catch {
+        // The list still works; the drawer just does not open.
+      }
+    })();
+  }, [push, t]);
 
   useEffect(() => {
     (async () => {
@@ -268,6 +287,56 @@ export function BookingsCrud() {
   }
 
   /**
+   * "กู้คิวกลับ": a cancelled booking (usually cancelled by the payment cron
+   * because the customer paid late) back to `confirmed`. A full slot asks for
+   * the overbook confirmation once, like create / move.
+   */
+  async function restoreBooking(b: BookingRow) {
+    if (saving) return;
+    const expired = isPaymentExpiredCancel(b.note);
+    const paid = b.payment_status === 'paid';
+    const payLabel = b.payment_status ? PAYMENT_META[b.payment_status]?.label : null;
+    const ok = await confirm({
+      tone: 'primary',
+      title: t('restore_title', 'กู้คิวนี้กลับเป็น "ยืนยันแล้ว"?'),
+      description: [
+        expired ? t('restore_desc_expired', 'คิวนี้ถูกระบบยกเลิกเพราะเลยเวลาชำระเงิน') : t('restore_desc', 'คิวนี้ถูกยกเลิกไปแล้ว'),
+        paid
+          ? t('restore_desc_paid', 'ลูกค้าชำระเงินแล้ว')
+          : `${t('restore_desc_unpaid', 'สถานะชำระเงิน')}: ${payLabel ?? '-'} — ${t('restore_desc_collect', 'ถ้ายังไม่ได้รับเงิน กรุณาเก็บเงินที่หน้าร้านหรือตรวจสลิป')}`,
+        t('restore_desc_line', 'ลูกค้าที่ผูก LINE จะได้ข้อความ "ร้านยืนยันคิวของคุณแล้ว" · คิวอื่นในออเดอร์เดียวกันจะถูกกู้กลับด้วย'),
+      ].join(' · '),
+      context: {
+        avatar: b.queue_number,
+        avatarSquare: true,
+        primary: [customerName(b), b.services?.service_name].filter(Boolean).join(' · '),
+        secondary: [formatDateDMY(b.booking_date), hhmm(b.start_time), b.resource_name].filter(Boolean).join(' · '),
+      },
+      confirmLabel: t('restore_confirm', 'กู้คิวกลับ'),
+      cancelLabel: t('restore_cancel', 'ไม่กู้คืน'),
+    });
+    if (!ok) return;
+
+    setSaving(true);
+    try {
+      let r = await patchBooking({ id: b.id, restore: true });
+      if (!r.ok && r.code === SLOT_FULL_CODE) {
+        const over = await confirmOverbook(r.error, { date: b.booking_date, time: b.start_time });
+        if (!over) return;
+        r = await patchBooking({ id: b.id, restore: true, allow_overbook: true });
+      }
+      if (!r.ok) { push(r.error ?? t('restore_failed', 'กู้คิวกลับไม่สำเร็จ'), 'error'); return; }
+      if (r.lineNotified) push(t('restore_ok_line', 'กู้คิวกลับแล้ว และแจ้งลูกค้าทาง LINE'));
+      else if (b.line_user_id) push(t('restore_ok_line_failed', 'กู้คิวกลับแล้ว แต่ส่ง LINE ไม่สำเร็จ — กรุณาแจ้งลูกค้าเอง'), 'error');
+      else push(t('restore_ok', 'กู้คิวกลับแล้ว'));
+      setEditTarget(null);
+      reload();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /**
    * Move = reschedule + reassign in one PATCH, so the API validates the target
    * once and the customer receives a single LINE notice.
    */
@@ -367,6 +436,7 @@ export function BookingsCrud() {
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
         onStatus={(b, s) => void updateStatus(b, s)}
+        onRestore={(b) => void restoreBooking(b)}
         onMove={setMoveTarget}
         onEdit={setEditTarget}
         onCreate={() => { setCreateResult(null); setCreateOpen(true); }}
@@ -393,6 +463,7 @@ export function BookingsCrud() {
         saving={saving}
         onClose={() => setEditTarget(null)}
         onStatus={(b, s) => void updateStatus(b, s)}
+        onRestore={(b) => void restoreBooking(b)}
         onMove={setMoveTarget}
         slotMinutes={services.find((s) => s.id === editTarget?.service_id)?.duration_minutes ?? null}
         onExtend={multiSlotEnabled ? (b, end) => void extendBooking(b, end) : undefined}
