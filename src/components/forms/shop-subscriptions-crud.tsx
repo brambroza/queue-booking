@@ -12,6 +12,7 @@ import { TablePaginationControls } from '@/components/ui/table-pagination-contro
 import { SETUP_STEP_LABEL_TH, type SetupStatus } from '@/lib/onboarding/status';
 import { PlatformOaSetup, ShopLineCell, ShopLinePanel, useShopLineStatuses } from '@/components/admin/shop-line-link';
 import { QuotaEmailPanel } from '@/components/admin/quota-email-panel';
+import { ShopAddonsPanel } from '@/components/admin/shop-addons-panel';
 
 /** Plan code every shop falls back to. Mirrors FREE_PLAN_CODE in src/lib/subscription/enforcement.ts */
 const FREE_PLAN_CODE = 'starter';
@@ -1127,6 +1128,8 @@ export function ShopSubscriptionsCrud() {
               available={Boolean(shopLine.data?.available)}
               onChanged={shopLine.reload}
             />
+
+            <ShopAddonsPanel shopId={editing.id} shopName={editing.name} />
 
             <QuotaEmailPanel shopId={editing.id} shopName={editing.name} />
 

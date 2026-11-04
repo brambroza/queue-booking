@@ -185,6 +185,8 @@ export function BookingsCrud() {
   const resourceTypes = Array.from(new Set(resources.map((r) => r.resource_type)));
   const resourceLabel = resourceTypes.length === 1 ? resourceTypeLabel(resourceTypes[0]) : t('resource_generic', 'ผู้ให้บริการ');
   const activeResources = resources.filter((r) => r.active !== false);
+  // Only bookable services for a new queue; the list/edit still resolve names of inactive ones.
+  const activeServices = services.filter((s) => s.active !== false);
 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
@@ -446,7 +448,7 @@ export function BookingsCrud() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         branches={branches}
-        services={services}
+        services={activeServices}
         lineUsers={lineUsers}
         resources={activeResources}
         resourceLabel={resourceLabel}

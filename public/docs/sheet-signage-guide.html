@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>คู่มือ: จอคิวจาก Google Sheet</title>
+<style>
+  body { font-family: "Kanit", "Sarabun", system-ui, sans-serif; max-width: 760px; margin: 0 auto; padding: 24px 20px 64px; line-height: 1.7; color: #1f2937; }
+  h1 { font-size: 26px; margin-bottom: 4px; }
+  h2 { font-size: 19px; margin-top: 32px; border-bottom: 2px solid #16a34a; padding-bottom: 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid #d1d5db; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #f0fdf4; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 14px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
+  .note { background: #fefce8; border-left: 4px solid #eab308; padding: 10px 14px; border-radius: 4px; }
+  code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<h1>จอคิวจาก Google Sheet</h1>
+<p>พนักงานลงคิวและเปลี่ยนสถานะใน Google Sheet แล้วจอคิวหน้าร้านอัปเดตเองภายในประมาณ 10–20 วินาที</p>
+
+<h2>1. สร้าง Sheet</h2>
+<ol>
+  <li>ดาวน์โหลด <a href="/templates/vet-queue-sheet-template.csv">template (CSV)</a></li>
+  <li>เปิด Google Sheets → สร้างสเปรดชีตใหม่ → <b>ไฟล์ → นำเข้า</b> → อัปโหลดไฟล์ → "แทนที่ชีตปัจจุบัน"</li>
+  <li><b>ไฟล์ → การตั้งค่า → ภาษา (Locale) = ประเทศไทย</b> เพื่อให้วันที่เป็น วัน/เดือน/ปี</li>
+  <li>ลบแถวตัวอย่างออก (เก็บแถวที่ 1 ที่เป็นชื่อคอลัมน์ไว้)</li>
+</ol>
+
+<h2>2. คอลัมน์</h2>
+<p>ระบบอ่านตาม<b>ชื่อคอลัมน์ในแถวที่ 1</b> สลับลำดับ หรือเพิ่มคอลัมน์ของตัวเองได้</p>
+<table>
+  <tr><th>คอลัมน์</th><th>จำเป็น</th><th>บนจอ</th></tr>
+  <tr><td>สถานะ</td><td>✅</td><td>รอ · เรียก · กำลังตรวจ · เสร็จ · ยกเลิก (ว่าง = รอ)</td></tr>
+  <tr><td>วันที่</td><td>แนะนำ</td><td>แสดงเฉพาะแถวของวันนี้ ถ้าไม่มีคอลัมน์นี้ = แสดงทุกแถว (เหมาะกับร้านที่ล้าง Sheet ทุกวัน)</td></tr>
+  <tr><td>เลขคิว</td><td>อย่างน้อย 1 ใน 3</td><td>ตัวเลขใหญ่บนจอ ถ้าว่างระบบใส่ 001, 002 ให้</td></tr>
+  <tr><td>ชื่อสัตว์</td><td>อย่างน้อย 1 ใน 3</td><td>ชื่อที่เรียก มีไอคอนตามชนิด</td></tr>
+  <tr><td>ชื่อเจ้าของ</td><td>อย่างน้อย 1 ใน 3</td><td>ใช้เมื่อไม่มีชื่อสัตว์ ปิดบังตามการตั้งค่าจอ</td></tr>
+  <tr><td>ชนิด</td><td></td><td>🐶 สุนัข 🐱 แมว 🐰 กระต่าย 🐦 นก 🐹 แฮมสเตอร์ อื่น ๆ 🐾</td></tr>
+  <tr><td>แผนก/บริการ</td><td></td><td>แสดงเมื่อเปิด "แสดงชื่อบริการ"</td></tr>
+  <tr><td>ห้องตรวจ/สัตวแพทย์</td><td></td><td>แสดงเมื่อเปิด "แสดงโต๊ะ / ห้อง / ช่าง"</td></tr>
+  <tr><td>เวลานัด</td><td></td><td>เรียงคิวตามเวลานี้</td></tr>
+  <tr><td>ฉุกเฉิน</td><td></td><td>ติ๊กแล้วคิวขึ้นหน้าสุด มี 🚨</td></tr>
+  <tr><td>เวลาเรียก</td><td></td><td>คิวที่เรียกล่าสุดขึ้นเป็นคิวหลัก (ใส่อัตโนมัติด้วยสคริปต์ข้อ 4)</td></tr>
+  <tr><td>เบอร์โทร</td><td></td><td><b>ไม่ถูกส่งขึ้นจอเลย</b></td></tr>
+</table>
+
+<p><b>ตั้ง dropdown สถานะ:</b> เลือกคอลัมน์ "สถานะ" → ข้อมูล → การตรวจสอบข้อมูล → เพิ่มกฎ → Dropdown: <code>รอ</code> <code>เรียก</code> <code>กำลังตรวจ</code> <code>เสร็จ</code> <code>ยกเลิก</code><br>
+<b>ช่องฉุกเฉิน:</b> เลือกคอลัมน์ "ฉุกเฉิน" → แทรก → ช่องทำเครื่องหมาย</p>
+
+<h2>3. แชร์ให้ระบบ</h2>
+<ol>
+  <li>กด <b>แชร์</b> มุมขวาบน → ใส่อีเมลระบบที่แสดงในหน้า <b>จอแสดงคิว</b> ของ portal → สิทธิ์ <b>ผู้มีสิทธิ์อ่าน</b> → ส่ง</li>
+  <li>คัดลอกลิงก์ของ Sheet → วางในการ์ด "จอคิวจาก Google Sheet" → กด <b>ทดสอบ</b> → ตรวจตัวอย่าง → เปิดสวิตช์ → บันทึก</li>
+</ol>
+<p class="note">ไม่ต้องเปิด Sheet เป็น "ทุกคนที่มีลิงก์" — ข้อมูลเจ้าของสัตว์ยังเป็นส่วนตัว ระบบอ่านอย่างเดียว ไม่แก้ไข Sheet</p>
+
+<h2>4. (แนะนำ) ลงเวลาเรียกอัตโนมัติ</h2>
+<p>ส่วนขยาย → Apps Script → ลบโค้ดเดิม → วางโค้ดนี้ → บันทึก (ไม่ต้องกดอนุญาตอะไร) ทุกครั้งที่เปลี่ยนสถานะเป็น "เรียก" ช่องเวลาเรียกจะถูกใส่เวลาให้</p>
+<pre>function onEdit(e) {
+  var range = e.range;
+  if (range.getNumRows() !== 1 || range.getNumColumns() !== 1 || range.getRow() === 1) return;
+  var sheet = range.getSheet();
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+    .map(function (h) { return String(h).trim(); });
+  var statusCol = headers.indexOf('สถานะ') + 1;
+  var calledCol = headers.indexOf('เวลาเรียก') + 1;
+  if (!statusCol || !calledCol || range.getColumn() !== statusCol) return;
+  if (String(e.value || '').trim() === 'เรียก') {
+    sheet.getRange(range.getRow(), calledCol)
+      .setValue(Utilities.formatDate(new Date(), 'Asia/Bangkok', 'HH:mm'));
+  }
+}</pre>
+
+<h2>ข้อควรรู้</h2>
+<ul>
+  <li>จออัปเดตตามรอบรีเฟรชของจอ + ระบบอ่าน Sheet ซ้ำทุก 10 วินาที</li>
+  <li>ถ้า Google ล่มชั่วคราว จอแสดงข้อมูลล่าสุดที่อ่านได้ค้างไว้</li>
+  <li>คิวใน Sheet ไม่ส่ง LINE ให้ลูกค้า และไม่รวมในรายงานของระบบจอง</li>
+  <li>ถ้าการ์ดแจ้ง "แถว N อ่านไม่ครบ" ให้แก้ค่าในแถวนั้น (วันที่ / สถานะ / เวลา)</li>
+</ul>
+</body>
+</html>

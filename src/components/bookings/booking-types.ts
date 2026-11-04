@@ -45,6 +45,8 @@ export type Service = {
   id: string;
   service_name: string;
   price?: number | null;
+  /** `services.active`; false = hidden from the create drawer. */
+  active?: boolean | null;
   /** One slot; also the step of "ต่อเวลา +1 รอบ" and of multi-slot bookings. */
   duration_minutes?: number | null;
   booking_mode?: string | null;
@@ -65,6 +67,8 @@ export type Resource = {
   resource_code?: string | null;
   capacity: number;
   resource_type: string;
+  /** Price per slot; > 0 overrides `services.price` (same rule as `/api/bookings`). */
+  unit_price?: number | null;
   branch_id?: string | null;
   active?: boolean | null;
   /** Services this resource serves; empty / null = every service. */

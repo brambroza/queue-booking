@@ -13,6 +13,7 @@ import {
   type SignageBookingRow,
   type SignageResourceRow,
 } from '@/lib/signage/normalize';
+import { loadSheetFeed, resolveSheetSignageSourceCached } from '@/lib/signage/sheet/sheet-feed-server';
 
 const BranchIdSchema = z.string().uuid();
 
@@ -57,6 +58,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
     }
 
     const date = getTodayISOInBangkok();
+    const shopInfo = {
+      name: shop.name,
+      logo_url: shop.logo_url,
+      demo_mode_enabled: shop.demo_mode_enabled,
+      liff_id: shop.liff_id,
+    };
+
+    // Add-on: a Google Sheet feeds this display instead of bookings. Any lookup
+    // problem resolves to null, i.e. the normal booking feed below.
+    const sheetSource = await resolveSheetSignageSourceCached(admin, shop.id, branch?.id ?? null, date);
+    if (sheetSource) {
+      const feed = await loadSheetFeed(sheetSource, date);
+      const signage = buildSignageData({ rows: feed.rows, config, date, shop: shopInfo, branch, resources: feed.resources });
+      return NextResponse.json({ data: { enabled: true, config, signage, source: 'google_sheet' } }, { headers });
+    }
+
     let query = admin
       .from('bookings')
       .select(SIGNAGE_BOOKING_SELECT)
@@ -86,12 +103,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ shopKey:
       rows: (data ?? []) as unknown as SignageBookingRow[],
       config,
       date,
-      shop: {
-        name: shop.name,
-        logo_url: shop.logo_url,
-        demo_mode_enabled: shop.demo_mode_enabled,
-        liff_id: shop.liff_id,
-      },
+      shop: shopInfo,
       branch,
       resources: toSignageResources(resourceRows as SignageResourceRow[] | null),
     });

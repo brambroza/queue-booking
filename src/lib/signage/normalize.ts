@@ -32,6 +32,8 @@ export type SignageBookingRow = {
   customers: SignageCustomer | SignageCustomer[] | null;
   line_users: { display_name?: string | null } | { display_name?: string | null }[] | null;
   services: { service_name?: string | null } | { service_name?: string | null }[] | null;
+  /** Only set by the Google Sheet source; `emergency` jumps the waiting line. Bookings never have it. */
+  priority?: 'emergency' | null;
 };
 
 function first<T>(value: T | T[] | null | undefined): T | null {
@@ -92,6 +94,13 @@ function byStartTime(a: SignageBookingRow, b: SignageBookingRow): number {
   return t !== 0 ? t : a.queue_number.localeCompare(b.queue_number, undefined, { numeric: true });
 }
 
+/** Waiting-line order: emergencies first (sheet source only), then by start time. */
+function byQueueOrder(a: SignageBookingRow, b: SignageBookingRow): number {
+  const pa = a.priority === 'emergency' ? 0 : 1;
+  const pb = b.priority === 'emergency' ? 0 : 1;
+  return pa !== pb ? pa - pb : byStartTime(a, b);
+}
+
 export type BuildSignageDataInput = {
   rows: SignageBookingRow[];
   config: SignageConfig;
@@ -121,7 +130,7 @@ export function buildSignageData(input: BuildSignageDataInput): SignageData {
       return byStartTime(a, b);
     });
 
-  const queuedRows = rows.filter((r) => queued.has(r.status)).sort(byStartTime);
+  const queuedRows = rows.filter((r) => queued.has(r.status)).sort(byQueueOrder);
   const nextQueue = queuedRows.slice(0, config.next_queue_limit);
   const waitingQueue = queuedRows.slice(config.next_queue_limit, config.next_queue_limit + config.waiting_queue_limit);
 

@@ -43,6 +43,20 @@ export type CreateDraft = {
 
 export type CreateResult = { queueNo: string; branch: string; service: string; date: string; time: string };
 
+/** "฿1,200" — Thai grouping, no decimals unless the price has them. */
+function formatBaht(amount: number): string {
+  return `฿${amount.toLocaleString('th-TH', { maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * Price of one slot as `/api/bookings` charges it: the resource's `unit_price`
+ * when above 0, otherwise the service price.
+ */
+function slotPrice(service: Service | undefined, resource: Resource | undefined): number {
+  const resourcePrice = Number(resource?.unit_price ?? 0);
+  return resourcePrice > 0 ? resourcePrice : Number(service?.price ?? 0);
+}
+
 export const EMPTY_CREATE_DRAFT: CreateDraft = {
   branch_id: '', service_id: '', booking_date: '', start_time: '',
   party_size: '', resource_id: '', slot_count: '', customer_name: '', customer_nickname: '', customer_phone: '', note: '',
@@ -140,6 +154,10 @@ export function BookingCreateDrawer({
         .filter((n) => n === 1 || n >= minSlotCount(selectedService))
     : [1];
 
+  const selectedResource = resourceOptions.find((r) => r.id === draft.resource_id);
+  const slotCount = Math.max(1, Number(draft.slot_count) || 1);
+  const totalPrice = slotPrice(selectedService, selectedResource) * slotCount;
+
   /** LINE profile avatar + "nickname (display name)" for the picker. */
   function renderLineUser(u: LineUser) {
     const displayName = u.display_name?.trim() || 'LINE User';
@@ -217,7 +235,7 @@ export function BookingCreateDrawer({
               </TextField>
               <TextField id="create-service" select required fullWidth size="small" label={t('service', 'บริการ')} value={draft.service_id} onChange={set('service_id')}>
                 {services.map((s) => (
-                  <MenuItem key={s.id} value={s.id}>{s.service_name}{s.price ? ` — ฿${s.price}` : ''}</MenuItem>
+                  <MenuItem key={s.id} value={s.id}>{s.service_name}{s.price ? ` — ${formatBaht(Number(s.price))}` : ''}</MenuItem>
                 ))}
               </TextField>
             </Stack>
@@ -249,9 +267,15 @@ export function BookingCreateDrawer({
               {resourceOptions.length > 0 ? (
                 <TextField id="create-resource" select fullWidth size="small" label={`${resourceLabel} (${t('optional', 'ไม่บังคับ')})`} value={draft.resource_id} onChange={set('resource_id')}>
                   <MenuItem value="">{`${t('filter_unassigned', 'ยังไม่ระบุ')}${resourceLabel}`}</MenuItem>
-                  {resourceOptions.map((r) => (
-                    <MenuItem key={r.id} value={r.id}>{r.resource_code ? `${r.resource_code} · ` : ''}{r.resource_name} (cap {r.capacity})</MenuItem>
-                  ))}
+                  {resourceOptions.map((r) => {
+                    const price = slotPrice(selectedService, r);
+                    return (
+                      <MenuItem key={r.id} value={r.id}>
+                        {r.resource_code ? `${r.resource_code} · ` : ''}{r.resource_name} (cap {r.capacity})
+                        {price > 0 ? ` — ${formatBaht(price)}` : ''}
+                      </MenuItem>
+                    );
+                  })}
                 </TextField>
               ) : null}
             </Stack>
@@ -263,6 +287,15 @@ export function BookingCreateDrawer({
                   </MenuItem>
                 ))}
               </TextField>
+            ) : null}
+            {totalPrice > 0 ? (
+              <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ borderRadius: 2, bgcolor: 'action.hover', px: 2, py: 1.25 }}>
+                <Typography variant="body2" color="text.secondary">
+                  {t('price', 'ราคา')}
+                  {slotCount > 1 ? ` (${formatBaht(totalPrice / slotCount)} × ${slotCount} ${t('round', 'รอบ')})` : ''}
+                </Typography>
+                <Typography variant="subtitle1" fontWeight={700}>{formatBaht(totalPrice)}</Typography>
+              </Stack>
             ) : null}
             <TextField id="create-note" fullWidth size="small" label={t('note', 'หมายเหตุ (ไม่บังคับ)')} value={draft.note} onChange={set('note')} multiline minRows={2} />
           </Stack>

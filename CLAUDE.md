@@ -139,6 +139,7 @@ src/
 | `/api/rich-menu/image` | Upload rendered rich menu PNG/JPEG (2500×1686 / 2500×843, ≤1 MB) → `shop-assets` bucket |
 | `/api/rich-menu/publish` | POST = create rich menu on LINE + upload image + set default; DELETE = unpublish |
 | `/api/shop-assets/image` | Upload one photo (`kind=resources\|services\|branches`, ≤5 MB, JPEG/PNG/WebP sniffed, re-encoded to JPEG ≤1600px, EXIF stripped) → public `shop-assets` bucket, returns `{ url }` only — no DB write |
+| `/api/signage-sheet` | Add-on "จอคิวจาก Google Sheet": GET add-on state + sources + service account email (staff may read); PATCH `{ branch_id, sheet_url, sheet_name, enabled }` (shop_owner; enabling needs the add-on, 402 `addon_required`); POST `{ action: 'test' }` reads the sheet uncached and returns today's count, skipped rows, 10-row preview (rate limit `sheetSignageTest`) |
 
 ### Public (ไม่ต้องมี auth)
 | Route | Resource |
@@ -174,6 +175,7 @@ src/
 | `/api/admin/shop-subscriptions/quota-email` | Preview / send one quota email for a shop (`threshold` 80\|90\|100, `audience` owner\|team, `recipient` me\|owner\|team; numbers set to the threshold of the real limit; `me` = admin's login email with `[ทดสอบ]` subject). Rate limit `quotaEmailTest`, audit-logged. UI `QuotaEmailPanel` in the shop-subscriptions drawer |
 | `/api/admin/active-shop` | Acting shop for super_admin (GET list + current, POST select, DELETE clear) — stored in httpOnly cookie `portal_admin_shop_id`, applied by `requireAuthContext` |
 | `/api/admin/shop-showcase` | Showcase review queue (GET, with real-booking count + LINE flag) and `approve\|reject\|unpublish\|feature\|unfeature` (PATCH, reason required for reject/unpublish, notifies the shop, audit-logged) |
+| `/api/admin/shop-addons` | Paid add-ons per shop (GET `?shop_id=`, PATCH `{ shop_id, addon_key, active, expires_on, note }`, audit-logged). Only writer of `shop_addons`. UI `ShopAddonsPanel` in the shop-subscriptions drawer |
 | `/api/shop-subscription/current` | Current plan status |
 
 ---
@@ -465,6 +467,17 @@ Two LINE automations that bring customers back, both **default off**, set at `/p
 - `SHOWCASE_CONSENT_VERSION` ต้อง bump เมื่อแก้ข้อความยินยอม (ตอนนี้แค่บันทึก ไม่บังคับยืนยันใหม่)
 - Not done: สิ่งจูงใจ (ส่วนลด/โควตา — รอ management), กรองตามประเภทในหน้า use case, หน้า `/en`, public API route, บังคับยืนยันใหม่เมื่อ version เปลี่ยน
 
+## Signage from Google Sheet (add-on, 2026-11-04)
+
+Paid add-on (`shop_addons.addon_key = 'sheet_signage'`, sold outside the plans, switched on by super_admin) for shops that run their queue in a Google Sheet — first customer a veterinary hospital, 1 branch, one sheet for every day, no LINE. The sheet **only feeds the queue display**: nothing is written to `bookings`, so LIFF, LINE, quota, reports and cron never see it
+- Migration `202611040001_signage_sheet_addon.sql` (`shop_addons`, `signage_sheet_sources`; RLS select-only, writes via service role). **Not run = everything as before** (lookups return null, card says "ยังไม่พร้อม")
+- Switch: `/api/public/shop/[shopKey]/display` and `/api/queue-display` call `resolveSheetSignageSource` (add-on live today via `isAddonActive` + scope source `enabled`; branch row, else shop-wide row). Null = the booking feed, unchanged. Sheet rows go through the same `buildSignageData`, so every template works
+- Read: platform service account (`GOOGLE_SHEETS_SA_EMAIL` / `GOOGLE_SHEETS_SA_PRIVATE_KEY`, JWT signed with node `crypto`, no googleapis), shop shares the sheet as viewer — never "publish to web" (owner names/phones, PDPA). `src/lib/signage/sheet/google-sheets.ts` (`SheetReadError` codes `not_configured|not_shared|not_found|bad_tab|google_error`)
+- Cache: parsed feed `sheet-signage:{sourceId}:…:{today}` 10 s (stale 10 min when Google fails), source lookup `sheet-source:{shop}:…` 30 s on the TV route. ~6 Sheets reads/min per source whatever the TV count; project quota is 300/min, so past ~40 live sources move to an Apps Script push (Phase 2)
+- Parser (pure + vitest) `src/lib/signage/sheet/parse-rows.ts`: headers by name (`SHEET_HEADER_ALIASES`, any order), `สถานะ` required + one of `เลขคิว|ชื่อสัตว์|ชื่อเจ้าของ`; date column = today only (D/M/Y, Buddhist year ok), no date column = every row; status words `SHEET_STATUS_ALIASES` (blank = รอ, ยกเลิก dropped); pet name → `customers.nickname` with species emoji, owner → `full_name`; `ฉุกเฉิน` → `priority: 'emergency'` (front of the waiting line via `byQueueOrder` in `normalize.ts`, 🚨, "ฉุกเฉิน · " on the service); `เวลาเรียก` → `called_at`. The phone column is never read
+- Portal: `SheetSourceCard` (`src/components/signage/sheet-source-card.tsx`) above the designer on `/portal/queue-display`, rendered **only when the add-on is live** for the shop (not migrated / not bought / expired = nothing, no teaser); designer shows an info/error alert when the scope reads the sheet. Template `public/templates/vet-queue-sheet-template.csv`, guide + `onEdit` Apps Script (stamps เวลาเรียก) at `public/docs/sheet-signage-guide.html`
+- Not done: Apps Script push / instant ping, custom column mapping UI, "last updated" badge on the TV when serving stale data, two-way sync with LIFF bookings, add-on billing. Untested against a real Google service account
+
 ## Queue Number
 
 เลขคิวออกโดย **DB trigger** `assign_queue_number` (migration `202609220001_queue_number_sequence.sql` — **must run before deploy**: app ไม่ส่ง `queue_number` ตอน insert แล้ว ถ้าไม่มี trigger จะพัง NOT NULL)
@@ -582,6 +595,7 @@ Omise Mobile Banking: toggle `shops.mobile_banking_enabled` (migration `20260916
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Rush | Optional shared cache + rate limit + booking guards (memory-only without) |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | Signup | Cloudflare Turnstile on `/register` (prod without secret = signup 503) |
 | `FORM_TOKEN_SECRET` | Signup | HMAC for the signed form-open time (falls back to `PAYMENT_LINK_SECRET`; prod without either = signup 503) |
+| `GOOGLE_SHEETS_SA_EMAIL` / `GOOGLE_SHEETS_SA_PRIVATE_KEY` | Sheet add-on | Service account that reads shop sheets (Sheets API enabled on its project; PEM may use literal `\n`) |
 
 ---
 

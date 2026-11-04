@@ -41,6 +41,8 @@ export const RATE_LIMITS = {
   ownerLine: { windowSeconds: 600, max: 10 },
   /** Per super_admin — quota email test sends from the package page; each one is a real email. */
   quotaEmailTest: { windowSeconds: 600, max: 10 },
+  /** Per shop — "ทดสอบ Google Sheet" reads the sheet uncached; each hit spends platform Sheets API quota. */
+  sheetSignageTest: { windowSeconds: 600, max: 20 },
 } as const satisfies Record<string, RateLimit>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

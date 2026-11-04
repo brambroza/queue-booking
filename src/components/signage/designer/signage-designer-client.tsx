@@ -39,6 +39,9 @@ type QueueDisplayPayload = {
   shop: { name: string | null; shop_key: string | null; logo_url: string | null; demo_mode_enabled: boolean; demo_business_type: string | null };
   config: SignageConfig;
   scope: { branch_id: string | null; source: SignageScopeSource; settings_id: string | null };
+  /** `google_sheet` when the Sheet add-on feeds this scope instead of bookings. */
+  data_source?: 'bookings' | 'google_sheet';
+  sheet_error?: string | null;
   signage: SignageData;
 };
 
@@ -359,6 +362,13 @@ export function SignageDesignerClient() {
       </Grid>
 
       <Grid size={{ xs: 12, lg: 8 }}>
+        {live?.data_source === 'google_sheet' ? (
+          <Alert severity={live.sheet_error ? 'error' : 'info'} sx={{ mb: 1.5 }}>
+            {live.sheet_error
+              ? `${t('sheet_source_error', 'อ่าน Google Sheet ไม่สำเร็จ')}: ${live.sheet_error}`
+              : t('sheet_source_active', 'จอนี้แสดงคิวจาก Google Sheet (แก้คิวใน Sheet แล้วจออัปเดตเองภายในไม่กี่วินาที)')}
+          </Alert>
+        ) : null}
         <PreviewPanel
           data={previewData}
           config={draft}

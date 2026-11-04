@@ -13,6 +13,8 @@ import {
   type SignageBookingRow,
   type SignageResourceRow,
 } from '@/lib/signage/normalize';
+import { loadSheetFeed, resolveSheetSignageSource } from '@/lib/signage/sheet/sheet-feed-server';
+import type { SignageData } from '@/lib/signage/types';
 
 const DateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const BranchIdSchema = z.string().uuid();
@@ -63,29 +65,6 @@ export async function GET(req: Request) {
     if (branchesError) throw branchesError;
     if (shopError) throw shopError;
 
-    let query = supabase
-      .from('bookings')
-      .select(SIGNAGE_BOOKING_SELECT)
-      .eq('shop_id', profile.shop_id)
-      .eq('booking_date', date)
-      .eq('is_deleted', false)
-      .eq('signage_display', true)
-      .in('status', SIGNAGE_ALL_STATUSES)
-      .order('start_time', { ascending: true });
-    query = applyBranchScope(query, branchScope, resolvedBranchId);
-
-    let resourceQuery = supabase
-      .from('booking_resources')
-      .select(SIGNAGE_RESOURCE_SELECT)
-      .eq('shop_id', profile.shop_id)
-      .eq('active', true)
-      .eq('is_deleted', false);
-    if (resolvedBranchId) resourceQuery = resourceQuery.or(`branch_id.is.null,branch_id.eq.${resolvedBranchId}`);
-
-    const [{ data, error }, { data: resourceRows, error: resourceError }] = await Promise.all([query, resourceQuery]);
-    if (error) throw error;
-    if (resourceError) console.error('[queue_display_resources_failed]', resourceError.message);
-
     const branchRows = (branches ?? []) as BranchRow[];
     const branch = resolvedBranchId
       ? (() => {
@@ -93,20 +72,60 @@ export async function GET(req: Request) {
           return b ? { id: b.id, name: b.branch_name } : null;
         })()
       : null;
+    const shopInfo = {
+      name: shopMeta?.name ?? '',
+      logo_url: shopMeta?.logo_url ?? null,
+      demo_mode_enabled: shopMeta?.demo_mode_enabled ?? false,
+      liff_id: shopMeta?.liff_id ?? null,
+    };
 
-    const signage = buildSignageData({
-      rows: (data ?? []) as unknown as SignageBookingRow[],
-      config: loaded.config,
-      date,
-      shop: {
-        name: shopMeta?.name ?? '',
-        logo_url: shopMeta?.logo_url ?? null,
-        demo_mode_enabled: shopMeta?.demo_mode_enabled ?? false,
-        liff_id: shopMeta?.liff_id ?? null,
-      },
-      branch,
-      resources: toSignageResources(resourceRows as SignageResourceRow[] | null),
-    });
+    // Same add-on switch as the TV route, so the preview shows what the TV shows.
+    const sheetSource = await resolveSheetSignageSource(supabase, profile.shop_id, resolvedBranchId, date);
+    let signage: SignageData;
+    let sheetError: string | null = null;
+
+    if (sheetSource) {
+      try {
+        const feed = await loadSheetFeed(sheetSource, date);
+        signage = buildSignageData({ rows: feed.rows, config: loaded.config, date, shop: shopInfo, branch, resources: feed.resources });
+      } catch (e) {
+        // The preview stays usable; the designer shows why the TV cannot load.
+        sheetError = e instanceof Error ? e.message : 'อ่าน Google Sheet ไม่สำเร็จ';
+        signage = buildSignageData({ rows: [], config: loaded.config, date, shop: shopInfo, branch, resources: [] });
+      }
+    } else {
+      let query = supabase
+        .from('bookings')
+        .select(SIGNAGE_BOOKING_SELECT)
+        .eq('shop_id', profile.shop_id)
+        .eq('booking_date', date)
+        .eq('is_deleted', false)
+        .eq('signage_display', true)
+        .in('status', SIGNAGE_ALL_STATUSES)
+        .order('start_time', { ascending: true });
+      query = applyBranchScope(query, branchScope, resolvedBranchId);
+
+      let resourceQuery = supabase
+        .from('booking_resources')
+        .select(SIGNAGE_RESOURCE_SELECT)
+        .eq('shop_id', profile.shop_id)
+        .eq('active', true)
+        .eq('is_deleted', false);
+      if (resolvedBranchId) resourceQuery = resourceQuery.or(`branch_id.is.null,branch_id.eq.${resolvedBranchId}`);
+
+      const [{ data, error }, { data: resourceRows, error: resourceError }] = await Promise.all([query, resourceQuery]);
+      if (error) throw error;
+      if (resourceError) console.error('[queue_display_resources_failed]', resourceError.message);
+
+      signage = buildSignageData({
+        rows: (data ?? []) as unknown as SignageBookingRow[],
+        config: loaded.config,
+        date,
+        shop: shopInfo,
+        branch,
+        resources: toSignageResources(resourceRows as SignageResourceRow[] | null),
+      });
+    }
 
     return NextResponse.json({
       data: {
@@ -121,6 +140,8 @@ export async function GET(req: Request) {
         },
         config: loaded.config,
         scope: { branch_id: resolvedBranchId, source: loaded.source, settings_id: loaded.settings_id },
+        data_source: sheetSource ? 'google_sheet' : 'bookings',
+        sheet_error: sheetError,
         signage,
       },
     });
