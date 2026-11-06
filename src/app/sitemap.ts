@@ -2,6 +2,8 @@ import type { MetadataRoute } from 'next';
 import { useCases } from '@/components/public/content';
 import { blogPosts } from '@/components/public/blog-content';
 import { blogPostsEn } from '@/components/public/blog-content-en';
+import { SCENARIO_LIST } from '@/lib/demo/scenarios';
+import { SANDBOX_CONTENT_UPDATED, SANDBOX_INDEX_PATH, sandboxPath } from '@/lib/demo/scenarios/seo';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = process.env.NEXT_PUBLIC_APP_URL || 'https://queuebooking.com';
@@ -65,5 +67,16 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.68,
   }));
 
-  return [...staticPages, ...useCasePages, ...useCasePagesEn, ...blogPages, ...blogPagesEn];
+  const sandboxUpdated = new Date(`${SANDBOX_CONTENT_UPDATED}T00:00:00+07:00`);
+  const sandboxPages: MetadataRoute.Sitemap = [
+    { url: `${base}${SANDBOX_INDEX_PATH}`, lastModified: sandboxUpdated, changeFrequency: 'weekly', priority: 0.85 },
+    ...SCENARIO_LIST.map((s) => ({
+      url: `${base}${sandboxPath(s)}`,
+      lastModified: sandboxUpdated,
+      changeFrequency: 'monthly' as const,
+      priority: 0.75,
+    })),
+  ];
+
+  return [...staticPages, ...sandboxPages, ...useCasePages, ...useCasePagesEn, ...blogPages, ...blogPagesEn];
 }

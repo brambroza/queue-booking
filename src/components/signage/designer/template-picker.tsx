@@ -4,6 +4,7 @@ import { Box, Card, CardActionArea, Chip, Stack, Typography } from '@mui/materia
 import type { SignageConfig, SignageData, SignageTemplate } from '@/lib/signage/types';
 import { SignageBoard } from '@/components/signage/signage-board';
 import { SIGNAGE_TEMPLATE_LIST } from '@/components/signage/templates';
+import { normalizeBusinessType } from '@/lib/line/rich-menu/business-types';
 
 export function TemplatePicker({
   value,
@@ -20,11 +21,13 @@ export function TemplatePicker({
   recommendedLabel: string;
   onChange: (template: SignageTemplate) => void;
 }) {
+  // `best_for` holds normalized business types; legacy demo keys (e.g. `barber`) map through the normalizer.
+  const businessKey = normalizeBusinessType(recommendedFor) ?? recommendedFor ?? null;
   return (
     <Stack spacing={1.2}>
       {SIGNAGE_TEMPLATE_LIST.map((tpl) => {
         const selected = tpl.id === value;
-        const recommended = Boolean(recommendedFor && tpl.best_for.includes(recommendedFor));
+        const recommended = Boolean(businessKey && tpl.best_for.includes(businessKey));
         return (
           <Card
             key={tpl.id}

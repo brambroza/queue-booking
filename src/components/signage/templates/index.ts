@@ -30,7 +30,7 @@ export const SIGNAGE_TEMPLATE_REGISTRY: Record<SignageTemplate, SignageTemplateM
     label_th: 'คลาสสิก',
     label_en: 'Classic',
     description_th: 'คิวที่กำลังเรียกด้านซ้าย รายการคิวถัดไปด้านขวา ใช้ได้กับทุกธุรกิจ',
-    best_for: ['barber', 'general_service'],
+    best_for: ['salon', 'mobile_repair', 'restaurant', 'general_service'],
   },
   spotlight: {
     id: 'spotlight',
@@ -38,7 +38,7 @@ export const SIGNAGE_TEMPLATE_REGISTRY: Record<SignageTemplate, SignageTemplateM
     label_th: 'สปอตไลท์',
     label_en: 'Spotlight',
     description_th: 'เลขคิวใหญ่กลางจอ อ่านได้จากอีกฝั่งร้าน เหมาะร้านอาหาร',
-    best_for: ['restaurant'],
+    best_for: ['restaurant', 'salon', 'beauty_clinic', 'event'],
   },
   counter: {
     id: 'counter',
@@ -46,7 +46,7 @@ export const SIGNAGE_TEMPLATE_REGISTRY: Record<SignageTemplate, SignageTemplateM
     label_th: 'หลายช่อง',
     label_en: 'Counter',
     description_th: 'การ์ดต่อห้อง/ช่าง/เคาน์เตอร์ แสดงว่าใครอยู่ช่องไหน เหมาะคลินิก ห้องประชุม',
-    best_for: ['clinic', 'meeting_room'],
+    best_for: ['clinic', 'meeting_room', 'government'],
   },
   board: {
     id: 'board',
@@ -54,7 +54,7 @@ export const SIGNAGE_TEMPLATE_REGISTRY: Record<SignageTemplate, SignageTemplateM
     label_th: 'ตารางคิว',
     label_en: 'Board',
     description_th: 'ตารางแบบสนามบิน เห็นคิวทั้งหมดในหน้าเดียว เหมาะบุฟเฟ่ต์ คิวเยอะ',
-    best_for: ['buffet'],
+    best_for: ['buffet', 'auto_repair', 'meeting_room', 'fitness', 'nail', 'tutoring'],
   },
   minimal: {
     id: 'minimal',
@@ -62,7 +62,7 @@ export const SIGNAGE_TEMPLATE_REGISTRY: Record<SignageTemplate, SignageTemplateM
     label_th: 'มินิมอล',
     label_en: 'Minimal',
     description_th: 'เรียบ โล่ง ไม่มีกรอบ เข้ากับธีมสว่าง เหมาะร้านเล็บ บิวตี้ คาเฟ่',
-    best_for: ['nail', 'beauty'],
+    best_for: ['nail', 'beauty_clinic', 'spa', 'consult', 'photo_studio'],
   },
   lane: {
     id: 'lane',
@@ -70,7 +70,7 @@ export const SIGNAGE_TEMPLATE_REGISTRY: Record<SignageTemplate, SignageTemplateM
     label_th: 'แถวคิว',
     label_en: 'Lane',
     description_th: 'ลูกค้าเป็นคนต่อแถว เดินไปจุดให้บริการเมื่อถูกเรียก เหมาะร้านที่ลูกค้ารอหน้าร้าน',
-    best_for: ['restaurant', 'buffet', 'barber', 'nail'],
+    best_for: ['restaurant', 'buffet', 'salon', 'nail', 'pet', 'car_care'],
   },
   timeline: {
     id: 'timeline',
@@ -78,7 +78,7 @@ export const SIGNAGE_TEMPLATE_REGISTRY: Record<SignageTemplate, SignageTemplateM
     label_th: 'ตารางเวลา',
     label_en: 'Timeline',
     description_th: 'แถวละสนามหรือห้อง เห็นช่วงที่จองแล้วและช่วงที่ยังว่าง เหมาะสนามกีฬา ห้องประชุม',
-    best_for: ['meeting_room', 'fitness', 'clinic'],
+    best_for: ['meeting_room', 'fitness', 'clinic', 'sports_court', 'field_service'],
   },
   route: {
     id: 'route',
@@ -86,7 +86,7 @@ export const SIGNAGE_TEMPLATE_REGISTRY: Record<SignageTemplate, SignageTemplateM
     label_th: 'เส้นทางคิว',
     label_en: 'Route',
     description_th: 'คิวเรียงเป็นสถานีบนเส้นทาง บอกเวลาที่เหลือก่อนถึงเวลานัด',
-    best_for: ['restaurant', 'barber'],
+    best_for: ['restaurant', 'salon'],
   },
   floor: {
     id: 'floor',
@@ -94,7 +94,7 @@ export const SIGNAGE_TEMPLATE_REGISTRY: Record<SignageTemplate, SignageTemplateM
     label_th: 'ผังจุดให้บริการ',
     label_en: 'Floor',
     description_th: 'เห็นทุกจุดให้บริการว่าว่างหรือไม่ มีเส้นนำทางไปจุดที่ถูกเรียก จัดเรียงอัตโนมัติ ไม่ใช่ผังร้านจริง',
-    best_for: ['barber', 'nail', 'clinic'],
+    best_for: ['salon', 'nail', 'clinic'],
   },
   invite: {
     id: 'invite',
@@ -102,7 +102,7 @@ export const SIGNAGE_TEMPLATE_REGISTRY: Record<SignageTemplate, SignageTemplateM
     label_th: 'เชิญชวน',
     label_en: 'Invite',
     description_th: 'ไม่มีคิวรอ จอเป็นป้ายชวนจองพร้อม QR ใหญ่ มีคิวเข้าแล้วกลับเป็นจอคิว ควรเปิด "แสดง QR"',
-    best_for: ['nail', 'beauty', 'barber'],
+    best_for: ['nail', 'beauty_clinic', 'salon'],
   },
   flap: {
     id: 'flap',
@@ -110,7 +110,7 @@ export const SIGNAGE_TEMPLATE_REGISTRY: Record<SignageTemplate, SignageTemplateM
     label_th: 'ป้ายพลิก',
     label_en: 'Split-flap',
     description_th: 'ป้ายพลิกแบบสนามบิน ช่องที่เปลี่ยนจะพลิก เหมาะคลินิกและร้านที่คิวยาว',
-    best_for: ['clinic', 'buffet'],
+    best_for: ['clinic', 'buffet', 'outdoor'],
   },
 };
 

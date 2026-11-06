@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/shared/page-header';
 import { OnboardingChecklist } from '@/components/dashboard/onboarding-checklist';
 import { useBranchScope } from '@/components/layout/branch-scope-provider';
 import { useTranslation } from '@/lib/i18n/useTranslation';
+import { BUSINESS_TYPE_LABELS, normalizeBusinessType } from '@/lib/line/rich-menu/business-types';
 import { getNowHourInBangkok, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import type { DashboardData, RangeKind } from '@/types/dashboard';
 import { DashboardFilterBar, type DashboardFilter } from './dashboard-filter-bar';
@@ -157,7 +158,7 @@ export function DashboardPageClient() {
             </Stack>
           }
         >
-          {t('demo_banner', 'โหมดตัวอย่างเปิดอยู่ ข้อมูลนี้ใช้สำหรับทดลองเท่านั้น')} ({data.shop_meta.demo_business_type ?? 'demo'})
+          {t('demo_banner', 'โหมดตัวอย่างเปิดอยู่ ข้อมูลนี้ใช้สำหรับทดลองเท่านั้น')} ({(() => { const t = normalizeBusinessType(data.shop_meta.demo_business_type); return t ? BUSINESS_TYPE_LABELS[t] : 'demo'; })()})
         </Alert>
       ) : null}
 

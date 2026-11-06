@@ -15,14 +15,12 @@ import {
   DialogContent,
   DialogTitle,
   FormControlLabel,
-  FormControl,
   Grid,
-  InputLabel,
   List,
   ListItem,
-  MenuItem,
-  Select,
   Stack,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/material';
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
@@ -34,26 +32,29 @@ import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { DemoLineExperiencePanel } from '@/components/demo/demo-line-experience-panel';
 import { drawDemoSlipPng } from '@/lib/demo/slip-image';
+import { SCENARIO_LIST } from '@/lib/demo/scenarios';
+import { BUSINESS_TYPE_LABELS, normalizeBusinessType, type BusinessType } from '@/lib/line/rich-menu/business-types';
 
-type BusinessType = 'barber' | 'clinic' | 'restaurant' | 'buffet' | 'meeting_room' | 'general_service';
+/** Picker cards: one per business type, in `BUSINESS_TYPES` order. */
+const options: Array<{ value: BusinessType; th: string; icon: string }> = SCENARIO_LIST.map((sc) => ({
+  value: sc.type,
+  th: sc.label,
+  icon: sc.icon,
+}));
 
-const options: Array<{ value: BusinessType; th: string; en: string }> = [
-  { value: 'barber', th: 'ร้านทำผม', en: 'Barber' },
-  { value: 'clinic', th: 'คลินิก', en: 'Clinic' },
-  { value: 'restaurant', th: 'ร้านอาหาร', en: 'Restaurant' },
-  { value: 'buffet', th: 'บุฟเฟ่ต์', en: 'Buffet' },
-  { value: 'meeting_room', th: 'ห้องประชุม', en: 'Meeting Room' },
-  { value: 'general_service', th: 'ศูนย์บริการทั่วไป', en: 'General Service' },
-];
-
+/**
+ * Portal demo sandbox: pick a business type, choose with/without payment,
+ * then seed (or re-seed) the shop's demo data.
+ */
 export default function DemoSandboxPage() {
   const { push } = useToast();
   const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [businessType, setBusinessType] = useState<BusinessType>('barber');
+  const [businessType, setBusinessType] = useState<BusinessType>('salon');
+  const [withPayment, setWithPayment] = useState(true);
   const [shop, setShop] = useState<{ name?: string; demo_mode_enabled?: boolean; shop_key?: string } | null>(null);
-  const [session, setSession] = useState<{ business_type?: BusinessType; reset_count?: number; started_at?: string; checklist?: Record<string, boolean> } | null>(null);
+  const [session, setSession] = useState<{ business_type?: string; reset_count?: number; started_at?: string; checklist?: Record<string, boolean> } | null>(null);
   const [hasDemoData, setHasDemoData] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const [keepBranches, setKeepBranches] = useState(true);
@@ -71,6 +72,7 @@ export default function DemoSandboxPage() {
   });
 
   const selected = useMemo(() => options.find((o) => o.value === businessType), [businessType]);
+  const paymentLabel = withPayment ? 'มีชำระเงิน' : 'ไม่มีชำระเงิน';
 
   async function load() {
     setLoading(true);
@@ -91,8 +93,12 @@ export default function DemoSandboxPage() {
       mock_chat: Boolean(json.data?.session?.checklist?.mock_chat),
       connect_line: Boolean(json.data?.session?.checklist?.connect_line),
     });
-    if (json.data?.shop?.demo_business_type) setBusinessType(json.data.shop.demo_business_type);
-    else if (json.data?.session?.business_type) setBusinessType(json.data.session.business_type);
+    // Stored value may be a legacy key (`barber`), so normalize before preselecting;
+    // a shop with no demo yet starts on its own business type.
+    const stored = normalizeBusinessType(
+      json.data?.shop?.demo_business_type ?? json.data?.session?.business_type ?? json.data?.shop?.business_type,
+    );
+    if (stored) setBusinessType(stored);
   }
 
   useEffect(() => {
@@ -105,7 +111,7 @@ export default function DemoSandboxPage() {
         tone: 'warning',
         title: 'รีเซ็ตข้อมูลตัวอย่าง?',
         description: 'ข้อมูล demo ทั้งหมดจะถูกแทนที่ด้วยชุดใหม่ ข้อมูลจริงของร้านไม่ถูกแตะ',
-        context: selected ? { primary: selected.th, secondary: selected.en, avatar: 'DEMO', avatarSquare: true } : undefined,
+        context: selected ? { primary: `${selected.icon} ${selected.th}`, secondary: paymentLabel, avatar: 'DEMO', avatarSquare: true } : undefined,
         confirmLabel: 'รีเซ็ตข้อมูล',
       });
       if (!ok) return;
@@ -114,7 +120,7 @@ export default function DemoSandboxPage() {
     const res = await fetch('/api/demo-sandbox', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, business_type: businessType }),
+      body: JSON.stringify({ action, business_type: businessType, with_payment: withPayment }),
     });
     const json = await res.json();
     setSaving(false);
@@ -128,7 +134,7 @@ export default function DemoSandboxPage() {
     const res = await fetch('/api/demo-sandbox', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, business_type: businessType, message_text: messageText, direction }),
+      body: JSON.stringify({ action, message_text: messageText, direction }),
     });
     const json = await res.json();
     setSaving(false);
@@ -301,22 +307,69 @@ export default function DemoSandboxPage() {
         <Grid size={{ xs: 12, md: 7 }}>
           <Card sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', boxShadow: 'none', height: '100%' }}>
             <CardContent>
-              <Typography variant="subtitle1" fontWeight={700}>Business Type</Typography>
+              <Typography variant="subtitle1" fontWeight={700}>1. เลือกประเภทธุรกิจ</Typography>
               <Typography variant="body2" color="text.secondary" mb={1.8}>
-                เลือกประเภทธุรกิจเพื่อสร้างข้อมูลตัวอย่าง
+                ข้อมูลตัวอย่างจะเป็นบริการ {BUSINESS_TYPE_LABELS[businessType]}
               </Typography>
-              <FormControl fullWidth size="small">
-                <InputLabel>ประเภทธุรกิจ</InputLabel>
-                <Select
-                  value={businessType}
-                  label="ประเภทธุรกิจ"
-                  onChange={(e) => setBusinessType(e.target.value as BusinessType)}
-                >
-                  {options.map((o) => (
-                    <MenuItem key={o.value} value={o.value}>{o.th} ({o.en})</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Box
+                role="radiogroup"
+                aria-label="ประเภทธุรกิจ"
+                sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' }, gap: 1 }}
+              >
+                {options.map((o) => {
+                  const active = o.value === businessType;
+                  return (
+                    <Box
+                      key={o.value}
+                      role="radio"
+                      aria-checked={active}
+                      tabIndex={0}
+                      onClick={() => setBusinessType(o.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setBusinessType(o.value);
+                        }
+                      }}
+                      sx={{
+                        p: 1.2,
+                        borderRadius: 1.5,
+                        cursor: 'pointer',
+                        border: '2px solid',
+                        borderColor: active ? 'success.main' : 'divider',
+                        bgcolor: active ? 'rgba(10,112,67,0.06)' : 'background.paper',
+                        textAlign: 'center',
+                        minHeight: 72,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 0.4,
+                      }}
+                    >
+                      <Typography fontSize={26} lineHeight={1}>{o.icon}</Typography>
+                      <Typography variant="caption" fontWeight={active ? 700 : 500}>{o.th}</Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
+
+              <Typography variant="subtitle1" fontWeight={700} mt={2.4}>2. มีการชำระเงินออนไลน์หรือไม่</Typography>
+              <Typography variant="body2" color="text.secondary" mb={1.2}>
+                {withPayment ? 'คิวตัวอย่างจะมีทั้งที่ชำระแล้ว รอชำระ และรอตรวจสลิป' : 'คิวตัวอย่างไม่มียอดเงิน เหมาะกับร้านที่เก็บเงินหน้าร้าน'}
+              </Typography>
+              <ToggleButtonGroup
+                exclusive
+                size="small"
+                color="success"
+                value={withPayment ? 'yes' : 'no'}
+                onChange={(_, v: 'yes' | 'no' | null) => {
+                  if (v) setWithPayment(v === 'yes');
+                }}
+              >
+                <ToggleButton value="yes" sx={{ px: 2 }}>มีชำระเงิน</ToggleButton>
+                <ToggleButton value="no" sx={{ px: 2 }}>ไม่มีชำระเงิน</ToggleButton>
+              </ToggleButtonGroup>
 
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} mt={2.2}>
                 <Button
@@ -326,7 +379,7 @@ export default function DemoSandboxPage() {
                   sx={{ borderRadius: 1.5 }}
                   onClick={() => void runAction('create')}
                 >
-                  สร้างข้อมูลตัวอย่าง
+                  3. สร้างข้อมูลตัวอย่าง
                 </Button>
                 <Button
                   variant="outlined"
@@ -446,7 +499,7 @@ export default function DemoSandboxPage() {
                   reset count: {session?.reset_count ?? 0}
                 </Typography>
                 <Typography variant="caption" color="text.secondary" display="block">
-                  ประเภทธุรกิจ: {selected?.th ?? '-'}
+                  ประเภทธุรกิจ: {selected ? `${selected.icon} ${selected.th}` : '-'}
                 </Typography>
               </Box>
             </CardContent>

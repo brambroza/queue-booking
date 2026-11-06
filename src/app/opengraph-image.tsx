@@ -1,6 +1,5 @@
 import { ImageResponse } from 'next/og';
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
+import { loadKanit, siteHost } from '@/lib/seo/og-fonts';
 
 export const size = {
   width: 1200,
@@ -8,38 +7,6 @@ export const size = {
 };
 
 export const contentType = 'image/png';
-
-/**
- * Kanit for the social card. Satori ships a Latin-only fallback, so without
- * these files the Thai headline renders as empty boxes on LINE/Facebook/X.
- * The TTFs live in public/fonts (SIL OFL, licence file alongside them).
- */
-async function loadKanit(): Promise<Array<{ name: string; data: ArrayBuffer; weight: 400 | 700; style: 'normal' }>> {
-  const dir = path.join(process.cwd(), 'public', 'fonts');
-  const [regular, bold] = await Promise.all([
-    readFile(path.join(dir, 'Kanit-Regular.ttf')),
-    readFile(path.join(dir, 'Kanit-Bold.ttf')),
-  ]);
-  const toArrayBuffer = (buf: Buffer): ArrayBuffer =>
-    buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
-  return [
-    { name: 'Kanit', data: toArrayBuffer(regular), weight: 400, style: 'normal' },
-    { name: 'Kanit', data: toArrayBuffer(bold), weight: 700, style: 'normal' },
-  ];
-}
-
-/**
- * Hostname printed in the card footer — the same origin `metadataBase` in the
- * root layout resolves to, so the card never advertises a stale deploy URL.
- */
-function siteHost(): string {
-  const fallback = 'queuebooking.com';
-  try {
-    return new URL(process.env.NEXT_PUBLIC_APP_URL || `https://${fallback}`).host || fallback;
-  } catch {
-    return fallback;
-  }
-}
 
 export default async function OgImage() {
   const fonts = await loadKanit();

@@ -1,5 +1,7 @@
 import { blogPosts } from '@/components/public/blog-content';
 import { pricingPlans } from '@/components/public/content';
+import { SCENARIO_LIST } from '@/lib/demo/scenarios';
+import { SANDBOX_INDEX_PATH, sandboxPath } from '@/lib/demo/scenarios/seo';
 
 /**
  * llms.txt for AI search engines. Facts here must match the live product and
@@ -10,6 +12,7 @@ export async function GET() {
   const plans = pricingPlans.map(
     (p) => `- ${p.name}: ${p.price}${p.period} — ${p.items.join(', ')}`,
   );
+  const sandboxes = SCENARIO_LIST.map((s) => `- [${s.seo.h1}](${base}${sandboxPath(s)}): ${s.seo.answer}`);
   const posts = blogPosts.map((p) => `- [${p.title}](${base}/blog/${p.slug}): ${p.description}`);
 
   const body = [
@@ -24,6 +27,7 @@ export async function GET() {
     `- Pricing: ${base}/pricing`,
     `- Contact: ${base}/contact`,
     `- Use Cases: ${base}/use-cases`,
+    `- Free sandbox (no signup, 21 business types): ${base}${SANDBOX_INDEX_PATH}`,
     `- PromptPay payment: ${base}/features/promptpay-payment`,
     `- Blog: ${base}/blog`,
     `- English: ${base}/en`,
@@ -46,6 +50,9 @@ export async function GET() {
     '',
     '## Target Industries',
     '- ร้านตัดผม, ร้านทำเล็บ, คลินิก, ร้านอาหาร/บุฟเฟ่ต์, สนามแบดมินตัน/เทนนิส/BB Gun, ห้องประชุม, ศูนย์บริการ, ร้านซ่อม, หน่วยงานที่มีคิวหน้าเคาน์เตอร์',
+    '',
+    '## Try It Free (sandbox per business type, no signup, nothing saved)',
+    ...sandboxes,
     '',
     '## Articles',
     ...posts,

@@ -13,15 +13,18 @@ import {
   sendDemoChatMessage,
   simulateDemoQrPayment,
   updateDemoChecklist,
-  type DemoBusinessType,
 } from '@/lib/demo/sandbox';
+import { resolveDemoBusinessType } from '@/lib/demo/seed-plan';
 import { SLIP_ALLOWED_MIME, SLIP_MAX_BYTES } from '@/lib/storage/buckets';
 import { writeAuditLog } from '@/lib/audit/activity-log';
 import { sniffImageMime } from '@/lib/utils/image-sniff';
 
 const actionSchema = z.object({
   action: z.enum(['create', 'reset', 'disable', 'create_booking', 'call_next', 'send_mock', 'convert_to_real', 'update_checklist', 'demo_pay_qr', 'demo_payment_target']),
-  business_type: z.enum(['barber', 'clinic', 'restaurant', 'buffet', 'meeting_room', 'general_service']).optional(),
+  /** Any `BUSINESS_TYPES` value or a legacy string (`barber`, `general_service`); normalized server-side. */
+  business_type: z.string().trim().min(1).max(64).optional(),
+  /** Seed payment states (default true, the old behaviour). */
+  with_payment: z.boolean().optional(),
   message_text: z.string().optional(),
   direction: z.enum(['customer', 'bot', 'system']).optional(),
   keep_branches: z.boolean().optional(),
@@ -136,12 +139,22 @@ export async function POST(req: Request) {
     const admin = createAdminClient();
 
     if (parsed.data.action === 'create') {
-      const businessType = (parsed.data.business_type ?? 'general_service') as DemoBusinessType;
+      // No type sent: the shop's own business type, then the default scenario.
+      let raw = parsed.data.business_type;
+      if (!raw) {
+        const { data: shopRow } = await admin
+          .from('shops')
+          .select('business_type')
+          .eq('id', tenant.shopId)
+          .maybeSingle<{ business_type?: string | null }>();
+        raw = shopRow?.business_type ?? undefined;
+      }
       await createDemoSandbox({
         companyId: tenant.companyId,
         shopId: tenant.shopId,
         userId: user.id,
-        businessType,
+        businessType: resolveDemoBusinessType(raw),
+        withPayment: parsed.data.with_payment ?? true,
       });
       return NextResponse.json({ data: true });
     }
@@ -151,7 +164,8 @@ export async function POST(req: Request) {
         companyId: tenant.companyId,
         shopId: tenant.shopId,
         userId: user.id,
-        businessType: parsed.data.business_type as DemoBusinessType | undefined,
+        businessType: parsed.data.business_type,
+        withPayment: parsed.data.with_payment ?? true,
       });
       return NextResponse.json({ data: true });
     }

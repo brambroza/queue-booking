@@ -16,6 +16,8 @@ import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import { LandingNavbar } from '@/components/public/landing-navbar';
 import { LandingFooter } from '@/components/public/landing-footer';
 import { FaqSection } from '@/components/public/faq-section';
+import { SCENARIO_LIST } from '@/lib/demo/scenarios';
+import { sandboxPath } from '@/lib/demo/scenarios/seo';
 
 export type SolutionUseCase = { title: string; desc: string; icon: SvgIconComponent };
 export type SolutionFeature = { title: string; desc: string; icon: SvgIconComponent };
@@ -71,6 +73,8 @@ const outlinedBtnSx = { borderColor: '#12a862', color: '#12a862' } as const;
 export function SolutionPage({ content }: { content: SolutionPageContent }) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://queuebooking.com';
   const canonical = `${appUrl}${content.path}`;
+  // Internal link to the matching free sandbox, so crawlers and visitors find it from the solution page.
+  const sandbox = SCENARIO_LIST.find((s) => s.seo.solutionPath === content.path) ?? null;
 
   const faqSchema = {
     '@context': 'https://schema.org',
@@ -139,6 +143,11 @@ export function SolutionPage({ content }: { content: SolutionPageContent }) {
                 <Button component={Link} href="/contact" variant="outlined" sx={outlinedBtnSx}>
                   ขอเดโม
                 </Button>
+                {sandbox && (
+                  <Button component={Link} href={sandboxPath(sandbox)} variant="text" sx={{ color: '#0a7043', fontWeight: 700 }}>
+                    ลองเล่นเดโม{sandbox.label}ฟรี →
+                  </Button>
+                )}
               </Stack>
 
               <Stack direction="row" spacing={1.1} useFlexGap flexWrap="wrap" sx={{ mt: 3 }}>

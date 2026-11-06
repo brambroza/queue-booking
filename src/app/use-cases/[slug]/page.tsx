@@ -6,6 +6,8 @@ import { Box, Button, Card, CardContent, Container, Grid, Stack, Typography } fr
 import { LandingNavbar } from '@/components/public/landing-navbar';
 import { LandingFooter } from '@/components/public/landing-footer';
 import { useCases } from '@/components/public/content';
+import { SCENARIO_LIST } from '@/lib/demo/scenarios';
+import { sandboxPath } from '@/lib/demo/scenarios/seo';
 
 type Params = { slug: string };
 
@@ -36,6 +38,7 @@ export default async function UseCaseDetailPage({ params }: { params: Promise<Pa
   const item = useCases.find((u) => u.slug === slug);
   if (!item) notFound();
   const Icon = item.icon;
+  const sandbox = SCENARIO_LIST.find((s) => s.seo.useCaseSlug === item.slug) ?? null;
   const showcaseMap: Record<string, {
     customerTitle: string;
     customerDesc: string;
@@ -152,6 +155,7 @@ export default async function UseCaseDetailPage({ params }: { params: Promise<Pa
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ mt: 3 }}>
               <Button component={Link} href="/register" variant="contained">เริ่มใช้งานฟรี</Button>
               <Button component={Link} href="/contact" variant="outlined">ปรึกษาทีมงาน</Button>
+              {sandbox && <Button component={Link} href={sandboxPath(sandbox)} variant="outlined">ลองเล่นเดโมฟรี</Button>}
               <Button component={Link} href="/use-cases" variant="text">กลับหน้าตัวอย่างธุรกิจ</Button>
             </Stack>
           </CardContent>
