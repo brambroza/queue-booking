@@ -8,6 +8,7 @@
 
 import { addDays } from './fixtures.mts';
 import type { BusinessKey } from './catalogs.mts';
+import { BLOG_SERVICES } from './shots-blog-services.mts';
 import { FNB_ORDER_GUIDE } from './shots-fnb-order.mts';
 import { PAYMENT_GUIDE } from './shots-payment.mts';
 import { SIGNAGE_SCENES } from './shots-signage-scenes.mts';
@@ -282,6 +283,7 @@ export const SHOTS: Shot[] = [
   ...PAYMENT_GUIDE,
   ...FNB_ORDER_GUIDE,
   ...SIGNAGE_SCENES,
+  ...BLOG_SERVICES,
   { name: 'portal-dashboard', kind: 'portal', path: '/portal/dashboard', viewport: DESKTOP },
   { name: 'portal-queue-board', kind: 'portal', path: '/portal/queue-board', viewport: DESKTOP },
   { name: 'portal-bookings', kind: 'portal', path: '/portal/bookings', viewport: DESKTOP_TALL, clipSelector: PORTAL_CONTENT },

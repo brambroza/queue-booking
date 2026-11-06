@@ -7,7 +7,7 @@
  */
 import type { ShopCatalog } from './fixtures.mts';
 
-export type BusinessKey = 'barber' | 'clinic' | 'restaurant' | 'buffet' | 'meeting-room' | 'badminton' | 'tennis' | 'bb-gun' | 'golf' | 'workshop';
+export type BusinessKey = 'barber' | 'clinic' | 'restaurant' | 'buffet' | 'meeting-room' | 'badminton' | 'tennis' | 'bb-gun' | 'golf' | 'workshop' | 'pet' | 'car-care';
 
 export type SampleService = { id: string; service_name: string; duration_minutes: number; price: number; image_url: null };
 
@@ -281,6 +281,36 @@ export const BUSINESSES: BusinessCatalog[] = [
       { name: 'ห้องสตูดิโอ A', capacity: 8, floor: '2' },
       { name: 'ห้องสตูดิโอ B', capacity: 6, floor: '2' },
     ],
+  ),
+  business(
+    11,
+    'pet',
+    'บ้านขนฟู กรูมมิ่ง',
+    'สาขาสุขุมวิท 77',
+    'day_teal',
+    'service_area',
+    [
+      ['อาบน้ำ สุนัขเล็ก (ไม่เกิน 5 กก.)', 60, 350],
+      ['อาบน้ำ สุนัขกลาง (5-15 กก.)', 90, 500],
+      ['อาบน้ำ + ตัดขน สุนัขใหญ่', 150, 900],
+      ['อาบน้ำแมว', 90, 600],
+    ],
+    [{ name: 'ช่างแนน', code: 'โต๊ะ 1' }, { name: 'ช่างบอส', code: 'โต๊ะ 2' }],
+  ),
+  business(
+    12,
+    'car-care',
+    'ใสปิ๊ง คาร์แคร์',
+    'สาขาบางนา',
+    'day_indigo',
+    'service_area',
+    [
+      ['ล้างสี + ดูดฝุ่น รถเก๋ง', 60, 250],
+      ['ล้างสี + ดูดฝุ่น รถ SUV', 75, 300],
+      ['ล้างสี + ดูดฝุ่น รถกระบะ', 90, 350],
+      ['ขัดสี', 180, 1500],
+    ],
+    [{ name: 'ช่องล้าง 1' }, { name: 'ช่องล้าง 2' }, { name: 'ช่องล้าง 3' }],
   ),
 ];
 

@@ -14,7 +14,7 @@ const DISPLAY_FEED = '/api/public/shop/{shopKey}/display';
 const TV: Viewport = { width: 1920, height: 1080 };
 const TV_PORTRAIT: Viewport = { width: 1080, height: 1920 };
 
-type Person = {
+export type Person = {
   id: string;
   queue_number: string;
   status: string;
@@ -26,7 +26,7 @@ type Person = {
   resource_name: string | null;
 };
 
-type Scene = {
+export type Scene = {
   shopName: string;
   branchName: string;
   template: string;
@@ -43,7 +43,7 @@ type Scene = {
 };
 
 /** Clock shown on every board, and the quarter hour the sample queues start from. */
-const CAPTURE_TIME = '18:30:00';
+export const CAPTURE_TIME = '18:30:00';
 const BASE_MINUTES = 18 * 60 + 30;
 
 /**
@@ -67,7 +67,7 @@ function clockAt(offset: number): string {
  * @param resource Service point name.
  * @returns Signage person.
  */
-function person(queueNumber: string, status: string, startOffset: number, minutes: number, name: string | null, service: string, resource: string | null): Person {
+export function person(queueNumber: string, status: string, startOffset: number, minutes: number, name: string | null, service: string, resource: string | null): Person {
   return {
     id: `sample-${queueNumber}`,
     queue_number: queueNumber,
@@ -86,7 +86,7 @@ function person(queueNumber: string, status: string, startOffset: number, minute
  * @param scene Scene to show.
  * @returns Function building the body at capture time.
  */
-function feed(scene: () => Scene) {
+export function feed(scene: () => Scene) {
   return (ctx: PatchContext) => {
     const s = scene();
     const schedule = [...(s.extraSchedule ?? []), ...s.calling, ...s.waiting].sort((a, b) => a.start_time.localeCompare(b.start_time));

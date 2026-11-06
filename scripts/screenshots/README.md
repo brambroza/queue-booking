@@ -86,6 +86,17 @@ same on every run.
 npm run screenshots -- scene-cover scene-lane-before scene-lane-after scene-timeline scene-route scene-floor scene-invite scene-flap scene-timeline-portrait
 ```
 
+## Blog: pet grooming, car care, sheet signage (`pet-*`, `carcare-*`, `sheet-*`)
+
+Seven shots for the 2026-11-06 blog posts (`shots-blog-services.mts`), written to
+`public/images/product/pet-grooming/`, `car-care/` and `sheet-signage/`. Display
+shots use sample feeds (clock fixed at 18:30, like `scene-*`); LIFF shots use the
+`pet` and `car-care` sample catalogs. No portal login needed.
+
+```bash
+npm run screenshots -- pet-display-lane pet-liff-services pet-liff-slots carcare-display-timeline carcare-liff-services sheet-display-board sheet-display-flap
+```
+
 ## Before using a new image
 
 Open it and check: no real names or phone numbers, no loading state, light mode,
