@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Avatar,
@@ -155,6 +155,12 @@ export function BookingCreateDrawer({
     : [1];
 
   const selectedResource = resourceOptions.find((r) => r.id === draft.resource_id);
+
+  // A branch or service change can hide the picked resource; drop it so the
+  // request never carries an id the staff can no longer see.
+  useEffect(() => {
+    if (draft.resource_id && !selectedResource) setDraft((p) => ({ ...p, resource_id: '', slot_count: '' }));
+  }, [draft.resource_id, selectedResource]);
   const slotCount = Math.max(1, Number(draft.slot_count) || 1);
   const totalPrice = slotPrice(selectedService, selectedResource) * slotCount;
 

@@ -72,3 +72,24 @@ export async function isMultiSlotEnabled(client: SupabaseClient, shopId: string)
   if (error) return false;
   return (data as { multi_slot_enabled?: boolean } | null)?.multi_slot_enabled === true;
 }
+
+/**
+ * Whether LIFF customers must pick a resource (no "ไม่ระบุ" option).
+ *
+ * `shops.require_resource_choice` ships in migration 202611060001. Until that
+ * has run the query errors, so a failure resolves to the column default (off)
+ * rather than blocking bookings the shop never asked to block.
+ *
+ * @param client - Supabase client already allowed to read this shop.
+ * @param shopId - Shop to read the flag for.
+ * @returns true only when the shop explicitly turned the rule on.
+ */
+export async function isResourceChoiceRequired(client: SupabaseClient, shopId: string): Promise<boolean> {
+  const { data, error } = await client
+    .from('shops')
+    .select('require_resource_choice')
+    .eq('id', shopId)
+    .maybeSingle();
+  if (error) return false;
+  return (data as { require_resource_choice?: boolean } | null)?.require_resource_choice === true;
+}

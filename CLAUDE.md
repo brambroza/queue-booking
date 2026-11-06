@@ -116,7 +116,7 @@ src/
 | `/api/line-settings` | LINE OA configuration |
 | `/api/customer-guide` | Data for the customer how-to image on `/portal/line-settings`: OA `basic_id` + add-friend URL (LINE `/v2/bot/info` with the shop token), saved rich menu config (or business template) + `is_saved` / `is_published`, first 3 active services, example `slot_times` from working hours, first `branch_name`, `logo_url` (https only) |
 | `/api/settings` | Shop settings |
-| `/api/shop-display-settings` | Customer-facing flags on `shops`: `show_service_duration`, `one_booking_per_day`, `multi_slot_enabled` (GET all, staff may read; PATCH keys optional) |
+| `/api/shop-display-settings` | Customer-facing flags on `shops`: `show_service_duration`, `one_booking_per_day`, `multi_slot_enabled`, `require_resource_choice` (GET all, staff may read; PATCH keys optional) |
 | `/api/fnb-settings` | F&B ordering switch (`shops.fnb_enabled`); turning ON needs Professional+ (`assertFnbPlan`, 402 `feature_locked`), OFF always allowed |
 | `/api/fnb-menu` | F&B menu CRUD (writes plan-gated; "sold out" toggle `is_available` allowed on any plan) |
 | `/api/fnb-orders` | Staff order board: GET open/all, PATCH status new→preparing→served/cancelled + LINE push to customer |
@@ -351,6 +351,15 @@ Monthly booking quota (`max_monthly_bookings`, counted by `booking_date` month) 
 - ตั้งค่าที่ `/portal/resources` (single + bulk) — API ตรวจว่า id เป็น service ของร้านนี้
 - LIFF / portal create drawer / move dialog กรองตัวเลือก resource ตาม service ที่เลือก; `/api/public/shop/[shopKey]/book`, `/api/bookings` POST+PATCH ปฏิเสธ 400 ถ้า resource ไม่ให้บริการนั้น
 - Migration `202609120003_resource_service_link.sql`
+
+## Require Resource Choice (ปิด "ไม่ระบุสนาม", 2026-11-06)
+
+Shop switch `shops.require_resource_choice` (default off) on `/portal/resources` (`ResourceChoiceSettingCard`, `src/components/forms/resource-choice-setting-card.tsx`) via `PATCH /api/shop-display-settings`. Why: vspin prices courts on `booking_resources.unit_price` with service price 0, so a LIFF customer who picked "ไม่ระบุสนาม" paid nothing and got a confirmed queue (A005, 2026-11-06)
+- On: LIFF hides the "ไม่ระบุ" option and blocks "ถัดไป" until a resource is picked; `/meta` sends `shop.require_resource_choice` (cached ≤ ~45s)
+- `/api/public/shop/[shopKey]/book` refuses no `resource_id` with 400 `code: resource_required` when the service has ≥1 active resource in the branch (`eligibleResourcesFor`); `party_size > 0` passes (table auto-assign). LIFF goes back to step 1 on that code
+- Only when the service has resources to pick; staff (`/api/bookings`) not affected; chatbot does not book
+- Rules + vitest `src/lib/booking/resource-choice.ts`; flag read defensively `isResourceChoiceRequired` (`display-settings.ts`)
+- Migration `202611060001_require_resource_choice.sql` (**run before use** — not run = switch off, saving it fails)
 
 ## Resource / Service Images (ช่วยลูกค้าจำสนาม/ห้อง)
 

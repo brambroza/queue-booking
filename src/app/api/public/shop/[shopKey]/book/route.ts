@@ -33,7 +33,8 @@ import {
   resolveMaxBookingDate,
   resolveMinBookingDate,
 } from '@/lib/booking/booking-window';
-import { isMultiSlotEnabled, isOneBookingPerDay } from '@/lib/booking/display-settings';
+import { isMultiSlotEnabled, isOneBookingPerDay, isResourceChoiceRequired } from '@/lib/booking/display-settings';
+import { RESOURCE_REQUIRED_CODE, eligibleResourcesFor, isResourceChoiceMissing, resourceRequiredMessage } from '@/lib/booking/resource-choice';
 import { DAILY_LIMIT_CODE, DAILY_LIMIT_FREE_STATUSES, dailyLimitMessage, isDailyLimitDbError } from '@/lib/booking/daily-limit';
 import { SLOT_FULL_CODE, countSlotBookings, fetchSlotCapacity, isSlotFull, isSlotFullDbError, slotFullMessage } from '@/lib/booking/slot-capacity';
 import {
@@ -301,6 +302,29 @@ async function createBooking(
   }
   if (!isSlotCountAllowed(service, slotCount)) {
     return NextResponse.json({ error: invalidFieldMessage('slot_count'), code: MULTI_SLOT_UNAVAILABLE_CODE }, { status: 400 });
+  }
+
+  // Shop switch: no "ไม่ระบุ" resource. Without it a customer could skip a
+  // priced court and pay nothing (vspin, 2026-11-06). Only checked when the
+  // switch is on and nothing was picked, so other shops pay no extra query.
+  if (!payload.resource_id && (await isResourceChoiceRequired(admin, shop.id))) {
+    const { data: shopResources, error: resourcesError } = await admin
+      .from('booking_resources')
+      .select('id,branch_id,resource_type,service_ids')
+      .eq('shop_id', shop.id)
+      .eq('active', true)
+      .eq('is_deleted', false);
+    if (resourcesError) {
+      console.error('[book] resource choice lookup failed:', resourcesError.message);
+      return NextResponse.json({ error: 'ไม่สามารถจองได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง' }, { status: 500 });
+    }
+    const eligible = eligibleResourcesFor(shopResources ?? [], payload.branch_id, payload.service_id);
+    if (isResourceChoiceMissing({ required: true, resourceId: null, partySize: payload.party_size ?? null, eligibleCount: eligible.length })) {
+      return NextResponse.json(
+        { error: resourceRequiredMessage(resourceTypeLabel(eligible[0]?.resource_type)), code: RESOURCE_REQUIRED_CODE },
+        { status: 400 },
+      );
+    }
   }
 
   let lineUserPk: string | null = null;

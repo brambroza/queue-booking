@@ -34,6 +34,7 @@ import { StatusChip } from '@/components/shared/status-chip';
 import { formatDateDMY, getTodayISOInBangkok } from '@/lib/utils/date-format';
 import { isPersonResourceType, resourceTypeIcon, resourceTypeLabel } from '@/lib/booking/resource-types';
 import { filterResourcesForService } from '@/lib/booking/resource-service-link';
+import { RESOURCE_REQUIRED_CODE, resourceRequiredMessage } from '@/lib/booking/resource-choice';
 import { resourceHistoryBadge, sortResourcesByHistory, summarizeResourceHistory } from '@/lib/booking/resource-history';
 import { NICKNAME_MAX } from '@/lib/booking/customer-label';
 import { buildBookingEchoText } from '@/lib/line/booking-echo';
@@ -153,6 +154,8 @@ type ShopMeta = {
   one_booking_per_day?: boolean;
   /** On when the shop allows several consecutive slots in one booking (default off). */
   multi_slot_enabled?: boolean;
+  /** On when the customer must pick a resource — the "ไม่ระบุ" option is hidden. */
+  require_resource_choice?: boolean;
   /** On when the shop lets checked-in customers order food and drinks (plan + owner switch). */
   fnb_enabled?: boolean;
 };
@@ -1040,6 +1043,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       if (json.code === BOOKING_WINDOW_CODE) void loadSlots();
       // A later slot of the run was taken meanwhile — redraw the grid.
       if (json.code === MULTI_SLOT_UNAVAILABLE_CODE || json.code === MULTI_PICK_INVALID_CODE) void loadSlots();
+      // The shop turned on "ต้องเลือกสนาม" after this page loaded — send the
+      // customer back to the picker.
+      if (json.code === RESOURCE_REQUIRED_CODE) setStep(1);
       return push(json.error ?? 'จองคิวไม่สำเร็จ', 'error');
     }
     // A multi-pick order shows every queue number it created.
@@ -1192,6 +1198,11 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   /** Label for a booking's assigned resource, resolved from the shop's resource list. */
   const bookingResourceLabel = (bookingResourceId?: string | null) =>
     resourceTypeLabel(resources.find((r) => r.id === bookingResourceId)?.resource_type);
+  // Shop switch: no "ไม่ระบุ" option, the customer must pick one. Only when
+  // this service has something to pick — otherwise the step is not shown.
+  const resourceChoiceRequired = Boolean(shop?.require_resource_choice) && filteredResources.length > 0;
+  const resourceMissingReason =
+    resourceChoiceRequired && !selectedResource ? resourceRequiredMessage(resourceTypeLabel(resourceType)) : '';
   const skipResourceLabel = useMemo(
     () => (resourceType ? `ไม่ระบุ${resourceTypeLabel(resourceType)}` : 'ไม่ระบุผู้ให้บริการ'),
     [resourceType],
@@ -1722,7 +1733,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
               {filteredResources.length > 0 ? (
                 <Stack spacing={1}>
                   <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
-                    <LiffLabel hint="(เลือกหรือไม่เลือกก็ได้)">{pickerLabel}</LiffLabel>
+                    <LiffLabel hint={resourceChoiceRequired ? '(ต้องเลือก)' : '(เลือกหรือไม่เลือกก็ได้)'}>{pickerLabel}</LiffLabel>
                     {selectedBranch?.layout_image_url ? (
                       <Button size="small" variant="text" startIcon={<MapRoundedIcon />} onClick={() => setLayoutOpen(true)}>
                         ดูผัง
@@ -1752,13 +1763,15 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                       />
                     );
                   })}
-                  <OptionCard
-                    icon="🙋"
-                    title={skipResourceLabel}
-                    subtitle="ทางร้านจัดให้ตามคิว"
-                    selected={selectedResourceId === ''}
-                    onClick={() => setSelectedResourceId('')}
-                  />
+                  {resourceChoiceRequired ? null : (
+                    <OptionCard
+                      icon="🙋"
+                      title={skipResourceLabel}
+                      subtitle="ทางร้านจัดให้ตามคิว"
+                      selected={selectedResourceId === ''}
+                      onClick={() => setSelectedResourceId('')}
+                    />
+                  )}
                 </Stack>
               ) : null}
 
@@ -1768,13 +1781,13 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                   size="large"
                   fullWidth
                   endIcon={<ArrowForwardRoundedIcon />}
-                  disabled={nextBlocked}
+                  disabled={nextBlocked || Boolean(resourceMissingReason)}
                   onClick={() => setStep(2)}
                 >
                   ถัดไป: เลือกคิว
                 </Button>
-                {nextBlockedReason ? (
-                  <Typography variant="caption" sx={{ color: 'warning.dark', textAlign: 'center' }}>{nextBlockedReason}</Typography>
+                {nextBlockedReason || resourceMissingReason ? (
+                  <Typography variant="caption" sx={{ color: 'warning.dark', textAlign: 'center' }}>{nextBlockedReason || resourceMissingReason}</Typography>
                 ) : null}
                 {releaseNotice}
                 <Button variant="text" color="inherit" size="large" fullWidth sx={{ color: 'text.secondary' }} onClick={() => void closeLiffOrBack()}>

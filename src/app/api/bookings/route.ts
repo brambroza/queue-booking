@@ -280,37 +280,43 @@ export async function POST(req: Request) {
     if (payload.resource_id) {
       const { data: selectedResource } = await supabase
         .from('booking_resources')
-        .select('id,resource_name,resource_type,capacity,unit_price,service_ids')
+        .select('id,branch_id,resource_name,resource_type,capacity,unit_price,service_ids')
         .eq('id', payload.resource_id)
         .eq('shop_id', profile.shop_id)
         .eq('is_deleted', false)
         .eq('active', true)
         .maybeSingle();
-      if (selectedResource) {
-        // A resource linked to specific services can only be booked for those.
-        if (!resourceServesService(selectedResource, payload.service_id)) {
-          return NextResponse.json(
-            { error: resourceServiceMismatchMessage(resourceTypeLabel(selectedResource.resource_type)) },
-            { status: 400 },
-          );
-        }
-        const free = await isResourceFree(supabase, {
-          shopId: profile.shop_id,
-          resourceId: selectedResource.id as string,
-          startAt,
-          endAt,
-        });
-        if (!free) {
-          return NextResponse.json({ error: resourceBusyMessage(selectedResource.resource_type) }, { status: 409 });
-        }
-        assignedResource = {
-          resource_id: selectedResource.id as string,
-          resource_name: String(selectedResource.resource_name ?? '-'),
-          resource_type: (selectedResource.resource_type as string | null) ?? null,
-          capacity: Number(selectedResource.capacity ?? 1),
-          unit_price: Number(selectedResource.unit_price ?? 0),
-        };
+      // Staff picked a resource on purpose: never fall through to a booking that
+      // holds nothing (inactive / deleted / other branch) — the court stays open.
+      if (!selectedResource || (selectedResource.branch_id && selectedResource.branch_id !== payload.branch_id)) {
+        return NextResponse.json(
+          { error: 'ทรัพยากรที่เลือกไม่พร้อมใช้งานในสาขานี้ กรุณาเลือกใหม่', code: 'resource_unavailable' },
+          { status: 400 },
+        );
       }
+      // A resource linked to specific services can only be booked for those.
+      if (!resourceServesService(selectedResource, payload.service_id)) {
+        return NextResponse.json(
+          { error: resourceServiceMismatchMessage(resourceTypeLabel(selectedResource.resource_type)) },
+          { status: 400 },
+        );
+      }
+      const free = await isResourceFree(supabase, {
+        shopId: profile.shop_id,
+        resourceId: selectedResource.id as string,
+        startAt,
+        endAt,
+      });
+      if (!free) {
+        return NextResponse.json({ error: resourceBusyMessage(selectedResource.resource_type) }, { status: 409 });
+      }
+      assignedResource = {
+        resource_id: selectedResource.id as string,
+        resource_name: String(selectedResource.resource_name ?? '-'),
+        resource_type: (selectedResource.resource_type as string | null) ?? null,
+        capacity: Number(selectedResource.capacity ?? 1),
+        unit_price: Number(selectedResource.unit_price ?? 0),
+      };
     } else if (partySize && partySize > 0) {
       const { data: candidates } = await supabase.rpc('find_available_resources', {
         p_shop_id: profile.shop_id,

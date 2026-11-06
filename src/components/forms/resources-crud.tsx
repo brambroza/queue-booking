@@ -16,6 +16,7 @@ import { MobileRecordCard } from '@/components/ui/mobile-record-card';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { RESOURCE_TYPES, resourceTypeIcon, resourceTypeLabel, type ResourceType } from '@/lib/booking/resource-types';
 import { ImageUploader } from '@/components/forms/image-uploader';
+import { ResourceChoiceSettingCard } from '@/components/forms/resource-choice-setting-card';
 import { RESOURCE_IMAGE_MAX } from '@/lib/storage/shop-assets';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import BoltRoundedIcon from '@mui/icons-material/BoltRounded';
@@ -245,6 +246,7 @@ export function ResourcesCrud() {
 
   return (
     <div className="space-y-4">
+      <ResourceChoiceSettingCard />
       <div className="card p-4">
         {/* Phones: search full width, 2 filters per row, full-width search button. md+: one row of 6 (unchanged). */}
         <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
