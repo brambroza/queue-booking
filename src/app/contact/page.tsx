@@ -77,7 +77,7 @@ function InfoRow({
 }
 
 export const metadata: Metadata = {
-  title: 'ติดต่อเรา | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE',
+  title: 'ติดต่อเรา | ระบบจองคิวผ่าน LINE OA',
   description:
     'ติดต่อทีมงานเพื่อเริ่มใช้งานระบบจองคิวผ่าน LINE OA สำหรับธุรกิจของคุณ | Contact us for demo and onboarding.',
   alternates: {
@@ -89,7 +89,7 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: 'ติดต่อเรา | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE',
+    title: 'ติดต่อเรา | ระบบจองคิวผ่าน LINE OA',
     description: 'ติดต่อทีมงานเพื่อรับเดโมและเริ่มใช้งานระบบจองคิวผ่าน LINE OA',
     url: '/contact',
     type: 'website',

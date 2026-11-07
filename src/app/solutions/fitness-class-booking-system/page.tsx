@@ -12,7 +12,7 @@ import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import { SolutionPage, type SolutionPageContent } from '@/components/public/solution-page';
 
 const path = '/solutions/fitness-class-booking-system';
-const title = 'ระบบจองคลาสฟิตเนสและโยคะผ่าน LINE OA | จองคลาส เทรนเนอร์ จำกัดที่นั่ง | QueueBooking';
+const title = 'ระบบจองคลาสฟิตเนสและโยคะผ่าน LINE OA';
 const description =
   'ระบบจองคลาสฟิตเนส โยคะ พิลาทิส ผ่าน LINE OA ให้สมาชิกจองคลาสกลุ่มและเทรนเนอร์ส่วนตัวได้เอง ระบบจำกัดจำนวนต่อคลาสและปิดรับเมื่อเต็ม ผูกครูกับคลาสที่สอน รับมัดจำ PromptPay และเตือนก่อนถึงคลาสอัตโนมัติ';
 

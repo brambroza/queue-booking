@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const found = useCases.find((u) => u.slug === slug);
   if (!found) return {};
   return {
-    title: `${found.title} | ระบบจองคิวผ่าน LINE OA`,
+    title: `${found.title} | ระบบจองคิวผ่าน LINE`,
     description: `${found.title}: ${found.summary}`,
     alternates: {
       canonical: `/use-cases/${found.slug}`,
@@ -138,7 +138,7 @@ export default async function UseCaseDetailPage({ params }: { params: Promise<Pa
             <Icon sx={{ color: '#12a862' }} />
           </Box>
           <div>
-            <Typography variant="h4" fontWeight={800}>{item.title}</Typography>
+            <Typography variant="h4" component="h1" fontWeight={800}>{item.title}</Typography>
             <Typography color="text.secondary">{item.mode}</Typography>
           </div>
         </Stack>

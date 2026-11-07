@@ -7,7 +7,7 @@ import { blogPostsEn } from '@/components/public/blog-content-en';
 import { formatDateDMY } from '@/lib/utils/date-format';
 
 export const metadata: Metadata = {
-  title: 'Blog | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE',
+  title: 'Blog | ระบบจองคิวผ่าน LINE OA',
   description: 'Guides and best practices for LINE OA queue booking, LIFF setup, and no-show reduction.',
   alternates: {
     canonical: '/en/blog',
@@ -24,7 +24,7 @@ export default function BlogEnPage() {
     <main>
       <LandingNavbar />
       <Container maxWidth="lg" sx={{ py: 8 }}>
-        <Typography variant="h3" fontWeight={800}>Blog & Practical Guides</Typography>
+        <Typography variant="h3" component="h1" fontWeight={800}>Blog & Practical Guides</Typography>
         <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
           Learn queue operations and implementation patterns for LINE-first service businesses.
         </Typography>

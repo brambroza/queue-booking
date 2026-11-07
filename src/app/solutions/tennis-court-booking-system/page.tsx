@@ -12,7 +12,7 @@ import UmbrellaRoundedIcon from '@mui/icons-material/UmbrellaRounded';
 import { SolutionPage, type SolutionPageContent } from '@/components/public/solution-page';
 
 const path = '/solutions/tennis-court-booking-system';
-const title = 'ระบบจองสนามเทนนิสผ่าน LINE OA | จองคอร์ท โค้ช และคลาสเรียน | QueueBooking';
+const title = 'ระบบจองสนามเทนนิสผ่าน LINE OA | จองคอร์ทและโค้ช';
 const description =
   'ระบบจองสนามเทนนิสผ่าน LINE OA ให้สมาชิกจองคอร์ทรายชั่วโมง จองโค้ชส่วนตัว และคลาสกลุ่มได้เอง ระบบเช็คทั้งคอร์ทและโค้ชว่างพร้อมกัน รับมัดจำ PromptPay และแจ้งเลื่อนเมื่อฝนตกได้ทันที';
 

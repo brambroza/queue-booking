@@ -140,6 +140,16 @@
   color: var(--landing-green);
 }
 
+.heroCopy h1 .heroKicker {
+  display: block;
+  margin-bottom: 18px;
+  color: var(--landing-green);
+  font-size: 16px;
+  line-height: 1.4;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
 .heroCopy > p:not(.reassurance) {
   max-width: 565px;
   margin: 30px 0 0;

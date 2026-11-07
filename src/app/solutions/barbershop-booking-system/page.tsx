@@ -24,9 +24,10 @@ import EventAvailableRoundedIcon from '@mui/icons-material/EventAvailableRounded
 import { LandingNavbar } from '@/components/public/landing-navbar';
 import { LandingFooter } from '@/components/public/landing-footer';
 import { FaqSection } from '@/components/public/faq-section';
+import { SolutionRelatedArticles } from '@/components/public/related-articles';
 
 export const metadata: Metadata = {
-  title: 'ระบบจองคิวร้านตัดผมผ่าน LINE OA | ระบบจองร้านทำผม | QueueBooking',
+  title: 'ระบบจองคิวร้านตัดผมผ่าน LINE | จองร้านทำผมออนไลน์',
   description:
     'ระบบจองคิวร้านตัดผมและร้านทำผมผ่าน LINE OA ให้ลูกค้าเลือกบริการ เลือกช่าง และเลือกเวลานัดหมายได้ตลอด 24 ชั่วโมง ลดการตอบแชทซ้ำ พร้อมแจ้งเตือนอัตโนมัติ',
   keywords: [
@@ -50,7 +51,7 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: 'ระบบจองคิวร้านตัดผมผ่าน LINE OA | ระบบจองร้านทำผม | QueueBooking',
+    title: 'ระบบจองคิวร้านตัดผมผ่าน LINE | จองร้านทำผมออนไลน์',
     description:
       'ระบบจองคิวร้านตัดผมและร้านทำผมผ่าน LINE OA ให้ลูกค้าเลือกบริการ เลือกช่าง และเลือกเวลานัดหมายได้ตลอด 24 ชั่วโมง ลดการตอบแชทซ้ำ พร้อมแจ้งเตือนอัตโนมัติ',
     url: '/solutions/barbershop-booking-system',
@@ -306,7 +307,7 @@ export default function BarbershopBookingSystemPage() {
           <Grid container spacing={3} alignItems="center">
             <Grid size={{ xs: 12, md: 7 }}>
               <Chip label="Barbershop & Hair Salon Booking Platform" sx={{ bgcolor: '#EAF3DE', color: '#0a7043', fontWeight: 700 }} />
-              <Typography variant="h3" sx={{ mt: 2, fontWeight: 800, fontSize: { xs: 30, md: 44 }, lineHeight: 1.2 }}>
+              <Typography variant="h3" component="h1" sx={{ mt: 2, fontWeight: 800, fontSize: { xs: 30, md: 44 }, lineHeight: 1.2 }}>
                 ให้ลูกค้าจองคิวร้านตัดผมผ่าน LINE ได้ตลอด 24 ชั่วโมง
               </Typography>
               <Typography color="text.secondary" sx={{ mt: 2, maxWidth: 720, lineHeight: 1.8 }}>
@@ -358,7 +359,7 @@ export default function BarbershopBookingSystemPage() {
       </Box>
 
       <Container maxWidth="lg" sx={{ py: 7 }}>
-        <Typography variant="h4" sx={{ fontWeight: 800, mb: 2 }}>
+        <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 2 }}>
           ร้านของคุณกำลังเจอปัญหาเหล่านี้หรือไม่?
         </Typography>
         <Grid container spacing={1.5}>
@@ -376,7 +377,7 @@ export default function BarbershopBookingSystemPage() {
 
       <Box sx={{ py: 7, bgcolor: '#FAFBF8', borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider' }}>
         <Container maxWidth="lg">
-          <Typography variant="h4" sx={{ fontWeight: 800, mb: 2 }}>
+          <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 2 }}>
             ระบบจองร้านตัดผมผ่าน LINE แบบครบวงจร
           </Typography>
           <Grid container spacing={1.5}>
@@ -398,7 +399,7 @@ export default function BarbershopBookingSystemPage() {
       </Box>
 
       <Container maxWidth="lg" sx={{ py: 7 }}>
-        <Typography variant="h4" sx={{ fontWeight: 800, mb: 2 }}>
+        <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 2 }}>
           เริ่มใช้งานง่ายใน 6 ขั้นตอน
         </Typography>
         <Grid container spacing={1.5}>
@@ -419,7 +420,7 @@ export default function BarbershopBookingSystemPage() {
 
       <Box sx={{ py: 7, bgcolor: '#FAFBF8', borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider' }}>
         <Container maxWidth="lg">
-          <Typography variant="h4" sx={{ fontWeight: 800, mb: 2 }}>
+          <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 2 }}>
             ตัวอย่างการใช้งานสำหรับร้านทำผมแต่ละประเภท
           </Typography>
           <Grid container spacing={1.5}>
@@ -446,7 +447,7 @@ export default function BarbershopBookingSystemPage() {
       </Box>
 
       <Container maxWidth="lg" sx={{ py: 7 }}>
-        <Typography variant="h4" sx={{ fontWeight: 800, mb: 2 }}>
+        <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 2 }}>
           ประโยชน์ที่ร้านตัดผมจะได้รับ
         </Typography>
         <Grid container spacing={1.5}>
@@ -463,7 +464,7 @@ export default function BarbershopBookingSystemPage() {
 
       <Box sx={{ py: 7, bgcolor: '#FAFBF8', borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider' }}>
         <Container maxWidth="lg">
-          <Typography variant="h4" sx={{ fontWeight: 800, mb: 2 }}>
+          <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 2 }}>
             ฟีเจอร์เด่นของระบบ
           </Typography>
           <Grid container spacing={1.5}>
@@ -492,7 +493,7 @@ export default function BarbershopBookingSystemPage() {
       </Box>
 
       <Container maxWidth="lg" sx={{ py: 7 }}>
-        <Typography variant="h4" sx={{ fontWeight: 800, mb: 2 }}>
+        <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 2 }}>
           Dashboard Preview
         </Typography>
         <Grid container spacing={1.5}>
@@ -518,11 +519,13 @@ export default function BarbershopBookingSystemPage() {
         </Grid>
       </Container>
 
+      <SolutionRelatedArticles path="/solutions/barbershop-booking-system" />
+
       <FaqSection items={faqItems} />
 
       <Container maxWidth="lg" sx={{ pb: 8 }}>
         <Box sx={{ p: { xs: 3, md: 4 }, borderRadius: 3, bgcolor: '#F2F8F4', border: '1px solid #DDEBDD' }}>
-          <Typography variant="h4" sx={{ fontWeight: 800, fontSize: { xs: 26, md: 34 } }}>
+          <Typography variant="h4" component="h2" sx={{ fontWeight: 800, fontSize: { xs: 26, md: 34 } }}>
             เปลี่ยน LINE OA ให้เป็นระบบจองคิวร้านตัดผมอัตโนมัติ
           </Typography>
           <Typography color="text.secondary" sx={{ mt: 1 }}>

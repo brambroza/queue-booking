@@ -8,9 +8,9 @@ export const revalidate = 300;
 
 
 export const metadata: Metadata = {
-  title: 'ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ | LINE OA Queue Booking Platform',
+  title: 'ระบบจองคิวผ่าน LINE OA ฟรี | จองคิวออนไลน์ นัดหมายลูกค้าอัตโนมัติ',
   description:
-    'ระบบจองคิวผ่าน LINE OA พร้อม Dashboard หลังบ้าน รองรับหลายร้าน หลายสาขา | LINE OA queue booking platform with LIFF and back-office dashboard.',
+    'ระบบจองคิวออนไลน์และนัดหมายลูกค้าผ่าน LINE OA เริ่มใช้ฟรี ลูกค้าจองเองได้ 24 ชม. ผ่าน LIFF และแชทบอท แจ้งเตือนนัดอัตโนมัติ รับชำระ PromptPay พร้อมหลังบ้านหลายสาขา',
   alternates: {
     canonical: '/',
     languages: {
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: 'ลูกค้าจองคิวผ่าน LINE ได้เอง ลดงานตอบแชทซ้ำ ๆ|ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ | QueueBooking LINE',
+    title: 'ระบบจองคิวผ่าน LINE OA ฟรี | ลูกค้าจองคิวออนไลน์ได้เอง | QueueBooking',
     description: 'ให้ลูกค้าถามคิวว่างและจองคิวผ่าน LINE พร้อมระบบหลังบ้านครบวงจร | LINE OA queue booking with full dashboard.',
     url: '/',
     type: 'website',
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'ลูกค้าจองคิวผ่าน LINE ได้เอง ลดงานตอบแชทซ้ำ ๆ|ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ',
+    title: 'ระบบจองคิวผ่าน LINE OA ฟรี | ลูกค้าจองคิวออนไลน์ได้เอง',
     description: 'ให้ลูกค้าถามคิวว่างและจองคิวผ่าน LINE พร้อมระบบหลังบ้านครบวงจร',
   },
 };

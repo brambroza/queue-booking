@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://queuebooking.com'),
   title: {
     default: 'QueueBooking LINE | ระบบจองคิวผ่าน LINE OA',
-    template: '%s | QueueBooking LINE',
+    template: '%s | QueueBooking',
   },
   description: 'ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ | LINE OA queue booking platform for modern service businesses.',
   applicationName: 'QueueBooking LINE',

@@ -6,7 +6,7 @@ import { LandingFooter } from '@/components/public/landing-footer';
 import { useCases } from '@/components/public/content';
 
 export const metadata: Metadata = {
-  title: 'ตัวอย่างการใช้งาน | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE',
+  title: 'ตัวอย่างการใช้งาน | ระบบจองคิวผ่าน LINE OA',
   description: 'ตัวอย่างธุรกิจที่ใช้ระบบจองคิวผ่าน LINE OA เช่น ร้านตัดผม คลินิก ร้านอาหาร และศูนย์บริการ',
   alternates: {
     canonical: '/use-cases',
@@ -23,7 +23,7 @@ export default function UseCasesPage() {
     <main>
       <LandingNavbar />
       <Container maxWidth="xl" sx={{ py: 8 }}>
-        <Typography variant="h3" fontWeight={800}>ตัวอย่างการใช้งานตามประเภทธุรกิจ</Typography>
+        <Typography variant="h3" component="h1" fontWeight={800}>ตัวอย่างการใช้งานตามประเภทธุรกิจ</Typography>
         <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
           เลือกรูปแบบคิวและบริการที่เหมาะกับธุรกิจของคุณ พร้อมเริ่มใช้งานได้ทันที
         </Typography>

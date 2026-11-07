@@ -233,8 +233,8 @@ function HeroSection() {
       <div className={styles.container}>
         <div className={styles.heroGrid}>
           <div className={styles.heroCopy}>
-            <h1 data-hero-reveal>เปลี่ยนทุกแชท<br />ให้กลายเป็นคิว<br /><span>ที่จัดการง่าย</span></h1>
-            <p data-hero-reveal>ให้ลูกค้าจองผ่าน LINE ได้เอง ทีมงานเห็นทุกคิวแบบเรียลไทม์ พร้อมแจ้งเตือนและรับชำระในที่เดียว</p>
+            <h1 data-hero-reveal><small className={styles.heroKicker}>ระบบจองคิวผ่าน LINE OA · เริ่มใช้ฟรี</small>เปลี่ยนทุกแชท<br />ให้กลายเป็นคิว<br /><span>ที่จัดการง่าย</span></h1>
+            <p data-hero-reveal>ระบบจองคิวออนไลน์และนัดหมายลูกค้าผ่าน LINE OA ลูกค้าจองเองได้ตลอด 24 ชั่วโมง ทีมงานเห็นทุกคิวแบบเรียลไทม์ พร้อมแจ้งเตือนอัตโนมัติและรับชำระในที่เดียว</p>
             <div className={styles.heroPaymentNote} data-hero-reveal>
               <QrCode2RoundedIcon />
               <strong>รับมัดจำผ่าน PromptPay QR ได้ทันทีใน LINE</strong>

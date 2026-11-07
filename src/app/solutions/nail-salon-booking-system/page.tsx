@@ -12,7 +12,7 @@ import PhotoLibraryRoundedIcon from '@mui/icons-material/PhotoLibraryRounded';
 import { SolutionPage, type SolutionPageContent } from '@/components/public/solution-page';
 
 const path = '/solutions/nail-salon-booking-system';
-const title = 'ระบบจองร้านทำเล็บผ่าน LINE OA | เลือกช่าง จองคิวแน่นอน มัดจำ PromptPay | QueueBooking';
+const title = 'ระบบจองร้านทำเล็บผ่าน LINE OA | จองคิวทำเล็บออนไลน์';
 const description =
   'ระบบจองร้านทำเล็บผ่าน LINE OA ให้ลูกค้าเลือกช่างและเวลาที่ว่างจริงได้เอง ล็อกเวลาต่อบริการตามความยาวงาน กันคิวซ้อนชั่วโมงพีค รับมัดจำ PromptPay กันจองแล้วไม่มา และเตือนลูกค้าก่อนถึงคิวอัตโนมัติ';
 

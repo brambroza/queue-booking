@@ -28,7 +28,7 @@ import { LandingFooter } from '@/components/public/landing-footer';
 import { FaqSection } from '@/components/public/faq-section';
 
 export const metadata: Metadata = {
-  title: 'รับชำระเงินด้วย PromptPay QR Code อัตโนมัติผ่าน LINE | QueueBooking',
+  title: 'รับชำระเงินด้วย PromptPay QR Code อัตโนมัติผ่าน LINE',
   description:
     'เปิดรับชำระเงินมัดจำหรือค่าบริการด้วย PromptPay QR Code อัตโนมัติทันทีที่ลูกค้าจองคิวผ่าน LINE ระบบสร้าง QR ส่งใบเสร็จ และอัปเดตสถานะให้เองทั้งหมด ไม่ต้องเช็คสลิป',
   keywords: [
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: 'รับชำระเงินด้วย PromptPay QR Code อัตโนมัติผ่าน LINE | QueueBooking',
+    title: 'รับชำระเงินด้วย PromptPay QR Code อัตโนมัติผ่าน LINE',
     description:
       'ลูกค้าจองคิว ระบบสร้าง PromptPay QR ให้ทันที สแกนจ่ายผ่านแอปธนาคารได้ทุกเจ้า พร้อมส่งใบเสร็จอัตโนมัติผ่าน LINE',
     url: '/features/promptpay-payment',
@@ -165,7 +165,7 @@ export default function PromptPayPaymentPage() {
                 label="ฟีเจอร์ใหม่ • QR Payment"
                 sx={{ bgcolor: '#EAF0FE', color: '#1d4ed8', fontWeight: 700 }}
               />
-              <Typography variant="h3" sx={{ mt: 2, fontWeight: 800, fontSize: { xs: 30, md: 44 }, lineHeight: 1.2 }}>
+              <Typography variant="h3" component="h1" sx={{ mt: 2, fontWeight: 800, fontSize: { xs: 30, md: 44 }, lineHeight: 1.2 }}>
                 รับเงินอัตโนมัติทันทีที่ลูกค้าจองคิว ด้วย PromptPay QR
               </Typography>
               <Typography color="text.secondary" sx={{ mt: 2, maxWidth: 620, lineHeight: 1.8 }}>

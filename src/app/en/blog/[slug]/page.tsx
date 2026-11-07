@@ -71,7 +71,7 @@ export default async function BlogDetailEnPage({ params }: { params: Promise<Par
       <Container maxWidth="md" sx={{ py: 8 }}>
         <Stack spacing={1}>
           <Chip label={post.category} size="small" sx={{ width: 'fit-content' }} />
-          <Typography variant="h3" fontWeight={800}>{post.title}</Typography>
+          <Typography variant="h3" component="h1" fontWeight={800}>{post.title}</Typography>
           <Typography color="text.secondary">
             {formatDateDMY(post.publishedAt)} • {post.readingMinutes} min read
           </Typography>
@@ -81,7 +81,7 @@ export default async function BlogDetailEnPage({ params }: { params: Promise<Par
         <Stack spacing={3}>
           {post.sections.map((s) => (
             <Box key={s.heading}>
-              <Typography variant="h5" fontWeight={700} sx={{ mb: 1.2 }}>{s.heading}</Typography>
+              <Typography variant="h5" component="h2" fontWeight={700} sx={{ mb: 1.2 }}>{s.heading}</Typography>
               <Stack spacing={1.2}>
                 {s.body.map((p) => (
                   <Typography key={p} color="text.secondary">{p}</Typography>

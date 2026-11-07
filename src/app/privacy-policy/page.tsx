@@ -5,7 +5,7 @@ import { LandingNavbar } from '@/components/public/landing-navbar';
 import { ManageConsentButton } from '@/components/consent/manage-consent-button';
 
 export const metadata: Metadata = {
-  title: 'นโยบายความเป็นส่วนตัวและคุกกี้ | QueueBooking LINE',
+  title: 'นโยบายความเป็นส่วนตัวและคุกกี้',
   description:
     'นโยบายความเป็นส่วนตัวและการใช้คุกกี้ของ QueueBooking LINE ตาม พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล (PDPA)',
   alternates: { canonical: '/privacy-policy' },

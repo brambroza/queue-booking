@@ -7,7 +7,7 @@ import { useCases } from '@/components/public/content';
 import { useCasesEnBySlug } from '@/components/public/use-cases-content-en';
 
 export const metadata: Metadata = {
-  title: 'Use Cases | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE',
+  title: 'Use Cases | ระบบจองคิวผ่าน LINE OA',
   description: 'Explore practical queue booking setups for barbers, clinics, restaurants, and service teams.',
   alternates: {
     canonical: '/en/use-cases',
@@ -24,7 +24,7 @@ export default function UseCasesEnPage() {
     <main>
       <LandingNavbar />
       <Container maxWidth="xl" sx={{ py: 8 }}>
-        <Typography variant="h3" fontWeight={800}>Use Cases by Industry</Typography>
+        <Typography variant="h3" component="h1" fontWeight={800}>Use Cases by Industry</Typography>
         <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
           Pick queue logic and service formats that fit your business model.
         </Typography>

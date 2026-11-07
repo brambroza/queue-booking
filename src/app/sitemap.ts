@@ -5,9 +5,14 @@ import { blogPostsEn } from '@/components/public/blog-content-en';
 import { SCENARIO_LIST } from '@/lib/demo/scenarios';
 import { SANDBOX_CONTENT_UPDATED, SANDBOX_INDEX_PATH, sandboxPath } from '@/lib/demo/scenarios/seo';
 
+/** Last real content change of the static marketing pages. */
+const STATIC_PAGES_UPDATED = '2026-11-07';
+
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = process.env.NEXT_PUBLIC_APP_URL || 'https://queuebooking.com';
-  const now = new Date();
+  // A fixed date, not the request time: a lastmod that changes on every fetch
+  // tells Google nothing and it stops trusting the field. Bump on real copy changes.
+  const now = new Date(`${STATIC_PAGES_UPDATED}T00:00:00+07:00`);
   const defaultDate = now.toISOString().slice(0, 10);
 
   const staticPages: MetadataRoute.Sitemap = [
@@ -29,6 +34,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/solutions/nail-salon-booking-system`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${base}/solutions/fitness-class-booking-system`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${base}/solutions/meeting-room-booking-system`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${base}/solutions/appointment-booking-system`, lastModified: now, changeFrequency: 'weekly', priority: 0.85 },
     { url: `${base}/en`, lastModified: now, changeFrequency: 'weekly', priority: 0.9 },
     { url: `${base}/en/pricing`, lastModified: now, changeFrequency: 'weekly', priority: 0.82 },
     { url: `${base}/en/contact`, lastModified: now, changeFrequency: 'monthly', priority: 0.75 },

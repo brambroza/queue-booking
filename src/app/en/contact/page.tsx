@@ -5,7 +5,7 @@ import { LandingFooter } from '@/components/public/landing-footer';
 import { ContactForm } from '@/components/public/contact-form';
 
 export const metadata: Metadata = {
-  title: 'Contact | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE',
+  title: 'Contact | ระบบจองคิวผ่าน LINE OA',
   description: 'Talk to our team for demo, onboarding, and pricing consultation.',
   alternates: {
     canonical: '/en/contact',

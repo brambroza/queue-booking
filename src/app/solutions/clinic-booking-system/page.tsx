@@ -24,9 +24,10 @@ import EventAvailableRoundedIcon from '@mui/icons-material/EventAvailableRounded
 import { LandingNavbar } from '@/components/public/landing-navbar';
 import { LandingFooter } from '@/components/public/landing-footer';
 import { FaqSection } from '@/components/public/faq-section';
+import { SolutionRelatedArticles } from '@/components/public/related-articles';
 
 export const metadata: Metadata = {
-  title: 'ระบบจองคิวคลินิกผ่าน LINE OA | โปรแกรมจองคลินิก | นัดหมายแพทย์ออนไลน์ | QueueBooking',
+  title: 'ระบบนัดหมายคลินิกผ่าน LINE OA | จองคิวคลินิกออนไลน์',
   description:
     'ระบบจองคิวคลินิกและนัดหมายแพทย์ออนไลน์ผ่าน LINE OA ให้คนไข้เลือกวัน เวลา และแพทย์ได้ตลอด 24 ชั่วโมง ลดการโทร ลดการตอบแชทซ้ำ พร้อมระบบแจ้งเตือนอัตโนมัติ',
   keywords: [
@@ -52,7 +53,7 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: 'ระบบจองคิวคลินิกผ่าน LINE OA | โปรแกรมจองคลินิก | นัดหมายแพทย์ออนไลน์ | QueueBooking',
+    title: 'ระบบนัดหมายคลินิกผ่าน LINE OA | จองคิวคลินิกออนไลน์',
     description:
       'ระบบจองคิวคลินิกและนัดหมายแพทย์ออนไลน์ผ่าน LINE OA ให้คนไข้เลือกวัน เวลา และแพทย์ได้ตลอด 24 ชั่วโมง ลดการโทร ลดการตอบแชทซ้ำ พร้อมระบบแจ้งเตือนอัตโนมัติ',
     url: '/solutions/clinic-booking-system',
@@ -136,6 +137,45 @@ const useCases = [
   },
 ];
 
+/** Per-type setup notes; targets "ระบบนัดหมายคลินิกทันตกรรม" and similar long-tail queries. */
+const clinicGuides = [
+  {
+    title: 'ระบบนัดหมายคลินิกทันตกรรม',
+    points: [
+      'ตั้งทันตแพทย์แต่ละคนเป็นทรัพยากร คนไข้เห็นเฉพาะเวลาที่หมอคนนั้นว่าง',
+      'ตั้งระยะเวลาตามงาน เช่น ขูดหินปูน 30 นาที ถอนฟัน 45 นาที ระบบกันเวลาไม่ให้นัดซ้อน',
+      'งานจัดฟันหรือรักษารากฟันตั้งให้คลินิกอนุมัติก่อนยืนยันได้',
+      'เตือนนัดทาง LINE 1 วันก่อน ลดเก้าอี้ว่างจากคนไข้ลืมนัด',
+    ],
+  },
+  {
+    title: 'ระบบนัดหมายคลินิกเวชกรรม',
+    points: [
+      'แยกบริการ ตรวจทั่วไป ตรวจสุขภาพ ฉีดวัคซีน พร้อมเวลาและจำนวนคนต่อรอบ',
+      'คนไข้กด "ฉันมาถึงแล้ว" ใน LINE เมื่อถึงคลินิก เจ้าหน้าที่เห็นทันทีว่าใครมาแล้ว',
+      'เรียกคิวผ่าน LINE และจอทีวี คนไข้นั่งรอที่ไหนก็ได้',
+      'จอเรียกคิวตั้งค่าเริ่มต้นแสดงชื่อแบบปิดบางส่วน หรือเลือกซ่อนชื่อเหลือแค่เลขคิว',
+    ],
+  },
+  {
+    title: 'ระบบนัดหมายคลินิกความงาม',
+    points: [
+      'ตั้งหัตถการแต่ละอย่างพร้อมราคาและเวลา เช่น เลเซอร์ ทรีตเมนต์ ฉีดผิว',
+      'เปิดรับชำระล่วงหน้าด้วย PromptPay สำหรับคอร์สที่จองเต็มเร็ว',
+      'ส่ง LINE ขอบคุณและขอรีวิวหลังใช้บริการอัตโนมัติ',
+      'ชวนลูกค้าที่ถึงรอบทำซ้ำกลับมานัดเอง (แพ็กเกจ Professional ขึ้นไป)',
+    ],
+  },
+];
+
+/** What the system does with patient data, for the PDPA section. */
+const pdpaPoints = [
+  'ข้อมูลคนไข้ของแต่ละคลินิกแยกจากคลินิกอื่นในฐานข้อมูล ผู้ใช้ของคลินิกอื่นเข้าถึงไม่ได้',
+  'พนักงานเห็นข้อมูลตามสิทธิ์ที่เจ้าของคลินิกกำหนด (เจ้าของ ผู้จัดการสาขา พนักงาน)',
+  'จอเรียกคิวสาธารณะแสดงชื่อแบบปิดบางส่วนเป็นค่าเริ่มต้น เลือกซ่อนชื่อได้ และไม่แสดงเบอร์โทร',
+  'ระบบเก็บเฉพาะข้อมูลที่ใช้นัดหมาย ไม่เก็บประวัติการรักษา',
+];
+
 const benefits = [
   'ลดภาระงานแอดมิน',
   'ลดสายโทรศัพท์',
@@ -171,6 +211,9 @@ const faqs = [
   { q: 'รองรับคลินิกกายภาพบำบัดหรือไม่', a: 'รองรับ เหมาะกับงานนัดหมายที่ต้องจัดคิวเป็นช่วงและดูความพร้อมของนักกายภาพ.' },
   { q: 'รองรับคลินิกสัตวแพทย์หรือไม่', a: 'รองรับ สามารถจัดการบริการและนัดหมายสำหรับคลินิกสัตวแพทย์ได้เช่นกัน.' },
   { q: 'เริ่มต้นใช้งานอย่างไร', a: 'เริ่มจากเพิ่ม LINE OA แล้วตั้งค่าบริการ แพทย์ สาขา และช่วงเวลา จากนั้นเปิดรับจองได้ทันที.' },
+  { q: 'คลินิกอนุมัตินัดก่อนยืนยันได้หรือไม่', a: 'ได้ ตั้งรายบริการให้นัดเข้าสถานะรออนุมัติ เมื่อคลินิกกดยืนยัน คนไข้ได้ข้อความยืนยันทาง LINE.' },
+  { q: 'ระบบนัดหมายคลินิกรองรับ PDPA อย่างไร', a: 'ข้อมูลแต่ละคลินิกแยกกัน สิทธิ์พนักงานแบ่งตามบทบาท จอเรียกคิวแสดงชื่อแบบปิดบางส่วนเป็นค่าเริ่มต้น และระบบไม่เก็บประวัติการรักษา คลินิกยังต้องแจ้งวัตถุประสงค์การเก็บข้อมูลกับคนไข้ตามนโยบายของคลินิกเอง.' },
+  { q: 'ระบบนัดหมายคลินิกราคาเท่าไร', a: 'เริ่มฟรีด้วยแพ็กเกจ Starter 50 คิวต่อเดือน 1 สาขา 3 บริการ คลินิกที่มีนัดมากกว่านั้นอัปเกรดเป็นแพ็กเกจรายเดือน ดูรายละเอียดที่หน้าราคา.' },
   { q: 'ระบบนัดหมายคลินิกออนไลน์ใช้งานบนมือถือได้ไหม', a: 'ใช้งานได้ทั้งฝั่งคนไข้และทีมงานบนมือถือ ช่วยให้ดูแลคิวได้จากทุกที่.' },
 ];
 
@@ -260,8 +303,8 @@ export default function ClinicBookingSystemPage() {
           <Grid container spacing={3} alignItems="center">
             <Grid size={{ xs: 12, md: 7 }}>
               <Chip label="Clinic Appointment & Queue Management Platform" sx={{ bgcolor: '#EAF3DE', color: '#0a7043', fontWeight: 700 }} />
-              <Typography variant="h3" sx={{ mt: 2, fontWeight: 800, fontSize: { xs: 30, md: 44 }, lineHeight: 1.2 }}>
-                ให้คนไข้นัดหมายแพทย์ผ่าน LINE ได้ตลอด 24 ชั่วโมง
+              <Typography variant="h3" component="h1" sx={{ mt: 2, fontWeight: 800, fontSize: { xs: 30, md: 44 }, lineHeight: 1.2 }}>
+                ระบบนัดหมายคลินิกผ่าน LINE ให้คนไข้นัดแพทย์เองได้ตลอด 24 ชั่วโมง
               </Typography>
               <Typography color="text.secondary" sx={{ mt: 2, maxWidth: 760, lineHeight: 1.8 }}>
                 ลดภาระเจ้าหน้าที่ ลดการตอบแชทซ้ำ และบริหารตารางนัดหมายแพทย์ได้อย่างมีประสิทธิภาพด้วยระบบจองคิวคลินิกที่ออกแบบมาสำหรับการใช้งานจริงในคลินิกยุคใหม่
@@ -310,7 +353,7 @@ export default function ClinicBookingSystemPage() {
       </Box>
 
       <Container maxWidth="lg" sx={{ py: 7 }}>
-        <Typography variant="h4" sx={{ fontWeight: 800, mb: 2 }}>
+        <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 2 }}>
           คลินิกของคุณกำลังเจอปัญหาเหล่านี้หรือไม่?
         </Typography>
         <Grid container spacing={1.5}>
@@ -328,7 +371,7 @@ export default function ClinicBookingSystemPage() {
 
       <Box sx={{ py: 7, bgcolor: '#FAFBF8', borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider' }}>
         <Container maxWidth="lg">
-          <Typography variant="h4" sx={{ fontWeight: 800, mb: 2 }}>
+          <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 2 }}>
             ระบบจองคิวคลินิกผ่าน LINE แบบครบวงจร
           </Typography>
           <Grid container spacing={1.5}>
@@ -350,7 +393,7 @@ export default function ClinicBookingSystemPage() {
       </Box>
 
       <Container maxWidth="lg" sx={{ py: 7 }}>
-        <Typography variant="h4" sx={{ fontWeight: 800, mb: 2 }}>
+        <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 2 }}>
           เริ่มใช้งานง่ายใน 6 ขั้นตอน
         </Typography>
         <Grid container spacing={1.5}>
@@ -371,7 +414,7 @@ export default function ClinicBookingSystemPage() {
 
       <Box sx={{ py: 7, bgcolor: '#FAFBF8', borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider' }}>
         <Container maxWidth="lg">
-          <Typography variant="h4" sx={{ fontWeight: 800, mb: 2 }}>
+          <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 2 }}>
             ตัวอย่างการใช้งานสำหรับคลินิกแต่ละประเภท
           </Typography>
           <Grid container spacing={1.5}>
@@ -398,7 +441,53 @@ export default function ClinicBookingSystemPage() {
       </Box>
 
       <Container maxWidth="lg" sx={{ py: 7 }}>
-        <Typography variant="h4" sx={{ fontWeight: 800, mb: 2 }}>
+        <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 2 }}>
+          ตั้งค่าระบบนัดหมายคลินิกแต่ละแบบอย่างไร
+        </Typography>
+        <Grid container spacing={1.5}>
+          {clinicGuides.map((guide) => (
+            <Grid key={guide.title} size={{ xs: 12, md: 4 }}>
+              <Card sx={{ height: '100%', borderRadius: 2, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                <CardContent>
+                  <Typography variant="h6" component="h3" fontWeight={800}>{guide.title}</Typography>
+                  <Stack spacing={1} sx={{ mt: 1.2 }}>
+                    {guide.points.map((point) => (
+                      <Stack key={point} direction="row" spacing={1} alignItems="flex-start">
+                        <CheckCircleRoundedIcon sx={{ color: '#12a862', fontSize: 18, mt: 0.3 }} />
+                        <Typography variant="body2" color="text.secondary">{point}</Typography>
+                      </Stack>
+                    ))}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      </Container>
+
+      <Box sx={{ py: 7, bgcolor: '#FAFBF8', borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Container maxWidth="lg">
+          <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 1 }}>
+            ข้อมูลคนไข้กับ PDPA
+          </Typography>
+          <Typography color="text.secondary" sx={{ mb: 2, maxWidth: 760 }}>
+            ระบบนัดหมายคลินิกเก็บข้อมูลส่วนบุคคลของคนไข้ คลินิกควรรู้ว่าข้อมูลอยู่ที่ไหนและใครเห็นได้บ้าง
+          </Typography>
+          <Grid container spacing={1.5}>
+            {pdpaPoints.map((item) => (
+              <Grid key={item} size={{ xs: 12, sm: 6 }}>
+                <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ p: 1.5, borderRadius: 2, bgcolor: '#fff', border: '1px solid', borderColor: 'divider', height: '100%' }}>
+                  <CheckCircleRoundedIcon sx={{ color: '#12a862', mt: 0.2 }} />
+                  <Typography>{item}</Typography>
+                </Stack>
+              </Grid>
+            ))}
+          </Grid>
+        </Container>
+      </Box>
+
+      <Container maxWidth="lg" sx={{ py: 7 }}>
+        <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 2 }}>
           ประโยชน์ที่คลินิกจะได้รับ
         </Typography>
         <Grid container spacing={1.5}>
@@ -415,7 +504,7 @@ export default function ClinicBookingSystemPage() {
 
       <Box sx={{ py: 7, bgcolor: '#FAFBF8', borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider' }}>
         <Container maxWidth="lg">
-          <Typography variant="h4" sx={{ fontWeight: 800, mb: 2 }}>
+          <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 2 }}>
             ฟีเจอร์เด่นของระบบ
           </Typography>
           <Grid container spacing={1.5}>
@@ -444,7 +533,7 @@ export default function ClinicBookingSystemPage() {
       </Box>
 
       <Container maxWidth="lg" sx={{ py: 7 }}>
-        <Typography variant="h4" sx={{ fontWeight: 800, mb: 2 }}>
+        <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 2 }}>
           ทำไมคลินิกจึงเลือกใช้ QueueBooking
         </Typography>
         <Grid container spacing={1.5}>
@@ -461,7 +550,7 @@ export default function ClinicBookingSystemPage() {
       </Container>
 
       <Container maxWidth="lg" sx={{ py: 7 }}>
-        <Typography variant="h4" sx={{ fontWeight: 800, mb: 2 }}>
+        <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 2 }}>
           Dashboard Preview
         </Typography>
         <Grid container spacing={1.5}>
@@ -487,11 +576,13 @@ export default function ClinicBookingSystemPage() {
         </Grid>
       </Container>
 
+      <SolutionRelatedArticles path="/solutions/clinic-booking-system" />
+
       <FaqSection items={faqs} />
 
       <Container maxWidth="lg" sx={{ pb: 8 }}>
         <Box sx={{ p: { xs: 3, md: 4 }, borderRadius: 3, bgcolor: '#F2F8F4', border: '1px solid #DDEBDD' }}>
-          <Typography variant="h4" sx={{ fontWeight: 800, fontSize: { xs: 26, md: 34 } }}>
+          <Typography variant="h4" component="h2" sx={{ fontWeight: 800, fontSize: { xs: 26, md: 34 } }}>
             เปลี่ยน LINE OA ให้เป็นระบบนัดหมายคลินิกอัตโนมัติ
           </Typography>
           <Typography color="text.secondary" sx={{ mt: 1 }}>
@@ -512,6 +603,7 @@ export default function ClinicBookingSystemPage() {
             <Link href="/sandbox-demo">ทดลอง Sandbox</Link>
             <Link href="/solutions/restaurant-booking-system">โซลูชันร้านอาหาร</Link>
             <Link href="/solutions/barbershop-booking-system">โซลูชันร้านตัดผม</Link>
+            <Link href="/solutions/appointment-booking-system">ระบบนัดหมายออนไลน์</Link>
           </Stack>
         </Box>
       </Container>

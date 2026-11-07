@@ -9,9 +9,9 @@ import { FaqSection } from '@/components/public/faq-section';
 import { PricingCard } from '@/components/public/pricing-card';
 
 export const metadata: Metadata = {
-  title: 'แผนราคา | ระบบจองคิวผ่าน LINE OA | ลูกค้าจองคิวเอง | ระบบจองคิว',
+  title: 'ราคาระบบจองคิวผ่าน LINE OA | แพ็กเกจฟรีตลอดชีพ',
   description:
-    'เลือกแผนการใช้งานระบบจองคิวผ่าน LINE OA สำหรับร้านค้า คลินิก ร้านอาหาร ศูนย์บริการ | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE',
+    'ราคาระบบจองคิวผ่าน LINE OA เริ่มต้นฟรีตลอดชีพ 50 คิวต่อเดือน ไม่ต้องใช้บัตรเครดิต อัปเกรดเมื่อร้านโต สำหรับร้านค้า คลินิก ร้านอาหาร และศูนย์บริการ',
   alternates: {
     canonical: '/pricing',
     languages: {
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: 'แผนราคา | ระบบจองคิวผ่าน LINE OA | ลูกค้าจองคิวเอง | ระบบจองคิว',
+    title: 'ราคาระบบจองคิวผ่าน LINE OA | แพ็กเกจฟรีตลอดชีพ',
     description: 'เลือกแผนการใช้งานระบบจองคิวผ่าน LINE OA ให้เหมาะกับธุรกิจของคุณ',
     url: '/pricing',
     type: 'website',
@@ -55,8 +55,8 @@ export default function PricingPage() {
             label="Starter ฟรี 50 คิวต่อเดือน"
             sx={{ fontWeight: 600, color: BRAND, bgcolor: 'rgba(18,168,98,.1)' }}
           />
-          <Typography variant="h3" fontWeight={800} sx={{ letterSpacing: '-.02em' }}>
-            เลือกแพ็กเกจที่พอดีกับขนาดธุรกิจของคุณ
+          <Typography variant="h3" component="h1" fontWeight={800} sx={{ letterSpacing: '-.02em' }}>
+            ราคาระบบจองคิวผ่าน LINE OA เริ่มต้นฟรี
           </Typography>
           <Typography color="text.secondary" sx={{ maxWidth: 520 }}>
             ปรับเปลี่ยนหรือยกเลิกได้ทุกเมื่อ ไม่มีสัญญาผูกมัด

@@ -12,7 +12,7 @@ import WifiRoundedIcon from '@mui/icons-material/WifiRounded';
 import { SolutionPage, type SolutionPageContent } from '@/components/public/solution-page';
 
 const path = '/solutions/meeting-room-booking-system';
-const title = 'ระบบจองห้องประชุมผ่าน LINE OA | Co-working และพื้นที่ให้เช่ารายชั่วโมง | QueueBooking';
+const title = 'ระบบจองห้องประชุมผ่าน LINE OA | Co-working รายชั่วโมง';
 const description =
   'ระบบจองห้องประชุมผ่าน LINE OA ให้ลูกค้าและสมาชิกจองห้องรายชั่วโมง ครึ่งวัน หรือเต็มวันได้เอง ระบบเช็คห้องว่างแบบเรียลไทม์ กันจองซ้อน รับมัดจำ PromptPay และดูตารางทุกห้องทุกสาขาในหลังบ้านเดียว';
 

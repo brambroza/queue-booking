@@ -12,7 +12,7 @@ import SchoolRoundedIcon from '@mui/icons-material/SchoolRounded';
 import { SolutionPage, type SolutionPageContent } from '@/components/public/solution-page';
 
 const path = '/solutions/badminton-court-booking-system';
-const title = 'ระบบจองสนามแบดผ่าน LINE OA | ระบบจองคอร์ทแบดมินตัน | QueueBooking';
+const title = 'ระบบจองสนามแบดผ่าน LINE OA | ระบบจองคอร์ทแบดมินตัน';
 const description =
   'ระบบจองสนามแบดมินตันผ่าน LINE OA ให้ลูกค้าเห็นคอร์ทว่างรายชั่วโมง จองคอร์ทและวางมัดจำ PromptPay ได้เอง ลดคอร์ทชน ลดคนจองแล้วไม่มา พร้อมตารางคอร์ทหลังบ้านและแจ้งเตือนอัตโนมัติ';
 

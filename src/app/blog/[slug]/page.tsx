@@ -7,6 +7,7 @@ import { LandingNavbar } from '@/components/public/landing-navbar';
 import { LandingFooter } from '@/components/public/landing-footer';
 import { allBlogImages, blogPosts, getBlogBySlug, type BlogImage } from '@/components/public/blog-content';
 import { getBlogBySlugEn } from '@/components/public/blog-content-en';
+import { BlogReadNext } from '@/components/public/related-articles';
 import { formatDateDMY } from '@/lib/utils/date-format';
 
 type Params = { slug: string };
@@ -50,7 +51,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const hasEn = getBlogBySlugEn(post.slug) !== null;
   const shareImage = allBlogImages(post)[0];
   return {
-    title: `${post.title} | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE`,
+    title: post.title,
     description: post.description,
     keywords: post.keywords,
     alternates: {
@@ -134,7 +135,7 @@ export default async function BlogDetailPage({ params }: { params: Promise<Param
       <Container maxWidth="md" sx={{ py: 8 }}>
         <Stack spacing={1}>
           <Chip label={post.category} size="small" sx={{ width: 'fit-content' }} />
-          <Typography variant="h3" fontWeight={800}>{post.title}</Typography>
+          <Typography variant="h3" component="h1" fontWeight={800}>{post.title}</Typography>
           <Typography color="text.secondary">
             {formatDateDMY(post.publishedAt)}
             {post.updatedAt && post.updatedAt !== post.publishedAt
@@ -164,7 +165,7 @@ export default async function BlogDetailPage({ params }: { params: Promise<Param
         <Stack spacing={3}>
           {post.sections.map((s) => (
             <Box key={s.heading}>
-              <Typography variant="h5" fontWeight={700} sx={{ mb: 1.2 }}>{s.heading}</Typography>
+              <Typography variant="h5" component="h2" fontWeight={700} sx={{ mb: 1.2 }}>{s.heading}</Typography>
               <Stack spacing={1.2}>
                 {s.body.map((p) => (
                   <Typography key={p} color="text.secondary">{p}</Typography>
@@ -254,7 +255,7 @@ export default async function BlogDetailPage({ params }: { params: Promise<Param
 
         {post.faqs?.length ? (
           <Box sx={{ mt: 5 }}>
-            <Typography variant="h5" fontWeight={700} sx={{ mb: 2 }}>คำถามที่พบบ่อย</Typography>
+            <Typography variant="h5" component="h2" fontWeight={700} sx={{ mb: 2 }}>คำถามที่พบบ่อย</Typography>
             <Stack spacing={2}>
               {post.faqs.map((f) => (
                 <Box key={f.q}>
@@ -265,6 +266,8 @@ export default async function BlogDetailPage({ params }: { params: Promise<Param
             </Stack>
           </Box>
         ) : null}
+
+        <BlogReadNext post={post} />
 
         <Box sx={{ mt: 4 }}>
           <Typography>

@@ -6,7 +6,7 @@ import { PricingCard } from '@/components/public/pricing-card';
 import { pricingPlansEn } from '@/components/public/content';
 
 export const metadata: Metadata = {
-  title: 'Pricing | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE',
+  title: 'Pricing | ระบบจองคิวผ่าน LINE OA',
   description: 'Choose the best plan for your LINE OA queue booking workflow.',
   alternates: {
     canonical: '/en/pricing',
@@ -23,7 +23,7 @@ export default function PricingEnPage() {
     <main>
       <LandingNavbar />
       <Container maxWidth="xl" sx={{ py: 8 }}>
-        <Typography variant="h3" fontWeight={800}>Pricing Plans</Typography>
+        <Typography variant="h3" component="h1" fontWeight={800}>Pricing Plans</Typography>
         <Typography color="text.secondary" sx={{ mt: 1 }}>Start free with 50 bookings per month and scale as you grow.</Typography>
         <Grid container spacing={2} sx={{ mt: 1 }}>
           {pricingPlansEn.map((p) => (

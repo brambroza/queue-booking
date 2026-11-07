@@ -16,6 +16,7 @@ import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import { LandingNavbar } from '@/components/public/landing-navbar';
 import { LandingFooter } from '@/components/public/landing-footer';
 import { FaqSection } from '@/components/public/faq-section';
+import { SolutionRelatedArticles } from '@/components/public/related-articles';
 import { SCENARIO_LIST } from '@/lib/demo/scenarios';
 import { sandboxPath } from '@/lib/demo/scenarios/seo';
 
@@ -345,6 +346,8 @@ export function SolutionPage({ content }: { content: SolutionPageContent }) {
           ))}
         </Grid>
       </Container>
+
+      <SolutionRelatedArticles path={content.path} />
 
       <FaqSection items={content.faqItems} />
 

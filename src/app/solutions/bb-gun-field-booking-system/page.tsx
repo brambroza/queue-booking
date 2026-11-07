@@ -12,7 +12,7 @@ import BusinessCenterRoundedIcon from '@mui/icons-material/BusinessCenterRounded
 import { SolutionPage, type SolutionPageContent } from '@/components/public/solution-page';
 
 const path = '/solutions/bb-gun-field-booking-system';
-const title = 'ระบบจองสนาม BB Gun ผ่าน LINE OA | จองรอบเกม ทีม และอุปกรณ์เช่า | QueueBooking';
+const title = 'ระบบจองสนาม BB Gun ผ่าน LINE OA | จองรอบเกมออนไลน์';
 const description =
   'ระบบจองสนาม BB Gun และสนาม airsoft ผ่าน LINE OA ให้หัวหน้าทีมจองรอบเกม ระบุจำนวนผู้เล่น เลือกอุปกรณ์เช่า และวางมัดจำ PromptPay ได้เอง รอบไม่เกินความจุ เตรียมอุปกรณ์ทันก่อนวันเล่น';
 

@@ -7,7 +7,7 @@ import { blogPosts } from '@/components/public/blog-content';
 import { formatDateDMY } from '@/lib/utils/date-format';
 
 export const metadata: Metadata = {
-  title: 'บทความ | ระบบจองคิวผ่าน LINE OA | QueueBooking LINE',
+  title: 'บทความระบบจองคิวออนไลน์และ LINE OA',
   description: 'บทความเกี่ยวกับระบบจองคิวผ่าน LINE OA, LIFF, การลด no-show และแนวทางเพิ่มประสิทธิภาพงานบริการ',
   alternates: {
     canonical: '/blog',
@@ -61,7 +61,7 @@ export default function BlogPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
       <LandingNavbar />
       <Container maxWidth="lg" sx={{ py: 8 }}>
-        <Typography variant="h3" fontWeight={800}>บทความและแนวทางใช้งานระบบจองคิว</Typography>
+        <Typography variant="h3" component="h1" fontWeight={800}>บทความระบบจองคิวออนไลน์และ LINE OA</Typography>
         <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
           รวมวิธีใช้งานจริงและ best practices สำหรับธุรกิจบริการที่ใช้ LINE OA
         </Typography>
@@ -82,7 +82,7 @@ export default function BlogPage() {
                     </Typography>
                   </Stack>
                   <Link href={`/blog/${post.slug}`}>
-                   <Typography variant="h6" fontWeight={700}>{post.title}</Typography>
+                   <Typography variant="h6" component="h2" fontWeight={700}>{post.title}</Typography>
                   </Link>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{post.description}</Typography>
                   <Stack direction="row" spacing={1} sx={{ mt: 1.4, flexWrap: 'wrap' }}>

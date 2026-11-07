@@ -12,7 +12,7 @@ import CelebrationRoundedIcon from '@mui/icons-material/CelebrationRounded';
 import { SolutionPage, type SolutionPageContent } from '@/components/public/solution-page';
 
 const path = '/solutions/buffet-booking-system';
-const title = 'ระบบจองร้านบุฟเฟ่ต์ผ่าน LINE OA | จองรอบ คุมที่นั่ง คิวหน้าร้าน | QueueBooking';
+const title = 'ระบบจองร้านบุฟเฟ่ต์ผ่าน LINE OA | จองรอบ คุมที่นั่ง';
 const description =
   'ระบบจองร้านบุฟเฟ่ต์ผ่าน LINE OA ให้ลูกค้าจองรอบเวลาและจำนวนคนได้เอง ระบบนับที่นั่งต่อรอบและปิดรับเมื่อเต็ม รับมัดจำ PromptPay กันจองแล้วไม่มา พร้อมคิว walk-in หน้าร้านและจอเรียกคิว';
 
