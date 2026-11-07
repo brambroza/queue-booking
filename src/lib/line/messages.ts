@@ -79,6 +79,85 @@ export function bookingConfirmMessage(payload: {
   };
 }
 
+/** Customer-facing wording of a booking status in the "เช็คคิวของฉัน" reply. */
+const MY_BOOKING_STATUS_LABEL: Record<string, string> = {
+  pending: 'รอร้านยืนยัน',
+  pending_approval: 'รอร้านยืนยัน',
+  confirmed: 'ยืนยันแล้ว',
+  checked_in: 'เช็คอินแล้ว รอร้านเรียก',
+  waiting: 'รอเรียกคิว',
+  called: 'ถึงคิวของคุณแล้ว',
+  serving: 'กำลังให้บริการ',
+};
+
+/**
+ * Reply to "เช็คคิวของฉัน": the queue, its real status and — when the order
+ * still owes money — the amount, deadline and a quick-reply button that opens
+ * the LIFF payment panel (QR + slip upload). Before this the bot always said
+ * "จองคิวสำเร็จค่ะ" even for a queue still waiting for payment, and gave no way
+ * to pay (vspin, 2026-11-07).
+ *
+ * @param payload.payment - What the order owes; `payQueue` is the queue that carries the invoice.
+ */
+export function myBookingStatusMessage(payload: {
+  queueNumber: string;
+  branch: string;
+  service: string;
+  date: string;
+  time: string;
+  status: string;
+  assignedTo?: string | null;
+  payment?: {
+    state: 'owed' | 'in_review' | 'paid';
+    amountTHB: number;
+    payQueue: string;
+    expiresLabel?: string | null;
+    /** LIFF link to the payment panel; without it no button is shown. */
+    payUrl?: string | null;
+    /** True for a bank transfer (button says "อัปโหลดสลิป"). */
+    slip?: boolean;
+  } | null;
+}) {
+  const owed = payload.payment?.state === 'owed';
+  const statusLabel = owed ? 'รอชำระเงิน' : (MY_BOOKING_STATUS_LABEL[payload.status] ?? payload.status);
+  const lines = [
+    `คิวของคุณค่ะ`,
+    `เลขคิว: ${payload.queueNumber}`,
+    `สถานะ: ${statusLabel}`,
+    `สาขา: ${payload.branch}`,
+    `บริการ: ${payload.service}`,
+    ...(payload.assignedTo ? [`ผู้ให้บริการ/สนาม: ${payload.assignedTo}`] : []),
+    `วันที่: ${payload.date}`,
+    `เวลา: ${payload.time}`,
+  ];
+  const p = payload.payment;
+  if (p) {
+    const amount = p.amountTHB.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const via = p.payQueue !== payload.queueNumber ? ` (ชำระรวมที่คิว ${p.payQueue})` : '';
+    if (p.state === 'owed') {
+      lines.push('', `ยอดที่ต้องชำระ: ${amount} บาท${via}`);
+      if (p.expiresLabel) lines.push(`ชำระภายใน: ${p.expiresLabel}`);
+      lines.push(p.payUrl
+        ? (p.slip ? 'กดปุ่ม "อัปโหลดสลิป" ด้านล่างเพื่อดู QR และส่งสลิปค่ะ' : 'กดปุ่ม "ชำระเงิน" ด้านล่างค่ะ')
+        : 'กรุณาชำระเงินตาม QR ที่ร้านส่งให้ค่ะ');
+    } else if (p.state === 'in_review') {
+      lines.push('', `ได้รับสลิปแล้ว ${amount} บาท${via} — รอร้านตรวจสอบค่ะ`);
+    } else {
+      lines.push('', `ชำระเงินแล้ว ${amount} บาท${via}`);
+    }
+  } else if (payload.status === 'confirmed') {
+    lines.push('', 'กรุณามาก่อนเวลาประมาณ 10 นาทีค่ะ');
+  }
+
+  const message: Record<string, unknown> = { type: 'text', text: lines.join('\n') };
+  if (owed && p?.payUrl) {
+    message.quickReply = {
+      items: [{ type: 'action', action: { type: 'uri', label: p.slip ? 'อัปโหลดสลิป' : 'ชำระเงิน', uri: p.payUrl } }],
+    };
+  }
+  return message;
+}
+
 export function bookingConfirmFlex(payload: {
   shopName: string;
   queueNumber: string;

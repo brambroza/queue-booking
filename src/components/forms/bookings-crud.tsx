@@ -15,6 +15,7 @@ import { DEFAULT_BOOKING_SORT } from '@/lib/booking/list-sort';
 import { resourceTypeLabel } from '@/lib/booking/resource-types';
 import { SLOT_FULL_CODE } from '@/lib/booking/slot-capacity';
 import { isPaymentExpiredCancel } from '@/lib/booking/restore';
+import { approvalPaymentWarning } from '@/lib/payments/payment-hold';
 import { BookingsFilterBar, dateForRange, type BookingsFilter } from '@/components/bookings/bookings-filter-bar';
 import { BookingsTable } from '@/components/bookings/bookings-table';
 import { BookingMoveDialog, type MoveDraft } from '@/components/bookings/booking-move-dialog';
@@ -264,6 +265,30 @@ export function BookingsCrud() {
 
   async function updateStatus(b: BookingRow, status: string) {
     if (saving) return;
+    // "อนุมัติ" confirms the queue only — it never marks the money paid. Say so
+    // before staff approve a queue whose invoice or slip is still open.
+    if (b.status === 'pending_approval' && status === 'confirmed') {
+      const warning = approvalPaymentWarning(b.payment_status, b.payment_amount);
+      if (warning) {
+        const amount = Number(b.payment_amount ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2 });
+        const ok = await confirm({
+          tone: 'warning',
+          title: t('approve_unpaid_title', 'อนุมัติคิวที่ยังไม่ได้ยืนยันการชำระเงิน?'),
+          description: warning === 'slip_pending'
+            ? t('approve_slip_pending_desc', `มีสลิปรอตรวจอยู่ (ยอดที่ต้องชำระ ${amount} บาท) — การอนุมัติคิวไม่ได้อนุมัติสลิป สถานะชำระเงินจะยังค้าง ให้ไปตรวจและอนุมัติสลิปที่หน้า "ตรวจสอบการชำระเงิน" ด้วย`)
+            : t('approve_unpaid_desc', `ลูกค้ายังไม่ได้ชำระ ${amount} บาทผ่านระบบ — อนุมัติเมื่อเก็บเงินที่หน้าร้านแล้ว หรือได้รับเงินช่องทางอื่น สถานะชำระเงินจะยังเป็น "ยังไม่ชำระ"`),
+          context: {
+            avatar: b.queue_number,
+            avatarSquare: true,
+            primary: [customerName(b), b.services?.service_name].filter(Boolean).join(' · '),
+            secondary: [formatDateDMY(b.booking_date), hhmm(b.start_time), `${amount} บาท`].filter(Boolean).join(' · '),
+          },
+          confirmLabel: t('approve_unpaid_confirm', 'อนุมัติคิว'),
+          cancelLabel: t('approve_unpaid_cancel', 'ยังไม่อนุมัติ'),
+        });
+        if (!ok) return;
+      }
+    }
     setSaving(true);
     try {
       const r = await patchBooking({ id: b.id, status });

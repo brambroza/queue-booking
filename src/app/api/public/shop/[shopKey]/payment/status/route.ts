@@ -89,7 +89,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       payment_amount: booking.payment_amount,
       payment_expires_at: booking.payment_expires_at,
       payment_reject_reason: booking.payment_reject_reason,
-      qr_image_url: booking.payment_method === 'bank_transfer' ? buildPromptPayQrUrl(booking.id) : null,
+      qr_image_url: booking.payment_method === 'bank_transfer' ? buildPromptPayQrUrl(booking.id, booking.payment_amount) : null,
       payee: toPublicPaymentInfo(config),
       // The bank-app link is only handed to the verified owner of the booking.
       bank_provider: bankProvider,

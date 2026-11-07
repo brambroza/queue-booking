@@ -100,6 +100,8 @@ export async function resolvePaymentForBooking(opts: {
   requestedBankProvider?: BankCode | null;
   /** Omise platform hint (from the user agent) for mobile banking. */
   platformType?: OmisePlatformType | null;
+  /** Bank transfer only: keep this deadline (re-issue after a partial cancel) instead of a new window. */
+  keepExpiresAt?: string | null;
 }): Promise<PaymentSetupResult | null> {
   if (!(opts.amountTHB > 0)) return null;
 
@@ -233,6 +235,7 @@ export async function resolvePaymentForBooking(opts: {
       companyId: opts.companyId,
       amountTHB: opts.amountTHB,
       config,
+      keepExpiresAt: opts.keepExpiresAt ?? null,
     });
     if (!result) return null;
 

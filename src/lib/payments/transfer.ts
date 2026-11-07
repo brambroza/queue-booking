@@ -14,12 +14,22 @@ export interface TransferPaymentResult {
   bankAccountName: string | null;
 }
 
-/** URL of the shop-generated PromptPay PNG for a booking. */
-export function buildPromptPayQrUrl(bookingId: string): string {
+/**
+ * URL of the shop-generated PromptPay PNG for a booking.
+ *
+ * The PNG is rendered from `bookings.payment_amount`, so the amount goes in the
+ * URL as `a=`: LINE and the LIFF browser cache images by URL, and a re-issued
+ * invoice with a new amount must not show the old QR. The route ignores `a`.
+ *
+ * @param bookingId - Booking that owes the money.
+ * @param amountTHB - Amount the QR encodes (cache key only).
+ */
+export function buildPromptPayQrUrl(bookingId: string, amountTHB?: number | null): string {
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/+$/, '');
   const token = signBookingToken(bookingId);
   const suffix = token ? `&t=${token}` : '';
-  return `${base}/api/payments/promptpay-qr?booking_id=${bookingId}${suffix}`;
+  const amount = Number(amountTHB ?? 0) > 0 ? `&a=${Number(amountTHB).toFixed(2)}` : '';
+  return `${base}/api/payments/promptpay-qr?booking_id=${bookingId}${suffix}${amount}`;
 }
 
 /**
@@ -35,12 +45,17 @@ export async function createBookingTransferPayment(opts: {
   companyId: string;
   amountTHB: number;
   config: ShopPaymentConfig;
+  /** Keep this deadline instead of starting a new window (re-issue after a partial cancel). Ignored when past. */
+  keepExpiresAt?: string | null;
 }): Promise<TransferPaymentResult | null> {
   const { config } = opts;
   if (!config.promptpayId) return null;
 
   const admin = createAdminClient();
-  const expiresAt = new Date(Date.now() + config.transferWindowMinutes * 60_000).toISOString();
+  const kept = opts.keepExpiresAt ? new Date(opts.keepExpiresAt).getTime() : NaN;
+  const expiresAt = Number.isFinite(kept) && kept > Date.now()
+    ? new Date(kept).toISOString()
+    : new Date(Date.now() + config.transferWindowMinutes * 60_000).toISOString();
   const promptpayMasked = maskPromptPayId(config.promptpayId);
 
   const { error } = await admin
@@ -74,7 +89,7 @@ export async function createBookingTransferPayment(opts: {
   });
 
   return {
-    qrImageUrl: buildPromptPayQrUrl(opts.bookingId),
+    qrImageUrl: buildPromptPayQrUrl(opts.bookingId, opts.amountTHB),
     expiresAt,
     amountTHB: opts.amountTHB,
     payeeName: config.promptpayDisplayName,

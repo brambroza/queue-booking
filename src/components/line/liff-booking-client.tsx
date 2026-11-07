@@ -1227,7 +1227,12 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     });
     const json = await res.json();
     if (!res.ok) return push(json.error ?? 'ยกเลิกคิวไม่สำเร็จ', 'error');
-    push('ยกเลิกคิวแล้ว');
+    const payment = (json as { payment?: { queue_number?: string; amount?: number } | null }).payment;
+    push(
+      payment?.amount
+        ? `ยกเลิกคิวแล้ว · ยอดชำระคิว ${payment.queue_number ?? ''} เปลี่ยนเป็น ${Number(payment.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท`
+        : 'ยกเลิกคิวแล้ว',
+    );
     void loadMe();
   }
 

@@ -12,6 +12,7 @@ import { customerLabel } from '@/lib/booking/customer-label';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
 import { useBranchScope } from '@/components/layout/branch-scope-provider';
 import { getTodayISOInBangkok } from '@/lib/utils/date-format';
+import { approvalPaymentWarning } from '@/lib/payments/payment-hold';
 import type { BookingStatus } from '@/types/db';
 
 type Booking = {
@@ -24,6 +25,8 @@ type Booking = {
   line_user_id?: string | null;
   checked_in_at?: string | null;
   call_count?: number | null;
+  payment_status?: string | null;
+  payment_amount?: number | null;
   customers: { full_name?: string | null; nickname?: string | null } | null;
   services: { service_name?: string } | null;
 };
@@ -254,6 +257,19 @@ export function QueueBoardClient() {
                             icon: <TaskAltRoundedIcon fontSize="small" />,
                             fallbackLabel: r.status === 'pending_approval' ? 'อนุมัติ' : 'ยืนยัน',
                             color: 'success',
+                            // Approving never marks the money paid — warn while an invoice / slip is open.
+                            confirm: r.status === 'pending_approval' && approvalPaymentWarning(r.payment_status, r.payment_amount)
+                              ? {
+                                  tone: 'warning',
+                                  title: 'อนุมัติคิวที่ยังไม่ได้ยืนยันการชำระเงิน?',
+                                  description: approvalPaymentWarning(r.payment_status, r.payment_amount) === 'slip_pending'
+                                    ? `มีสลิปรอตรวจ (ยอด ${Number(r.payment_amount ?? 0).toLocaleString('th-TH')} บาท) — อนุมัติคิวไม่ได้อนุมัติสลิป ให้ตรวจสลิปที่หน้า "ตรวจสอบการชำระเงิน" ด้วย`
+                                    : `ลูกค้ายังไม่ได้ชำระ ${Number(r.payment_amount ?? 0).toLocaleString('th-TH')} บาทผ่านระบบ — อนุมัติเมื่อเก็บเงินหน้าร้านแล้ว`,
+                                  context: { primary: r.queue_number, secondary: customerLabel(r.customers) },
+                                  confirmLabel: 'อนุมัติคิว',
+                                  cancelLabel: 'ยังไม่อนุมัติ',
+                                }
+                              : undefined,
                             onClick: () => void setStatus(r, 'confirmed'),
                           },
                           {

@@ -5,6 +5,8 @@ import { resolveShopByKeyOrId } from '@/lib/line/shop-resolver';
 import { safeSyncBookingToGoogleCalendar } from '@/lib/google-calendar/sync';
 import { cancelBookingByCustomer } from '@/lib/booking/cancel-by-customer';
 import { resolveLiffCaller } from '@/lib/line/liff-identity';
+import { pushMessage } from '@/lib/line/client';
+import { rebalanceOrderAfterCustomerCancel } from '@/lib/payments/order-rebalance-server';
 import { clientIp, hitRateLimit, tooManyRequests } from '@/lib/security/rate-limit';
 
 const schema = z.object({
@@ -58,5 +60,31 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
 
   await safeSyncBookingToGoogleCalendar(shop.id, result.booking.id);
 
-  return NextResponse.json({ data: true });
+  // A queue of a multi-pick order: re-price the rest and push the new QR to the
+  // chat too (LIFF re-reads the amount from /me and /payment/status).
+  const rebalance = await rebalanceOrderAfterCustomerCancel(admin, {
+    shopId: shop.id,
+    companyId: shop.company_id,
+    cancelledBookingId: result.booking.id,
+  });
+  if (rebalance.kind === 'reissued' && rebalance.flex) {
+    try {
+      const { data: tokenRow } = await admin
+        .from('shops')
+        .select('line_channel_access_token')
+        .eq('id', shop.id)
+        .maybeSingle();
+      const token = (tokenRow as { line_channel_access_token?: string | null } | null)?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+      if (token) await pushMessage(token, caller.lineUserId, [rebalance.flex]);
+    } catch (e) {
+      console.warn('[cancel_booking] new payment push failed:', e instanceof Error ? e.message : e);
+    }
+  }
+
+  return NextResponse.json({
+    data: true,
+    payment: rebalance.kind === 'reissued'
+      ? { booking_id: rebalance.payerBookingId, queue_number: rebalance.payerQueue, amount: rebalance.amountTHB }
+      : null,
+  });
 }
