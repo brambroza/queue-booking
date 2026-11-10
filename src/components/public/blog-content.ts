@@ -2669,6 +2669,166 @@ export const blogPosts: BlogPost[] = [
       { q: 'ลดคนจองโต๊ะแล้วไม่มาได้อย่างไร', a: 'ส่งข้อความยืนยันและเตือนก่อนเวลาทาง LINE ให้ลูกค้ายกเลิกเองได้ และรับชำระล่วงหน้าสำหรับช่วงที่โต๊ะเต็มเร็ว' },
     ],
   },
+  {
+    slug: 'connect-line-oa-to-queue-booking-system-step-by-step',
+    title: 'เชื่อม LINE OA กับระบบจองคิวง่าย ๆ ทีละขั้น: หาค่า 4 ตัว วางลิงก์ 1 ช่อง แล้วเริ่มรับจองได้เลย',
+    description: 'คู่มือเชื่อม LINE Official Account กับระบบจองคิว QueueBooking สำหรับเจ้าของร้านที่ไม่ใช่สายไอที: เปิด Messaging API, คัดลอก Channel Secret และ Access Token, วาง Webhook URL, สร้าง LIFF 2 ตัว และเผยแพร่ Rich Menu พร้อมวิธีแก้เมื่อ Verify ไม่ผ่าน',
+    category: 'คู่มือตั้งค่า',
+    publishedAt: '2026-11-10',
+    readingMinutes: 8,
+    keywords: ['เชื่อม line oa กับระบบจองคิว', 'ตั้งค่า line oa ระบบจองคิว', 'webhook line oa ตั้งค่า', 'channel access token อยู่ไหน', 'liff id หาที่ไหน', 'ตั้งค่า messaging api'],
+    summary:
+      'การเชื่อม LINE OA กับระบบจองคิว QueueBooking ใช้เวลาประมาณ 30 ถึง 45 นาที ทำ 6 ขั้น: เปิด Messaging API ใน LINE OA Manager, คัดลอก Channel Secret และออก Channel Access Token ใน LINE Developers Console, วาง Webhook URL ของร้านแล้วกด Verify, ตั้งการตอบกลับเป็นแชทแบบแมนนวล, สร้าง LIFF 2 ตัว (จองคิว และสมาชิก) ใน LINE Login Channel แล้วนำ LIFF ID มาใส่ในระบบ และสุดท้ายเผยแพร่ Rich Menu จากหน้าสร้าง Rich Menu สิ่งที่ต้องนำมาใส่ในระบบมี 4 ค่า: Channel Secret, Channel Access Token, LIFF ID จองคิว และ LIFF ID สมาชิก.',
+    cover: {
+      src: '/images/product/line-setup/oa-messaging-api.webp',
+      alt: 'หน้า Messaging API ใน LINE OA Manager สถานะกำลังใช้งาน พร้อมช่องลิงก์ Webhook',
+      caption: 'LINE OA Manager > ตั้งค่า > Messaging API: เปิดแล้วสถานะขึ้น "กำลังใช้งาน" (ค่าลับถูกปิดไว้ในภาพ)',
+    },
+    sections: [
+      {
+        heading: 'สรุปก่อนเริ่ม: ต้องเตรียมอะไร และต้องได้ค่าอะไรกลับมา',
+        body: [
+          'ต้องเตรียม 4 อย่าง: บัญชี LINE ของเจ้าของร้าน, LINE Official Account ของร้าน (ยังไม่มีสมัครฟรีที่ manager.line.biz), บัญชี LINE Developers ซึ่งเข้าด้วยบัญชี LINE เดียวกัน และบัญชี QueueBooking ที่สมัครไว้แล้ว.',
+          'ค่าที่ต้องคัดลอกจาก LINE มาใส่ในระบบมี 4 ค่า: Channel Secret, Channel Access Token, LIFF ID ของหน้าจองคิว และ LIFF ID ของหน้าสมาชิก ใส่ที่เมนู "ตั้งค่า LINE" ในระบบหลังบ้าน.',
+          'ค่าที่ต้องคัดลอกจากระบบไปวางใน LINE มี 3 ลิงก์: Webhook URL (วางใน LINE), Endpoint ของหน้าจองคิว และ Endpoint ของหน้าสมาชิก (ใช้ตอนสร้าง LIFF) ทั้งสามลิงก์มีปุ่มคัดลอกอยู่ที่หน้า "คู่มือตั้งค่า LINE" ในระบบ.',
+          'ก่อนเชื่อม LINE ควรตั้งสาขา บริการ และเวลาทำการในระบบให้เสร็จ ไม่อย่างนั้นลูกค้าเปิดหน้าจองแล้วจะเห็นว่าร้านปิด.',
+        ],
+        images: [
+          {
+            src: '/images/product/line-setup/oa-create.webp',
+            alt: 'ฟอร์มสร้าง LINE ออฟฟิเชียลแอคเคาท์ ช่องชื่อบัญชี อีเมล ประเทศ และชื่อบริษัท',
+            caption: 'ยังไม่มี LINE OA: สมัครฟรีที่ manager.line.biz กรอกชื่อบัญชี อีเมล และประเภทธุรกิจ',
+          },
+        ],
+      },
+      {
+        heading: 'ขั้นที่ 1: เปิด Messaging API ใน LINE OA Manager',
+        body: [
+          'เข้า manager.line.biz เลือก OA ของร้าน แล้วไปที่ ตั้งค่า > Messaging API.',
+          'กด "ใช้ Messaging API" (Enable Messaging API) ตั้งชื่อ Provider เป็นชื่อร้านหรือชื่อบริษัท แล้วกดยืนยัน.',
+          'เสร็จแล้วสถานะจะขึ้น "กำลังใช้งาน" พร้อมแชนแนล ID และความลับแชนแนล หน้านี้มีช่อง "ลิงก์ Webhook" ด้วย ซึ่งจะกลับมาใช้ในขั้นที่ 3.',
+        ],
+      },
+      {
+        heading: 'ขั้นที่ 2: คัดลอก Channel Secret และออก Channel Access Token',
+        body: [
+          'เข้า developers.line.biz/console เลือก Provider ของร้าน แล้วเลือก Messaging API Channel ที่เพิ่งสร้าง.',
+          'แท็บ Basic settings: คัดลอกค่า Channel secret.',
+          'แท็บ Messaging API: เลื่อนลงไปที่ "Channel access token (long-lived)" ถ้ายังไม่มีค่า ให้กด Issue ก่อน แล้วคัดลอก.',
+          'นำทั้งสองค่าไปใส่ในระบบที่เมนู ตั้งค่า LINE ช่อง LINE Channel Access Token และ LINE Channel Secret แล้วกดบันทึก ค่าที่บันทึกแล้วจะแสดงแค่ 4 ตัวท้าย.',
+          'Token และ Secret ใช้ควบคุม OA ของร้านได้เหมือนรหัสผ่าน ห้ามส่งในกลุ่มแชทหรือโพสต์ที่ไหน ถ้าเผลอส่งไป ให้กด Issue token ใหม่แล้วบันทึกค่าใหม่ในระบบ.',
+        ],
+        images: [
+          {
+            src: '/images/product/line-setup/dev-channel-secret.webp',
+            alt: 'หน้า Basic settings ใน LINE Developers Console แสดงตำแหน่งช่อง Channel secret',
+            caption: 'Basic settings: คัดลอก Channel secret (ค่าจริงถูกปิดไว้ในภาพ)',
+          },
+          {
+            src: '/images/product/line-setup/dev-access-token.webp',
+            alt: 'แท็บ Messaging API ใน LINE Developers Console แสดงตำแหน่ง Channel access token แบบ long-lived',
+            caption: 'แท็บ Messaging API: Channel access token (long-lived) ยังไม่มีให้กด Issue ก่อน',
+          },
+        ],
+      },
+      {
+        heading: 'ขั้นที่ 3: วาง Webhook URL แล้วกด Verify',
+        body: [
+          'Webhook คือช่องทางที่ LINE ส่งข้อความของลูกค้ามาให้ระบบ ถ้าไม่ตั้ง บอทจะไม่ตอบแชทและระบบไม่รู้ว่าลูกค้าพิมพ์อะไร.',
+          'ในระบบ เปิด "คู่มือตั้งค่า LINE" แล้วกด Copy ที่ Webhook URL ของร้าน ลิงก์มีรูปแบบ https://queuebooking.com/api/line/webhook/ ตามด้วยรหัสร้าน.',
+          'กลับไปที่ LINE OA Manager > ตั้งค่า > Messaging API วางลิงก์ในช่อง "ลิงก์ Webhook" แล้วกดบันทึก.',
+          'ไปที่ LINE Developers Console > แท็บ Messaging API > Webhook settings เปิด Use webhook เป็น ON แล้วกด Verify ผลที่ถูกต้องคือขึ้น Success.',
+          'ต้องบันทึก Token และ Secret ในระบบให้เสร็จก่อนกด Verify เพราะระบบใช้ Secret ของร้านตรวจว่าข้อความมาจาก LINE จริง.',
+        ],
+      },
+      {
+        heading: 'ขั้นที่ 4: ตั้งการตอบกลับให้ระบบเป็นคนตอบ',
+        body: [
+          'ใน LINE OA Manager ไปที่ ตั้งค่า > ตั้งค่าการตอบกลับ แล้วตั้งดังนี้: แชท เปิด, ข้อความทักทายเพื่อนใหม่ เปิด, Webhook เปิด และวิธีตอบข้อความเลือก "แชทแบบแมนนวล".',
+          'อย่าเลือก "แชทแบบแมนนวล + ข้อความตอบกลับอัตโนมัติ" เพราะ LINE จะตอบอัตโนมัติซ้อนกับระบบ ลูกค้าจะได้ข้อความ 2 ชุดทุกครั้ง.',
+          'เลือกแชทแบบแมนนวลแล้ว ร้านยังตอบแชทเองได้ตามปกติ ทั้งใน LINE OA Manager และในกล่องแชทของระบบ.',
+        ],
+        images: [
+          {
+            src: '/images/product/line-setup/oa-response-settings.webp',
+            alt: 'หน้าตั้งค่าการตอบกลับใน LINE OA Manager เปิด Webhook และเลือกวิธีตอบข้อความเป็นแชทแบบแมนนวล',
+            caption: 'ตั้งค่าการตอบกลับ: Webhook เปิด วิธีตอบข้อความเลือก "แชทแบบแมนนวล" ไม่ใช่แบบที่มีข้อความตอบกลับอัตโนมัติ',
+          },
+        ],
+      },
+      {
+        heading: 'ขั้นที่ 5: สร้าง LIFF 2 ตัว แล้วนำ LIFF ID มาใส่',
+        body: [
+          'LIFF คือหน้าเว็บที่เปิดในแอป LINE ระบบใช้ 2 หน้า: หน้าจองคิว และหน้าสมาชิกหรือคิวของฉัน จึงต้องสร้าง LIFF 2 ตัว.',
+          'LINE ไม่ให้สร้าง LIFF ใน Messaging API Channel ใน Provider เดียวกัน ให้กด Create a new channel แล้วเลือก LINE Login ถ้ามี LINE Login Channel อยู่แล้วใช้ตัวเดิมได้ ที่แท็บ Basic settings ของ Channel นี้ ตั้ง Linked LINE Official Account เป็น OA ของร้าน.',
+          'แท็บ LIFF > Add สร้างตัวที่ 1 ชื่อ Booking App: Size เลือก Full, Endpoint URL วางลิงก์หน้าจองคิวจากระบบ (https://queuebooking.com/liff/ ตามด้วยรหัสร้าน), Scopes ติ๊ก profile และ openid, Bot link feature เลือก On.',
+          'สร้างตัวที่ 2 ชื่อ Member App: ตั้งค่าเหมือนตัวแรก ต่างแค่ Endpoint URL ที่ลงท้ายด้วย /member.',
+          'คัดลอก LIFF ID ของแต่ละตัวจากรายการ LIFF ไปใส่ในระบบที่ ตั้งค่า LINE ช่อง LIFF Booking ID (ตัวที่ 1) และ LIFF Member/Login ID (ตัวที่ 2) แล้วกดบันทึก ระวังอย่าสลับกัน.',
+        ],
+        images: [
+          {
+            src: '/images/product/line-setup/dev-liff-add.webp',
+            alt: 'ฟอร์ม Add a LIFF app ใน LINE Developers Console มีช่อง LIFF app name และ Size',
+            caption: 'LINE Login Channel > LIFF > Add: ตั้งชื่อ เลือก Size Full แล้วกรอก Endpoint URL จากระบบ',
+          },
+          {
+            src: '/images/product/line-setup/dev-liff-list.webp',
+            alt: 'รายการ LIFF app 2 ตัวสำหรับหน้าจองคิวและหน้าสมาชิก',
+            caption: 'สร้างเสร็จจะได้ LIFF 2 ตัว คัดลอก LIFF ID ของแต่ละตัวไปใส่ในระบบ (รหัสจริงถูกปิดไว้ในภาพ)',
+          },
+        ],
+      },
+      {
+        heading: 'ขั้นที่ 6: เผยแพร่ Rich Menu แล้วลองจองเอง',
+        body: [
+          'ในระบบ เปิดเมนู "สร้าง Rich Menu" เลือกประเภทธุรกิจและแบบเมนู ระบบจัดปุ่ม ไอคอน และข้อความภาษาไทยให้ กด "บันทึกรูปลงระบบ" แล้วกด "เผยแพร่ไป LINE".',
+          'ต้องใส่ LIFF ID ให้ครบก่อน ระบบจึงเผยแพร่ได้ เพราะปุ่มจองคิวต้องรู้ว่าจะเปิด LIFF ตัวไหน.',
+          'Rich Menu ที่เผยแพร่จากระบบจะไม่แสดงในรายการของ LINE OA Manager ให้แก้หรือยกเลิกจากหน้าสร้าง Rich Menu ในระบบ ถ้าร้านอยากออกแบบเมนูเองใน LINE OA Manager ก็ทำได้ โดยตั้งปุ่มเป็นลิงก์ https://liff.line.me/ ตามด้วย LIFF ID.',
+          'ทดสอบ: เพิ่ม OA ของร้านเป็นเพื่อน กดเมนูจองคิว เลือกบริการ วันและเวลา แล้วยืนยัน จากนั้นเปิดหน้า "การจอง" ในระบบ ควรเห็นคิวที่เพิ่งจอง ลองกดเรียกคิวเพื่อดูว่า LINE แจ้งเตือนเข้ามือถือ.',
+        ],
+        images: [
+          {
+            src: '/images/product/line-setup/oa-rich-menu.webp',
+            alt: 'หน้าริชเมนูใน LINE OA Manager แสดงริชเมนูที่ใช้งานอยู่ ปุ่มจองคิวและข้อมูลสมาชิก ลิงก์ไปที่ LIFF',
+            caption: 'ตัวอย่างริชเมนูที่สร้างเองใน LINE OA Manager: ปุ่ม "จองคิว" และ "ข้อมูลสมาชิก" ลิงก์ไป LIFF ทั้งสองตัว',
+          },
+        ],
+      },
+      {
+        heading: 'ติดปัญหาตรงไหน แก้อย่างไร',
+        body: [
+          'Verify Webhook ไม่ผ่าน: เช็คว่าลิงก์ขึ้นต้นด้วย https:// คัดลอกมาครบทั้งบรรทัด และบันทึก Token กับ Secret ในระบบแล้ว.',
+          'บอทไม่ตอบแชท: เช็คว่า Use webhook เป็น ON, วิธีตอบข้อความเป็น "แชทแบบแมนนวล" และ Channel Access Token ที่ใส่ในระบบเป็นตัวล่าสุด ถ้ากด Issue ใหม่ใน LINE ต้องนำค่าใหม่มาใส่ในระบบด้วย.',
+          'กดจองแล้วขึ้น "กรุณาเปิดหน้านี้ผ่าน LINE LIFF": เปิดลิงก์ในเบราว์เซอร์ธรรมดาแทนแอป LINE ให้เปิดผ่านปุ่มใน LINE หรือลิงก์ liff.line.me เท่านั้น.',
+          'หน้าจองเปิดไม่ขึ้น: เช็คว่า Endpoint URL ใน LINE ตรงกับลิงก์ของร้านในระบบ และ LIFF ID ที่ใส่ไม่สลับระหว่างตัวจองกับตัวสมาชิก.',
+          'กดปุ่ม Rich Menu แล้วไม่มีอะไรเกิดขึ้น: ใส่ LIFF ID แล้วเผยแพร่เมนูใหม่อีกครั้ง จากนั้นปิดห้องแชทแล้วเปิดใหม่ให้ LINE โหลดเมนูล่าสุด.',
+        ],
+      },
+      {
+        heading: 'เช็คลิสต์ก่อนเปิดให้ลูกค้าจองจริง',
+        body: [
+          'ตั้งสาขา บริการ และเวลาทำการแล้ว.',
+          'เปิด Messaging API และใส่ Channel Secret กับ Channel Access Token ในระบบแล้ว.',
+          'Webhook กด Verify แล้วขึ้น Success และตั้งวิธีตอบข้อความเป็นแชทแบบแมนนวลแล้ว.',
+          'ใส่ LIFF ID ครบทั้ง 2 ตัว และเผยแพร่ Rich Menu แล้ว.',
+          'ลองจองเอง เห็นคิวในระบบ และกดเรียกคิวแล้วได้ข้อความใน LINE.',
+          'หน้าแดชบอร์ดของระบบมีการ์ด "ตั้งค่าให้ร้านพร้อมรับคิว" บอกว่าทำครบกี่ขั้นจาก 5 ขั้น ใช้ตรวจซ้ำได้.',
+        ],
+      },
+    ],
+    faqs: [
+      { q: 'ต้องจ่ายเงินให้ LINE เพื่อเชื่อมระบบจองคิวไหม', a: 'การเปิด Messaging API, สร้าง Channel และสร้าง LIFF ไม่มีค่าใช้จ่าย ที่อาจมีค่าใช้จ่ายคือข้อความที่ส่งเกินโควตาฟรีรายเดือนของแพ็กเกจ LINE OA ที่ร้านใช้' },
+      { q: 'Channel Access Token อยู่ตรงไหน', a: 'LINE Developers Console > เลือก Provider > เลือก Messaging API Channel > แท็บ Messaging API > ส่วน Channel access token (long-lived) ถ้ายังว่างให้กด Issue' },
+      { q: 'LIFF ID หาได้ที่ไหน', a: 'LINE Developers Console > LINE Login Channel ของร้าน > แท็บ LIFF ในตารางมีคอลัมน์ LIFF ID ของแต่ละตัว' },
+      { q: 'ทำไมต้องสร้าง LINE Login Channel แยก', a: 'LINE ไม่ให้สร้าง LIFF ใน Messaging API Channel จึงต้องสร้าง LIFF ใน LINE Login Channel ที่อยู่ใน Provider เดียวกัน แล้วผูกกับ OA ของร้านผ่าน Linked LINE Official Account' },
+      { q: 'เปลี่ยน Token ใหม่แล้วต้องทำอะไรต่อ', a: 'นำ Token ใหม่ไปใส่ที่ ตั้งค่า LINE ในระบบแล้วกดบันทึก Token เก่าที่ถูกยกเลิกจะใช้ส่งข้อความไม่ได้ บอทจะไม่ตอบจนกว่าจะอัปเดต' },
+      { q: 'ใช้เวลาตั้งค่านานเท่าไร', a: 'ประมาณ 30 ถึง 45 นาทีสำหรับครั้งแรก ถ้ามี LINE OA อยู่แล้วจะเร็วกว่านั้น' },
+    ],
+    assets: {
+      pdfUrl: '/docs/line-setup-guide.pdf',
+      pdfLabel: 'ดาวน์โหลดคู่มือตั้งค่า LINE OA ฉบับ PDF',
+    },
+  },
 ];
 
 /**
