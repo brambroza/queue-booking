@@ -151,7 +151,14 @@ export function CookieConsent() {
                 <Typography fontWeight={800} sx={{ fontSize: 15 }}>
                   เว็บไซต์นี้ใช้คุกกี้ 🍪
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.7 }}>
+                {/* Phones get one short line so the banner does not cover half the screen; the full text stays from sm up. */}
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.6, display: { xs: 'block', sm: 'none' } }}>
+                  เพื่อให้ระบบทำงานและวิเคราะห์การใช้งาน{' '}
+                  <MLink component={Link} href={PRIVACY_HREF} underline="hover" sx={{ fontWeight: 600 }}>
+                    นโยบาย
+                  </MLink>
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.7, display: { xs: 'none', sm: 'block' } }}>
                   เราใช้คุกกี้เพื่อให้ระบบทำงานได้อย่างสมบูรณ์และวิเคราะห์การใช้งาน เพื่อพัฒนาประสบการณ์ให้ดียิ่งขึ้น
                   อ่านเพิ่มเติมได้ที่{' '}
                   <MLink component={Link} href={PRIVACY_HREF} underline="hover" sx={{ fontWeight: 600 }}>
@@ -161,34 +168,22 @@ export function CookieConsent() {
               </Box>
             </Stack>
 
-            <Stack
-              direction={{ xs: 'column', sm: 'row' }}
-              spacing={1}
-              sx={{ mt: 2.25 }}
-              alignItems="center"
-            >
+            <Stack direction="row" spacing={1} sx={{ mt: { xs: 1.5, sm: 2.25 } }} alignItems="center">
               <Button
                 onClick={openSettings}
                 variant="text"
                 color="inherit"
                 startIcon={<TuneRoundedIcon />}
-                sx={{ width: { xs: '100%', sm: 'auto' }, color: 'text.secondary' }}
+                size="small"
+                sx={{ color: 'text.secondary', flexShrink: 0 }}
               >
                 ตั้งค่า
               </Button>
-              <Box sx={{ flex: 1, display: { xs: 'none', sm: 'block' } }} />
-              <Button
-                onClick={rejectAll}
-                variant="outlined"
-                sx={{ width: { xs: '100%', sm: 'auto' } }}
-              >
+              <Box sx={{ flex: 1 }} />
+              <Button onClick={rejectAll} variant="outlined" size="small" sx={{ flexShrink: 0 }}>
                 ปฏิเสธ
               </Button>
-              <Button
-                onClick={acceptAll}
-                variant="contained"
-                sx={{ width: { xs: '100%', sm: 'auto' } }}
-              >
+              <Button onClick={acceptAll} variant="contained" size="small" sx={{ flexShrink: 0 }}>
                 ยอมรับทั้งหมด
               </Button>
             </Stack>

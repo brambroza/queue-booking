@@ -4,41 +4,29 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import ArrowOutwardRoundedIcon from '@mui/icons-material/ArrowOutwardRounded';
-import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRightRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
-import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
-import TvRoundedIcon from '@mui/icons-material/TvRounded';
 import { publicLangFromPath, toEnglishPath, toThaiPath, type PublicLang } from '@/lib/i18n/public-routes';
 import styles from './landing-page.module.css';
 
 export const lineFriendUrl = 'https://lin.ee/oViqAoh';
 
-type NavChild = { label: string; desc: string; href: string; icon: typeof QrCode2RoundedIcon };
+type NavChild = { label: string; desc: string; href: string; icon: typeof ChatBubbleOutlineRoundedIcon };
 type NavItem = { label: string; href: string; id?: string; children?: NavChild[] };
 
+/**
+ * Five entries, matching the home page's section order. Hash ids must exist
+ * on `/` (`landing-sections.tsx`) for the scroll spy. No dropdown: the
+ * features section is one screen, not a sub-site.
+ */
 const navItems: NavItem[] = [
-  { label: 'ภาพรวม', href: '#overview', id: 'overview' },
-  { label: 'โหมดทดลอง', href: '/sandbox-demo' },
-  { label: 'วิธีทำงาน', href: '#workflow', id: 'workflow' },
-  {
-    label: 'ฟีเจอร์',
-    href: '#features',
-    id: 'features',
-    children: [
-      { label: 'รับมัดจำ PromptPay', desc: 'ล็อกคิวด้วย QR ใน LINE ไม่ต้องเช็คสลิป', href: '#deposit', icon: QrCode2RoundedIcon },
-      { label: 'จอเรียกคิว / Digital Signage', desc: 'เทมเพลตจอ TV และป้ายตั้งพื้น พร้อมติดตั้ง', href: '#signage', icon: TvRoundedIcon },
-      { label: 'Google Calendar', desc: 'ซิงก์ทุกการจองเข้าปฏิทินของร้าน', href: '#google-calendar', icon: CalendarMonthRoundedIcon },
-      { label: 'ฟีเจอร์ทั้งหมด', desc: 'Queue Board หลายสาขา รายงาน และอื่น ๆ', href: '#features', icon: DashboardRoundedIcon },
-    ],
-  },
+  { label: 'ฟีเจอร์', href: '#features', id: 'features' },
+  { label: 'ธุรกิจที่รองรับ', href: '#business', id: 'business' },
   { label: 'ราคา', href: '#pricing', id: 'pricing' },
-  { label: 'ซัพพอร์ต', href: '#support', id: 'support' },
-  { label: 'คำถามที่พบบ่อย', href: '#faq', id: 'faq' },
+  { label: 'ทดลองใช้', href: '/sandbox-demo' },
   { label: 'บทความ', href: '/blog' },
 ];
 
@@ -53,7 +41,7 @@ const navItemsEn: NavItem[] = [
 
 const navText: Record<PublicLang, Record<string, string>> = {
   th: {
-    home: 'QueueBooking LINE หน้าแรก',
+    home: 'QueueBooking หน้าแรก',
     mainNav: 'เมนูหลัก',
     features: 'ฟีเจอร์',
     login: 'เข้าสู่ระบบ',
@@ -68,7 +56,7 @@ const navText: Record<PublicLang, Record<string, string>> = {
     switchLangAria: 'View in English',
   },
   en: {
-    home: 'QueueBooking LINE home',
+    home: 'QueueBooking home',
     mainNav: 'Main menu',
     features: 'Features',
     login: 'Log in',
@@ -91,7 +79,7 @@ export function Brand({ lang = 'th' }: { lang?: PublicLang }) {
   return (
     <Link href={lang === 'en' ? '/en' : '/'} className={styles.brand} aria-label={navText[lang].home}>
       <span className={styles.brandMark} aria-hidden="true"><span /></span>
-      <span>QueueBooking <strong>LINE</strong></span>
+      <span><strong>Queue</strong>Booking</span>
     </Link>
   );
 }
@@ -118,7 +106,7 @@ export function LandingNavbar() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [featuresOpen, setFeaturesOpen] = useState(false);
-  const [activeId, setActiveId] = useState<string>('overview');
+  const [activeId, setActiveId] = useState<string>('');
   const featuresRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 

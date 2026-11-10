@@ -6,7 +6,7 @@ import { SCENARIO_LIST } from '@/lib/demo/scenarios';
 import { SANDBOX_CONTENT_UPDATED, SANDBOX_INDEX_PATH, sandboxPath } from '@/lib/demo/scenarios/seo';
 
 /** Last real content change of the static marketing pages. */
-const STATIC_PAGES_UPDATED = '2026-11-07';
+const STATIC_PAGES_UPDATED = '2026-11-10';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = process.env.NEXT_PUBLIC_APP_URL || 'https://queuebooking.com';
@@ -23,6 +23,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/terms`, lastModified: now, changeFrequency: 'yearly', priority: 0.5 },
     { url: `${base}/use-cases`, lastModified: now, changeFrequency: 'weekly', priority: 0.85 },
     { url: `${base}/features/promptpay-payment`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${base}/features/queue-display`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${base}/blog`, lastModified: now, changeFrequency: 'weekly', priority: 0.85 },
     { url: `${base}/solutions/restaurant-booking-system`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${base}/solutions/barbershop-booking-system`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },

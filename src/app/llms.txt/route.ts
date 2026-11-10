@@ -1,5 +1,6 @@
 import { blogPosts } from '@/components/public/blog-content';
 import { pricingPlans } from '@/components/public/content';
+import { landingDefinition, landingFaqs } from '@/components/public/landing/landing-content';
 import { SCENARIO_LIST } from '@/lib/demo/scenarios';
 import { SANDBOX_INDEX_PATH, sandboxPath } from '@/lib/demo/scenarios/seo';
 
@@ -14,11 +15,12 @@ export async function GET() {
   );
   const sandboxes = SCENARIO_LIST.map((s) => `- [${s.seo.h1}](${base}${sandboxPath(s)}): ${s.seo.answer}`);
   const posts = blogPosts.map((p) => `- [${p.title}](${base}/blog/${p.slug}): ${p.description}`);
+  const faqs = landingFaqs.map((f) => `- Q: ${f.q}\n  A: ${f.a}`);
 
   const body = [
-    '# QueueBooking LINE',
+    '# QueueBooking (QueueBooking LINE)',
     '',
-    '> ระบบจองคิวผ่าน LINE OA สำหรับธุรกิจบริการไทย ลูกค้าจองในแอป LINE ได้เลยโดยไม่ต้องโหลดแอปใหม่ ร้านจัดการคิวทุกสาขาจากหลังบ้านเดียว พัฒนาโดย GoAlong Co., Ltd.',
+    `> ${landingDefinition} พัฒนาโดย GO Along Co., Ltd.`,
     '',
     `Website: ${base}`,
     '',
@@ -28,9 +30,13 @@ export async function GET() {
     `- Contact: ${base}/contact`,
     `- Use Cases: ${base}/use-cases`,
     `- Free sandbox (no signup, 21 business types): ${base}${SANDBOX_INDEX_PATH}`,
-    `- PromptPay payment: ${base}/features/promptpay-payment`,
+    `- PromptPay / bank-app payment: ${base}/features/promptpay-payment`,
+    `- Queue display on any TV (11 templates): ${base}/features/queue-display`,
     `- Blog: ${base}/blog`,
     `- English: ${base}/en`,
+    '',
+    '## FAQ',
+    ...faqs,
     '',
     '## Key Facts',
     '- ลูกค้าจองผ่านหน้าจองใน LINE (LIFF) จาก Rich Menu หรือแชทของ LINE OA ร้าน ไม่ต้องโหลดแอป',
@@ -39,7 +45,8 @@ export async function GET() {
     '- เตือนนัดผ่าน LINE อัตโนมัติ ตั้งได้ 15 นาที ถึง 1 วันก่อนถึงคิว',
     '- ลูกค้ายกเลิกคิวเอง และกด "ฉันมาถึงแล้ว" ในวันนัดได้จาก LINE',
     '- จอแสดงคิวเปิดผ่านเบราว์เซอร์บนทีวีที่มีอยู่ ไม่ต้องซื้อตู้กดบัตรคิว มี 11 รูปแบบ',
-    '- รับชำระล่วงหน้าผ่าน PromptPay QR / แอปธนาคาร (Omise) หรือโอนแนบสลิป; ระบบอ่าน QR บนสลิปและเตือนสลิปซ้ำ แต่ไม่อนุมัติยอดจากรูปสลิปเพียงอย่างเดียว',
+    '- รับชำระค่าบริการล่วงหน้าผ่าน PromptPay QR / แอปธนาคาร 5 แอป (Omise) หรือโอนแนบสลิป; ยอด = ราคาบริการที่ตั้งไว้ (ไม่มีระบบมัดจำบางส่วน ร้านตั้ง "ค่าจอง" เป็นบริการแยกได้); ระบบอ่าน QR บนสลิปและเตือนสลิปซ้ำ แต่ไม่อนุมัติยอดจากรูปสลิปเพียงอย่างเดียว',
+    '- ซัพพอร์ตภาษาไทย จันทร์–ศุกร์ 09:00–18:00; เหตุระบบล่มรับแจ้ง 24 ชั่วโมง',
     '- ตัวสร้าง Rich Menu ตามประเภทธุรกิจ เผยแพร่ไป LINE OA ได้จากระบบ',
     '- หลายร้าน หลายสาขา สิทธิ์พนักงานตามบทบาท กล่องแชท LINE รวม ซิงก์ Google Calendar',
     '- รายงานยอดคิว ชั่วโมงขายดี ต่อพนักงาน/สาขา ส่งออก PDF และ CSV',

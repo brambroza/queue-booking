@@ -16,7 +16,7 @@ function ShopMark({ shop, small }: { shop: PublicShowcaseCard; small?: boolean }
 }
 
 /**
- * "ร้านที่ใช้ GoAlong Queue": real shops that consented and passed review
+ * "ร้านที่ใช้ QueueBooking": real shops that consented and passed review
  * (`shop_showcase`). Renders nothing when there are none — never sample data.
  */
 export function ShopShowcaseSection({ shops }: { shops: PublicShowcaseCard[] }) {
@@ -67,7 +67,7 @@ export function ShopShowcaseSection({ shops }: { shops: PublicShowcaseCard[] }) 
         )}
 
         <p className={styles.showcaseNote}>
-          เป็นร้านที่ใช้ GoAlong Queue อยู่แล้ว? เปิดให้ร้านขึ้นส่วนนี้ได้ที่ ตั้งค่า › แสดงร้านบนเว็บ
+          เป็นร้านที่ใช้ QueueBooking อยู่แล้ว? เปิดให้ร้านขึ้นส่วนนี้ได้ที่ ตั้งค่า › แสดงร้านบนเว็บ
         </p>
       </div>
     </section>

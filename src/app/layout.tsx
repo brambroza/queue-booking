@@ -20,11 +20,11 @@ const kanit = Kanit({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://queuebooking.com'),
   title: {
-    default: 'QueueBooking LINE | ระบบจองคิวผ่าน LINE OA',
+    default: 'QueueBooking | ระบบจองคิวออนไลน์ผ่าน LINE OA',
     template: '%s | QueueBooking',
   },
   description: 'ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ | LINE OA queue booking platform for modern service businesses.',
-  applicationName: 'QueueBooking LINE',
+  applicationName: 'QueueBooking',
   keywords: [
     'ระบบจองคิวผ่าน line oa',
     'จองคิวผ่านไลน์',
@@ -34,9 +34,9 @@ export const metadata: Metadata = {
     'queue booking',
     'ระบบนัดหมาย line oa',
   ],
-  authors: [{ name: 'QueueBooking LINE Team' }],
-  creator: 'QueueBooking LINE',
-  publisher: 'QueueBooking LINE',
+  authors: [{ name: 'QueueBooking Team' }],
+  creator: 'QueueBooking',
+  publisher: 'GO Along Co., Ltd.',
   alternates: {
     canonical: '/',
     languages: {
@@ -49,15 +49,15 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'th_TH',
     alternateLocale: ['en_US'],
-    siteName: 'QueueBooking LINE',
-    title: 'QueueBooking LINE | ระบบจองคิวผ่าน LINE OA',
+    siteName: 'QueueBooking',
+    title: 'QueueBooking | ระบบจองคิวออนไลน์ผ่าน LINE OA',
     description: 'ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ | LINE OA queue booking platform for modern service businesses.',
     url: '/',
-    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'QueueBooking LINE' }],
+    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'QueueBooking' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'QueueBooking LINE | ระบบจองคิวผ่าน LINE OA',
+    title: 'QueueBooking | ระบบจองคิวออนไลน์ผ่าน LINE OA',
     description: 'ระบบจองคิวผ่าน LINE OA สำหรับทุกธุรกิจ | LINE OA queue booking platform.',
     images: ['/twitter-image'],
   },
@@ -90,11 +90,19 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const base = process.env.NEXT_PUBLIC_APP_URL || 'https://queuebooking.com';
+  // The only Organization block on the site: pages must not repeat it with
+  // different values (entity consistency matters to search and AI engines).
   const orgSchema = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
-    name: 'QueueBooking LINE',
+    '@id': `${base}/#organization`,
+    name: 'QueueBooking',
+    alternateName: 'QueueBooking LINE',
+    legalName: 'GO Along Co., Ltd.',
     url: base,
+    logo: { '@type': 'ImageObject', url: `${base}/apple-touch-icon.png` },
+    sameAs: ['https://lin.ee/oViqAoh'],
+    areaServed: 'TH',
     contactPoint: [
       {
         '@type': 'ContactPoint',
@@ -110,8 +118,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const websiteSchema = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
-    name: 'QueueBooking LINE',
+    name: 'QueueBooking',
+    alternateName: 'QueueBooking LINE',
     url: base,
+    publisher: { '@id': `${base}/#organization` },
     inLanguage: ['th-TH', 'en-US'],
     potentialAction: {
       '@type': 'SearchAction',
