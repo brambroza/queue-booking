@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8">
+<style>
+@font-face{font-family:Kanit;src:url("file:///Users/amnartkongpet/Project/GoAlong/2026/Queue/public/fonts/Kanit-Regular.ttf");font-weight:400}
+@font-face{font-family:Kanit;src:url("file:///Users/amnartkongpet/Project/GoAlong/2026/Queue/public/fonts/Kanit-Bold.ttf");font-weight:700}
+:root{--brand:#12a862;--deep:#087f45;--ink:#15201a;--muted:#5f6b65;--line:#e1e9e4;--mint:#f3faf6;--mint2:#e6f6ed;--dark:#0f1a14;--line-green:#06c755}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#fff}
+body{font-family:Kanit,sans-serif;color:var(--ink);width:var(--w);height:var(--h);overflow:hidden}
+.canvas{position:relative;width:var(--w);height:var(--h);overflow:hidden;background:
+ radial-gradient(900px 600px at 100% 0%,var(--mint2) 0%,transparent 60%),
+ radial-gradient(700px 500px at 0% 100%,#eaf7ef 0%,transparent 60%),var(--mint)}
+.canvas.dark{background:radial-gradient(900px 600px at 100% 0%,#17352a 0%,transparent 60%),var(--dark);color:#fff}
+.canvas.dark .sub,.canvas.dark .foot{color:#b9c9c0}
+.grid{position:absolute;inset:0;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:64px 64px;opacity:.35;mask-image:linear-gradient(180deg,#000 30%,transparent)}
+.canvas.dark .grid{opacity:.08}
+.pad{position:absolute;inset:0;padding:var(--pad);display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:14px;font-weight:700;font-size:var(--brandfs)}
+.brand .dot{width:1.1em;height:1.1em;border-radius:30%;background:var(--brand);display:inline-grid;place-items:center;color:#fff;font-size:.6em}
+.pill{display:inline-flex;align-items:center;gap:.4em;background:var(--line-green);color:#fff;border-radius:999px;padding:.25em .9em;font-weight:700;font-size:var(--pillfs);width:max-content}
+.h1{font-weight:700;font-size:var(--h1);line-height:1.12;letter-spacing:-.01em;margin-top:.35em}
+.h1 em{font-style:normal;color:var(--brand)}
+.canvas.dark .h1 em{color:#4fd98f}
+.sub{font-size:var(--sub);color:var(--muted);line-height:1.45;margin-top:.6em;max-width:var(--subw)}
+.chips{display:flex;flex-wrap:wrap;gap:.5em;margin-top:1em;font-size:var(--chip)}
+.chip{background:#fff;border:1px solid var(--line);border-radius:999px;padding:.3em .9em;font-weight:700;color:var(--deep)}
+.canvas.dark .chip{background:#1b2d24;border-color:#2b4a3a;color:#8fe3b4}
+.foot{margin-top:auto;display:flex;justify-content:space-between;align-items:flex-end;font-size:var(--foot);color:var(--muted)}
+.foot b{color:var(--ink)}.canvas.dark .foot b{color:#fff}
+.cta{background:var(--brand);color:#fff;border-radius:14px;padding:.5em 1.2em;font-weight:700;font-size:var(--cta)}
+/* devices */
+.phone{position:absolute;width:var(--phw);border-radius:calc(var(--phw)*.11);background:#111;padding:calc(var(--phw)*.035);box-shadow:0 40px 80px -30px rgba(8,60,35,.45)}
+.phone img{display:block;width:100%;border-radius:calc(var(--phw)*.08)}
+.laptop{position:absolute;width:var(--lpw);border-radius:18px;background:#1a1f1c;padding:12px 12px 16px;box-shadow:0 40px 90px -30px rgba(8,60,35,.5)}
+.laptop img{display:block;width:100%;border-radius:10px}
+.tv{position:absolute;width:var(--tvw);border-radius:10px;background:#0a0a0a;padding:10px;box-shadow:0 40px 90px -30px rgba(0,0,0,.7)}
+.tv img{display:block;width:100%;border-radius:4px}
+/* stat tiles */
+.stats{display:grid;grid-template-columns:repeat(var(--statcols),1fr);gap:var(--statgap);margin-top:1.2em}
+.stat{background:#fff;border:1px solid var(--line);border-radius:22px;padding:var(--statpad)}
+.stat .v{font-weight:700;font-size:var(--statv);color:var(--brand);line-height:1}
+.stat .l{font-size:var(--statl);color:var(--muted);margin-top:.5em;line-height:1.3}
+/* flex card mock */
+.flex{position:absolute;width:var(--fxw);background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 30px 70px -25px rgba(8,60,35,.45);font-size:calc(var(--fxw)*.052)}
+.flex .hd{background:var(--line-green);color:#fff;padding:.9em 1.1em;font-weight:700}
+.flex .bd{padding:1em 1.1em;color:#333;line-height:1.5}
+.flex .bd .q{font-size:2.4em;font-weight:700;color:var(--ink);line-height:1.1}
+.flex .row{display:flex;justify-content:space-between;color:#555;margin-top:.25em}
+.flex .btn{margin:0 1.1em 1em;border:2px solid var(--line-green);color:var(--line-green);border-radius:10px;text-align:center;padding:.5em;font-weight:700}
+.flex .btn.solid{background:var(--line-green);color:#fff;margin-top:-.4em}
+.bubble{position:absolute;background:#fff;border-radius:20px;padding:.6em 1em;font-weight:700;box-shadow:0 20px 50px -20px rgba(0,0,0,.35);font-size:var(--bub);color:var(--deep)}
+body.sq .foot{flex-direction:column;align-items:flex-start;gap:18px}
+.bubble.g{background:var(--line-green);color:#fff}
+</style></head><body><div id="root"></div>
+<script>
+const p=new URLSearchParams(location.search);const theme=p.get('t')||'hero';const size=p.get('s')||'sq';const PUB='file:///Users/amnartkongpet/Project/GoAlong/2026/Queue/public';
+const dims={sq:[1080,1080],x:[1600,900],fb:[1200,630]}[size];
+const r=document.documentElement.style;r.setProperty('--w',dims[0]+'px');r.setProperty('--h',dims[1]+'px');
+const sq=size==='sq',fb=size==='fb';
+const sc=sq?1:fb?0.78:1.0; // base scale
+const set=(k,v)=>r.setProperty(k,typeof v==='number'?v+'px':v);
+set('--pad',sq?72:fb?56:72);set('--brandfs',34*sc);set('--pillfs',26*sc);set('--h1',sq?(theme==='free'?70:78):fb?52:72);set('--sub',sq?32:fb?26:30);
+set('--chip',sq?26:fb?22:24);set('--foot',sq?26:fb?22:24);set('--cta',sq?30:fb?24:28);set('--subw','100%');set('--textw',sq?'100%':fb?'60%':'58%');
+set('--phw',sq?330:fb?250:330);set('--lpw',sq?600:fb?560:700);set('--tvw',sq?720:fb?620:760);set('--fxw',sq?420:fb?330:420);set('--bub',sq?28:fb?22:26);
+set('--statcols',sq?'2':'4');set('--statgap',sq?22:18);set('--statpad',sq?'18px 26px':fb?'18px 22px':'24px 28px');set('--statv',sq?60:fb?52:64);set('--statl',sq?26:fb?20:24);
+if(sq)document.body.classList.add('sq');
+const img=n=>PUB+'/images/product/'+n;
+const brand=`<div class="brand"><span class="dot">Q</span>QueueBooking</div>`;
+const foot=(cta)=>`<div class="foot"><div><b>queuebooking.com</b><br>LINE OA @queuebooking${sq?'':' · ทีมคนไทยช่วยตั้งค่า'}</div><div class="cta">${cta}</div></div>`;
+const T={
+hero:()=>`<div class="canvas"><div class="grid"></div><div class="pad">${brand}
+<div style="margin-top:${sq?40:28}px;max-width:var(--textw)"><span class="pill">จองผ่าน LINE OA</span>
+<div class="h1">ลูกค้าจองคิวเอง<br>จาก LINE <em>ไม่ต้องโหลดแอป</em></div>
+<div class="sub">เห็นเฉพาะเวลาที่ว่างจริง กันคิวซ้อน ยืนยันในแชท เตือนก่อนถึงคิว ร้านดูทุกสาขาจากหลังบ้านเดียว</div>
+<div class="chips"><span class="chip">ร้านตัดผม</span><span class="chip">คลินิก</span><span class="chip">สนามแบด</span><span class="chip">ร้านอาหาร</span><span class="chip">+17 ธุรกิจ</span></div></div>
+${foot('เริ่มใช้ฟรี')}</div>
+<div class="phone" style="${sq?'right:40px;bottom:-240px;--phw:300px;transform:rotate(-6deg)':fb?'right:56px;top:40px;--phw:240px':'right:90px;top:70px'}"><img src="${img('liff-services.webp')}"></div>
+${sq||fb?'':`<div class="phone" style="right:430px;top:150px;--phw:280px;"><img src="${img('liff-slots.webp')}"></div>`}
+</div>`,
+noshow:()=>`<div class="canvas dark"><div class="grid"></div><div class="pad">${brand}
+<div style="margin-top:${sq?40:28}px;max-width:var(--textw)"><span class="pill">เตือนนัดอัตโนมัติ</span>
+<div class="h1">ลูกค้าลืมนัด<br>ร้านเสียรอบ <em>เตือนให้เอง</em></div>
+<div class="sub">การ์ดเตือนส่งเข้า LINE ก่อนถึงคิว 15 นาที ถึง 1 วัน ลูกค้ากด "ไม่สะดวก" ยกเลิกได้ทันที รอบว่างกลับมาให้คนอื่นจอง</div>
+<div class="chips"><span class="chip">ยืนยันคิว</span><span class="chip">เตือนก่อนถึงคิว</span><span class="chip">เรียกคิว</span><span class="chip">ขอบคุณหลังใช้บริการ</span></div></div>
+${foot('ลองฟรี 50 คิว/เดือน')}</div>
+<div class="flex" style="${sq?'right:72px;bottom:72px;--fxw:340px':fb?'right:70px;top:70px':'right:110px;top:90px'}">
+<div class="hd">⏰ อีก 30 นาทีถึงคิวของคุณ</div>
+<div class="bd"><div style="color:#777">คิวหมายเลข</div><div class="q">A007</div>
+<div class="row"><span>บริการ</span><b>ตรวจสุขภาพทั่วไป</b></div>
+<div class="row"><span>วันเวลา</span><b>อ. 11 พ.ย. 10:00</b></div>
+<div class="row"><span>สาขา</span><b>สาขาสุขุมวิท</b></div></div>
+<div class="btn solid">ดูคิวของฉัน</div><div class="btn">ไม่สะดวก / ยกเลิกคิว</div></div>
+<div class="bubble g" style="${sq?'right:440px;bottom:330px':fb?'right:600px;top:130px':'right:110px;top:585px'}">ส่งอัตโนมัติ ไม่ต้องพิมพ์เอง</div>
+</div>`,
+free:()=>`<div class="canvas"><div class="grid"></div><div class="pad">${brand}
+<div style="margin-top:${sq?40:24}px"><span class="pill">แพ็กเกจ Starter</span>
+<div class="h1">เริ่มต้น <em>0 บาท</em>${sq?'<br>':' '}ไม่ต้องใช้บัตรเครดิต</div>
+<div class="sub" style="max-width:100%">สมัคร เลือกประเภทธุรกิจ เชื่อม LINE OA แล้วรับคิวได้เลย ไม่ต้องเขียนโปรแกรม</div>
+<div class="stats">
+<div class="stat"><div class="v">50</div><div class="l">คิว/เดือน ฟรีตลอด ไม่มีวันหมดอายุ</div></div>
+<div class="stat"><div class="v">15–30</div><div class="l">นาที เชื่อม LINE OA จนรับคิวได้</div></div>
+<div class="stat"><div class="v">21</div><div class="l">ประเภทธุรกิจ มีห้องทดลองให้เล่นก่อนสมัคร</div></div>
+<div class="stat"><div class="v">11</div><div class="l">เทมเพลตจอเรียกคิวหน้าร้าน</div></div>
+</div></div>
+${foot('สมัครฟรีวันนี้')}</div></div>`,
+board:()=>`<div class="canvas"><div class="grid"></div><div class="pad">${brand}
+<div style="margin-top:${sq?40:28}px;max-width:var(--textw)"><span class="pill">หลังบ้านร้าน</span>
+<div class="h1">คิวทุกสาขา<br><em>หน้าจอเดียว</em></div>
+<div class="sub">บอร์ดคิว ปฏิทิน รายงาน และจอเรียกคิวหน้าร้าน พนักงานเห็นเฉพาะสาขาตัวเอง เจ้าของเห็นทั้งหมด</div>
+<div class="chips"><span class="chip">บอร์ดคิว</span><span class="chip">ปฏิทิน</span><span class="chip">รายงาน PDF/CSV</span><span class="chip">จอทีวี</span></div></div>
+${foot('ดูตัวอย่างฟรี')}</div>
+<div class="laptop" style="${sq?'right:-120px;bottom:-250px;width:760px':fb?'right:-80px;top:70px':'right:-60px;top:90px'}"><img src="${img('portal-queue-board.webp')}"></div>
+</div>`};
+document.getElementById('root').innerHTML=T[theme]();
+</script></body></html>

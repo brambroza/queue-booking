@@ -158,6 +158,8 @@ type ShopMeta = {
   require_resource_choice?: boolean;
   /** On when the shop lets checked-in customers order food and drinks (plan + owner switch). */
   fnb_enabled?: boolean;
+  /** True while the shop's LINE OA is out of monthly push quota: chat cards will not arrive, the screen is the source. */
+  line_delivery_paused?: boolean;
 };
 type MyBooking = {
   id: string;
@@ -992,6 +994,16 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     setLoading(true);
     setSubmitting(true);
     if (!bookAttemptKey.current) bookAttemptKey.current = newAttemptKey();
+    // Inside LINE this page can post the "ยืนยันคิว …" echo as the customer; the
+    // webhook answers it with the confirmation + payment cards as a free reply,
+    // so /book sends no push (a push spends the shop's monthly LINE plan).
+    let echoLiff: LiffApi | null = null;
+    try {
+      const liff = shop?.booking_echo_enabled === false || !lineUserId ? null : await ensureLiffLoaded();
+      echoLiff = liff?.isInClient?.() && liff.sendMessages ? liff : null;
+    } catch {
+      echoLiff = null;
+    }
     let res: Response;
     let json: Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
     try {
@@ -1013,6 +1025,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         payment_method: chosenMethod || undefined,
         bank_provider: isBankAppMethod(chosenMethod) && chosenBank ? chosenBank : undefined,
         idempotency_key: bookAttemptKey.current,
+        will_echo: Boolean(echoLiff),
       }),
       }, {
         // `busy` 409 = this same press is still being saved (an earlier retry).
@@ -1092,9 +1105,13 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     // stays silent so the bot does not reply on top of the confirmation.
     // Shops that would rather keep the customer's chat clean turn this off in
     // LINE Settings.
-    try {
-      const liff = shop?.booking_echo_enabled === false ? null : await ensureLiffLoaded();
-      if (liff?.isInClient?.() && liff.sendMessages) {
+    // Since 2026-11-11 the echo also carries the delivery: the webhook replies
+    // to it with the confirmation + payment cards for free. If it cannot be
+    // sent (scope missing, user declined, SDK error) ask the server to push
+    // the same cards once instead — never leave the customer without the QR.
+    let echoSent = false;
+    if (echoLiff) {
+      try {
         const text = buildBookingEchoText({
           queueNumber: json.data?.queue_number ?? '',
           branch: json.data?.branch_name ?? selectedBranch?.branch_name ?? '',
@@ -1102,11 +1119,20 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
           dateLabel: formatDateDMY(json.data?.booking_date ?? date),
           time: json.data?.booking_time ?? selectedTime,
         });
-        await liff.sendMessages([{ type: 'text', text }]);
+        await echoLiff.sendMessages!([{ type: 'text', text }]);
+        echoSent = true;
+      } catch {
+        echoSent = false;
       }
-    } catch {
-      // Booking already succeeded — a failed echo must stay invisible to the
-      // customer. The shop still sees it in the portal notification bell.
+    }
+    if (json.data?.line_delivery === 'echo' && !echoSent && result.booking_id && lineUserId) {
+      void fetch(`/api/public/shop/${shopKey}/booking-notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ line_user_id: lineUserId, id_token: currentIdToken() || undefined, booking_id: result.booking_id }),
+      }).catch(() => {
+        // Booking already succeeded and the QR is on screen; the chat card is best effort.
+      });
     }
 
     push(result.awaiting_payment ? 'จองคิวแล้ว กรุณาชำระเงินเพื่อยืนยันคิว' : result.status === 'pending_approval' ? 'ส่งคำขอจองแล้ว รอร้านยืนยัน' : 'จองคิวสำเร็จ');
@@ -1339,6 +1365,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
           <Divider />
           <Stack spacing={1.25} sx={{ p: 1.75 }}>
             <KeyValueList rows={summaryRows} />
+            {shop?.line_delivery_paused ? (
+              <Alert severity="info">ร้านส่งข้อความ LINE ไม่ได้ชั่วคราว — ดูสถานะคิวและชำระเงินที่หน้านี้ หรือกด "เช็คคิว" ในเมนูได้ตลอด</Alert>
+            ) : null}
             {awaitingPayment ? (
               <Alert severity="warning">คิวจะได้รับการยืนยันเมื่อชำระเงินเรียบร้อย หากไม่ชำระภายในเวลาที่กำหนด ระบบจะยกเลิกคิวให้อัตโนมัติ</Alert>
             ) : awaitingApproval ? (
@@ -2043,6 +2072,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
             title="คิวที่จองอยู่"
             action={upcoming.length > 0 ? <Chip size="small" variant="outlined" label={`${upcoming.length} คิว`} /> : undefined}
           >
+            {shop?.line_delivery_paused ? (
+              <Alert severity="info" sx={{ mb: 1 }}>ร้านส่งข้อความ LINE ไม่ได้ชั่วคราว — สถานะคิว การชำระเงิน และสลิปดูได้ที่หน้านี้</Alert>
+            ) : null}
             {accountLoading && upcoming.length === 0 ? <LiffSkeleton rows={1} /> : null}
             {!accountLoading && upcoming.length === 0 ? (
               <>

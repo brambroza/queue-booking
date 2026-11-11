@@ -50,6 +50,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   const lineUserId = String(form.get('line_user_id') ?? '').trim();
   const bookingId = String(form.get('booking_id') ?? '').trim();
   const idToken = String(form.get('id_token') ?? '').trim() || null;
+  // "1" when the LIFF panel will echo "ส่งสลิปคิว …" into the chat; the webhook
+  // then answers "ได้รับสลิปแล้ว" as a free reply instead of this route pushing.
+  const willEcho = String(form.get('will_echo') ?? '') === '1';
   const file = form.get('file');
   if (!lineUserId || !bookingId || !(file instanceof File) || file.size === 0) {
     return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
@@ -216,6 +219,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   });
 
   // Best-effort acknowledgement — a failed push must not fail the upload.
+  // Skipped when the client echoes (reply is free; a push costs plan quota).
+  if (willEcho) return NextResponse.json({ data: { slip_id: slip.id, payment_status: 'awaiting_verification', ack: 'echo' } });
   try {
     const { data: shopLine } = await admin
       .from('shops')

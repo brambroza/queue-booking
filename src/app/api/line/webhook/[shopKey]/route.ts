@@ -12,8 +12,10 @@ import {
   myBookingStatusMessage,
   slotMessage,
 } from '@/lib/line/messages';
+import { slipReceivedFlex } from '@/lib/line/messages-payment';
 import { resolveCustomerLiffUrl } from '@/lib/line/liff-url';
-import { isBookingEcho } from '@/lib/line/booking-echo';
+import { isBookingEcho, isEchoFresh, isSlipEcho, parseBookingEcho, parseSlipEcho } from '@/lib/line/booking-echo';
+import { buildBookingDeliveryMessages, claimBookingDelivery, releaseBookingDelivery } from '@/lib/line/booking-messages-server';
 import { looksLikeOwnerLinkMessage, parseOwnerLinkMessage } from '@/lib/line/owner-line';
 import { linkOwnerLineFromCode } from '@/lib/line/owner-line-server';
 import { isFallbackReplyEnabled } from '@/lib/line/fallback-reply';
@@ -97,17 +99,15 @@ async function getShopAndConfig(shopKey: string) {
   return { admin, shop };
 }
 
-async function handleTextEvent(
+/** Upsert the sender into `line_users` and log the text to the chat inbox. Returns the `line_users` pk. */
+async function upsertLineUserAndLogText(
   admin: ReturnType<typeof createAdminClient>,
   shop: WebhookShop,
   event: LineWebhookEvent,
   token: string,
-) {
+): Promise<string | null> {
   const userId = event.source?.userId;
-  const replyToken = event.replyToken;
-  const text = event.message?.text ?? '';
-  if (!userId || !replyToken) return;
-
+  if (!userId) return null;
   const profile = await fetchLineProfile(token, userId);
   const { data: lineUser } = await admin
     .from('line_users')
@@ -128,14 +128,126 @@ async function handleTextEvent(
     line_user_id: lineUser?.id,
     direction: 'inbound',
     message_type: 'text',
-    message_text: text,
+    message_text: event.message?.text ?? '',
     payload: event as unknown as Record<string, unknown>,
   });
+  return (lineUser?.id as string | undefined) ?? null;
+}
 
-  // The booking echo exists only to raise an unread badge in LINE OA Chat. It is
-  // already logged above so the portal chat inbox sees it — replying would stack
-  // an intent menu on top of the Flex confirmation the customer just received.
-  if (isBookingEcho(text)) return;
+/**
+ * The booking echo ("ยืนยันคิว A002 · …") the LIFF client sends on the
+ * customer's behalf right after `/book`. Its replyToken is the one free way to
+ * put the confirmation + payment cards in the chat — a push would spend the
+ * shop's monthly LINE plan — so `/book` leaves delivery to this handler when
+ * the client promised to echo. Runs before the auto-reply gate: it is the
+ * shop's own flow, not a chatbot answer. An echo that names no fresh,
+ * undelivered booking is logged and ignored (older client whose `/book`
+ * already pushed; a customer forwarding their own old message).
+ */
+async function handleBookingEcho(
+  admin: ReturnType<typeof createAdminClient>,
+  shop: WebhookShop,
+  event: LineWebhookEvent,
+  token: string,
+) {
+  const userId = event.source?.userId;
+  const replyToken = event.replyToken;
+  const text = event.message?.text ?? '';
+  const lineUserPk = await upsertLineUserAndLogText(admin, shop, event, token);
+  const echo = parseBookingEcho(text);
+  if (!userId || !replyToken || !lineUserPk || !echo) return;
+
+  const { data: booking } = await admin
+    .from('bookings')
+    .select('id,created_at,last_line_notify_at')
+    .eq('shop_id', shop.id)
+    .eq('line_user_id', lineUserPk)
+    .eq('queue_number', echo.queueNumber)
+    .eq('is_deleted', false)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!booking || booking.last_line_notify_at || !isEchoFresh(String(booking.created_at), new Date())) return;
+
+  const delivery = await buildBookingDeliveryMessages(admin, { shopId: shop.id, bookingId: String(booking.id) });
+  if (!delivery || delivery.messages.length === 0) return;
+  if (!(await claimBookingDelivery(admin, shop.id, delivery.bookingIds))) return;
+
+  try {
+    await replyMessage(token, replyToken, delivery.messages);
+  } catch (e) {
+    // Token expired / LINE down: free the claim so /booking-notify (or a retry) can push.
+    await releaseBookingDelivery(admin, shop.id, delivery.bookingIds);
+    console.error('[line_echo_reply_failed]', e instanceof Error ? e.message : e);
+    return;
+  }
+  await admin.from('booking_logs').insert({
+    company_id: shop.company_id,
+    shop_id: shop.id,
+    booking_id: delivery.payingBookingId,
+    action: 'line_delivered_by_reply',
+    description: `Booking cards sent as a free reply to the echo (${delivery.bookingIds.length} queue(s))`,
+  });
+}
+
+/**
+ * The slip echo ("ส่งสลิปคิว A002 · แล้ว") the LIFF payment panel sends after a
+ * successful upload, answered with "ได้รับสลิปแล้ว" for free instead of the
+ * push `/payment/slip` used to send. Only a slip stored in the last two
+ * minutes for that queue counts.
+ */
+async function handleSlipEcho(
+  admin: ReturnType<typeof createAdminClient>,
+  shop: WebhookShop,
+  event: LineWebhookEvent,
+  token: string,
+) {
+  const replyToken = event.replyToken;
+  const text = event.message?.text ?? '';
+  const lineUserPk = await upsertLineUserAndLogText(admin, shop, event, token);
+  const echo = parseSlipEcho(text);
+  if (!replyToken || !lineUserPk || !echo) return;
+
+  const { data: booking } = await admin
+    .from('bookings')
+    .select('id,queue_number,payment_amount')
+    .eq('shop_id', shop.id)
+    .eq('line_user_id', lineUserPk)
+    .eq('queue_number', echo.queueNumber)
+    .eq('is_deleted', false)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!booking) return;
+  const { data: slip } = await admin
+    .from('payment_slips')
+    .select('created_at')
+    .eq('booking_id', booking.id)
+    .eq('shop_id', shop.id)
+    .eq('is_deleted', false)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!slip || !isEchoFresh(String(slip.created_at), new Date())) return;
+
+  await replyMessage(token, replyToken, [
+    slipReceivedFlex({ shopName: shop.name, queueNumber: String(booking.queue_number ?? '-'), amountTHB: Number(booking.payment_amount ?? 0) }),
+  ]);
+}
+
+async function handleTextEvent(
+  admin: ReturnType<typeof createAdminClient>,
+  shop: WebhookShop,
+  event: LineWebhookEvent,
+  token: string,
+) {
+  const userId = event.source?.userId;
+  const replyToken = event.replyToken;
+  const text = event.message?.text ?? '';
+  if (!userId || !replyToken) return;
+
+  const lineUserPk = await upsertLineUserAndLogText(admin, shop, event, token);
+  const lineUser = lineUserPk ? { id: lineUserPk } : null;
 
   const parsed = parseIntent(text);
 
@@ -553,13 +665,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   const ownerLinks = events.filter((e) => e.type === 'message' && e.message?.type === 'text' && looksLikeOwnerLinkMessage(e.message.text));
   await Promise.all(ownerLinks.map((event) => handleOwnerLinkEvent(admin, webhookShop, event, channelToken)));
 
+  // Echoes the LIFF client sent on the customer's behalf: answered with the
+  // booking / slip cards as free replies, whatever the auto-reply setting.
+  const isText = (e: LineWebhookEvent) => e.type === 'message' && e.message?.type === 'text';
+  const bookingEchoes = events.filter((e) => isText(e) && isBookingEcho(e.message?.text ?? ''));
+  const slipEchoes = events.filter((e) => isText(e) && isSlipEcho(e.message?.text ?? ''));
+  await Promise.all([
+    ...bookingEchoes.map((event) => handleBookingEcho(admin, webhookShop, event, channelToken).catch((e) => console.error('[line_echo_failed]', e))),
+    ...slipEchoes.map((event) => handleSlipEcho(admin, webhookShop, event, channelToken).catch((e) => console.error('[line_slip_echo_failed]', e))),
+  ]);
+
   if (!shop.auto_reply_enabled) {
-    return NextResponse.json({ ok: true, skipped: 'auto_reply_disabled', postbacks: postbacks.length });
+    return NextResponse.json({ ok: true, skipped: 'auto_reply_disabled', postbacks: postbacks.length, echoes: bookingEchoes.length + slipEchoes.length });
   }
 
   await Promise.all(
     events.map(async (event) => {
-      if (ownerLinks.includes(event)) return;
+      if (ownerLinks.includes(event) || bookingEchoes.includes(event) || slipEchoes.includes(event)) return;
       if (event.type === 'message' && event.message?.type === 'text') {
         await handleTextEvent(admin, webhookShop, event, channelToken);
       } else if (event.type === 'message') {

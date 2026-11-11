@@ -6,6 +6,7 @@ import { clientIp, hitRateLimit, tooManyRequests } from '@/lib/security/rate-lim
 import { PUBLIC_CACHE_HEADERS } from '@/lib/cache/http';
 import { getShopPaymentConfig, toPublicPaymentInfo } from '@/lib/payments/settings';
 import { isBookingEchoEnabled } from '@/lib/line/booking-echo';
+import { isLineDeliveryPausedCached } from '@/lib/line/quota-server';
 import { isMultiSlotEnabled, isOneBookingPerDay, isResourceChoiceRequired, isServiceDurationVisible } from '@/lib/booking/display-settings';
 import { getShopBookingWindows, resolveMaxBookingDate, resolveMinBookingDate } from '@/lib/booking/booking-window';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
@@ -47,6 +48,7 @@ async function loadMeta(admin: ReturnType<typeof createAdminClient>, shop: Resol
     bookingWindows,
     fnbAccess,
     releaseTimes,
+    lineDeliveryPaused,
   ] = await Promise.all([
     admin.from('branches').select('id,branch_name,layout_image_url').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
     admin.from('services').select('id,service_name,duration_minutes,price,image_url,booking_mode,min_duration_minutes,max_duration_minutes').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
@@ -70,6 +72,9 @@ async function loadMeta(admin: ReturnType<typeof createAdminClient>, shop: Resol
     getFnbAccess(admin, shop.id).catch(() => ({ enabled: false })),
     // Defensive read: {} before migration 202610220001.
     getShopReleaseTimes(admin, shop.id),
+    // True while the shop's LINE OA is out of monthly push quota (202611110001);
+    // LIFF then tells the customer to rely on the screen, not the chat.
+    isLineDeliveryPausedCached(admin, shop.id),
   ]);
 
   // Thrown, not returned empty: a failed read must not be cached as "no branches".
@@ -100,6 +105,7 @@ async function loadMeta(admin: ReturnType<typeof createAdminClient>, shop: Resol
       // Hides the "ไม่ระบุ" resource option; /book enforces it too.
       require_resource_choice: requireResourceChoice,
       fnb_enabled: fnbAccess.enabled,
+      line_delivery_paused: lineDeliveryPaused,
     },
     branches: branchesWithWindow,
     services: services ?? [],

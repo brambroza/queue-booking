@@ -5,6 +5,7 @@ import { PageShell } from '@/components/ui/page-shell';
 import { AutomationSettingsCard } from '@/components/automation/automation-settings-card';
 import { CustomerGuideCard } from '@/components/line-settings/customer-guide-card';
 import { OwnerLineCard } from '@/components/line-settings/owner-line-card';
+import { LineQuotaCard } from '@/components/line-settings/line-quota-card';
 import { useToast } from '@/components/ui/toast';
 import { track } from '@/lib/analytics/track';
 import { REMINDER_MINUTES_DEFAULT, REMINDER_PRESETS, reminderLeadLabel } from '@/lib/line/booking-reminder';
@@ -196,10 +197,11 @@ export default function LineSettingsPage() {
             onChange={(e) => setForm((s) => ({ ...s, booking_echo_enabled: e.target.checked }))}
           />
           <span>
-            แจ้งเตือนร้านใน LINE OA Chat เมื่อมีคิวใหม่
+            แจ้งเตือนร้านใน LINE OA Chat เมื่อมีคิวใหม่ (และประหยัดโควตาข้อความ)
             <span className="mt-0.5 block text-xs text-slate-500">
               หลังลูกค้าจองสำเร็จ ระบบจะส่งข้อความ &quot;ยืนยันคิว...&quot; เข้าห้องแชทแทนลูกค้า
-              เพื่อให้ chat.line.biz เด้งแจ้งเตือน — ข้อความจะแสดงในแชทเหมือนลูกค้าพิมพ์เอง
+              เพื่อให้ chat.line.biz เด้งแจ้งเตือน — และระบบจะ<strong>ตอบกลับ</strong>ข้อความนั้นด้วยการ์ดยืนยัน + QR ชำระเงิน
+              ซึ่งไม่นับโควตาข้อความของ LINE OA (ปิดไว้ = ส่งเป็น push นับโควตา 1 ข้อความต่อการจอง)
               ต้องเปิด scope <code>chat_message.write</code> ใน LIFF app ด้วย
             </span>
           </span>
@@ -258,6 +260,8 @@ export default function LineSettingsPage() {
           </ul>
         )}
       </form>
+
+      <LineQuotaCard />
 
       <OwnerLineCard />
 

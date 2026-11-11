@@ -6,6 +6,7 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import UploadRoundedIcon from '@mui/icons-material/UploadRounded';
 import { compressImage } from '@/lib/utils/image-compress';
 import { KeyValueList, LiffLabel, LiffSection, LiffSkeleton } from '@/components/line/liff-ui';
+import { buildSlipEchoText } from '@/lib/line/booking-echo';
 import { BankGrid, type BankGridBank } from '@/components/line/bank-grid';
 import { isBankAppMethod } from '@/lib/payments/mobile-banking/banks';
 
@@ -53,7 +54,18 @@ type LiffWindowApi = {
   isInClient?: () => boolean;
   openWindow?: (params: { url: string; external?: boolean }) => void;
   getIDToken?: () => string | null;
+  sendMessages?: (messages: object[]) => Promise<void>;
 };
+
+/** The LIFF SDK when this page runs inside LINE and may post a message as the customer. */
+function echoCapableLiff(): LiffWindowApi | null {
+  try {
+    const liff = (window as Window & { liff?: LiffWindowApi }).liff;
+    return liff?.isInClient?.() && liff.sendMessages ? liff : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Current LIFF ID token, read live from the SDK so a long-open panel keeps
@@ -218,10 +230,21 @@ export function LiffPaymentPanel({
       body.append('file', compressed);
       if (amountClaimed) body.append('amount_claimed', amountClaimed);
       if (transferredAt) body.append('transferred_at', new Date(transferredAt).toISOString());
+      // Inside LINE the panel posts "ส่งสลิปคิว …" as the customer and the webhook
+      // answers "ได้รับสลิปแล้ว" for free; the server then sends no push.
+      const echoLiff = echoCapableLiff();
+      if (echoLiff) body.append('will_echo', '1');
 
       const res = await fetch(`/api/public/shop/${shopKey}/payment/slip`, { method: 'POST', body });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? 'อัปโหลดสลิปไม่สำเร็จ');
+      if (echoLiff && json?.data?.ack === 'echo' && state?.queue_number) {
+        try {
+          await echoLiff.sendMessages!([{ type: 'text', text: buildSlipEchoText(state.queue_number) }]);
+        } catch {
+          // The panel already shows "รอร้านตรวจสอบ"; the chat card is a nicety.
+        }
+      }
       setPollCount(0);
       await load();
     } catch (e) {

@@ -4,6 +4,9 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { resolveShopCached, type ResolvedShop } from '@/lib/line/shop-resolver';
 import { pushMessage } from '@/lib/line/client';
 import { bookingConfirmFlex } from '@/lib/line/messages';
+import { packBookingMessages } from '@/lib/line/booking-delivery';
+import { refreshLineQuota } from '@/lib/line/quota-server';
+import { claimBookingDelivery, releaseBookingDelivery } from '@/lib/line/booking-messages-server';
 import { assertFeatureQuota, SubscriptionInactiveError, SubscriptionQuotaError } from '@/lib/subscription/enforcement';
 import { monthBounds } from '@/lib/subscription/usage';
 import { quotaPeriod } from '@/lib/subscription/quota-alerts';
@@ -93,6 +96,12 @@ const bookSchema = z
     bank_provider: z.enum(BANK_CODES).optional(),
     /** One per press of "ยืนยันจอง": a double tap or client retry replays the first result. */
     idempotency_key: z.string().regex(/^[A-Za-z0-9-]{8,64}$/).optional(),
+    /**
+     * True when the LIFF client will send the "ยืนยันคิว …" echo into the chat
+     * right after this call. The webhook then answers that echo with the
+     * confirmation + payment cards as a free reply, so this route sends no push.
+     */
+    will_echo: z.boolean().optional(),
   })
   .superRefine((value, ctx) => {
     if (isBankAppMethod(value.payment_method) && !value.bank_provider) {
@@ -809,6 +818,8 @@ async function createBooking(
   // (and a booking seat) at a rush.
   after(async () => {
     for (const c of created) await safeSyncBookingToGoogleCalendar(shop.id, c.id);
+    // Keep the shop's LINE push quota readout current (LINE calls are free, cached 10 min).
+    await refreshLineQuota(admin, shop.id);
     // Credit a recent follow-up / win-back push with this order (ROI card).
     const unitPrice = Number((service as unknown as { price?: number } | null)?.price ?? 0);
     await safeRecordAutomationConversion(admin, {
@@ -833,7 +844,14 @@ async function createBooking(
   let linePushError: string | null = null;
 
   // Non-blocking LINE confirmation message to customer.
-  if (payload.line_user_id) {
+  // LINE delivery. One call carries every card (confirmations + payment): LINE
+  // bills a push per request, not per card. When the LIFF client is about to
+  // send the booking echo, nothing is pushed at all — the webhook answers the
+  // echo with the same cards as a free reply (`buildBookingDeliveryMessages`),
+  // and `/booking-notify` is the client's fallback if the echo cannot be sent.
+  let qrPaymentCreated = false;
+  const lineDelivery: 'echo' | 'push' | 'none' = payload.line_user_id ? (payload.will_echo ? 'echo' : 'push') : 'none';
+  if (lineDelivery === 'push' && payload.line_user_id) {
     const { data: shopLine } = await admin
       .from('shops')
       .select('line_channel_access_token')
@@ -848,59 +866,44 @@ async function createBooking(
       const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
       const liffUrl = appUrl ? `${appUrl}/liff/${encodeURIComponent(shop.shop_key)}` : undefined;
 
-      try {
-        // One card per queue (max 4, LINE allows 5 per push) so each keeps its own cancel button.
-        await pushMessage(
-          token,
-          payload.line_user_id,
-          created.map((c) =>
-            bookingConfirmFlex({
-              shopName: shop.name ?? 'Queue Booking',
-              queueNumber: c.queue_number,
-              branch: branchName,
-              service: serviceName,
-              date: dateLabel,
-              time: multiPick ? c.plan.startTime.slice(0, 5) : bookingTimeLabel(payload.start_time, endTime, slotCount),
-              assignedTo: c.plan.resource?.resource_name ?? null,
-              assignedLabel: c.plan.resource ? resourceTypeLabel(c.plan.resource.resource_type) : null,
-              liffUrl,
-              pendingApproval,
-              awaitingPayment,
-              bookingId: c.id,
-            }),
-          ),
-        );
-        linePushSent = true;
-      } catch (e) {
-        linePushError = e instanceof Error ? e.message : 'unknown error';
-        await admin.from('activity_logs').insert({
-          company_id: shop.company_id,
-          shop_id: shop.id,
-          action: 'line_push_booking_failed',
-          description: linePushError,
-        });
+      // One card per queue (max 4) so each keeps its own cancel button, then the payment card.
+      const confirmCards = created.map((c) =>
+        bookingConfirmFlex({
+          shopName: shop.name ?? 'Queue Booking',
+          queueNumber: c.queue_number,
+          branch: branchName,
+          service: serviceName,
+          date: dateLabel,
+          time: multiPick ? c.plan.startTime.slice(0, 5) : bookingTimeLabel(payload.start_time, endTime, slotCount),
+          assignedTo: c.plan.resource?.resource_name ?? null,
+          assignedLabel: c.plan.resource ? resourceTypeLabel(c.plan.resource.resource_type) : null,
+          liffUrl,
+          pendingApproval,
+          awaitingPayment,
+          bookingId: c.id,
+        }),
+      );
+      const bookingIds = created.map((c) => c.id);
+      // Claim first so an echo from an older client cannot deliver the cards twice.
+      const claimed = await claimBookingDelivery(admin, shop.id, bookingIds);
+      if (claimed) {
+        try {
+          await pushMessage(token, payload.line_user_id, packBookingMessages(confirmCards, paymentFlex));
+          linePushSent = true;
+          qrPaymentCreated = Boolean(paymentFlex);
+        } catch (e) {
+          linePushError = e instanceof Error ? e.message : 'unknown error';
+          await releaseBookingDelivery(admin, shop.id, bookingIds);
+          await admin.from('activity_logs').insert({
+            company_id: shop.company_id,
+            shop_id: shop.id,
+            action: 'line_push_booking_failed',
+            description: linePushError,
+          });
+        }
       }
     } else {
       linePushError = 'LINE channel access token is missing';
-    }
-  }
-
-  // Payment card goes after the confirmation card(s) so the chat reads in order.
-  let qrPaymentCreated = false;
-  if (paymentFlex && payload.line_user_id) {
-    try {
-      const { data: shopLine } = await admin
-        .from('shops')
-        .select('line_channel_access_token')
-        .eq('id', shop.id)
-        .maybeSingle();
-      const qrToken = shopLine?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
-      if (qrToken) {
-        await pushMessage(qrToken, payload.line_user_id, [paymentFlex]);
-        qrPaymentCreated = true;
-      }
-    } catch (payErr) {
-      console.error('[payments] payment push error (booking still created):', payErr instanceof Error ? payErr.message : payErr);
     }
   }
 
@@ -922,6 +925,8 @@ async function createBooking(
       line_push_sent: linePushSent,
       line_push_error: linePushError,
       qr_payment_created: qrPaymentCreated,
+      /** `echo` = client must send the booking echo (webhook replies with the cards) or call /booking-notify. */
+      line_delivery: lineDelivery,
       payment: paymentInfo,
     },
   });
