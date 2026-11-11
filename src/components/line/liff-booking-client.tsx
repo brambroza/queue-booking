@@ -1366,7 +1366,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
           <Stack spacing={1.25} sx={{ p: 1.75 }}>
             <KeyValueList rows={summaryRows} />
             {shop?.line_delivery_paused ? (
-              <Alert severity="info">ร้านส่งข้อความ LINE ไม่ได้ชั่วคราว — ดูสถานะคิวและชำระเงินที่หน้านี้ หรือกด "เช็คคิว" ในเมนูได้ตลอด</Alert>
+              <Alert severity="info">ร้านส่งข้อความ LINE ไม่ได้ชั่วคราว — ดูสถานะคิวและชำระเงินที่หน้านี้ หรือกด &quot;เช็คคิว&quot; ในเมนูได้ตลอด</Alert>
             ) : null}
             {awaitingPayment ? (
               <Alert severity="warning">คิวจะได้รับการยืนยันเมื่อชำระเงินเรียบร้อย หากไม่ชำระภายในเวลาที่กำหนด ระบบจะยกเลิกคิวให้อัตโนมัติ</Alert>

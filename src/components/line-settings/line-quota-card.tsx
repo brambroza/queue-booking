@@ -75,13 +75,13 @@ export function LineQuotaCard() {
         <p className="mt-1 text-xs text-slate-500">
           LINE OA ทุกแพ็กเกจส่งข้อความหาลูกค้าได้จำกัดต่อเดือน ข้อความที่ระบบ<strong>ส่งเอง</strong>ถึงลูกค้า (เรียกคิว เตือนคิว
           ใบเสร็จ ร้านยืนยัน/ยกเลิกคิว) นับโควตา ส่วนข้อความที่<strong>ตอบกลับ</strong>สิ่งที่ลูกค้าส่งมา (การ์ดยืนยัน+QR หลังจอง
-          "ได้รับสลิปแล้ว" "เช็คคิวของฉัน") ไม่นับ
+          &quot;ได้รับสลิปแล้ว&quot; &quot;เช็คคิวของฉัน&quot;) ไม่นับ
         </p>
       </div>
 
       {!q ? (
         <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-          ยังอ่านโควตาจาก LINE ไม่ได้ — ตรวจ Channel Access Token ด้านบน แล้วกด "อ่านค่าใหม่"
+          ยังอ่านโควตาจาก LINE ไม่ได้ — ตรวจ Channel Access Token ด้านบน แล้วกด &quot;อ่านค่าใหม่&quot;
         </p>
       ) : q.type === 'none' ? (
         <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">แพ็กเกจนี้ไม่จำกัดจำนวนข้อความ · ใช้ไปแล้ว {q.used.toLocaleString('th-TH')} ข้อความ</p>
