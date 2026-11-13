@@ -1,20 +1,29 @@
 'use client';
 
 import { ChangeEvent, useEffect, useState } from 'react';
-import { Card, CardContent, FormControlLabel, Switch, Typography } from '@mui/material';
+import { Card, CardContent, Divider, FormControlLabel, Stack, Switch, Typography } from '@mui/material';
 import { useToast } from '@/components/ui/toast';
 
+/** Shop flags on /portal/resources that change how LIFF shows the resource picker. */
+type ResourceFlags = {
+  require_resource_choice: boolean;
+  show_resource_capacity: boolean;
+};
+
+type ResourceFlagKey = keyof ResourceFlags;
+
 /**
- * Shop switch on /portal/resources: hide the LIFF "ไม่ระบุสนาม / ผู้ให้บริการ"
- * option so customers must pick a resource. Saves on toggle through
- * `/api/shop-display-settings` (same pattern as the switches on /portal/services)
- * and reverts when the server refuses.
+ * Shop switches on /portal/resources:
+ * - hide the LIFF "ไม่ระบุสนาม / ผู้ให้บริการ" option so customers must pick a resource;
+ * - show / hide the "N ที่นั่ง" text on LIFF resource cards (default shown).
+ * Each switch saves on toggle through `/api/shop-display-settings` (same pattern as
+ * the switches on /portal/services) and reverts when the server refuses.
  */
 export function ResourceChoiceSettingCard() {
   const { push } = useToast();
-  const [required, setRequired] = useState(false);
+  const [flags, setFlags] = useState<ResourceFlags>({ require_resource_choice: false, show_resource_capacity: true });
   const [loaded, setLoaded] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<ResourceFlagKey | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -22,7 +31,12 @@ export function ResourceChoiceSettingCard() {
       try {
         const res = await fetch('/api/shop-display-settings', { cache: 'no-store' });
         const json = await res.json();
-        if (alive && res.ok) setRequired(json.data?.require_resource_choice === true);
+        if (alive && res.ok) {
+          setFlags({
+            require_resource_choice: json.data?.require_resource_choice === true,
+            show_resource_capacity: json.data?.show_resource_capacity !== false,
+          });
+        }
       } finally {
         if (alive) setLoaded(true);
       }
@@ -32,49 +46,73 @@ export function ResourceChoiceSettingCard() {
     };
   }, []);
 
-  /** Commit the switch straight away; revert on failure so the UI never lies. */
-  async function onToggle(next: boolean) {
-    setRequired(next);
-    setSaving(true);
+  /**
+   * Commit one switch straight away; revert on failure so the UI never lies.
+   * @param key - Flag to write.
+   * @param next - New value.
+   */
+  async function onToggle(key: ResourceFlagKey, next: boolean) {
+    setFlags((f) => ({ ...f, [key]: next }));
+    setSaving(key);
     try {
       const res = await fetch('/api/shop-display-settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ require_resource_choice: next }),
+        body: JSON.stringify({ [key]: next }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setRequired(!next);
+        setFlags((f) => ({ ...f, [key]: !next }));
         push(json.error ?? 'บันทึกการตั้งค่าไม่สำเร็จ', 'error');
         return;
       }
       push('บันทึกการตั้งค่าแล้ว');
     } catch {
-      setRequired(!next);
+      setFlags((f) => ({ ...f, [key]: !next }));
       push('บันทึกการตั้งค่าไม่สำเร็จ', 'error');
     } finally {
-      setSaving(false);
+      setSaving(null);
     }
   }
 
   return (
     <Card>
       <CardContent>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={required}
-              disabled={!loaded || saving}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => void onToggle(e.target.checked)}
+        <Stack spacing={2} divider={<Divider flexItem />}>
+          <div>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={flags.require_resource_choice}
+                  disabled={!loaded || saving !== null}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => void onToggle('require_resource_choice', e.target.checked)}
+                />
+              }
+              label="ลูกค้าต้องเลือกสนาม / ห้อง / ผู้ให้บริการ (ปิดตัวเลือก “ไม่ระบุ”)"
             />
-          }
-          label="ลูกค้าต้องเลือกสนาม / ห้อง / ผู้ให้บริการ (ปิดตัวเลือก “ไม่ระบุ”)"
-        />
-        <Typography variant="caption" color="text.secondary" display="block">
-          เปิดแล้ว หน้าจองใน LINE จะไม่มีตัวเลือก &quot;ไม่ระบุ&quot; ลูกค้าต้องเลือกทรัพยากรก่อนจึงจะไปขั้นเลือกเวลาได้
-          และราคาจะคิดตามทรัพยากรที่เลือก มีผลเฉพาะบริการที่มีทรัพยากรให้เลือก พนักงานยังสร้างคิวแบบไม่ระบุจากระบบได้
-          มีผลทั้งร้าน (หน้าจองอาจใช้เวลาไม่เกิน 1 นาทีกว่าจะเห็นค่าใหม่)
-        </Typography>
+            <Typography variant="caption" color="text.secondary" display="block">
+              เปิดแล้ว หน้าจองใน LINE จะไม่มีตัวเลือก &quot;ไม่ระบุ&quot; ลูกค้าต้องเลือกทรัพยากรก่อนจึงจะไปขั้นเลือกเวลาได้
+              และราคาจะคิดตามทรัพยากรที่เลือก มีผลเฉพาะบริการที่มีทรัพยากรให้เลือก พนักงานยังสร้างคิวแบบไม่ระบุจากระบบได้
+              มีผลทั้งร้าน (หน้าจองอาจใช้เวลาไม่เกิน 1 นาทีกว่าจะเห็นค่าใหม่)
+            </Typography>
+          </div>
+          <div>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={flags.show_resource_capacity}
+                  disabled={!loaded || saving !== null}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => void onToggle('show_resource_capacity', e.target.checked)}
+                />
+              }
+              label="แสดงจำนวนที่นั่ง (เช่น “1 ที่นั่ง”) ให้ลูกค้าเห็นตอนเลือก"
+            />
+            <Typography variant="caption" color="text.secondary" display="block">
+              ปิดแล้ว การ์ดสนาม / ห้อง / โต๊ะ ในหน้าจอง LINE จะไม่มีข้อความ &quot;N ที่นั่ง&quot; เหมาะกับร้านที่ทุกทรัพยากรรับ 1 คิว เช่น สนามกีฬา
+              เป็นแค่การแสดงผล จำนวนที่นั่งยังใช้คำนวณการจองเหมือนเดิม (หน้าจองอาจใช้เวลาไม่เกิน 1 นาทีกว่าจะเห็นค่าใหม่)
+            </Typography>
+          </div>
+        </Stack>
       </CardContent>
     </Card>
   );

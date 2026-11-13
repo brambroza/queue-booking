@@ -7,7 +7,7 @@ import { PUBLIC_CACHE_HEADERS } from '@/lib/cache/http';
 import { getShopPaymentConfig, toPublicPaymentInfo } from '@/lib/payments/settings';
 import { isBookingEchoEnabled } from '@/lib/line/booking-echo';
 import { isLineDeliveryPausedCached } from '@/lib/line/quota-server';
-import { isMultiSlotEnabled, isOneBookingPerDay, isResourceChoiceRequired, isServiceDurationVisible } from '@/lib/booking/display-settings';
+import { isMultiSlotEnabled, isOneBookingPerDay, isResourceCapacityVisible, isResourceChoiceRequired, isServiceDurationVisible } from '@/lib/booking/display-settings';
 import { getShopBookingWindows, resolveMaxBookingDate, resolveMinBookingDate } from '@/lib/booking/booking-window';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import { getFnbAccess } from '@/lib/subscription/features';
@@ -45,6 +45,7 @@ async function loadMeta(admin: ReturnType<typeof createAdminClient>, shop: Resol
     oneBookingPerDay,
     multiSlotEnabled,
     requireResourceChoice,
+    showResourceCapacity,
     bookingWindows,
     fnbAccess,
     releaseTimes,
@@ -65,6 +66,7 @@ async function loadMeta(admin: ReturnType<typeof createAdminClient>, shop: Resol
     isOneBookingPerDay(admin, shop.id),
     isMultiSlotEnabled(admin, shop.id),
     isResourceChoiceRequired(admin, shop.id),
+    isResourceCapacityVisible(admin, shop.id),
     // Read apart from the branch select above so the page still loads on a
     // database where migration 202609290002 has not run.
     getShopBookingWindows(admin, shop.id),
@@ -104,6 +106,8 @@ async function loadMeta(admin: ReturnType<typeof createAdminClient>, shop: Resol
       multi_slot_enabled: multiSlotEnabled,
       // Hides the "ไม่ระบุ" resource option; /book enforces it too.
       require_resource_choice: requireResourceChoice,
+      // Hides "N ที่นั่ง" on LIFF resource cards (display only).
+      show_resource_capacity: showResourceCapacity,
       fnb_enabled: fnbAccess.enabled,
       line_delivery_paused: lineDeliveryPaused,
     },

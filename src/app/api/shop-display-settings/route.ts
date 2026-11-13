@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuthContext, getErrorStatus } from '@/lib/auth/context';
-import { isMultiSlotEnabled, isOneBookingPerDay, isResourceChoiceRequired, isServiceDurationVisible } from '@/lib/booking/display-settings';
+import {
+  isMultiSlotEnabled,
+  isOneBookingPerDay,
+  isResourceCapacityVisible,
+  isResourceChoiceRequired,
+  isServiceDurationVisible,
+} from '@/lib/booking/display-settings';
 
 // Each switch on the Services / Resources pages saves on its own, so every key is optional
 // and only the keys present are written.
@@ -11,6 +17,7 @@ const PatchSchema = z
     one_booking_per_day: z.boolean().optional(),
     multi_slot_enabled: z.boolean().optional(),
     require_resource_choice: z.boolean().optional(),
+    show_resource_capacity: z.boolean().optional(),
   })
   .refine((b) => Object.values(b).some((v) => v !== undefined), {
     message: 'nothing to update',
@@ -23,11 +30,12 @@ export async function GET() {
       roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'],
     });
     const shopId = profile.shop_id as string;
-    const [showServiceDuration, oneBookingPerDay, multiSlotEnabled, requireResourceChoice] = await Promise.all([
+    const [showServiceDuration, oneBookingPerDay, multiSlotEnabled, requireResourceChoice, showResourceCapacity] = await Promise.all([
       isServiceDurationVisible(supabase, shopId),
       isOneBookingPerDay(supabase, shopId),
       isMultiSlotEnabled(supabase, shopId),
       isResourceChoiceRequired(supabase, shopId),
+      isResourceCapacityVisible(supabase, shopId),
     ]);
     return NextResponse.json({
       data: {
@@ -35,6 +43,7 @@ export async function GET() {
         one_booking_per_day: oneBookingPerDay,
         multi_slot_enabled: multiSlotEnabled,
         require_resource_choice: requireResourceChoice,
+        show_resource_capacity: showResourceCapacity,
       },
     });
   } catch (e) {
@@ -55,6 +64,7 @@ export async function PATCH(req: Request) {
     if (body.one_booking_per_day !== undefined) patch.one_booking_per_day = body.one_booking_per_day;
     if (body.multi_slot_enabled !== undefined) patch.multi_slot_enabled = body.multi_slot_enabled;
     if (body.require_resource_choice !== undefined) patch.require_resource_choice = body.require_resource_choice;
+    if (body.show_resource_capacity !== undefined) patch.show_resource_capacity = body.show_resource_capacity;
 
     const { error } = await supabase.from('shops').update(patch).eq('id', profile.shop_id);
     if (error) {
@@ -68,6 +78,7 @@ export async function PATCH(req: Request) {
         one_booking_per_day: body.one_booking_per_day,
         multi_slot_enabled: body.multi_slot_enabled,
         require_resource_choice: body.require_resource_choice,
+        show_resource_capacity: body.show_resource_capacity,
       },
     });
   } catch (e) {

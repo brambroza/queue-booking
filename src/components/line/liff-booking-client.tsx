@@ -156,6 +156,8 @@ type ShopMeta = {
   multi_slot_enabled?: boolean;
   /** On when the customer must pick a resource — the "ไม่ระบุ" option is hidden. */
   require_resource_choice?: boolean;
+  /** false = hide "N ที่นั่ง" on resource cards (default shown). */
+  show_resource_capacity?: boolean;
   /** On when the shop lets checked-in customers order food and drinks (plan + owner switch). */
   fnb_enabled?: boolean;
   /** True while the shop's LINE OA is out of monthly push quota: chat cards will not arrive, the screen is the source. */
@@ -470,6 +472,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   // Duration drives slot generation but is internal for some shops — they turn
   // it off in the portal Services page. Unset means visible.
   const showDuration = shop?.show_service_duration !== false;
+  const showResourceCapacity = shop?.show_resource_capacity !== false;
 
   /**
    * Booking this customer already holds on the chosen day when the shop limits
@@ -1786,7 +1789,7 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                         title={resourceDisplayName(r)}
                         subtitle={[
                           resourceTypeLabel(r.resource_type),
-                          !isPerson && r.capacity ? `${r.capacity} ที่นั่ง` : '',
+                          showResourceCapacity && !isPerson && r.capacity ? `${r.capacity} ที่นั่ง` : '',
                           resourceLocationText(r),
                         ]
                           .filter(Boolean)

@@ -116,7 +116,7 @@ src/
 | `/api/line-settings` | LINE OA configuration |
 | `/api/customer-guide` | Data for the customer how-to image on `/portal/line-settings`: OA `basic_id` + add-friend URL (LINE `/v2/bot/info` with the shop token), saved rich menu config (or business template) + `is_saved` / `is_published`, first 3 active services, example `slot_times` from working hours, first `branch_name`, `logo_url` (https only) |
 | `/api/settings` | Shop settings |
-| `/api/shop-display-settings` | Customer-facing flags on `shops`: `show_service_duration`, `one_booking_per_day`, `multi_slot_enabled`, `require_resource_choice` (GET all, staff may read; PATCH keys optional) |
+| `/api/shop-display-settings` | Customer-facing flags on `shops`: `show_service_duration`, `one_booking_per_day`, `multi_slot_enabled`, `require_resource_choice`, `show_resource_capacity` (GET all, staff may read; PATCH keys optional) |
 | `/api/fnb-settings` | F&B ordering switch (`shops.fnb_enabled`); turning ON needs Professional+ (`assertFnbPlan`, 402 `feature_locked`), OFF always allowed |
 | `/api/fnb-menu` | F&B menu CRUD (writes plan-gated; "sold out" toggle `is_available` allowed on any plan) |
 | `/api/fnb-orders` | Staff order board: GET open/all, PATCH status new→preparing→served/cancelled + LINE push to customer |
@@ -369,6 +369,7 @@ Shop switch `shops.require_resource_choice` (default off) on `/portal/resources`
 - Only when the service has resources to pick; staff (`/api/bookings`) not affected; chatbot does not book
 - Rules + vitest `src/lib/booking/resource-choice.ts`; flag read defensively `isResourceChoiceRequired` (`display-settings.ts`)
 - Migration `202611060001_require_resource_choice.sql` (**run before use** — not run = switch off, saving it fails)
+- Second switch on the same card (2026-11-13): `shops.show_resource_capacity` (default **on**) — off hides "N ที่นั่ง" on LIFF resource cards (vspin courts all capacity 1). Display only; `/meta` sends `shop.show_resource_capacity`, read via `isResourceCapacityVisible` (error = shown). Migration `202611130001_show_resource_capacity.sql` (not run = text shown, saving the switch fails). Mobile app never showed it
 
 ## Resource / Service Images (ช่วยลูกค้าจำสนาม/ห้อง)
 
@@ -495,6 +496,14 @@ Paid add-on (`shop_addons.addon_key = 'sheet_signage'`, sold outside the plans, 
 - Parser (pure + vitest) `src/lib/signage/sheet/parse-rows.ts`: headers by name (`SHEET_HEADER_ALIASES`, any order), `สถานะ` required + one of `เลขคิว|ชื่อสัตว์|ชื่อเจ้าของ`; date column = today only (D/M/Y, Buddhist year ok), no date column = every row; status words `SHEET_STATUS_ALIASES` (blank = รอ, ยกเลิก dropped); pet name → `customers.nickname` with species emoji, owner → `full_name`; `ฉุกเฉิน` → `priority: 'emergency'` (front of the waiting line via `byQueueOrder` in `normalize.ts`, 🚨, "ฉุกเฉิน · " on the service); `เวลาเรียก` → `called_at`. The phone column is never read
 - Portal: `SheetSourceCard` (`src/components/signage/sheet-source-card.tsx`) above the designer on `/portal/queue-display`, rendered **only when the add-on is live** for the shop (not migrated / not bought / expired = nothing, no teaser); designer shows an info/error alert when the scope reads the sheet. Template `public/templates/vet-queue-sheet-template.csv`, guide + `onEdit` Apps Script (stamps เวลาเรียก) at `public/docs/sheet-signage-guide.html`
 - Not done: Apps Script push / instant ping, custom column mapping UI, "last updated" badge on the TV when serving stale data, two-way sync with LIFF bookings, add-on billing. Untested against a real Google service account
+
+## Customer Mobile App (`mobile/`, 2026-11-13)
+
+Expo SDK 58 / React Native app for customers (iOS + Android), separate from the web: own `package.json`, excluded in root `tsconfig.json` and `.vercelignore`. Details in `mobile/README.md`
+- Sign-in = LINE Login SDK (`@xmartlabs/react-native-line`) on the platform channel `LINE_LOGIN_CHANNEL_ID`; the app sends `id_token` + `line_user_id` to the **unchanged** `/api/public/shop/[shopKey]/*` routes (`resolveLiffCaller` accepts it via the platform channel id). No server code, no migration
+- `will_echo: false` on `/book` → the server pushes the LINE confirm as for an external browser; notifications stay on LINE
+- Shops on their own LINE provider get a different user id from the app, so their LIFF history is not visible in the app (per-shop link needs `/api/app/*`, not built)
+- `mobile/src/lib/calendar.ts` / `booking-status.ts` copy rules from `src/lib/booking/bookable-days.ts` / `status-flow.ts` — change both together
 
 ## Landing Page v2 (`/`, 2026-11-10)
 

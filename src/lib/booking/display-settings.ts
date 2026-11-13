@@ -93,3 +93,24 @@ export async function isResourceChoiceRequired(client: SupabaseClient, shopId: s
   if (error) return false;
   return (data as { require_resource_choice?: boolean } | null)?.require_resource_choice === true;
 }
+
+/**
+ * Whether LIFF resource cards show the capacity text ("N ที่นั่ง").
+ *
+ * `shops.show_resource_capacity` ships in migration 202611130001. Until that
+ * has run the query errors, so a failure resolves to the column default (shown)
+ * and the booking page looks exactly as before.
+ *
+ * @param client - Supabase client already allowed to read this shop.
+ * @param shopId - Shop to read the flag for.
+ * @returns false only when the shop explicitly turned the text off.
+ */
+export async function isResourceCapacityVisible(client: SupabaseClient, shopId: string): Promise<boolean> {
+  const { data, error } = await client
+    .from('shops')
+    .select('show_resource_capacity')
+    .eq('id', shopId)
+    .maybeSingle();
+  if (error) return true;
+  return (data as { show_resource_capacity?: boolean } | null)?.show_resource_capacity !== false;
+}
