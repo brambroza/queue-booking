@@ -37,6 +37,7 @@ import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import { CAPACITY_RULE_WEEKDAYS } from '@/lib/booking/capacity-rules';
 import { useToast } from '@/components/ui/toast';
 import { ImageUploader } from '@/components/forms/image-uploader';
+import { ServicePriceRulesEditor } from '@/components/forms/service-price-rules-editor';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade-provider';
 import { BookingModeChip } from '@/components/shared/booking-mode-chip';
@@ -849,6 +850,12 @@ export function ServicesCrud() {
                     </Stack>
                   </AccordionDetails>
                 </Accordion>
+              </Grid>
+            ) : null}
+
+            {editingId ? (
+              <Grid size={12}>
+                <ServicePriceRulesEditor serviceId={editingId} servicePrice={price} branches={branches} />
               </Grid>
             ) : null}
 

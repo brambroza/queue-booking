@@ -43,6 +43,9 @@ import {
   restoredNote,
 } from '@/lib/booking/restore';
 import { isMultiSlotEnabled } from '@/lib/booking/display-settings';
+import { quoteOrder, toStoredBreakdown } from '@/lib/pricing/quote';
+import { loadServicePricing } from '@/lib/pricing/pricing-server';
+import { planPackageCharge, redeemPackage, reredeemPackageForBooking, safeRefundPackageForBooking, type PackagePlan } from '@/lib/packages/packages-server';
 import { escapePostgrestSearch } from '@/lib/utils/postgrest';
 import { bookingOrderColumns, parseBookingSort } from '@/lib/booking/list-sort';
 import {
@@ -374,6 +377,42 @@ export async function POST(req: Request) {
       }
     }
 
+    // Same engine as LIFF: time-range price + consecutive discount, or the
+    // old flat price when there are no rules / plan below Professional.
+    const { pricing, schemaReady: pricingSchemaReady } = await loadServicePricing(supabase, {
+      shopId: profile.shop_id,
+      serviceId: payload.service_id,
+      servicePrice: Number((service as unknown as { price?: number } | null)?.price ?? 0),
+      planCode,
+    });
+    const quote = quoteOrder(pricing, [
+      {
+        date: payload.booking_date,
+        startTime: payload.start_time,
+        slotCount,
+        unitMinutes: unitMin,
+        branchId: payload.branch_id,
+        resourceId: assignedResource?.resource_id ?? null,
+        resourceUnitPrice: assignedResource?.unit_price ?? null,
+      },
+    ]);
+    const priceLine = quote.lines[0];
+
+    // Staff may take the hours from the customer's prepaid package.
+    let packagePlan: PackagePlan | null = null;
+    if (payload.customer_package_id) {
+      if (!customerId) return NextResponse.json({ error: 'ไม่พบลูกค้า', code: 'package_unavailable' }, { status: 409 });
+      const planned = await planPackageCharge(createAdminClient(), {
+        shopId: profile.shop_id,
+        customerId,
+        customerPackageId: payload.customer_package_id,
+        serviceId: payload.service_id,
+        queues: [{ date: payload.booking_date, startTime: payload.start_time, slotCount, unitMinutes: unitMin }],
+      });
+      if (!planned.ok) return NextResponse.json({ error: planned.message, code: planned.code }, { status: planned.status });
+      packagePlan = planned;
+    }
+
     const { data: inserted, error } = await supabase
       .from('bookings')
       .insert({
@@ -392,6 +431,7 @@ export async function POST(req: Request) {
         resource_id: assignedResource?.resource_id ?? null,
         resource_name: assignedResource?.resource_name ?? null,
         resource_capacity: assignedResource?.capacity ?? null,
+        ...(pricingSchemaReady && priceLine ? { price_amount: priceLine.amount, price_breakdown: toStoredBreakdown(priceLine, { unitMinutes: unitMin, discount: pricing.enabled ? pricing.discount : null }) } : {}),
         note: payload.note,
         created_by: user.id,
         updated_by: user.id,
@@ -401,6 +441,20 @@ export async function POST(req: Request) {
 
     if (error || !inserted) throw error ?? new Error('Create booking failed');
     const queueNumber = String(inserted.queue_number);
+
+    if (packagePlan && customerId) {
+      const redeemed = await redeemPackage(createAdminClient(), {
+        shopId: profile.shop_id,
+        customerId,
+        customerPackageId: packagePlan.pkg.id,
+        items: [{ bookingId: inserted.id, minutes: packagePlan.minutes }],
+        actor: user.id,
+      });
+      if (!redeemed.ok) {
+        await supabase.from('bookings').update({ status: 'cancelled', is_deleted: true }).eq('id', inserted.id).eq('shop_id', profile.shop_id);
+        return NextResponse.json({ error: redeemed.message, code: redeemed.code }, { status: redeemed.status });
+      }
+    }
 
     await supabase.from('booking_logs').insert({
       company_id: profile.company_id,
@@ -488,11 +542,10 @@ export async function POST(req: Request) {
         linePushError = 'LINE token not configured';
       }
 
-      // Payment setup — non-blocking, never fails the booking
-      try {
-        const resourcePrice = Number(assignedResource?.unit_price ?? 0);
-        const servicePrice = Number((service as unknown as { price?: number } | null)?.price ?? 0);
-        const paymentPrice = (resourcePrice > 0 ? resourcePrice : servicePrice) * slotCount;
+      // Payment setup — non-blocking, never fails the booking. Nothing to
+      // collect when the hours came from a prepaid package.
+      if (!packagePlan) try {
+        const paymentPrice = quote.total;
         const payment = await resolvePaymentForBooking({
           bookingId: inserted.id,
           shopId: profile.shop_id,
@@ -659,6 +712,19 @@ async function restoreCancelledBooking(args: {
         );
       }
     }
+  }
+
+  // Queues paid with a prepaid package got their minutes back on cancel; take
+  // them again (all or nothing) before anything is restored.
+  const packageAdmin = createAdminClient();
+  const reredeemed: string[] = [];
+  for (const row of group) {
+    const result = await reredeemPackageForBooking(packageAdmin, { shopId, bookingId: row.id, actor: args.userId });
+    if (!result.ok) {
+      for (const id of reredeemed) await safeRefundPackageForBooking(packageAdmin, { shopId, bookingId: id, note: 'restore rolled back', actor: args.userId });
+      return NextResponse.json({ error: `คิว ${row.queue_number ?? row.id}: ${result.message}`, code: result.code }, { status: result.status });
+    }
+    reredeemed.push(row.id);
   }
 
   const restored: RestoreRow[] = [];
@@ -950,14 +1016,26 @@ export async function PATCH(req: Request) {
         update.resource_name = selected?.resource_name ?? null;
         update.resource_capacity = selected ? Number(selected.capacity ?? 1) : null;
       }
-      const { error } = await supabase.from('bookings').update(update).eq('id', id).eq('shop_id', profile.shop_id);
+      const { data: updatedRow, error } = await supabase
+        .from('bookings')
+        .update(update)
+        .eq('id', id)
+        .eq('shop_id', profile.shop_id)
+        .select('queue_number')
+        .maybeSingle();
       if (error) throw error;
 
-      const queueLabel = before.queue_number ?? id;
+      // Moving to another day can re-issue the queue number when the old one is
+      // taken there (trigger trg_bookings_reassign_queue_number, 202611160001).
+      const newQueueNumber = (updatedRow?.queue_number as string | null | undefined) ?? before.queue_number;
+      const queueLabel = newQueueNumber ?? id;
       const nextResourceType = selected?.resource_type ?? prevResource?.resource_type ?? null;
       const assignedLabel = resourceTypeLabel(nextResourceType);
       const logLines: string[] = [];
-      if (slotChanged) logLines.push(`Rescheduled ${queueLabel} to ${newDate} ${newTime.slice(0, 5)}`);
+      if (slotChanged) logLines.push(`Rescheduled ${before.queue_number ?? id} to ${newDate} ${newTime.slice(0, 5)}`);
+      if (newQueueNumber && before.queue_number && newQueueNumber !== before.queue_number) {
+        logLines.push(`Queue number ${before.queue_number} → ${newQueueNumber} (taken on ${newDate})`);
+      }
       if (resourceChanged) {
         logLines.push(selected ? `Assigned ${assignedLabel} ${selected.resource_name} to ${queueLabel}` : `Removed assigned resource from ${queueLabel}`);
       }
@@ -1040,6 +1118,10 @@ export async function PATCH(req: Request) {
     if (error) throw error;
 
     const isCancelled = status === 'cancelled';
+    // Minutes paid from a prepaid package go back on cancel (not on no_show). Once per redeem.
+    if (isCancelled) {
+      await safeRefundPackageForBooking(createAdminClient(), { shopId: profile.shop_id, bookingId: id, note: 'cancelled by staff', actor: user.id });
+    }
     const isApproval = isApprovalTransition(before.status as string, status);
     await safeCreateNotification(supabase, {
       companyId: profile.company_id,
@@ -1112,6 +1194,8 @@ export async function DELETE(req: Request) {
       .eq('shop_id', profile.shop_id);
 
     if (error) throw error;
+
+    await safeRefundPackageForBooking(createAdminClient(), { shopId: profile.shop_id, bookingId: id, note: 'deleted by staff', actor: user.id });
 
     // Notify only after the soft-delete is committed, so a failed write never
     // tells the customer their queue is gone while the row is still live. The

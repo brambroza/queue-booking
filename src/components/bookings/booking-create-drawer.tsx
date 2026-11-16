@@ -25,6 +25,7 @@ import type { Branch, LineUser, Resource, Service } from './booking-types';
 import { filterResourcesForService } from '@/lib/booking/resource-service-link';
 import { resolveMaxBookingDate, resolveMinBookingDate } from '@/lib/booking/booking-window';
 import { maxSlotCount, minSlotCount, slotUnitMinutes } from '@/lib/booking/multi-slot';
+import { quoteOrder, quoteSummaryLabel, type ConsecutiveDiscount, type PriceRule } from '@/lib/pricing/quote';
 
 export type CreateDraft = {
   branch_id: string;
@@ -162,7 +163,45 @@ export function BookingCreateDrawer({
     if (draft.resource_id && !selectedResource) setDraft((p) => ({ ...p, resource_id: '', slot_count: '' }));
   }, [draft.resource_id, selectedResource]);
   const slotCount = Math.max(1, Number(draft.slot_count) || 1);
-  const totalPrice = slotPrice(selectedService, selectedResource) * slotCount;
+  /** Time-range prices of the chosen service (Professional+); null = plain price. */
+  const [servicePricing, setServicePricing] = useState<{ rules: PriceRule[]; discount: ConsecutiveDiscount | null } | null>(null);
+  useEffect(() => {
+    setServicePricing(null);
+    if (!draft.service_id) return;
+    let cancelled = false;
+    fetch(`/api/services/${draft.service_id}/price-rules`, { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const data = json?.data as { plan_allowed?: boolean; rules?: PriceRule[]; discount?: ConsecutiveDiscount | null } | undefined;
+        if (!cancelled && data?.plan_allowed) setServicePricing({ rules: data.rules ?? [], discount: data.discount ?? null });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [draft.service_id]);
+  // Same engine as /api/bookings; the server re-prices on save.
+  const priceQuote = quoteOrder(
+    {
+      servicePrice: Number(selectedService?.price ?? 0),
+      rules: servicePricing?.rules ?? [],
+      discount: servicePricing?.discount ?? null,
+      enabled: Boolean(servicePricing && draft.start_time),
+    },
+    [
+      {
+        date: draft.booking_date || getTodayISOInBangkok(),
+        startTime: draft.start_time || '00:00',
+        slotCount,
+        unitMinutes: selectedService ? slotUnitMinutes(selectedService) : 60,
+        branchId: draft.branch_id || null,
+        resourceId: draft.resource_id || null,
+        resourceUnitPrice: Number(selectedResource?.unit_price ?? 0),
+      },
+    ],
+  );
+  const totalPrice = priceQuote.ruled ? priceQuote.total : slotPrice(selectedService, selectedResource) * slotCount;
+  const priceSummary = quoteSummaryLabel(priceQuote);
 
   /** LINE profile avatar + "nickname (display name)" for the picker. */
   function renderLineUser(u: LineUser) {
@@ -298,7 +337,7 @@ export function BookingCreateDrawer({
               <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ borderRadius: 2, bgcolor: 'action.hover', px: 2, py: 1.25 }}>
                 <Typography variant="body2" color="text.secondary">
                   {t('price', 'ราคา')}
-                  {slotCount > 1 ? ` (${formatBaht(totalPrice / slotCount)} × ${slotCount} ${t('round', 'รอบ')})` : ''}
+                  {priceSummary ? ` (${priceSummary})` : slotCount > 1 ? ` (${formatBaht(totalPrice / slotCount)} × ${slotCount} ${t('round', 'รอบ')})` : ''}
                 </Typography>
                 <Typography variant="subtitle1" fontWeight={700}>{formatBaht(totalPrice)}</Typography>
               </Stack>

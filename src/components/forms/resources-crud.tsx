@@ -17,13 +17,14 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { RESOURCE_TYPES, resourceTypeIcon, resourceTypeLabel, type ResourceType } from '@/lib/booking/resource-types';
 import { ImageUploader } from '@/components/forms/image-uploader';
 import { ResourceChoiceSettingCard } from '@/components/forms/resource-choice-setting-card';
+import { ResourcePriceRulesCard } from '@/components/forms/resource-price-rules-card';
 import { RESOURCE_IMAGE_MAX } from '@/lib/storage/shop-assets';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import BoltRoundedIcon from '@mui/icons-material/BoltRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 
 type Branch = { id: string; branch_name: string };
-type Service = { id: string; service_name: string; active?: boolean };
+type Service = { id: string; service_name: string; active?: boolean; price?: number | string | null };
 type Resource = {
   id: string;
   branch_id: string | null;
@@ -247,6 +248,7 @@ export function ResourcesCrud() {
   return (
     <div className="space-y-4">
       <ResourceChoiceSettingCard />
+      <ResourcePriceRulesCard services={services} branches={branches} />
       <div className="card p-4">
         {/* Phones: search full width, 2 filters per row, full-width search button. md+: one row of 6 (unchanged). */}
         <div className="grid grid-cols-2 gap-2 md:grid-cols-6">

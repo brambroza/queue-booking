@@ -114,3 +114,15 @@ export async function isResourceCapacityVisible(client: SupabaseClient, shopId: 
   if (error) return true;
   return (data as { show_resource_capacity?: boolean } | null)?.show_resource_capacity !== false;
 }
+
+/**
+ * Shop switch `shops.liff_show_packages` (migration 202611160004): always show
+ * the "แพ็กเกจของฉัน" section on the LIFF member page, even when empty.
+ *
+ * @returns true only when the shop turned it on; false on any error / before the migration.
+ */
+export async function isLiffPackagesAlwaysShown(client: SupabaseClient, shopId: string): Promise<boolean> {
+  const { data, error } = await client.from('shops').select('liff_show_packages').eq('id', shopId).maybeSingle();
+  if (error) return false;
+  return (data as { liff_show_packages?: boolean } | null)?.liff_show_packages === true;
+}

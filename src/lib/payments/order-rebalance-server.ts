@@ -12,6 +12,7 @@ import {
   retargetOrderNote,
 } from './payment-hold';
 import { resolvePaymentForBooking } from './resolve';
+import { parseStoredBreakdown, requoteStoredOrder, type StoredPriceBreakdown } from '@/lib/pricing/quote';
 
 /**
  * A customer cancelled one queue of a multi-pick order (A002 + A003 paid
@@ -50,10 +51,32 @@ type OrderRow = {
   payment_expires_at: string | null;
   bank_provider: string | null;
   payment_hold_booking_id: string | null;
+  resource_id?: string | null;
+  price_amount?: number | null;
+  price_breakdown?: unknown;
 };
 
 const ORDER_COLUMNS =
-  'id,company_id,branch_id,service_id,queue_number,booking_date,start_time,status,note,payment_status,payment_method,payment_amount,payment_expires_at,bank_provider,payment_hold_booking_id';
+  'id,company_id,branch_id,service_id,queue_number,booking_date,start_time,status,note,payment_status,payment_method,payment_amount,payment_expires_at,bank_provider,payment_hold_booking_id,resource_id';
+/** Columns from 202611160002; read separately so an older database still re-prices proportionally. */
+const PRICE_COLUMNS = 'id,price_amount,price_breakdown';
+
+/**
+ * New amount of the queues still active, from the price stored on each queue
+ * (time-range price; the consecutive discount re-applied only between the
+ * queues that remain). Null when any queue has no stored price — the caller
+ * then scales the old amount by the number of queues as before.
+ */
+function storedOrderAmount(active: OrderRow[]): { total: number; perQueue: Map<string, { amount: number; breakdown: StoredPriceBreakdown }> } | null {
+  const queues = active.map((r) => ({ row: r, breakdown: parseStoredBreakdown(r.price_breakdown) }));
+  if (queues.some((q) => !q.breakdown)) return null;
+  const result = requoteStoredOrder(
+    queues.map((q) => ({ date: q.row.booking_date, resourceId: q.row.resource_id ?? null, breakdown: q.breakdown! })),
+  );
+  const perQueue = new Map<string, { amount: number; breakdown: StoredPriceBreakdown }>();
+  queues.forEach((q, i) => perQueue.set(q.row.id, { amount: result.amounts[i], breakdown: result.breakdowns[i] }));
+  return { total: result.total, perQueue };
+}
 
 const PAYMENT_METHODS: readonly PaymentMethod[] = ['omise_promptpay', 'omise_mobile_banking', 'bank_transfer', 'bank_deeplink'];
 
@@ -92,6 +115,18 @@ export async function rebalanceOrderAfterCustomerCancel(
       return { kind: 'none' };
     }
     const rows = (data ?? []) as OrderRow[];
+    const { data: priceRows, error: priceError } = await admin
+      .from('bookings')
+      .select(PRICE_COLUMNS)
+      .eq('shop_id', opts.shopId)
+      .in('id', rows.map((r) => r.id));
+    if (!priceError) {
+      const byId = new Map(((priceRows ?? []) as Array<{ id: string; price_amount: number | null; price_breakdown: unknown }>).map((p) => [p.id, p]));
+      for (const r of rows) {
+        r.price_amount = byId.get(r.id)?.price_amount ?? null;
+        r.price_breakdown = byId.get(r.id)?.price_breakdown ?? null;
+      }
+    }
     const payer = rows.find((r) => r.id === holdId);
     // Single-queue order, or the payer row is gone: nothing to re-price.
     if (!payer || rows.length < 2) return { kind: 'none' };
@@ -104,7 +139,10 @@ export async function rebalanceOrderAfterCustomerCancel(
 
     const amount = Number(payer.payment_amount ?? 0);
     if (!(amount > 0)) return { kind: 'none' };
-    const newAmount = rebalancedOrderAmount(amount, activeBefore, activeAfter);
+    // Queues priced one by one (time-range price / consecutive discount) are
+    // re-priced from what was stored; older orders are scaled as before.
+    const stored = storedOrderAmount(active);
+    const newAmount = stored ? stored.total : rebalancedOrderAmount(amount, activeBefore, activeAfter);
     const payerQueue = payer.queue_number ?? '-';
     const cancelledQueue = rows.find((r) => r.id === opts.cancelledBookingId)?.queue_number ?? '-';
 
@@ -136,6 +174,17 @@ export async function rebalanceOrderAfterCustomerCancel(
 
     const target = pickOrderPayer(active, holdId);
     if (!target) return { kind: 'none' };
+
+    // Each remaining queue keeps its own (re-priced) amount for bills and reports.
+    if (stored) {
+      for (const [id, entry] of stored.perQueue) {
+        await admin
+          .from('bookings')
+          .update({ price_amount: entry.amount, price_breakdown: entry.breakdown })
+          .eq('id', id)
+          .eq('shop_id', opts.shopId);
+      }
+    }
     const targetQueue = target.queue_number ?? '-';
     const moved = target.id !== payer.id;
 

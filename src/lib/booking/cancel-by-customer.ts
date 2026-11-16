@@ -1,6 +1,7 @@
 import type { createAdminClient } from '@/lib/supabase/admin';
 import { safeCreateNotification } from '@/lib/notifications/createNotification';
 import { CUSTOMER_CANCELLABLE_STATUSES } from '@/lib/booking/status-flow';
+import { safeRefundPackageForBooking } from '@/lib/packages/packages-server';
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -100,6 +101,9 @@ export async function cancelBookingByCustomer(
     .eq('id', booking.id)
     .eq('shop_id', args.shopId);
   if (error) throw error;
+
+  // Minutes paid from a prepaid package go back to it (once per redeem).
+  await safeRefundPackageForBooking(admin, { shopId: args.shopId, bookingId: booking.id, note: `cancelled by customer (${args.source})` });
 
   const label = result.queue_number ?? result.id;
   await admin.from('booking_logs').insert({

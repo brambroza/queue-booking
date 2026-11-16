@@ -48,7 +48,12 @@ import { LiffDateCalendar } from '@/components/line/liff-date-calendar';
 import { bangkokTimeOf, isoToBangkokLocalDate, isReleased, NOT_RELEASED_CODE, releaseCountdown, releaseJitterMs } from '@/lib/booking/booking-release';
 import { fetchJsonWithBusyRetry } from '@/lib/line/liff-fetch';
 import { SLOT_FULL_CODE } from '@/lib/booking/slot-capacity';
-import { MAX_SLOTS_PER_ORDER, MULTI_PICK_INVALID_CODE, MULTI_SLOT_UNAVAILABLE_CODE, toggleSlotPick } from '@/lib/booking/multi-slot';
+import { MAX_SLOTS_PER_ORDER, MULTI_PICK_INVALID_CODE, MULTI_SLOT_UNAVAILABLE_CODE, slotUnitMinutes, toggleSlotPick } from '@/lib/booking/multi-slot';
+import { quoteOrder, quoteSummaryLabel, type ConsecutiveDiscount, type PriceRule } from '@/lib/pricing/quote';
+import { formatPackageMinutes } from '@/lib/packages/rules';
+import { composeLiffPackages, type LiffOwnedPackage, type ShopPackagesPublic } from '@/lib/packages/liff-view';
+import { LiffPriceBands } from '@/components/line/liff-price-bands';
+import { LiffPackagePayPicker, LiffPackagesPanel, packageChoicesFor, useLiffPackages } from '@/components/line/liff-packages';
 import { LiffPaymentPanel, openBankDeeplink } from '@/components/line/liff-payment-panel';
 import { paymentResumeKind, pickLinkedPaymentTarget, readLinkedBookingId } from '@/lib/line/liff-payment-link';
 import {
@@ -162,6 +167,8 @@ type ShopMeta = {
   fnb_enabled?: boolean;
   /** True while the shop's LINE OA is out of monthly push quota: chat cards will not arrive, the screen is the source. */
   line_delivery_paused?: boolean;
+  /** Shop sells / has sold prepaid hour packages; LIFF loads them only then. */
+  packages_enabled?: boolean;
 };
 type MyBooking = {
   id: string;
@@ -441,6 +448,14 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   const [queueNo, setQueueNo] = useState('');
   const [bookingResult, setBookingResult] = useState<BookingResult | null>(null);
   const [shopPayment, setShopPayment] = useState<ShopPaymentMeta | null>(null);
+  /** Shop-level package data from /meta (null = shop does not use packages). */
+  const [shopPackages, setShopPackages] = useState<ShopPackagesPublic | null>(null);
+  /** Caller's packages from /me (null = none / not loaded). */
+  const [myPackages, setMyPackages] = useState<LiffOwnedPackage[] | null>(null);
+  /** /me found a customer record (buying a package needs one). */
+  const [hasCustomer, setHasCustomer] = useState(false);
+  /** Time-range prices + consecutive discount per service id from /meta; {} = plain prices. */
+  const [pricingMap, setPricingMap] = useState<Record<string, { rules: PriceRule[]; discount: ConsecutiveDiscount | null }>>({});
   const [chosenMethod, setChosenMethod] = useState<PaymentMethod | ''>('');
   const [chosenBank, setChosenBank] = useState('');
   // Bank apps only exist on phones; assume mobile until the browser says otherwise
@@ -575,6 +590,8 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
     }
     setUpcoming(json.data?.upcoming ?? []);
     setHistory(json.data?.history ?? []);
+    setMyPackages(Array.isArray(json.data?.packages) ? (json.data.packages as LiffOwnedPackage[]) : null);
+    setHasCustomer(Boolean(json.data?.customer_id));
     if (typeof json.data?.today === 'string') setTodayIso(json.data.today);
     return (json.data ?? null) as MePayload | null;
   }
@@ -595,6 +612,8 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         setServices(json.data.services ?? []);
         setResources(json.data.resources ?? []);
         setShopPayment((json.data.payment ?? null) as ShopPaymentMeta | null);
+        setPricingMap((json.data.pricing ?? {}) as Record<string, { rules: PriceRule[]; discount: ConsecutiveDiscount | null }>);
+        setShopPackages((json.data.packages ?? null) as ShopPackagesPublic | null);
         if (json.data.branches?.[0]) setBranchId(json.data.branches[0].id);
         if (json.data.services?.[0]) setServiceId(json.data.services[0].id);
       } catch (e) {
@@ -920,13 +939,55 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   /** Every picked start time, earliest first. */
   const pickedTimes = useMemo(() => (selectedTime ? [selectedTime, ...extraTimes] : []), [selectedTime, extraTimes]);
 
-  /** Price the customer would pay, used to decide whether to show the method picker. */
-  const effectivePrice = useMemo(() => {
+  /**
+   * Price of the order the customer is building — same engine as /book
+   * (`quoteOrder`). Without rules from /meta it is the old flat price × queues.
+   * The server re-prices on /book; this is for display and the method picker.
+   */
+  const priceQuote = useMemo(() => {
+    const service = services.find((s) => s.id === serviceId);
     const resourcePrice = Number(selectedResourceId ? resources.find((r) => r.id === selectedResourceId)?.unit_price ?? 0 : 0);
-    const servicePrice = Number(services.find((s) => s.id === serviceId)?.price ?? 0);
-    // Price is per queue; a multi-pick order pays for all of them at once.
-    return (resourcePrice > 0 ? resourcePrice : servicePrice) * Math.max(pickedTimes.length, 1);
-  }, [selectedResourceId, resources, services, serviceId, pickedTimes.length]);
+    const config = pricingMap[serviceId];
+    const times = pickedTimes.length > 0 ? pickedTimes : ['00:00'];
+    return quoteOrder(
+      { servicePrice: Number(service?.price ?? 0), rules: config?.rules ?? [], discount: config?.discount ?? null, enabled: Boolean(config) && pickedTimes.length > 0 },
+      times.map((startTime) => ({
+        date,
+        startTime,
+        slotCount: 1,
+        unitMinutes: service ? slotUnitMinutes(service) : 60,
+        branchId: branchId || null,
+        resourceId: selectedResourceId || null,
+        resourceUnitPrice: resourcePrice,
+      })),
+    );
+  }, [selectedResourceId, resources, services, serviceId, pickedTimes, pricingMap, date, branchId]);
+  /** Prepaid hour packages of this customer (null outside LINE / not loaded). */
+  // Built from /meta (cached, shop-level) + /me (already loaded): opening the
+  // page costs no package request; /packages is only hit to refresh after an action.
+  const packagesBase = useMemo(
+    () => (shopPackages || myPackages ? composeLiffPackages(shopPackages, myPackages, hasCustomer) : null),
+    [shopPackages, myPackages, hasCustomer],
+  );
+  const packages = useLiffPackages(shopKey, lineUserId, currentIdToken, packagesBase);
+  /** Package chosen to pay for this order; '' = pay normally. */
+  const [packageId, setPackageId] = useState('');
+  const packageChoices = useMemo(() => {
+    const service = services.find((s) => s.id === serviceId);
+    return packageChoicesFor(
+      packages.data?.mine ?? [],
+      serviceId,
+      pickedTimes.map((startTime) => ({ date, startTime, slotCount: 1, unitMinutes: service ? slotUnitMinutes(service) : 60 })),
+    );
+  }, [packages.data, services, serviceId, pickedTimes, date]);
+  // A pick change can make the chosen package unusable (not enough hours / outside its window).
+  useEffect(() => {
+    if (packageId && !packageChoices.some((c) => c.pkg.id === packageId && c.enough)) setPackageId('');
+  }, [packageId, packageChoices]);
+  /** Price the customer would pay, used to decide whether to show the method picker. */
+  const effectivePrice = packageId ? 0 : priceQuote.total;
+  /** "08:00 500 · 09:00 450 (ต่อเนื่อง −50)" when a rule or discount changed the price. */
+  const priceSummary = quoteSummaryLabel(priceQuote);
 
   /** Bank apps behind the Omise Mobile Banking card; the first is the default when the card is chosen. */
   const mobileBanks = useMemo(() => shopPayment?.mobile_banking_banks ?? [], [shopPayment]);
@@ -1025,8 +1086,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
         nickname: customerNickname.trim() || undefined,
         line_user_id: lineUserId || undefined,
         id_token: lineUserId ? currentIdToken() || undefined : undefined,
-        payment_method: chosenMethod || undefined,
-        bank_provider: isBankAppMethod(chosenMethod) && chosenBank ? chosenBank : undefined,
+        payment_method: packageId ? undefined : chosenMethod || undefined,
+        bank_provider: !packageId && isBankAppMethod(chosenMethod) && chosenBank ? chosenBank : undefined,
+        customer_package_id: packageId || undefined,
         idempotency_key: bookAttemptKey.current,
         will_echo: Boolean(echoLiff),
       }),
@@ -1062,7 +1124,17 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       // The shop turned on "ต้องเลือกสนาม" after this page loaded — send the
       // customer back to the picker.
       if (json.code === RESOURCE_REQUIRED_CODE) setStep(1);
+      // The package changed meanwhile (used up on another device, expired) — refresh it.
+      if (typeof json.code === 'string' && json.code.startsWith('package_')) {
+        setPackageId('');
+        void packages.reload();
+      }
       return push(json.error ?? 'จองคิวไม่สำเร็จ', 'error');
+    }
+    if (json.data?.package) {
+      push(`ตัดแพ็กเกจ ${formatPackageMinutes(Number(json.data.package.minutes))} เหลือ ${formatPackageMinutes(Number(json.data.package.remaining_minutes ?? 0))}`, 'success');
+      setPackageId('');
+      void packages.reload();
     }
     // A multi-pick order shows every queue number it created.
     const createdQueues = Array.isArray(json.data?.bookings) ? (json.data.bookings as Array<{ queue_number: string }>) : [];
@@ -1884,6 +1956,11 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                     </Typography>
                   ) : null}
                 </Stack>
+                {priceSummary ? (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontVariantNumeric: 'tabular-nums' }}>
+                    {priceSummary}
+                  </Typography>
+                ) : null}
               </LiffSection>
 
               <LiffSection>
@@ -1971,6 +2048,14 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                     })}
                   </Box>
                 ) : null}
+                {!loading && slots.length > 0 && pricingMap[serviceId] ? (
+                  <LiffPriceBands
+                    pricing={pricingMap[serviceId]}
+                    date={date}
+                    branchId={branchId || null}
+                    resourceId={selectedResourceId || null}
+                  />
+                ) : null}
                 {!loading && multiPickEnabled && slots.length > 0 ? (
                   <Alert severity="info" icon={false} sx={{ py: 0.5 }}>
                     {pickedTimes.length > 0 ? (
@@ -1987,6 +2072,10 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                   <LiffEmpty icon={<CalendarMonthRoundedIcon />} text="กดดูเวลาว่างเพื่อเลือกคิว" />
                 ) : null}
               </Stack>
+
+              {lineUserId && pickedTimes.length > 0 ? (
+                <LiffPackagePayPicker choices={packageChoices} selectedId={packageId} onSelect={setPackageId} />
+              ) : null}
 
               {showMethodPicker && (
                 <LiffSection
@@ -2070,6 +2159,10 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
               {accountLoading ? 'กำลังบันทึก...' : 'บันทึกข้อมูลส่วนตัว'}
             </Button>
           </LiffSection>
+
+          {lineUserId ? (
+            <LiffPackagesPanel shopKey={shopKey} lineUserId={lineUserId} getIdToken={currentIdToken} data={packages.data} reload={packages.reload} />
+          ) : null}
 
           <LiffSection
             title="คิวที่จองอยู่"

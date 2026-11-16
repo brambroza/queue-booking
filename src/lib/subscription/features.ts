@@ -5,7 +5,7 @@ import { getSubscriptionState } from '@/lib/subscription/enforcement';
 const PAID_FEATURE_PLAN_CODES: ReadonlySet<string> = new Set(['professional', 'business', 'enterprise']);
 
 /** Plan-gated features, as the paywall dialog names them. */
-export type GatedFeature = 'fnb' | 'slip_verify' | 'winback';
+export type GatedFeature = 'fnb' | 'slip_verify' | 'winback' | 'pricing' | 'packages';
 
 /**
  * Whether a plan code includes F&B ordering (Professional and above).
@@ -33,6 +33,26 @@ export function planAllowsSlipVerify(planCode: string | null | undefined): boole
  * @param planCode - Effective plan code from `getSubscriptionState`.
  */
 export function planAllowsWinback(planCode: string | null | undefined): boolean {
+  return Boolean(planCode && PAID_FEATURE_PLAN_CODES.has(planCode));
+}
+
+/**
+ * Whether a plan code includes time-range prices and the consecutive-slot
+ * discount (Professional and above). Lower plans keep the plain price.
+ *
+ * @param planCode - Effective plan code from `getSubscriptionState`.
+ */
+export function planAllowsPricing(planCode: string | null | undefined): boolean {
+  return Boolean(planCode && PAID_FEATURE_PLAN_CODES.has(planCode));
+}
+
+/**
+ * Whether a plan code includes prepaid hour packages (Professional and above).
+ * Packages already sold stay usable after a downgrade; only new sales stop.
+ *
+ * @param planCode - Effective plan code from `getSubscriptionState`.
+ */
+export function planAllowsPackages(planCode: string | null | undefined): boolean {
   return Boolean(planCode && PAID_FEATURE_PLAN_CODES.has(planCode));
 }
 

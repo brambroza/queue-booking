@@ -1,0 +1,118 @@
+# Build the customer Android app (mobile/) on GitHub and attach the APK to the run.
+# Run it from Actions → "Mobile Android APK" → Run workflow. Web build/deploy is not touched.
+#
+# variant=debug   : development build (expo-dev-client). Install it, then on the Mac run
+#                   `cd mobile && npx expo start --dev-client` and scan the QR from the app.
+#                   The phone must reach Metro and the API on the same Wi-Fi.
+# variant=release : standalone APK with the JS bundled in (no Metro). Needs an https API URL.
+#
+# Repository variables (Settings → Secrets and variables → Actions → Variables):
+#   MOBILE_API_BASE_URL      e.g. http://192.168.1.189:3000 (debug) or https://queuebooking.com
+#   MOBILE_LINE_CHANNEL_ID   LINE Login channel id (same as LINE_LOGIN_CHANNEL_ID on the web)
+#   MOBILE_APP_LINK_HOST     optional
+# Optional secret ANDROID_DEBUG_KEYSTORE_BASE64: own debug.keystore so the SHA-1 registered in
+# LINE Developers stays the same; without it the React Native template keystore is used
+# (fixed, public SHA-1 — fine for testing, never for Play Store).
+name: Mobile Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: debug (dev client) or release (standalone)
+        type: choice
+        options: [debug, release]
+        default: debug
+      api_base_url:
+        description: Override MOBILE_API_BASE_URL for this run (optional)
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      HAS_OWN_KEYSTORE: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 != '' }}
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck and unit tests
+        run: |
+          npx tsc --noEmit
+          npm test
+
+      - name: Write build env
+        env:
+          API_BASE_URL: ${{ inputs.api_base_url || vars.MOBILE_API_BASE_URL }}
+          LINE_CHANNEL_ID: ${{ vars.MOBILE_LINE_CHANNEL_ID }}
+          APP_LINK_HOST: ${{ vars.MOBILE_APP_LINK_HOST }}
+          VARIANT: ${{ inputs.variant }}
+        run: |
+          if [ -z "$API_BASE_URL" ] || [ -z "$LINE_CHANNEL_ID" ]; then
+            echo "::error::Set repository variables MOBILE_API_BASE_URL and MOBILE_LINE_CHANNEL_ID"
+            exit 1
+          fi
+          if [ "$VARIANT" = "release" ] && [ "${API_BASE_URL#https://}" = "$API_BASE_URL" ]; then
+            echo "::error::release needs an https API URL (got $API_BASE_URL)"
+            exit 1
+          fi
+          {
+            echo "EXPO_PUBLIC_API_BASE_URL=$API_BASE_URL"
+            echo "EXPO_PUBLIC_LINE_CHANNEL_ID=$LINE_CHANNEL_ID"
+            echo "APP_LINK_HOST=$APP_LINK_HOST"
+          } > .env.local
+
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Use own debug keystore (optional)
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        if: env.HAS_OWN_KEYSTORE == 'true'
+        run: echo "$KEYSTORE_B64" | base64 --decode > android/app/debug.keystore
+
+      - name: Build APK
+        working-directory: mobile/android
+        run: |
+          if [ "${{ inputs.variant }}" = "release" ]; then
+            ./gradlew assembleRelease --no-daemon
+          else
+            ./gradlew assembleDebug --no-daemon
+          fi
+
+      - name: Print signing SHA-1 (register it in LINE Developers)
+        working-directory: mobile/android
+        run: keytool -list -v -keystore app/debug.keystore -alias androiddebugkey -storepass android -keypass android | grep -E "SHA1|SHA256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: queuebooking-${{ inputs.variant }}-${{ github.run_number }}
+          path: mobile/android/app/build/outputs/apk/${{ inputs.variant }}/*.apk
+          retention-days: 14

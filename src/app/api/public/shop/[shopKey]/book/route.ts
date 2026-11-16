@@ -62,6 +62,9 @@ import { clientIp, hitRateLimit, liffSubject, tooManyRequests } from '@/lib/secu
 import { acquireSeat, claimIdempotencyKey, settleIdempotencyKey } from '@/lib/security/request-guard';
 import { cached, invalidateCache } from '@/lib/cache/kv';
 import { getShopReleaseTimes, isReleased, NOT_RELEASED_CODE, notReleasedMessage } from '@/lib/booking/booking-release';
+import { quoteOrder, toStoredBreakdown } from '@/lib/pricing/quote';
+import { loadServicePricing } from '@/lib/pricing/pricing-server';
+import { planPackageCharge, redeemPackage, type PackagePlan } from '@/lib/packages/packages-server';
 
 const bookSchema = z
   .object({
@@ -92,6 +95,11 @@ const bookSchema = z
       .max(MAX_SLOTS_PER_ORDER)
       .optional(),
     payment_method: z.enum(PAYMENT_METHODS).optional(),
+    /**
+     * Pay with one of the caller's prepaid hour packages (`customer_packages.id`)
+     * instead of money. Needs a verified LINE identity; ignored payment method.
+     */
+    customer_package_id: z.string().uuid().optional(),
     /** Which bank app to open; required with `bank_deeplink` / `omise_mobile_banking`, ignored otherwise. */
     bank_provider: z.enum(BANK_CODES).optional(),
     /** One per press of "ยืนยันจอง": a double tap or client retry replays the first result. */
@@ -292,6 +300,11 @@ async function createBooking(
       );
     }
     throw quotaErr;
+  }
+
+  // A package belongs to a LINE-verified customer; a phone number alone is not proof.
+  if (payload.customer_package_id && !verifiedLineUserId) {
+    return NextResponse.json({ error: 'กรุณาเปิดผ่าน LINE เพื่อใช้แพ็กเกจ', code: 'package_unavailable' }, { status: 403 });
   }
 
   const [{ data: branch }, { data: service }] = await Promise.all([
@@ -626,13 +639,56 @@ async function createBooking(
     );
   }
 
+  // Price of every queue (time-range price + consecutive discount, or the old
+  // flat price when the shop has no rules / plan below Professional).
+  const { pricing, schemaReady: pricingSchemaReady } = await loadServicePricing(admin, {
+    shopId: shop.id,
+    serviceId: payload.service_id,
+    servicePrice: Number((service as unknown as { price?: number } | null)?.price ?? 0),
+    planCode,
+  });
+  const quote = quoteOrder(
+    pricing,
+    plans.map((plan) => ({
+      date: payload.booking_date,
+      startTime: plan.startTime,
+      slotCount: multiPick ? 1 : slotCount,
+      unitMinutes: unitMin,
+      branchId: payload.branch_id,
+      resourceId: plan.resource?.resource_id ?? null,
+      resourceUnitPrice: plan.resource?.unit_price ?? null,
+    })),
+  );
+
+  // Paying with a prepaid package: checked before anything is written, the
+  // minutes are deducted atomically right after the queues are inserted.
+  let packagePlan: PackagePlan | null = null;
+  if (payload.customer_package_id) {
+    if (!customerId) return NextResponse.json({ error: 'ไม่พบข้อมูลสมาชิก', code: 'package_unavailable' }, { status: 409 });
+    const planned = await planPackageCharge(admin, {
+      shopId: shop.id,
+      customerId,
+      customerPackageId: payload.customer_package_id,
+      serviceId: payload.service_id,
+      queues: plans.map((plan) => ({
+        date: payload.booking_date,
+        startTime: plan.startTime,
+        slotCount: multiPick ? 1 : slotCount,
+        unitMinutes: unitMin,
+      })),
+    });
+    if (!planned.ok) return NextResponse.json({ error: planned.message, code: planned.code }, { status: planned.status });
+    packagePlan = planned;
+  }
+
   // A service that needs approval holds its slot as `pending_approval` until
   // staff confirm it from the portal (which pushes the customer an approval Flex).
   const initialStatus = resolveInitialBookingStatus(service);
   const pendingApproval = initialStatus === 'pending_approval';
 
   const created: Array<{ id: string; queue_number: string; plan: SlotPlan }> = [];
-  for (const plan of plans) {
+  for (const [planIndex, plan] of plans.entries()) {
+    const line = quote.lines[planIndex];
     const { data: row, error } = await admin.from('bookings').insert({
       company_id: shop.company_id,
       shop_id: shop.id,
@@ -649,6 +705,8 @@ async function createBooking(
       resource_id: plan.resource?.resource_id ?? null,
       resource_name: plan.resource?.resource_name ?? null,
       resource_capacity: plan.resource?.capacity ?? null,
+      // Columns from 202611160002; omitted before it ran so the insert still works.
+      ...(pricingSchemaReady && line ? { price_amount: line.amount, price_breakdown: toStoredBreakdown(line, { unitMinutes: unitMin, discount: pricing.enabled ? pricing.discount : null }) } : {}),
       // The extra queues of a multi-pick are paid through the main (first) one.
       ...(created.length > 0 ? { note: `จองพร้อมคิว ${created[0].queue_number} (ชำระรวมที่คิวนั้น)` } : {}),
     }).select('id,queue_number').single();
@@ -673,6 +731,27 @@ async function createBooking(
       return NextResponse.json({ error: 'ขออภัย ระบบไม่สามารถรับการจองได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง' }, { status: 400 });
     }
     created.push({ id: row.id as string, queue_number: String(row.queue_number), plan });
+  }
+
+  // Deduct the package now that every queue exists; a race lost to another
+  // device (minutes used up meanwhile) withdraws the whole order like a failed insert.
+  let packageRemaining: number | null = null;
+  if (packagePlan && customerId) {
+    const redeemed = await redeemPackage(admin, {
+      shopId: shop.id,
+      customerId,
+      customerPackageId: packagePlan.pkg.id,
+      items: created.map((c, i) => ({ bookingId: c.id, minutes: packagePlan!.perQueue[i] ?? 0 })),
+    });
+    if (!redeemed.ok) {
+      await admin
+        .from('bookings')
+        .update({ status: 'cancelled', is_deleted: true })
+        .in('id', created.map((c) => c.id))
+        .eq('shop_id', shop.id);
+      return NextResponse.json({ error: redeemed.message, code: redeemed.code }, { status: redeemed.status });
+    }
+    packageRemaining = redeemed.remaining;
   }
 
   const booking = { id: created[0].id, queue_number: created[0].queue_number };
@@ -725,12 +804,11 @@ async function createBooking(
     deeplink: PaymentDeeplinkInfo | null;
   } | null = null;
 
-  try {
-    const resourcePrice = Number(assignedResource?.unit_price ?? 0);
-    const servicePrice = Number((service as unknown as { price?: number } | null)?.price ?? 0);
-    // Price is per slot: a consecutive booking pays for every slot, and a
-    // multi-pick order pays for all its queues through the main one.
-    const paymentPrice = (resourcePrice > 0 ? resourcePrice : servicePrice) * slotCount * created.length;
+  // Paid with a package = nothing to collect online.
+  if (!packagePlan) try {
+    // Every slot of every queue, priced by `quoteOrder`; a multi-pick order
+    // pays for all its queues through the main one.
+    const paymentPrice = quote.total;
     const dateLabel = formatThaiDateLabel(payload.booking_date);
     const payment = await resolvePaymentForBooking({
       bookingId: booking.id,
@@ -826,7 +904,7 @@ async function createBooking(
       shopId: shop.id,
       customerId,
       bookingId: booking.id,
-      revenue: unitPrice * slotCount * created.length,
+      revenue: quote.ruled ? quote.total : unitPrice * slotCount * created.length,
     });
     // 80 / 90 / 100 % of the monthly quota → bell + owner LINE, once per threshold.
     await safeNotifyQuotaThreshold(admin, {
@@ -928,6 +1006,16 @@ async function createBooking(
       /** `echo` = client must send the booking echo (webhook replies with the cards) or call /booking-notify. */
       line_delivery: lineDelivery,
       payment: paymentInfo,
+      /** Paid with a prepaid package: minutes taken and what is left. */
+      package: packagePlan
+        ? { customer_package_id: packagePlan.pkg.id, name: packagePlan.pkg.name, minutes: packagePlan.minutes, remaining_minutes: packageRemaining }
+        : null,
+      /** Order price from `quoteOrder` (one line per queue, in pick order). */
+      price: {
+        total: quote.total,
+        ruled: quote.ruled,
+        lines: quote.lines.map((l, i) => ({ booking_id: created[i]?.id ?? null, start_time: l.startTime, amount: l.amount, slots: l.slots })),
+      },
     },
   });
 }

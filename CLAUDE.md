@@ -102,6 +102,9 @@ src/
 | `/api/staff` | Staff management: invite by email (`redirectTo` = `/auth/accept-invite`, refuses accounts of another shop 409, branch required, rate limit `staffInvite`); delete / `active:false` revoke the staff grants and detach `users_profile` (`src/lib/staff/`) |
 | `/api/staff/resend-invite` | Email a staff member a new password link (invite if unconfirmed, else reset) |
 | `/api/customers` | Customer list |
+| `/api/services/[id]/price-rules` | Time-range prices + consecutive discount of one service: GET `{ rules, discount, plan_allowed, ready }` (staff may read), PUT replace-all (shop_owner/branch_manager, Professional+ = 402 `feature_locked`; clearing always allowed), invalidates `meta:` cache |
+| `/api/packages` | Prepaid hour package templates (`credit_packages`): GET (staff may read), POST/PATCH/DELETE `?id=` (Professional+ except switching off) |
+| `/api/customer-packages` | Packages sold to customers: GET list `?status=&q=` / `?id=` detail + ledger + slips (signed URLs); POST sell at counter (activates at once); PATCH `approve\|reject\|adjust\|cancel` |
 | `/api/resources` | Resource management |
 | `/api/working-hours` | Shop working hours |
 | `/api/holidays` | Holiday blocks |
@@ -116,7 +119,7 @@ src/
 | `/api/line-settings` | LINE OA configuration |
 | `/api/customer-guide` | Data for the customer how-to image on `/portal/line-settings`: OA `basic_id` + add-friend URL (LINE `/v2/bot/info` with the shop token), saved rich menu config (or business template) + `is_saved` / `is_published`, first 3 active services, example `slot_times` from working hours, first `branch_name`, `logo_url` (https only) |
 | `/api/settings` | Shop settings |
-| `/api/shop-display-settings` | Customer-facing flags on `shops`: `show_service_duration`, `one_booking_per_day`, `multi_slot_enabled`, `require_resource_choice`, `show_resource_capacity` (GET all, staff may read; PATCH keys optional) |
+| `/api/shop-display-settings` | Customer-facing flags on `shops`: `show_service_duration`, `one_booking_per_day`, `multi_slot_enabled`, `require_resource_choice`, `show_resource_capacity`, `liff_show_packages` (GET all, staff may read; PATCH keys optional, invalidates `meta:`) |
 | `/api/fnb-settings` | F&B ordering switch (`shops.fnb_enabled`); turning ON needs Professional+ (`assertFnbPlan`, 402 `feature_locked`), OFF always allowed |
 | `/api/fnb-menu` | F&B menu CRUD (writes plan-gated; "sold out" toggle `is_available` allowed on any plan) |
 | `/api/fnb-orders` | Staff order board: GET open/all, PATCH status new→preparing→served/cancelled + LINE push to customer |
@@ -146,7 +149,11 @@ src/
 |---|---|
 | `/api/public/shop/[shopKey]/meta` | Shop metadata for LIFF |
 | `/api/public/shop/[shopKey]/slots` | Slot list incl. full + past slots (`get_slot_availability`: `capacity`, `booked_count`, `remaining_capacity`; server adds `is_past` via `isSlotPast` in `src/lib/booking/slot-time.ts`, Bangkok clock; `meta.open_slots`, `meta.today`) — LIFF greys full as "เต็ม N/N", past as "ผ่านแล้ว"; `/book` refuses past slots 400 `code: slot_past`; chatbot + portal `/api/available-slots` still use `get_available_slots` (open only, no past check) |
-| `/api/public/shop/[shopKey]/book` | Create booking (LIFF) |
+| `/api/public/shop/[shopKey]/book` | Create booking (LIFF); price from `quoteOrder`, `customer_package_id` pays with a prepaid package (409 `package_*`) |
+| `/api/public/shop/[shopKey]/packages` | POST `{ id_token }` → caller's packages + online catalog + payee (`enabled:false` below Professional unless the caller already owns one) |
+| `/api/public/shop/[shopKey]/packages/buy` | POST `{ package_id }` → `pending_payment` customer package (price from DB) + PromptPay QR URL; reuses an open purchase, max 2 open |
+| `/api/public/shop/[shopKey]/packages/qr` | GET `?id=&t=` PNG PromptPay QR of a pending purchase (HMAC `pkg:<id>`) |
+| `/api/public/shop/[shopKey]/packages/slip` | POST multipart slip → `awaiting_verification` + staff notification `package_slip` (no auto-approve) |
 | `/api/public/shop/[shopKey]/cancel-booking` | Cancel booking |
 | `/api/public/shop/[shopKey]/acknowledge-booking` | Customer acknowledges a shop-initiated change (mirror of the LINE `ack_change` postback) |
 | `/api/public/shop/[shopKey]/check-in` | Customer "ฉันมาถึงแล้ว" → `checked_in` (booking day only, owner-checked) |
@@ -408,6 +415,29 @@ Shop switch `shops.require_resource_choice` (default off) on `/portal/resources`
 - `end_time` ใน `/book` และ `/api/bookings` POST คำนวณด้วย string (`bookingEndTime`) ไม่ใช้ `Date#getHours()` ที่อ่าน timezone ของ server
 - Pure helpers + vitest: `src/lib/booking/multi-slot.ts` (`maxSlotCount`, `minSlotCount`, `isSlotCountAllowed`, `bookingEndTime`, `consecutiveSlotsOpen`, `maxOpenSlotCount`, `nextSlotSelection`, `selectedSlotTimes`, `bookingDurationMinutes`, `isExtendableStatus`)
 - Not done: ลูกค้าต่อเวลาเองใน LIFF, จ่ายเงินส่วนต่อออนไลน์, multi-slot สำหรับบริการไม่ผูก resource, chatbot ยังจองได้ทีละรอบ
+
+## Time-range Price + Consecutive Discount (2026-11-16, Professional+)
+
+One engine `quoteOrder` (`src/lib/pricing/quote.ts`, pure + vitest) prices every order: LIFF summary, `/book`, `/api/bookings` POST, portal create drawer, re-price after partial cancel. **No rules / plan below Professional = the old price exactly** (resource `unit_price` when > 0, else `services.price`, × slots)
+- `service_price_rules` (migration `202611160002_service_price_rules.sql`, **run before deploy**; not run = old price everywhere, editor says ยังไม่พร้อม): `service_id`, optional `resource_id` / `branch_id` / `weekday`, `time_from`–`time_to` (exclusive, `00:00` = end of day), `price`. A slot is priced by its **start time**; most specific wins (resource > branch > weekday), overlap in the same tier refused 400 `rule_overlap`. A rule beats the resource price
+- Consecutive discount `services.consecutive_discount_type` (`amount|percent`) + `_value`: a slot that starts when the previous slot of the same order on the same resource (same day) ends is discounted **once** (500, 450, 450 …), on that slot's own band price, floor 0. Works across multi-pick queues and inside `slot_count`
+- `bookings.price_amount` + `price_breakdown` (v1: per-slot base/discount/price, `unit_minutes`, discount in force) written at insert when the schema is in. Customer cancels part of an order → `rebalanceOrderAfterCustomerCancel` re-prices the rest from the stored bases (`requoteStoredOrder`): the queue that lost its predecessor goes back to full price; rule edits after booking do not change it. Orders without stored prices keep the proportional rule
+- Multi-pick: each queue now uses **its own** resource price (was the first queue's resource for all)
+- Editor `ServicePriceRulesEditor` (`src/components/forms/service-price-rules-editor.tsx`) in the service drawer (existing services) and on `/portal/resources` (`ResourcePriceRulesCard`: pick a service, same editor and same rules), saves separately, live example. `/meta` sends `pricing` (per service id, `{}` below Professional) → LIFF `LiffPriceBands` under the time grid + summary "08:00 500 · 09:00 450 (ต่อเนื่อง −50)"; `/book` response `price`
+- Loaders `src/lib/pricing/pricing-server.ts` (`loadServicePricing`, `loadShopPricingForMeta`, defensive); plan `planAllowsPricing`
+- Not done: staff move / extend do not re-price (`price_amount` kept), price in LINE Flex, chatbot slot list prices, holiday-specific prices, reports still read service price for revenue estimate except the automation ROI (uses quote when ruled)
+
+## Prepaid Hour Packages (2026-11-16, Professional+)
+
+Shop sells hours ahead (e.g. 10 ชม. 4,500 บาท, valid 90 days); bookings deduct minutes. Migration `202611160003_customer_packages.sql` (**run before deploy**; not run = package UI says ยังไม่พร้อม / hidden in LIFF, booking unaffected, refund calls no-op)
+- Tables: `credit_packages` (template: `credit_minutes`, `price`, `valid_days` null = no expiry, `service_ids` null = all, `usage_windows` jsonb `[{weekday,time_from,time_to,rate}]`, `sell_online`), `customer_packages` (snapshot of the template + `remaining_minutes`, `expires_on` inclusive Bangkok, status `pending_payment|awaiting_verification|active|rejected|cancelled`, source `staff|liff`), `package_ledger` (append-only `grant|redeem|refund|adjust|void`), `package_slips`, `bookings.package_id/package_minutes/package_refunded_at`. RLS select-only; writes via service role; balance only through security-definer RPCs (row lock): `redeem_customer_package`, `refund_customer_package_booking` (once per redeem), `reredeem_customer_package_booking` (restore), `adjust_customer_package`, `activate_customer_package` (balance = total, expiry from activation day)
+- Deduction: per slot `ceil(slot minutes × rate)` of the first usage window covering the slot start (day-specific window first); no windows = any time ×1; slot outside every window = package cannot pay (409 `package_not_covered`). Rules + vitest `src/lib/packages/rules.ts`
+- Pay with package: LIFF `LiffPackagePayPicker` (shows minutes needed / left) → `/book` `customer_package_id` (needs verified LINE; checked before insert by `planPackageCharge`, deducted after insert by `redeemPackage`; race lost = whole order withdrawn, 409 `package_insufficient`). No payment, no hold. Staff `/api/bookings` POST accepts `customer_package_id` too
+- Refund: customer cancel (`cancelBookingByCustomer`), staff cancel status, staff delete → `safeRefundPackageForBooking`. **no_show = no refund**. Restore (`กู้คิวกลับ`) re-deducts first, 409 when not enough
+- Sell (3A): `/portal/packages` "ขายแพ็กเกจที่ร้าน" (cash/transfer received → active now, LINE text to the customer). Buy online (3B): LIFF member tab `LiffPackagesPanel` → `/packages/buy` → shop PromptPay QR → slip upload → staff approve/reject in the package drawer (LINE text to the customer). Templates + sold packages + ledger at `/portal/packages` (`src/components/packages/`)
+- Plan: selling needs Professional+ (`planAllowsPackages`); packages already sold stay usable after a downgrade
+- Load (booking rush): opening LIFF makes **no package request**. Shop-level data (catalog, masked payee, plan, owner switch) rides `/meta` as `packages` (`loadShopPackagesPublic`, cached with meta, only read when `shopUsesPackages` or the switch is on); the caller's packages ride `/me` as `packages` (one indexed read, skipped via cached flag `packages-flag:{shop}` 60 s for shops that never used packages). LIFF combines both with `composeLiffPackages` (`src/lib/packages/liff-view.ts`, vitest) — the same rule `/packages` uses; `/packages` is called only to refresh after a purchase, slip upload or package booking. Section renders only when there is something to show. Owner switch `shops.liff_show_packages` (migration `202611160004_liff_show_packages.sql`, default off; card `LiffPackagesVisibilityCard` on `/portal/packages`) = always show the section, empty state "ยังไม่มีแพ็กเกจ" (Professional+; not run = off, saving fails). Template / switch writes invalidate `meta:` + `packages-flag:`
+- Not done: slip auto-verify for package slips, Omise / deeplink purchase, expiry reminders, package revenue in reports, refund policy per package (always refunds on cancel), customer page link to packages, untested against a real LINE OA / DB
 
 ## Daily Booking Limit (ลูกค้าจองได้วันละ 1 คิว)
 

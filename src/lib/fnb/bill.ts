@@ -85,7 +85,17 @@ export async function loadBill(admin: AdminClient, args: { shopId: string; booki
   const resourcePrice = Number((resource as { unit_price?: number | string | null } | null)?.unit_price ?? 0);
   const servicePrice = Number((service as { price?: number | string | null } | null)?.price ?? 0);
   const stored = booking.payment_amount === null || booking.payment_amount === undefined ? null : Number(booking.payment_amount);
-  const bookingAmount = stored ?? (resourcePrice > 0 ? resourcePrice : servicePrice);
+  // Price stored per queue at booking time (202611160002, time-range price);
+  // read apart so an older database keeps working.
+  const { data: priced, error: pricedError } = await admin
+    .from('bookings')
+    .select('price_amount')
+    .eq('id', args.bookingId)
+    .eq('shop_id', args.shopId)
+    .maybeSingle();
+  const queuePriceRaw = pricedError ? null : (priced as { price_amount?: number | string | null } | null)?.price_amount;
+  const queuePrice = queuePriceRaw === null || queuePriceRaw === undefined ? null : Number(queuePriceRaw);
+  const bookingAmount = stored ?? queuePrice ?? (resourcePrice > 0 ? resourcePrice : servicePrice);
 
   const items = ((orders ?? []) as Array<{ fnb_order_items: Array<{ item_name: string; unit_price: number | string; quantity: number }> | null }>)
     .flatMap((o) => o.fnb_order_items ?? [])

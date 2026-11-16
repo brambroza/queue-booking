@@ -7,6 +7,10 @@ import { CUSTOMER_ACTIVE_STATUSES } from '@/lib/booking/status-flow';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import { resolveLiffCaller } from '@/lib/line/liff-identity';
 import { clientIp, hitRateLimit, liffSubject, tooManyRequests } from '@/lib/security/rate-limit';
+import { cached } from '@/lib/cache/kv';
+import { isLiffPackagesAlwaysShown } from '@/lib/booking/display-settings';
+import { loadCustomerPackages, shopUsesPackages, toPublicCustomerPackage } from '@/lib/packages/packages-server';
+import { packageQrUrl } from '@/lib/packages/liff-package-auth';
 
 const bodySchema = z.object({
   line_user_id: z.string().min(1).max(64).optional(),
@@ -160,6 +164,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   const upcoming = (bookings ?? []).filter((b) => activeStatuses.has(String(b.status)) && String(b.booking_date) >= nowDate);
   const history = (bookings ?? []).filter((b) => !upcoming.find((u) => u.id === b.id));
 
+  // The customer's prepaid packages ride this call (LIFF calls it on every
+  // open anyway), so the package section costs one indexed read here and no
+  // extra request. Shops that never used packages skip it via a cached flag.
+  let packages: Array<ReturnType<typeof toPublicCustomerPackage> & { qr_image_url: string | null }> | null = null;
+  if (customerId) {
+    const usesPackages = await cached(`packages-flag:${shop.id}`, { ttlSeconds: 60 }, async () =>
+      (await shopUsesPackages(admin, shop.id)) || (await isLiffPackagesAlwaysShown(admin, shop.id)),
+    ).catch(() => false);
+    if (usesPackages) {
+      const rows = await loadCustomerPackages(admin, shop.id, customerId);
+      packages = (rows ?? []).map((row) => ({
+        ...toPublicCustomerPackage(row, nowDate),
+        qr_image_url: ['pending_payment', 'rejected'].includes(row.status) ? packageQrUrl(shop.shop_key, row.id, Number(row.price_paid ?? 0)) : null,
+      }));
+    }
+  }
+
   return NextResponse.json({
     data: {
       shop: { id: shop.id, name: shop.name, shop_key: shop.shop_key },
@@ -171,6 +192,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
       today: nowDate,
       upcoming,
       history,
+      /** Caller's prepaid packages; null = shop does not use packages (or no customer yet). */
+      packages,
     },
   });
 }

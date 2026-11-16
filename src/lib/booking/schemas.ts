@@ -109,6 +109,38 @@ export const capacityRulesPayloadSchema = z.object({
   rules: z.array(capacityRuleSchema).max(50),
 });
 
+/**
+ * One time-range price of a service (`service_price_rules`). `time_to` is
+ * exclusive; `00:00` as `time_to` = end of day.
+ */
+export const priceRuleSchema = z
+  .object({
+    /** null = every resource of the service. */
+    resource_id: z.string().uuid().nullable().default(null),
+    /** null = every branch. */
+    branch_id: z.string().uuid().nullable().default(null),
+    /** 0 = Sunday … 6 = Saturday; null = every day. */
+    weekday: z.coerce.number().int().min(0).max(6).nullable().default(null),
+    time_from: timeOfDaySchema,
+    time_to: timeOfDaySchema,
+    price: z.coerce.number().min(0).max(1_000_000),
+    active: z.coerce.boolean().default(true),
+  })
+  .refine((r) => r.time_from < r.time_to || r.time_to.startsWith('00:00'), { message: 'time_from must be before time_to', path: ['time_to'] });
+
+/** Replace-all payload of `PUT /api/services/[id]/price-rules` (rules + discount). */
+export const priceRulesPayloadSchema = z.object({
+  rules: z.array(priceRuleSchema).max(100),
+  discount: z
+    .object({
+      type: z.enum(['amount', 'percent']),
+      value: z.coerce.number().min(0).max(1_000_000),
+    })
+    .nullable()
+    .default(null)
+    .refine((d) => !d || d.type !== 'percent' || d.value <= 100, { message: 'percent must be ≤ 100' }),
+});
+
 export const workingHourSchema = z
   .object({
     branch_id: z.string().uuid(),
@@ -159,6 +191,8 @@ export const bookingSchema = z.object({
   bank_provider: z.enum(BANK_CODES).optional(),
   /** Staff confirmed booking into a slot that is already full. */
   allow_overbook: z.boolean().optional(),
+  /** Deduct the hours from this customer's prepaid package (`customer_packages.id`) instead of a payment. */
+  customer_package_id: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
   /** Consecutive slots in one booking; >1 only for `flexible_duration` services with a resource. */
   slot_count: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(24).optional()),
 });

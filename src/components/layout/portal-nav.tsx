@@ -24,6 +24,7 @@ import ScheduleRoundedIcon from '@mui/icons-material/ScheduleRounded';
 import EventBusyRoundedIcon from '@mui/icons-material/EventBusyRounded';
 import GroupRoundedIcon from '@mui/icons-material/GroupRounded';
 import PeopleRoundedIcon from '@mui/icons-material/PeopleRounded';
+import CardMembershipRoundedIcon from '@mui/icons-material/CardMembershipRounded';
 import SettingsEthernetRoundedIcon from '@mui/icons-material/SettingsEthernetRounded';
 import ChatRoundedIcon from '@mui/icons-material/ChatRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
@@ -82,6 +83,7 @@ const groups: NavGroup[] = [
       { labelKey: 'menu.holidays', fallback: 'วันหยุด', href: '/portal/holidays', icon: <EventBusyRoundedIcon fontSize="small" /> },
       { labelKey: 'menu.staff', fallback: 'พนักงาน', href: '/portal/staff', icon: <GroupRoundedIcon fontSize="small" />, shopWideOnly: true },
       { labelKey: 'menu.customers', fallback: 'ลูกค้า', href: '/portal/customers', icon: <PeopleRoundedIcon fontSize="small" /> },
+      { labelKey: 'menu.packages', fallback: 'แพ็กเกจชั่วโมง', href: '/portal/packages', icon: <CardMembershipRoundedIcon fontSize="small" /> },
     ],
   },
   {

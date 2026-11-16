@@ -7,11 +7,13 @@ import { PUBLIC_CACHE_HEADERS } from '@/lib/cache/http';
 import { getShopPaymentConfig, toPublicPaymentInfo } from '@/lib/payments/settings';
 import { isBookingEchoEnabled } from '@/lib/line/booking-echo';
 import { isLineDeliveryPausedCached } from '@/lib/line/quota-server';
-import { isMultiSlotEnabled, isOneBookingPerDay, isResourceCapacityVisible, isResourceChoiceRequired, isServiceDurationVisible } from '@/lib/booking/display-settings';
+import { isLiffPackagesAlwaysShown, isMultiSlotEnabled, isOneBookingPerDay, isResourceCapacityVisible, isResourceChoiceRequired, isServiceDurationVisible } from '@/lib/booking/display-settings';
 import { getShopBookingWindows, resolveMaxBookingDate, resolveMinBookingDate } from '@/lib/booking/booking-window';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import { getFnbAccess } from '@/lib/subscription/features';
 import { getShopReleaseTimes } from '@/lib/booking/booking-release';
+import { loadShopPricingForMeta } from '@/lib/pricing/pricing-server';
+import { loadShopPackagesPublic, shopUsesPackages } from '@/lib/packages/packages-server';
 
 /** Seconds the assembled payload is reused. Owner edits show up within this (plus the CDN window). */
 const META_TTL_SECONDS = 30;
@@ -50,6 +52,9 @@ async function loadMeta(admin: ReturnType<typeof createAdminClient>, shop: Resol
     fnbAccess,
     releaseTimes,
     lineDeliveryPaused,
+    pricing,
+    packagesEnabled,
+    packagesAlwaysShown,
   ] = await Promise.all([
     admin.from('branches').select('id,branch_name,layout_image_url').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
     admin.from('services').select('id,service_name,duration_minutes,price,image_url,booking_mode,min_duration_minutes,max_duration_minutes').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
@@ -77,6 +82,13 @@ async function loadMeta(admin: ReturnType<typeof createAdminClient>, shop: Resol
     // True while the shop's LINE OA is out of monthly push quota (202611110001);
     // LIFF then tells the customer to rely on the screen, not the chat.
     isLineDeliveryPausedCached(admin, shop.id),
+    // Time-range prices + consecutive discount per service (Professional+);
+    // {} = plain prices, exactly as before 202611160002.
+    loadShopPricingForMeta(admin, shop.id),
+    // LIFF calls /packages only when this is true (no extra load for other shops).
+    shopUsesPackages(admin, shop.id),
+    // Owner switch on /portal/packages: show "แพ็กเกจของฉัน" even when empty.
+    isLiffPackagesAlwaysShown(admin, shop.id),
   ]);
 
   // Thrown, not returned empty: a failed read must not be cached as "no branches".
@@ -95,6 +107,12 @@ async function loadMeta(admin: ReturnType<typeof createAdminClient>, shop: Resol
     booking_release_at: releaseTimes[String(b.id)] ?? null,
   }));
 
+  // Catalog + payee for the LIFF package section, shop-level so it rides this
+  // cache; per-customer packages come with /me. Nothing is read for shops
+  // that never set packages up.
+  const packagesOn = packagesEnabled || packagesAlwaysShown;
+  const packages = packagesOn ? await loadShopPackagesPublic(admin, shop.id, packagesAlwaysShown) : null;
+
   return {
     // `one_booking_per_day` lets the LIFF warn before the customer picks a
     // slot; the server still enforces it on /book.
@@ -110,10 +128,13 @@ async function loadMeta(admin: ReturnType<typeof createAdminClient>, shop: Resol
       show_resource_capacity: showResourceCapacity,
       fnb_enabled: fnbAccess.enabled,
       line_delivery_paused: lineDeliveryPaused,
+      packages_enabled: packagesEnabled || packagesAlwaysShown,
     },
     branches: branchesWithWindow,
     services: services ?? [],
     resources: resources ?? [],
     payment: toPublicPaymentInfo(paymentConfig),
+    pricing,
+    packages,
   };
 }
