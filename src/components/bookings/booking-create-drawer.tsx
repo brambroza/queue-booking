@@ -172,8 +172,8 @@ export function BookingCreateDrawer({
     fetch(`/api/services/${draft.service_id}/price-rules`, { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
       .then((json) => {
-        const data = json?.data as { plan_allowed?: boolean; rules?: PriceRule[]; discount?: ConsecutiveDiscount | null } | undefined;
-        if (!cancelled && data?.plan_allowed) setServicePricing({ rules: data.rules ?? [], discount: data.discount ?? null });
+        const data = json?.data as { plan_allowed?: boolean; shop_enabled?: boolean; rules?: PriceRule[]; discount?: ConsecutiveDiscount | null } | undefined;
+        if (!cancelled && data?.plan_allowed && data.shop_enabled !== false) setServicePricing({ rules: data.rules ?? [], discount: data.discount ?? null });
       })
       .catch(() => undefined);
     return () => {

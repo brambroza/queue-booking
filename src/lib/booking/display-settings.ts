@@ -162,3 +162,20 @@ export async function getLiffBookingHints(client: SupabaseClient, shopId: string
     consecutive_discount: row.liff_show_consecutive_discount !== false,
   };
 }
+
+/**
+ * Shop switch `shops.pricing_enabled` (migration 202611160006): time-range
+ * prices + consecutive discount in force. Default off for new shops.
+ *
+ * Before the migration the column is missing and the feature keeps working as
+ * it did (true); the plan check still applies separately.
+ *
+ * @param client - Supabase client already allowed to read this shop.
+ * @param shopId - Shop to read the flag for.
+ * @returns false only when the column exists and the shop has it off.
+ */
+export async function isPricingEnabled(client: SupabaseClient, shopId: string): Promise<boolean> {
+  const { data, error } = await client.from('shops').select('pricing_enabled').eq('id', shopId).maybeSingle();
+  if (error) return true;
+  return (data as { pricing_enabled?: boolean } | null)?.pricing_enabled !== false;
+}

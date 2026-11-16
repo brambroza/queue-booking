@@ -60,18 +60,22 @@ function newDraft(price: string, from = '08:00', to = '15:00'): RuleDraft {
  * @param props.servicePrice - Default price (shown as the fallback).
  * @param props.branches - Shop branches for the branch filter.
  * @param props.defaultExpanded - Open the accordion on mount.
+ * @param props.onSaved - Called after a successful save.
  */
 export function ServicePriceRulesEditor({
   serviceId,
   servicePrice,
   branches,
   defaultExpanded = false,
+  onSaved,
 }: {
   serviceId: string;
   servicePrice: string;
   branches: Branch[];
   /** Open the accordion on mount (used on /portal/resources where it is the card's only content). */
   defaultExpanded?: boolean;
+  /** Called after a successful save. */
+  onSaved?: () => void;
 }) {
   const { push } = useToast();
   const { openPaywall } = useUpgrade();
@@ -85,6 +89,8 @@ export function ServicePriceRulesEditor({
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(true);
   const [planAllowed, setPlanAllowed] = useState(true);
+  /** Owner switch on /portal/resources (default off). */
+  const [shopEnabled, setShopEnabled] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,9 +105,10 @@ export function ServicePriceRulesEditor({
         const json = await res.json();
         if (!res.ok) throw new Error(json.error ?? 'โหลดราคาไม่สำเร็จ');
         if (cancelled) return;
-        const data = json.data as { ready: boolean; plan_allowed: boolean; rules: RuleRow[]; discount: { type: 'amount' | 'percent'; value: number } | null };
+        const data = json.data as { ready: boolean; plan_allowed: boolean; shop_enabled?: boolean; rules: RuleRow[]; discount: { type: 'amount' | 'percent'; value: number } | null };
         setReady(data.ready);
         setPlanAllowed(data.plan_allowed);
+        setShopEnabled(data.shop_enabled !== false);
         setRules(
           data.rules.filter((r) => r.active !== false).map((r) => ({
             key: r.id,
@@ -209,6 +216,7 @@ export function ServicePriceRulesEditor({
     if (!res.ok) return setError(json.error ?? 'บันทึกราคาไม่สำเร็จ');
     setDirty(false);
     push('บันทึกราคาแล้ว ลูกค้าเห็นราคาใหม่ภายใน 1 นาที');
+    onSaved?.();
   }
 
   const activeCount = rules.length + (discountType ? 1 : 0);
@@ -220,6 +228,7 @@ export function ServicePriceRulesEditor({
           <Typography variant="subtitle2">ราคาตามช่วงเวลา / ส่วนลดชั่วโมงต่อเนื่อง</Typography>
           {activeCount > 0 ? <Chip size="small" color="primary" label={`ตั้งไว้ ${activeCount} รายการ`} /> : <Chip size="small" variant="outlined" label="ไม่บังคับ" />}
           {!planAllowed ? <Chip size="small" color="warning" variant="outlined" label="Professional ขึ้นไป" /> : null}
+          {planAllowed && !shopEnabled ? <Chip size="small" variant="outlined" label="ปิดอยู่" /> : null}
         </Stack>
       </AccordionSummary>
       <AccordionDetails>
@@ -236,94 +245,103 @@ export function ServicePriceRulesEditor({
           {error ? <Alert severity="error" onClose={() => setError(null)}>{error}</Alert> : null}
           {loading ? <Typography variant="body2" color="text.secondary">กำลังโหลด...</Typography> : null}
 
-          {!loading && rules.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">ยังไม่มีช่วงราคา ทุกรอบใช้ราคาเดิม</Typography>
+          {!loading && !shopEnabled ? (
+            <Alert severity="info">
+              ร้านยังไม่ได้เปิดใช้ราคาตามช่วงเวลา / ส่วนลดชั่วโมงต่อเนื่อง ทุกคิวคิดราคาเดิม — เปิดได้ที่หน้า Resources (/portal/resources)
+            </Alert>
           ) : null}
-          {rules.map((r) => (
-            <Grid container spacing={1} key={r.key} alignItems="center">
-              <Grid size={{ xs: 6, sm: 2.5 }}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>สนาม/ห้อง</InputLabel>
-                  <Select value={r.resource_id} label="สนาม/ห้อง" onChange={(e: SelectChangeEvent) => update(r.key, { resource_id: String(e.target.value) })}>
-                    <MenuItem value="">ทุกสนาม/ห้อง</MenuItem>
-                    {resources.map((x) => <MenuItem key={x.id} value={x.id}>{x.resource_name}</MenuItem>)}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid size={{ xs: 6, sm: 2 }}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>สาขา</InputLabel>
-                  <Select value={r.branch_id} label="สาขา" onChange={(e: SelectChangeEvent) => update(r.key, { branch_id: String(e.target.value) })}>
-                    <MenuItem value="">ทุกสาขา</MenuItem>
-                    {branches.map((b) => <MenuItem key={b.id} value={b.id}>{b.branch_name}</MenuItem>)}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid size={{ xs: 4, sm: 1.5 }}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>วัน</InputLabel>
-                  <Select value={r.weekday} label="วัน" onChange={(e: SelectChangeEvent) => update(r.key, { weekday: String(e.target.value) })}>
-                    <MenuItem value="">ทุกวัน</MenuItem>
-                    {[1, 2, 3, 4, 5, 6, 0].map((d) => <MenuItem key={d} value={String(d)}>{PRICE_RULE_WEEKDAYS[d]}</MenuItem>)}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid size={{ xs: 4, sm: 1.75 }}>
-                <TextField label="จาก" type="time" value={r.time_from} onChange={(e: ChangeEvent<HTMLInputElement>) => update(r.key, { time_from: e.target.value })} fullWidth size="small" slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 300 } }} />
-              </Grid>
-              <Grid size={{ xs: 4, sm: 1.75 }}>
-                <TextField label="ถึง" type="time" value={r.time_to} onChange={(e: ChangeEvent<HTMLInputElement>) => update(r.key, { time_to: e.target.value })} fullWidth size="small" slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 300 } }} />
-              </Grid>
-              <Grid size={{ xs: 8, sm: 1.75 }}>
-                <TextField label="ราคา/รอบ" type="number" value={r.price} onChange={(e: ChangeEvent<HTMLInputElement>) => update(r.key, { price: e.target.value })} fullWidth size="small" slotProps={{ htmlInput: { min: 0 } }} />
-              </Grid>
-              <Grid size={{ xs: 4, sm: 0.75 }} sx={{ textAlign: 'right' }}>
-                <IconButton aria-label="ลบช่วงราคา" onClick={() => remove(r.key)} size="small"><DeleteOutlineIcon fontSize="small" /></IconButton>
-              </Grid>
-            </Grid>
-          ))}
-          <Box>
-            <Button startIcon={<AddRoundedIcon />} size="small" variant="outlined" onClick={add} disabled={loading}>เพิ่มช่วงราคา</Button>
-          </Box>
+          {shopEnabled ? (
+            <>
+              {!loading && rules.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">ยังไม่มีช่วงราคา ทุกรอบใช้ราคาเดิม</Typography>
+              ) : null}
+              {rules.map((r) => (
+                <Grid container spacing={1} key={r.key} alignItems="center">
+                  <Grid size={{ xs: 6, sm: 2.5 }}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>สนาม/ห้อง</InputLabel>
+                      <Select value={r.resource_id} label="สนาม/ห้อง" onChange={(e: SelectChangeEvent) => update(r.key, { resource_id: String(e.target.value) })}>
+                        <MenuItem value="">ทุกสนาม/ห้อง</MenuItem>
+                        {resources.map((x) => <MenuItem key={x.id} value={x.id}>{x.resource_name}</MenuItem>)}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid size={{ xs: 6, sm: 2 }}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>สาขา</InputLabel>
+                      <Select value={r.branch_id} label="สาขา" onChange={(e: SelectChangeEvent) => update(r.key, { branch_id: String(e.target.value) })}>
+                        <MenuItem value="">ทุกสาขา</MenuItem>
+                        {branches.map((b) => <MenuItem key={b.id} value={b.id}>{b.branch_name}</MenuItem>)}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid size={{ xs: 4, sm: 1.5 }}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>วัน</InputLabel>
+                      <Select value={r.weekday} label="วัน" onChange={(e: SelectChangeEvent) => update(r.key, { weekday: String(e.target.value) })}>
+                        <MenuItem value="">ทุกวัน</MenuItem>
+                        {[1, 2, 3, 4, 5, 6, 0].map((d) => <MenuItem key={d} value={String(d)}>{PRICE_RULE_WEEKDAYS[d]}</MenuItem>)}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid size={{ xs: 4, sm: 1.75 }}>
+                    <TextField label="จาก" type="time" value={r.time_from} onChange={(e: ChangeEvent<HTMLInputElement>) => update(r.key, { time_from: e.target.value })} fullWidth size="small" slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 300 } }} />
+                  </Grid>
+                  <Grid size={{ xs: 4, sm: 1.75 }}>
+                    <TextField label="ถึง" type="time" value={r.time_to} onChange={(e: ChangeEvent<HTMLInputElement>) => update(r.key, { time_to: e.target.value })} fullWidth size="small" slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 300 } }} />
+                  </Grid>
+                  <Grid size={{ xs: 8, sm: 1.75 }}>
+                    <TextField label="ราคา/รอบ" type="number" value={r.price} onChange={(e: ChangeEvent<HTMLInputElement>) => update(r.key, { price: e.target.value })} fullWidth size="small" slotProps={{ htmlInput: { min: 0 } }} />
+                  </Grid>
+                  <Grid size={{ xs: 4, sm: 0.75 }} sx={{ textAlign: 'right' }}>
+                    <IconButton aria-label="ลบช่วงราคา" onClick={() => remove(r.key)} size="small"><DeleteOutlineIcon fontSize="small" /></IconButton>
+                  </Grid>
+                </Grid>
+              ))}
+              <Box>
+                <Button startIcon={<AddRoundedIcon />} size="small" variant="outlined" onClick={add} disabled={loading}>เพิ่มช่วงราคา</Button>
+              </Box>
 
-          <Typography variant="subtitle2" sx={{ pt: 1 }}>ส่วนลดเมื่อจองรอบต่อเนื่อง</Typography>
-          <Typography variant="body2" color="text.secondary">
-            รอบที่ต่อจากรอบก่อนหน้าทันที (สนามเดียวกัน วันเดียวกัน ในการจองครั้งเดียว) ลดราคาอัตโนมัติ ลดครั้งเดียวต่อรอบ เช่น 500, 450, 450 —
-            ถ้าลูกค้ายกเลิกรอบแรก รอบที่เหลือกลับเป็นราคาเต็ม
-          </Typography>
-          <Grid container spacing={1}>
-            <Grid size={{ xs: 6, sm: 4 }}>
-              <FormControl fullWidth size="small">
-                <InputLabel>ส่วนลด</InputLabel>
-                <Select value={discountType} label="ส่วนลด" onChange={(e: SelectChangeEvent) => { setDiscountType(e.target.value as '' | 'amount' | 'percent'); setDirty(true); }}>
-                  <MenuItem value="">ไม่มีส่วนลด</MenuItem>
-                  <MenuItem value="amount">ลดเป็นบาท</MenuItem>
-                  <MenuItem value="percent">ลดเป็น %</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            {discountType ? (
-              <Grid size={{ xs: 6, sm: 3 }}>
-                <TextField
-                  label={discountType === 'percent' ? 'ลด (%)' : 'ลด (บาท/รอบ)'}
-                  type="number"
-                  value={discountValue}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => { setDiscountValue(e.target.value); setDirty(true); }}
-                  fullWidth
-                  size="small"
-                  slotProps={{ htmlInput: { min: 0, max: discountType === 'percent' ? 100 : undefined } }}
-                />
+              <Typography variant="subtitle2" sx={{ pt: 1 }}>ส่วนลดเมื่อจองรอบต่อเนื่อง</Typography>
+              <Typography variant="body2" color="text.secondary">
+                รอบที่ต่อจากรอบก่อนหน้าทันที (สนามเดียวกัน วันเดียวกัน ในการจองครั้งเดียว) ลดราคาอัตโนมัติ ลดครั้งเดียวต่อรอบ เช่น 500, 450, 450 —
+                ถ้าลูกค้ายกเลิกรอบแรก รอบที่เหลือกลับเป็นราคาเต็ม
+              </Typography>
+              <Grid container spacing={1}>
+                <Grid size={{ xs: 6, sm: 4 }}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>ส่วนลด</InputLabel>
+                    <Select value={discountType} label="ส่วนลด" onChange={(e: SelectChangeEvent) => { setDiscountType(e.target.value as '' | 'amount' | 'percent'); setDirty(true); }}>
+                      <MenuItem value="">ไม่มีส่วนลด</MenuItem>
+                      <MenuItem value="amount">ลดเป็นบาท</MenuItem>
+                      <MenuItem value="percent">ลดเป็น %</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                {discountType ? (
+                  <Grid size={{ xs: 6, sm: 3 }}>
+                    <TextField
+                      label={discountType === 'percent' ? 'ลด (%)' : 'ลด (บาท/รอบ)'}
+                      type="number"
+                      value={discountValue}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => { setDiscountValue(e.target.value); setDirty(true); }}
+                      fullWidth
+                      size="small"
+                      slotProps={{ htmlInput: { min: 0, max: discountType === 'percent' ? 100 : undefined } }}
+                    />
+                  </Grid>
+                ) : null}
               </Grid>
-            ) : null}
-          </Grid>
 
-          {example ? <Alert severity="success" icon={false}>{example}</Alert> : null}
+              {example ? <Alert severity="success" icon={false}>{example}</Alert> : null}
 
-          <Box>
-            <Button variant="contained" size="small" onClick={() => void save()} disabled={saving || loading || !dirty || !ready}>
-              {saving ? 'กำลังบันทึก...' : 'บันทึกราคา'}
-            </Button>
-          </Box>
+              <Box>
+                <Button variant="contained" size="small" onClick={() => void save()} disabled={saving || loading || !dirty || !ready}>
+                  {saving ? 'กำลังบันทึก...' : 'บันทึกราคา'}
+                </Button>
+              </Box>
+            </>
+          ) : null}
         </Stack>
       </AccordionDetails>
     </Accordion>

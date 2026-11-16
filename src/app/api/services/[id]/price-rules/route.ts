@@ -9,6 +9,7 @@ import { planAllowsPricing, SubscriptionFeatureLockedError } from '@/lib/subscri
 import { findPriceRuleOverlap, PRICE_RULE_WEEKDAYS } from '@/lib/pricing/quote';
 import { parseDiscount } from '@/lib/pricing/pricing-server';
 import { subscriptionErrorResponse } from '@/lib/subscription/response';
+import { isPricingEnabled } from '@/lib/booking/display-settings';
 
 /**
  * Time-range prices + consecutive discount of one service.
@@ -98,11 +99,17 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     const service = await findService(supabase, profile.shop_id, id);
     if (!service) return NextResponse.json({ error: 'ไม่พบบริการ' }, { status: 404 });
 
-    const [state, plan] = await Promise.all([readState(supabase, profile.shop_id, id), planAllowed(profile.shop_id)]);
+    const [state, plan, shopEnabled] = await Promise.all([
+      readState(supabase, profile.shop_id, id),
+      planAllowed(profile.shop_id),
+      isPricingEnabled(supabase, profile.shop_id),
+    ]);
     return NextResponse.json({
       data: {
         ready: Boolean(state),
         plan_allowed: plan.allowed,
+        // Owner switch on /portal/resources (default off); off = rules are stored but not used.
+        shop_enabled: shopEnabled,
         rules: state?.rules ?? [],
         discount: state?.discount ?? null,
       },

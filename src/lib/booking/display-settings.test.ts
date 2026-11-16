@@ -25,3 +25,20 @@ describe('getLiffBookingHints', () => {
     expect(hints).toEqual({ multi_pick_hint: false, price_bands: true, consecutive_discount: true });
   });
 });
+
+describe('isPricingEnabled', () => {
+  it('keeps the feature working before the migration (query error)', async () => {
+    const { isPricingEnabled } = await import('./display-settings');
+    expect(await isPricingEnabled(fakeClient({ data: null, error: { message: 'column does not exist' } }), 's1')).toBe(true);
+  });
+
+  it('is off when the shop has it off (new shops default)', async () => {
+    const { isPricingEnabled } = await import('./display-settings');
+    expect(await isPricingEnabled(fakeClient({ data: { pricing_enabled: false }, error: null }), 's1')).toBe(false);
+  });
+
+  it('is on when the shop turned it on', async () => {
+    const { isPricingEnabled } = await import('./display-settings');
+    expect(await isPricingEnabled(fakeClient({ data: { pricing_enabled: true }, error: null }), 's1')).toBe(true);
+  });
+});

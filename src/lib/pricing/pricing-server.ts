@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSubscriptionState } from '@/lib/subscription/enforcement';
 import { planAllowsPricing } from '@/lib/subscription/features';
+import { isPricingEnabled } from '@/lib/booking/display-settings';
 import type { ConsecutiveDiscount, PriceRule, ServicePricing } from './quote';
 
 /**
@@ -51,9 +52,9 @@ export async function loadServicePricing(
   opts: { shopId: string; serviceId: string; servicePrice: number; planCode?: string | null },
 ): Promise<LoadedServicePricing> {
   const planCode = opts.planCode !== undefined ? opts.planCode : await getSubscriptionState(opts.shopId).then((s) => (s.active ? s.planCode : null)).catch(() => null);
-  const enabled = planAllowsPricing(planCode);
+  const planOk = planAllowsPricing(planCode);
 
-  const [rulesRes, discountRes] = await Promise.all([
+  const [rulesRes, discountRes, shopOn] = await Promise.all([
     client
       .from('service_price_rules')
       .select(RULE_COLUMNS)
@@ -67,7 +68,10 @@ export async function loadServicePricing(
       .eq('id', opts.serviceId)
       .eq('shop_id', opts.shopId)
       .maybeSingle(),
+    // Owner switch (default off); off = old price even with rules stored.
+    planOk ? isPricingEnabled(client, opts.shopId) : Promise.resolve(false),
   ]);
+  const enabled = planOk && shopOn;
 
   const schemaReady = !rulesRes.error && !discountRes.error;
   if (rulesRes.error) console.warn('[pricing] rules unavailable (migration 202611160002?):', rulesRes.error.message);
@@ -101,6 +105,7 @@ export async function loadShopPricingForMeta(admin: SupabaseClient, shopId: stri
   try {
     const sub = await getSubscriptionState(shopId);
     if (!sub.active || !planAllowsPricing(sub.planCode)) return {};
+    if (!(await isPricingEnabled(admin, shopId))) return {};
     const [rulesRes, servicesRes] = await Promise.all([
       admin.from('service_price_rules').select(RULE_COLUMNS).eq('shop_id', shopId).eq('is_deleted', false).eq('active', true),
       admin
@@ -122,5 +127,48 @@ export async function loadShopPricingForMeta(admin: SupabaseClient, shopId: stri
   } catch (error) {
     console.warn('[pricing] meta pricing failed:', error instanceof Error ? error.message : error);
     return {};
+  }
+}
+
+/** Which pricing features the shop actually uses (drives portal-only UI). */
+export type ShopPricingUsage = {
+  /** At least one active time-range price rule. */
+  rules: boolean;
+  /** At least one service with a consecutive discount above 0. */
+  discount: boolean;
+};
+
+/**
+ * Whether the shop has time-range prices / a consecutive discount in force.
+ * Used by /portal/resources to show the LIFF text switches only for features
+ * that are on. Plan below Professional = nothing in force (LIFF shows nothing
+ * either). Any error = false, so the portal simply hides the switches.
+ *
+ * @param client - Supabase client allowed to read this shop (RLS select).
+ * @param shopId - Shop to check.
+ */
+export async function loadShopPricingUsage(client: SupabaseClient, shopId: string): Promise<ShopPricingUsage> {
+  const none = { rules: false, discount: false };
+  try {
+    const sub = await getSubscriptionState(shopId);
+    if (!sub.active || !planAllowsPricing(sub.planCode)) return none;
+    if (!(await isPricingEnabled(client, shopId))) return none;
+    const [rulesRes, discountRes] = await Promise.all([
+      client.from('service_price_rules').select('id').eq('shop_id', shopId).eq('is_deleted', false).eq('active', true).limit(1),
+      client
+        .from('services')
+        .select('id')
+        .eq('shop_id', shopId)
+        .eq('is_deleted', false)
+        .not('consecutive_discount_type', 'is', null)
+        .gt('consecutive_discount_value', 0)
+        .limit(1),
+    ]);
+    return {
+      rules: !rulesRes.error && (rulesRes.data ?? []).length > 0,
+      discount: !discountRes.error && (discountRes.data ?? []).length > 0,
+    };
+  } catch {
+    return none;
   }
 }

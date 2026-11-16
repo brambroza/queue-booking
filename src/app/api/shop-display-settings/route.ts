@@ -9,8 +9,13 @@ import {
   isServiceDurationVisible,
   isLiffPackagesAlwaysShown,
   getLiffBookingHints,
+  isPricingEnabled,
 } from '@/lib/booking/display-settings';
 import { invalidateCache } from '@/lib/cache/kv';
+import { loadShopPricingUsage } from '@/lib/pricing/pricing-server';
+import { getSubscriptionState } from '@/lib/subscription/enforcement';
+import { planAllowsPricing, SubscriptionFeatureLockedError } from '@/lib/subscription/features';
+import { subscriptionErrorResponse } from '@/lib/subscription/response';
 
 // Each switch on the Services / Resources pages saves on its own, so every key is optional
 // and only the keys present are written.
@@ -27,6 +32,8 @@ const PatchSchema = z
     liff_show_multi_pick_hint: z.boolean().optional(),
     liff_show_price_bands: z.boolean().optional(),
     liff_show_consecutive_discount: z.boolean().optional(),
+    /** Time-range prices + consecutive discount on/off (set on /portal/resources); ON needs Professional+. */
+    pricing_enabled: z.boolean().optional(),
   })
   .refine((b) => Object.values(b).some((v) => v !== undefined), {
     message: 'nothing to update',
@@ -39,7 +46,7 @@ export async function GET() {
       roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'],
     });
     const shopId = profile.shop_id as string;
-    const [showServiceDuration, oneBookingPerDay, multiSlotEnabled, requireResourceChoice, showResourceCapacity, liffShowPackages, liffHints] = await Promise.all([
+    const [showServiceDuration, oneBookingPerDay, multiSlotEnabled, requireResourceChoice, showResourceCapacity, liffShowPackages, liffHints, pricingUsage, pricingEnabled, sub] = await Promise.all([
       isServiceDurationVisible(supabase, shopId),
       isOneBookingPerDay(supabase, shopId),
       isMultiSlotEnabled(supabase, shopId),
@@ -47,6 +54,9 @@ export async function GET() {
       isResourceCapacityVisible(supabase, shopId),
       isLiffPackagesAlwaysShown(supabase, shopId),
       getLiffBookingHints(supabase, shopId),
+      loadShopPricingUsage(supabase, shopId),
+      isPricingEnabled(supabase, shopId),
+      getSubscriptionState(shopId),
     ]);
     return NextResponse.json({
       data: {
@@ -59,6 +69,14 @@ export async function GET() {
         liff_show_multi_pick_hint: liffHints.multi_pick_hint,
         liff_show_price_bands: liffHints.price_bands,
         liff_show_consecutive_discount: liffHints.consecutive_discount,
+        pricing_enabled: pricingEnabled,
+        pricing_plan_allowed: sub.active && planAllowsPricing(sub.planCode),
+        // Which LIFF texts exist at all: the portal shows a switch only for features in use.
+        hint_features: {
+          multi_pick_hint: multiSlotEnabled,
+          price_bands: pricingUsage.rules,
+          consecutive_discount: pricingUsage.discount,
+        },
       },
     });
   } catch (e) {
@@ -73,6 +91,13 @@ export async function PATCH(req: Request) {
       roles: ['super_admin', 'shop_owner'],
     });
     const body = PatchSchema.parse(await req.json());
+    // Turning prices on needs the plan; turning them off is always allowed.
+    if (body.pricing_enabled === true) {
+      const sub = await getSubscriptionState(profile.shop_id);
+      if (!(sub.active && planAllowsPricing(sub.planCode))) {
+        throw new SubscriptionFeatureLockedError('ราคาตามช่วงเวลา / ส่วนลดชั่วโมงต่อเนื่อง', sub.planCode, 'pricing');
+      }
+    }
 
     const patch: Record<string, boolean | string> = { updated_by: user.id };
     if (body.show_service_duration !== undefined) patch.show_service_duration = body.show_service_duration;
@@ -84,6 +109,7 @@ export async function PATCH(req: Request) {
     if (body.liff_show_multi_pick_hint !== undefined) patch.liff_show_multi_pick_hint = body.liff_show_multi_pick_hint;
     if (body.liff_show_price_bands !== undefined) patch.liff_show_price_bands = body.liff_show_price_bands;
     if (body.liff_show_consecutive_discount !== undefined) patch.liff_show_consecutive_discount = body.liff_show_consecutive_discount;
+    if (body.pricing_enabled !== undefined) patch.pricing_enabled = body.pricing_enabled;
 
     const { error } = await supabase.from('shops').update(patch).eq('id', profile.shop_id);
     if (error) {
@@ -104,9 +130,12 @@ export async function PATCH(req: Request) {
         liff_show_multi_pick_hint: body.liff_show_multi_pick_hint,
         liff_show_price_bands: body.liff_show_price_bands,
         liff_show_consecutive_discount: body.liff_show_consecutive_discount,
+        pricing_enabled: body.pricing_enabled,
       },
     });
   } catch (e) {
+    const subscription = subscriptionErrorResponse(e);
+    if (subscription) return subscription;
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Unexpected error' }, { status: getErrorStatus(e) });
   }
 }

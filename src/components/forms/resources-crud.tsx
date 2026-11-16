@@ -79,6 +79,8 @@ export function ResourcesCrud() {
   const [rows, setRows] = useState<Resource[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  /** Bumped after prices are saved so the LIFF text switches re-check what is in use. */
+  const [pricingSavedAt, setPricingSavedAt] = useState(0);
   const [linkedServiceIds, setLinkedServiceIds] = useState<string[]>([]);
   const [bulkServiceIds, setBulkServiceIds] = useState<string[]>([]);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
@@ -247,8 +249,8 @@ export function ResourcesCrud() {
 
   return (
     <div className="space-y-4">
-      <ResourceChoiceSettingCard />
-      <ResourcePriceRulesCard services={services} branches={branches} />
+      <ResourceChoiceSettingCard refreshKey={pricingSavedAt} />
+      <ResourcePriceRulesCard services={services} branches={branches} onSaved={() => setPricingSavedAt(Date.now())} />
       <div className="card p-4">
         {/* Phones: search full width, 2 filters per row, full-width search button. md+: one row of 6 (unchanged). */}
         <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
