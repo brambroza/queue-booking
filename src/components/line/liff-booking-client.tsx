@@ -163,6 +163,12 @@ type ShopMeta = {
   require_resource_choice?: boolean;
   /** false = hide "N ที่นั่ง" on resource cards (default shown). */
   show_resource_capacity?: boolean;
+  /** false = hide "แตะเลือกได้หลายช่อง …" under the time grid (default shown). */
+  liff_show_multi_pick_hint?: boolean;
+  /** false = hide the "ราคาต่อรอบ" bands under the time grid (default shown). */
+  liff_show_price_bands?: boolean;
+  /** false = hide the "จองรอบต่อเนื่อง ลด …" line (default shown). */
+  liff_show_consecutive_discount?: boolean;
   /** On when the shop lets checked-in customers order food and drinks (plan + owner switch). */
   fnb_enabled?: boolean;
   /** True while the shop's LINE OA is out of monthly push quota: chat cards will not arrive, the screen is the source. */
@@ -488,6 +494,10 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
   // it off in the portal Services page. Unset means visible.
   const showDuration = shop?.show_service_duration !== false;
   const showResourceCapacity = shop?.show_resource_capacity !== false;
+  // Helper text under the time grid; the shop may hide each line (display only).
+  const showMultiPickHint = shop?.liff_show_multi_pick_hint !== false;
+  const showPriceBands = shop?.liff_show_price_bands !== false;
+  const showDiscountLine = shop?.liff_show_consecutive_discount !== false;
 
   /**
    * Booking this customer already holds on the chosen day when the shop limits
@@ -2054,18 +2064,22 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
                     date={date}
                     branchId={branchId || null}
                     resourceId={selectedResourceId || null}
+                    showBands={showPriceBands}
+                    showDiscount={showDiscountLine}
                   />
                 ) : null}
-                {!loading && multiPickEnabled && slots.length > 0 ? (
+                {!loading && multiPickEnabled && slots.length > 0 && (showMultiPickHint || pickedTimes.length > 0) ? (
                   <Alert severity="info" icon={false} sx={{ py: 0.5 }}>
                     {pickedTimes.length > 0 ? (
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         เลือกแล้ว {pickedTimes.length} ช่อง: {pickedTimes.join(', ')} น.
                       </Typography>
                     ) : null}
-                    <Typography variant="caption" color="text.secondary">
-                      แตะเลือกได้หลายช่อง สูงสุด {MAX_SLOTS_PER_ORDER} ช่อง (ได้ 1 คิวต่อช่อง) · แตะช่องที่เลือกแล้วเพื่อเอาออก
-                    </Typography>
+                    {showMultiPickHint ? (
+                      <Typography variant="caption" color="text.secondary">
+                        แตะเลือกได้หลายช่อง สูงสุด {MAX_SLOTS_PER_ORDER} ช่อง (ได้ 1 คิวต่อช่อง) · แตะช่องที่เลือกแล้วเพื่อเอาออก
+                      </Typography>
+                    ) : null}
                   </Alert>
                 ) : null}
                 {bookingGateOpen && !loading && slots.length === 0 && !slotHint && slotMeta.reason === 'ok' ? (

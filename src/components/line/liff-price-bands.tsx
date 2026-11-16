@@ -15,20 +15,26 @@ function hhmm(minutes: number): string {
  * consecutive discount. Only rules that win for that day are listed.
  *
  * @param props.pricing - Rules + discount of the service from /meta.
+ * @param props.showBands - Shop switch: show the "ราคาต่อรอบ" bands (default true).
+ * @param props.showDiscount - Shop switch: show the consecutive discount line (default true).
  */
 export function LiffPriceBands({
   pricing,
   date,
   branchId,
   resourceId,
+  showBands = true,
+  showDiscount = true,
 }: {
   pricing: { rules: PriceRule[]; discount: ConsecutiveDiscount | null };
   date: string;
   branchId: string | null;
   resourceId: string | null;
+  showBands?: boolean;
+  showDiscount?: boolean;
 }) {
   const weekday = date ? weekdayOf(date) : null;
-  const bands = pricing.rules
+  const bands = !showBands ? [] : pricing.rules
     .filter((r) => r.active !== false)
     .filter((r) => (!r.resource_id || r.resource_id === resourceId) && (!r.branch_id || r.branch_id === branchId) && (r.weekday === null || r.weekday === weekday))
     .map((r) => ({ rule: r, range: ruleRange(r) }))
@@ -37,12 +43,12 @@ export function LiffPriceBands({
     .filter((x) => matchPriceRule(pricing.rules, { date, minutes: x.range[0], branchId, resourceId }) === x.rule)
     .sort((a, b) => a.range[0] - b.range[0]);
 
-  if (bands.length === 0 && !pricing.discount) return null;
-  const discount = pricing.discount
+  const discount = pricing.discount && showDiscount
     ? pricing.discount.type === 'percent'
       ? `จองรอบต่อเนื่อง ลด ${pricing.discount.value}% ต่อรอบ`
       : `จองรอบต่อเนื่อง ลด ${pricing.discount.value.toLocaleString('th-TH')} บาท/รอบ`
     : '';
+  if (bands.length === 0 && !discount) return null;
 
   return (
     <Alert severity="success" icon={false} sx={{ py: 0.5 }}>

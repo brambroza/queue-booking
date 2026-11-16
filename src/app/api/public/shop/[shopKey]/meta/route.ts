@@ -7,7 +7,7 @@ import { PUBLIC_CACHE_HEADERS } from '@/lib/cache/http';
 import { getShopPaymentConfig, toPublicPaymentInfo } from '@/lib/payments/settings';
 import { isBookingEchoEnabled } from '@/lib/line/booking-echo';
 import { isLineDeliveryPausedCached } from '@/lib/line/quota-server';
-import { isLiffPackagesAlwaysShown, isMultiSlotEnabled, isOneBookingPerDay, isResourceCapacityVisible, isResourceChoiceRequired, isServiceDurationVisible } from '@/lib/booking/display-settings';
+import { getLiffBookingHints, isLiffPackagesAlwaysShown, isMultiSlotEnabled, isOneBookingPerDay, isResourceCapacityVisible, isResourceChoiceRequired, isServiceDurationVisible } from '@/lib/booking/display-settings';
 import { getShopBookingWindows, resolveMaxBookingDate, resolveMinBookingDate } from '@/lib/booking/booking-window';
 import { toBangkokStamp } from '@/lib/line/booking-reminder';
 import { getFnbAccess } from '@/lib/subscription/features';
@@ -55,6 +55,7 @@ async function loadMeta(admin: ReturnType<typeof createAdminClient>, shop: Resol
     pricing,
     packagesEnabled,
     packagesAlwaysShown,
+    liffHints,
   ] = await Promise.all([
     admin.from('branches').select('id,branch_name,layout_image_url').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
     admin.from('services').select('id,service_name,duration_minutes,price,image_url,booking_mode,min_duration_minutes,max_duration_minutes').eq('shop_id', shop.id).eq('active', true).eq('is_deleted', false),
@@ -89,6 +90,8 @@ async function loadMeta(admin: ReturnType<typeof createAdminClient>, shop: Resol
     shopUsesPackages(admin, shop.id),
     // Owner switch on /portal/packages: show "แพ็กเกจของฉัน" even when empty.
     isLiffPackagesAlwaysShown(admin, shop.id),
+    // Helper text under the time grid the shop may hide (all shown before 202611160005).
+    getLiffBookingHints(admin, shop.id),
   ]);
 
   // Thrown, not returned empty: a failed read must not be cached as "no branches".
@@ -129,6 +132,10 @@ async function loadMeta(admin: ReturnType<typeof createAdminClient>, shop: Resol
       fnb_enabled: fnbAccess.enabled,
       line_delivery_paused: lineDeliveryPaused,
       packages_enabled: packagesEnabled || packagesAlwaysShown,
+      // Display only: hide helper lines under the LIFF time grid.
+      liff_show_multi_pick_hint: liffHints.multi_pick_hint,
+      liff_show_price_bands: liffHints.price_bands,
+      liff_show_consecutive_discount: liffHints.consecutive_discount,
     },
     branches: branchesWithWindow,
     services: services ?? [],

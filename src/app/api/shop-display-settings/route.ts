@@ -8,6 +8,7 @@ import {
   isResourceChoiceRequired,
   isServiceDurationVisible,
   isLiffPackagesAlwaysShown,
+  getLiffBookingHints,
 } from '@/lib/booking/display-settings';
 import { invalidateCache } from '@/lib/cache/kv';
 
@@ -22,6 +23,10 @@ const PatchSchema = z
     show_resource_capacity: z.boolean().optional(),
     /** Always show "แพ็กเกจของฉัน" on the LIFF member page (set on /portal/packages). */
     liff_show_packages: z.boolean().optional(),
+    /** Helper text under the LIFF time grid (set on /portal/resources), display only. */
+    liff_show_multi_pick_hint: z.boolean().optional(),
+    liff_show_price_bands: z.boolean().optional(),
+    liff_show_consecutive_discount: z.boolean().optional(),
   })
   .refine((b) => Object.values(b).some((v) => v !== undefined), {
     message: 'nothing to update',
@@ -34,13 +39,14 @@ export async function GET() {
       roles: ['super_admin', 'shop_owner', 'branch_manager', 'staff'],
     });
     const shopId = profile.shop_id as string;
-    const [showServiceDuration, oneBookingPerDay, multiSlotEnabled, requireResourceChoice, showResourceCapacity, liffShowPackages] = await Promise.all([
+    const [showServiceDuration, oneBookingPerDay, multiSlotEnabled, requireResourceChoice, showResourceCapacity, liffShowPackages, liffHints] = await Promise.all([
       isServiceDurationVisible(supabase, shopId),
       isOneBookingPerDay(supabase, shopId),
       isMultiSlotEnabled(supabase, shopId),
       isResourceChoiceRequired(supabase, shopId),
       isResourceCapacityVisible(supabase, shopId),
       isLiffPackagesAlwaysShown(supabase, shopId),
+      getLiffBookingHints(supabase, shopId),
     ]);
     return NextResponse.json({
       data: {
@@ -50,6 +56,9 @@ export async function GET() {
         require_resource_choice: requireResourceChoice,
         show_resource_capacity: showResourceCapacity,
         liff_show_packages: liffShowPackages,
+        liff_show_multi_pick_hint: liffHints.multi_pick_hint,
+        liff_show_price_bands: liffHints.price_bands,
+        liff_show_consecutive_discount: liffHints.consecutive_discount,
       },
     });
   } catch (e) {
@@ -72,6 +81,9 @@ export async function PATCH(req: Request) {
     if (body.require_resource_choice !== undefined) patch.require_resource_choice = body.require_resource_choice;
     if (body.show_resource_capacity !== undefined) patch.show_resource_capacity = body.show_resource_capacity;
     if (body.liff_show_packages !== undefined) patch.liff_show_packages = body.liff_show_packages;
+    if (body.liff_show_multi_pick_hint !== undefined) patch.liff_show_multi_pick_hint = body.liff_show_multi_pick_hint;
+    if (body.liff_show_price_bands !== undefined) patch.liff_show_price_bands = body.liff_show_price_bands;
+    if (body.liff_show_consecutive_discount !== undefined) patch.liff_show_consecutive_discount = body.liff_show_consecutive_discount;
 
     const { error } = await supabase.from('shops').update(patch).eq('id', profile.shop_id);
     if (error) {
@@ -89,6 +101,9 @@ export async function PATCH(req: Request) {
         require_resource_choice: body.require_resource_choice,
         show_resource_capacity: body.show_resource_capacity,
         liff_show_packages: body.liff_show_packages,
+        liff_show_multi_pick_hint: body.liff_show_multi_pick_hint,
+        liff_show_price_bands: body.liff_show_price_bands,
+        liff_show_consecutive_discount: body.liff_show_consecutive_discount,
       },
     });
   } catch (e) {

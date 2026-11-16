@@ -126,3 +126,39 @@ export async function isLiffPackagesAlwaysShown(client: SupabaseClient, shopId: 
   if (error) return false;
   return (data as { liff_show_packages?: boolean } | null)?.liff_show_packages === true;
 }
+
+/** Helper text under the LIFF time grid the shop can hide (all shown by default). */
+export type LiffBookingHints = {
+  /** "แตะเลือกได้หลายช่อง สูงสุด N ช่อง …" */
+  multi_pick_hint: boolean;
+  /** "ราคาต่อรอบ: 08:00–15:00 500 บาท · …" */
+  price_bands: boolean;
+  /** "จองรอบต่อเนื่อง ลด …" */
+  consecutive_discount: boolean;
+};
+
+export const DEFAULT_LIFF_BOOKING_HINTS: LiffBookingHints = { multi_pick_hint: true, price_bands: true, consecutive_discount: true };
+
+/**
+ * Shop switches `shops.liff_show_multi_pick_hint` / `liff_show_price_bands` /
+ * `liff_show_consecutive_discount` (migration 202611160005), one read.
+ * Display only — prices are not affected.
+ *
+ * @param client - Supabase client already allowed to read this shop.
+ * @param shopId - Shop to read the flags for.
+ * @returns every text shown on any error / before the migration; false only when the shop turned it off.
+ */
+export async function getLiffBookingHints(client: SupabaseClient, shopId: string): Promise<LiffBookingHints> {
+  const { data, error } = await client
+    .from('shops')
+    .select('liff_show_multi_pick_hint,liff_show_price_bands,liff_show_consecutive_discount')
+    .eq('id', shopId)
+    .maybeSingle();
+  if (error || !data) return { ...DEFAULT_LIFF_BOOKING_HINTS };
+  const row = data as { liff_show_multi_pick_hint?: boolean; liff_show_price_bands?: boolean; liff_show_consecutive_discount?: boolean };
+  return {
+    multi_pick_hint: row.liff_show_multi_pick_hint !== false,
+    price_bands: row.liff_show_price_bands !== false,
+    consecutive_discount: row.liff_show_consecutive_discount !== false,
+  };
+}
