@@ -42,6 +42,7 @@ import {
   restoreRefusedMessage,
   restoredNote,
 } from '@/lib/booking/restore';
+import { checkRestoreSeats } from '@/lib/booking/restore-server';
 import { isMultiSlotEnabled } from '@/lib/booking/display-settings';
 import { quoteOrder, toStoredBreakdown } from '@/lib/pricing/quote';
 import { loadServicePricing } from '@/lib/pricing/pricing-server';
@@ -676,42 +677,13 @@ async function restoreCancelledBooking(args: {
   }
   const group = restoreGroup(target, siblings, today);
 
-  // Validate every queue before writing any.
-  for (const row of group) {
-    const label = row.queue_number ?? row.id;
-    if (row.resource_id) {
-      const startMin = timeToMinutes(String(row.start_time)) ?? 0;
-      const endMin = endTimeMinutes(row.end_time, startMin);
-      const durationMin = endMin !== null && endMin > startMin ? endMin - startMin : 30;
-      const startAt = new Date(`${row.booking_date}T${String(row.start_time).slice(0, 5)}:00+07:00`);
-      const endAt = new Date(startAt.getTime() + durationMin * 60_000);
-      const free = await isResourceFree(supabase, { shopId, resourceId: row.resource_id, startAt, endAt, excludeBookingId: row.id });
-      if (!free) {
-        const { data: res } = await supabase
-          .from('booking_resources')
-          .select('resource_type')
-          .eq('id', row.resource_id)
-          .eq('shop_id', shopId)
-          .maybeSingle();
-        return NextResponse.json(
-          { error: `คิว ${label}: ${resourceBusyMessage(res?.resource_type ?? null)} — ย้ายคิวที่ทับออกก่อน หรือสร้างคิวใหม่` },
-          { status: 409 },
-        );
-      }
-    } else if (!args.allowOverbook && row.service_id && row.branch_id) {
-      const slotKey = { shopId, branchId: row.branch_id, serviceId: row.service_id, date: row.booking_date, startTime: String(row.start_time) };
-      const { data: svc } = await supabase.from('services').select('capacity_per_slot').eq('id', row.service_id).eq('shop_id', shopId).maybeSingle();
-      const [capacity, bookedCount] = await Promise.all([
-        fetchSlotCapacity(supabase, slotKey, svc?.capacity_per_slot),
-        countSlotBookings(supabase, { ...slotKey, excludeBookingId: row.id }),
-      ]);
-      if (isSlotFull(bookedCount, capacity)) {
-        return NextResponse.json(
-          { error: `คิว ${label}: ${slotFullStaffMessage(String(row.start_time), bookedCount, capacity)}`, code: SLOT_FULL_CODE },
-          { status: 409 },
-        );
-      }
-    }
+  // Validate every queue before writing any (same seat checks as the late-slip restore).
+  const seats = await checkRestoreSeats(supabase, { shopId, rows: group, allowOverbook: args.allowOverbook });
+  if (!seats.ok) {
+    return NextResponse.json(
+      seats.kind === 'slot_full' ? { error: seats.message, code: seats.code } : { error: seats.message },
+      { status: 409 },
+    );
   }
 
   // Queues paid with a prepaid package got their minutes back on cancel; take

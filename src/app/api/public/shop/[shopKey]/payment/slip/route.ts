@@ -7,6 +7,9 @@ import { isOwnerLookupFailure, resolveBookingForLineUser } from '@/lib/payments/
 import { sniffImageMime } from '@/lib/utils/image-sniff';
 import { autoVerifySlip } from '@/lib/payments/slip/auto-verify';
 import { approveSlip } from '@/lib/payments/slip/approve';
+import { decideLateSlipRevival, lateSlipEligibility } from '@/lib/payments/payment-hold';
+import { restoreOrderForLateSlip, wasRestoredByLateSlip } from '@/lib/booking/restore-server';
+import { getTodayISOInBangkok } from '@/lib/utils/date-format';
 import {
   PAYMENT_SLIP_BUCKET,
   SLIP_ALLOWED_MIME,
@@ -19,6 +22,14 @@ const UPLOADABLE_STATUSES = new Set(['pending_payment', 'rejected', 'awaiting_ve
 
 const MAX_SLIPS_PER_BOOKING_PER_HOUR = 5;
 const MAX_SLIPS_PER_USER_PER_DAY = 20;
+
+/**
+ * What happened to a slip sent after the payment cron cancelled the queue.
+ * - `restored`: the seat was still free — the queue is back, waiting for slip review.
+ * - `slot_taken`: someone else booked the seat — staff refund the customer.
+ * - `not_restored`: kept for staff (suspicious slip, day over, or already restored once).
+ */
+type LateSlipOutcome = 'restored' | 'slot_taken' | 'not_restored';
 
 const EXT_BY_MIME: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -63,6 +74,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
   if (isOwnerLookupFailure(owner)) return NextResponse.json({ error: owner.error }, { status: owner.status });
 
   const { shop, booking, lineUserPk } = owner;
+
+  // A queue the payment cron cancelled still takes a slip (and may come back);
+  // one the customer or the shop cancelled does not.
+  const eligibility = lateSlipEligibility(booking.status, booking.note);
+  if (eligibility === 'refuse') {
+    return NextResponse.json({ error: 'คิวนี้ถูกยกเลิกแล้ว กรุณาจองใหม่หรือติดต่อร้าน' }, { status: 409 });
+  }
+  const isLate = eligibility === 'late';
 
   if (booking.payment_method !== 'bank_transfer' || !UPLOADABLE_STATUSES.has(String(booking.payment_status))) {
     return NextResponse.json({ error: 'ไม่สามารถอัปโหลดสลิปสำหรับคิวนี้ได้' }, { status: 409 });
@@ -187,7 +206,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     paymentExpiresAt: booking.payment_expires_at,
   });
 
-  if (evaluation.autoApprove && evaluation.providerId && transRef) {
+  // A late slip is never approved without a human: the seat may have been resold.
+  if (!isLate && evaluation.autoApprove && evaluation.providerId && transRef) {
     const approved = await approveSlip(admin, {
       slipId: slip.id,
       bookingId: booking.id,
@@ -203,24 +223,64 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
 
   const suspicious = evaluation.status === 'suspicious';
   const bankVerified = evaluation.status === 'verified';
+  const amountLabel = amount.toLocaleString('th-TH');
+
+  let late: LateSlipOutcome | null = null;
+  if (isLate) {
+    const alreadyRevived = await wasRestoredByLateSlip(admin, { shopId: shop.id, bookingId: booking.id });
+    const decision = decideLateSlipRevival({
+      evaluationStatus: evaluation.status,
+      bookingDate: booking.booking_date,
+      today: getTodayISOInBangkok(),
+      alreadyRevived,
+    });
+    if (decision.revive) {
+      const restored = await restoreOrderForLateSlip(admin, { shopId: shop.id, companyId: shop.company_id, bookingId: booking.id });
+      late = restored.ok ? 'restored' : restored.reason === 'slot_taken' ? 'slot_taken' : 'not_restored';
+    } else {
+      late = 'not_restored';
+    }
+  }
+
+  const title =
+    late === 'restored'
+      ? 'สลิปมาหลังหมดเวลา — ระบบกู้คิวให้แล้ว รอตรวจสลิป'
+      : late === 'slot_taken'
+        ? 'สลิปมาหลังยกเลิก รอบเต็มแล้ว — ติดต่อลูกค้า/คืนเงิน'
+        : late === 'not_restored'
+          ? 'สลิปมาหลังคิวถูกยกเลิก — กรุณาตรวจสอบ'
+          : suspicious
+            ? 'สลิปน่าสงสัย — กรุณาตรวจสอบ'
+            : bankVerified
+              ? 'ธนาคารยืนยันสลิปแล้ว — รอกดอนุมัติ'
+              : 'สลิปใหม่รอตรวจสอบ';
+  const message =
+    late === 'restored'
+      ? `คิว ${booking.queue_number} ส่งสลิปหลังหมดเวลาชำระ รอบยังว่าง ระบบกู้คิวกลับเป็นรอตรวจสลิปแล้ว ยอด ${amountLabel} บาท — อนุมัติเพื่อยืนยันคิว หรือปฏิเสธแล้วคิวจะถูกยกเลิกอีกครั้ง`
+      : late === 'slot_taken'
+        ? `คิว ${booking.queue_number} ส่งสลิปหลังระบบยกเลิกคิว แต่รอบนั้นมีคนจองแล้ว ยอด ${amountLabel} บาท — ติดต่อลูกค้าเพื่อคืนเงินหรือย้ายรอบ`
+        : late === 'not_restored'
+          ? `คิว ${booking.queue_number} ส่งสลิปหลังระบบยกเลิกคิว ระบบไม่ได้กู้คิวให้อัตโนมัติ${suspicious ? ' (สลิปไม่ผ่านการตรวจอัตโนมัติ)' : ''} ยอด ${amountLabel} บาท — เปิดคิวแล้วกด "กู้คิวกลับ" หรือติดต่อลูกค้าเพื่อคืนเงิน`
+          : suspicious
+            ? `คิว ${booking.queue_number} อัปโหลดสลิปที่ไม่ผ่านการตรวจอัตโนมัติ ยอด ${amountLabel} บาท`
+            : `คิว ${booking.queue_number} อัปโหลดสลิปแล้ว ยอด ${amountLabel} บาท`;
+
   await safeCreateNotification(admin, {
     companyId: shop.company_id,
     shopId: shop.id,
     type: 'payment_slip_uploaded',
     category: 'billing',
     priority: 'high',
-    title: suspicious ? 'สลิปน่าสงสัย — กรุณาตรวจสอบ' : bankVerified ? 'ธนาคารยืนยันสลิปแล้ว — รอกดอนุมัติ' : 'สลิปใหม่รอตรวจสอบ',
-    message: suspicious
-      ? `คิว ${booking.queue_number} อัปโหลดสลิปที่ไม่ผ่านการตรวจอัตโนมัติ ยอด ${amount.toLocaleString('th-TH')} บาท`
-      : `คิว ${booking.queue_number} อัปโหลดสลิปแล้ว ยอด ${amount.toLocaleString('th-TH')} บาท`,
+    title,
+    message,
     relatedType: 'booking',
     relatedId: booking.id,
-    actionUrl: '/portal/payment-verification',
+    actionUrl: late && late !== 'restored' ? `/portal/bookings?booking_id=${booking.id}` : '/portal/payment-verification',
   });
 
   // Best-effort acknowledgement — a failed push must not fail the upload.
   // Skipped when the client echoes (reply is free; a push costs plan quota).
-  if (willEcho) return NextResponse.json({ data: { slip_id: slip.id, payment_status: 'awaiting_verification', ack: 'echo' } });
+  if (willEcho) return NextResponse.json({ data: { slip_id: slip.id, payment_status: 'awaiting_verification', ack: 'echo', late } });
   try {
     const { data: shopLine } = await admin
       .from('shops')
@@ -230,12 +290,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ shopKey
     const token = shopLine?.line_channel_access_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
     if (token) {
       await pushMessage(token, lineUserId, [
-        slipReceivedFlex({ shopName: shop.name ?? 'Queue Booking', queueNumber: booking.queue_number, amountTHB: amount }),
+        slipReceivedFlex({ shopName: shop.name ?? 'Queue Booking', queueNumber: booking.queue_number, amountTHB: amount, late }),
       ]);
     }
   } catch (e) {
     console.error('[slip] line push failed:', e instanceof Error ? e.message : e);
   }
 
-  return NextResponse.json({ data: { slip_id: slip.id, payment_status: 'awaiting_verification' } });
+  return NextResponse.json({ data: { slip_id: slip.id, payment_status: 'awaiting_verification', late } });
 }

@@ -8,6 +8,9 @@ export interface ResolvedBookingOwner {
   booking: {
     id: string;
     queue_number: string;
+    status: string | null;
+    note: string | null;
+    booking_date: string;
     payment_status: string | null;
     payment_method: string | null;
     payment_amount: number | null;
@@ -55,7 +58,7 @@ export async function resolveBookingForLineUser(
 
   const { data: booking } = await admin
     .from('bookings')
-    .select('id,queue_number,payment_status,payment_method,payment_amount,payment_expires_at,payment_reject_reason,bank_provider,bank_txn_id,bank_deeplink_url,omise_charge_id')
+    .select('id,queue_number,status,note,booking_date,payment_status,payment_method,payment_amount,payment_expires_at,payment_reject_reason,bank_provider,bank_txn_id,bank_deeplink_url,omise_charge_id')
     .eq('id', bookingId)
     .eq('shop_id', shop.id)
     .eq('line_user_id', lineUser.id)

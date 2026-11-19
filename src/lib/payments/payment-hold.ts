@@ -202,3 +202,72 @@ export function customerPaymentState(
   if ((PAYMENT_HOLD_UNPAID_STATUSES as readonly string[]).includes(String(paymentStatus))) return 'owed';
   return null;
 }
+
+// ── Late slip (customer sends the slip after the cron cancelled the order) ──
+
+/** Marker on a queue the system brought back because a late slip arrived. */
+export const LATE_SLIP_RESTORED_MARKER = 'กู้อัตโนมัติ: สลิปมาหลังหมดเวลา';
+
+/** `booking_logs.action` written when a late slip brings an order back. */
+export const LATE_SLIP_RESTORE_LOG_ACTION = 'restore_late_slip';
+
+/**
+ * How the slip upload route treats a booking by its status.
+ * - `active`: not cancelled, the normal flow.
+ * - `late`: cancelled by the payment-expiry cron — the slip is taken and the order may come back.
+ * - `refuse`: cancelled for another reason (customer or shop) — no slip accepted.
+ *
+ * @param status - Booking status.
+ * @param note - Booking note (carries the cron's expiry marker).
+ */
+export function lateSlipEligibility(
+  status: string | null | undefined,
+  note: string | null | undefined,
+): 'active' | 'late' | 'refuse' {
+  if (status !== 'cancelled') return 'active';
+  return String(note ?? '').includes(NOTE_MARKER) ? 'late' : 'refuse';
+}
+
+export type LateSlipRevivalDecision =
+  | { revive: true }
+  | { revive: false; reason: 'suspicious' | 'past' | 'already_revived' };
+
+/**
+ * Whether a late slip may bring the cancelled order back on its own. The queue
+ * returns as "waiting for slip review", never as confirmed — staff still check
+ * the money. Only once per queue, so a random picture cannot keep a seat held.
+ *
+ * @param input.evaluationStatus - Result of the automatic slip checks.
+ * @param input.bookingDate - Queue date `YYYY-MM-DD`.
+ * @param input.today - Today `YYYY-MM-DD` in Asia/Bangkok (today still counts).
+ * @param input.alreadyRevived - True when a late slip already brought this queue back once.
+ */
+export function decideLateSlipRevival(input: {
+  evaluationStatus: string | null | undefined;
+  bookingDate: string;
+  today: string;
+  alreadyRevived: boolean;
+}): LateSlipRevivalDecision {
+  if (input.evaluationStatus === 'suspicious') return { revive: false, reason: 'suspicious' };
+  if (String(input.bookingDate) < input.today) return { revive: false, reason: 'past' };
+  if (input.alreadyRevived) return { revive: false, reason: 'already_revived' };
+  return { revive: true };
+}
+
+/**
+ * Late-slip outcome as read back from the booking a moment after the upload
+ * (the LINE slip echo reply). Null for a normal, on-time slip.
+ * A queue still cancelled cannot tell "seat taken" from "kept for staff", so it
+ * reads as `not_restored` (the shop gets in touch either way).
+ *
+ * @param status - Booking status now.
+ * @param note - Booking note now.
+ */
+export function lateSlipOutcomeFromBooking(
+  status: string | null | undefined,
+  note: string | null | undefined,
+): 'restored' | 'not_restored' | null {
+  if (status === 'cancelled' && String(note ?? '').includes(NOTE_MARKER)) return 'not_restored';
+  if (status !== 'cancelled' && String(note ?? '').includes(LATE_SLIP_RESTORED_MARKER)) return 'restored';
+  return null;
+}

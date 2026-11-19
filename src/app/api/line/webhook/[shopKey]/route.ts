@@ -13,6 +13,7 @@ import {
   slotMessage,
 } from '@/lib/line/messages';
 import { slipReceivedFlex } from '@/lib/line/messages-payment';
+import { lateSlipOutcomeFromBooking } from '@/lib/payments/payment-hold';
 import { resolveCustomerLiffUrl } from '@/lib/line/liff-url';
 import { isBookingEcho, isEchoFresh, isSlipEcho, parseBookingEcho, parseSlipEcho } from '@/lib/line/booking-echo';
 import { buildBookingDeliveryMessages, claimBookingDelivery, releaseBookingDelivery } from '@/lib/line/booking-messages-server';
@@ -210,7 +211,7 @@ async function handleSlipEcho(
 
   const { data: booking } = await admin
     .from('bookings')
-    .select('id,queue_number,payment_amount')
+    .select('id,queue_number,payment_amount,status,note')
     .eq('shop_id', shop.id)
     .eq('line_user_id', lineUserPk)
     .eq('queue_number', echo.queueNumber)
@@ -231,7 +232,12 @@ async function handleSlipEcho(
   if (!slip || !isEchoFresh(String(slip.created_at), new Date())) return;
 
   await replyMessage(token, replyToken, [
-    slipReceivedFlex({ shopName: shop.name, queueNumber: String(booking.queue_number ?? '-'), amountTHB: Number(booking.payment_amount ?? 0) }),
+    slipReceivedFlex({
+      shopName: shop.name,
+      queueNumber: String(booking.queue_number ?? '-'),
+      amountTHB: Number(booking.payment_amount ?? 0),
+      late: lateSlipOutcomeFromBooking(booking.status, booking.note),
+    }),
   ]);
 }
 

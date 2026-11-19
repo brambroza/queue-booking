@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "create:super-admin": "node scripts/create-super-admin.mjs",
     "cleanup:unconfirmed": "node scripts/cleanup-unconfirmed-users.mjs",
-    "screenshots": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/screenshots/capture.mts"
+    "screenshots": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/screenshots/capture.mts",
+    "announce:pricing": "bash docs/guides/build-pricing-announce.sh"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

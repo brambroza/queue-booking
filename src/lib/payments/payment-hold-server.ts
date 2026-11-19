@@ -4,7 +4,7 @@ import { bookingPaymentExpiredFlex } from '@/lib/line/messages';
 import { resolveCustomerLiffUrl } from '@/lib/line/liff-url';
 import { safeCreateNotification } from '@/lib/notifications/createNotification';
 import { formatThaiDateLabel } from '@/lib/utils/date-format';
-import { PAYMENT_EXPIRED_LOG_ACTION, appendPaymentExpiredNote } from './payment-hold';
+import { PAYMENT_EXPIRED_LOG_ACTION, PAYMENT_HOLD_UNPAID_STATUSES, appendPaymentExpiredNote } from './payment-hold';
 
 /**
  * Server side of the payment hold (see `payment-hold.ts` for the rules).
@@ -150,17 +150,26 @@ export async function cancelExpiredPaymentHold(
   if (error) throw error;
   const rows = (data ?? []) as HoldRow[];
 
+  // The paying queue goes first and only while it still owes money: a slip
+  // uploaded after the cron read its rows (now `awaiting_verification`) or a
+  // payment that just landed must keep the whole order.
+  const payer = rows.find((r) => r.id === opts.payingBookingId);
+  const ordered = payer ? [payer, ...rows.filter((r) => r.id !== payer.id)] : rows;
+
   const cancelled: HoldRow[] = [];
-  for (const row of rows) {
-    const { data: updated, error: updateError } = await admin
+  for (const row of ordered) {
+    let query = admin
       .from('bookings')
       .update({ status: 'cancelled', note: appendPaymentExpiredNote(row.note) })
       .eq('id', row.id)
       .eq('shop_id', opts.shopId)
-      .eq('status', 'pending_approval')
-      .select('id');
+      .eq('status', 'pending_approval');
+    if (row.id === opts.payingBookingId) query = query.in('payment_status', [...PAYMENT_HOLD_UNPAID_STATUSES]);
+    const { data: updated, error: updateError } = await query.select('id');
     if (updateError) throw updateError;
-    if (updated && updated.length > 0) cancelled.push(row);
+    const changed = Boolean(updated && updated.length > 0);
+    if (row.id === opts.payingBookingId && !changed) break;
+    if (changed) cancelled.push(row);
   }
   if (cancelled.length === 0) return { cancelled: [], customerNotified: false };
 

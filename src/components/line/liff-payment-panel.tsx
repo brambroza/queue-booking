@@ -93,32 +93,64 @@ function formatTHB(amount: number) {
   return amount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/** Minutes left at which the panel warns the customer to send the slip now. */
+const URGENT_MS = 3 * 60_000;
+
+/**
+ * Payment countdown label, ticking every 15 s (every 5 s in the last minutes).
+ * `urgent` = under 3 minutes left, `expired` = deadline passed.
+ */
 function useCountdown(expiresAt: string | null | undefined) {
   const [label, setLabel] = useState('');
   const [expired, setExpired] = useState(false);
+  const [urgent, setUrgent] = useState(false);
   useEffect(() => {
     if (!expiresAt) {
       setLabel('');
       setExpired(false);
+      setUrgent(false);
       return;
     }
     const tick = () => {
       const left = new Date(expiresAt).getTime() - Date.now();
       if (left <= 0) {
         setExpired(true);
+        setUrgent(false);
         return setLabel('หมดเวลาชำระแล้ว');
       }
       setExpired(false);
+      setUrgent(left < URGENT_MS);
       const h = Math.floor(left / 3_600_000);
       const m = Math.floor((left % 3_600_000) / 60_000);
       setLabel(h > 0 ? `เหลือเวลา ${h} ชม. ${m} นาที` : `เหลือเวลา ${m} นาที`);
     };
     tick();
-    const id = setInterval(tick, 15_000);
+    const id = setInterval(tick, 5_000);
     return () => clearInterval(id);
   }, [expiresAt]);
-  return { label, expired };
+  return { label, expired, urgent };
 }
+
+type LateSlipOutcome = 'restored' | 'slot_taken' | 'not_restored';
+
+/** Customer wording for a slip sent after the queue was cancelled for non-payment. */
+const LATE_SLIP_TEXT: Record<LateSlipOutcome, { severity: 'success' | 'error' | 'warning'; title: string; detail: string }> = {
+  restored: {
+    severity: 'success',
+    title: 'ระบบคืนคิวให้แล้ว',
+    detail: 'สลิปมาหลังหมดเวลา แต่รอบยังว่าง คิวของคุณกลับมาแล้ว กำลังรอร้านตรวจสลิป',
+  },
+  slot_taken: {
+    severity: 'error',
+    title: 'รอบนี้เต็มแล้ว',
+    detail: 'คิวหมดเวลาชำระและมีผู้จองรอบนี้แล้ว ร้านได้รับสลิปของคุณ และจะติดต่อกลับเรื่องคืนเงินหรือย้ายรอบ',
+  },
+  not_restored: {
+    severity: 'warning',
+    title: 'คิวนี้หมดเวลาชำระแล้ว',
+    detail: 'ร้านได้รับสลิปของคุณแล้ว จะตรวจสอบและติดต่อกลับ',
+  },
+};
 
 /**
  * Open a bank deeplink. Inside LINE the in-app browser cannot hand custom
@@ -208,6 +240,8 @@ export function LiffPaymentPanel({
   }, [state?.payment_status, onPaid]);
 
   const countdown = useCountdown(state?.payment_expires_at);
+  // Set from the upload response when the slip came after the cron cancelled the queue.
+  const [lateOutcome, setLateOutcome] = useState<LateSlipOutcome | null>(null);
 
   async function onFileChange(e: ChangeEvent<HTMLInputElement>) {
     const picked = e.target.files?.[0];
@@ -238,6 +272,8 @@ export function LiffPaymentPanel({
       const res = await fetch(`/api/public/shop/${shopKey}/payment/slip`, { method: 'POST', body });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? 'อัปโหลดสลิปไม่สำเร็จ');
+      const late = json?.data?.late as LateSlipOutcome | null | undefined;
+      setLateOutcome(late && late in LATE_SLIP_TEXT ? late : null);
       if (echoLiff && json?.data?.ack === 'echo' && state?.queue_number) {
         try {
           await echoLiff.sendMessages!([{ type: 'text', text: buildSlipEchoText(state.queue_number) }]);
@@ -306,7 +342,15 @@ export function LiffPaymentPanel({
         {formatTHB(amount)} บาท
       </Typography>
       {countdown.label ? (
-        <Typography variant="caption" sx={{ color: countdown.expired ? 'error.main' : 'text.secondary', mt: 0.25, fontVariantNumeric: 'tabular-nums' }}>
+        <Typography
+          variant="caption"
+          sx={{
+            color: countdown.expired ? 'error.main' : countdown.urgent ? 'warning.dark' : 'text.secondary',
+            fontWeight: countdown.urgent ? 700 : undefined,
+            mt: 0.25,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
           {countdown.label}
         </Typography>
       ) : null}
@@ -413,12 +457,20 @@ export function LiffPaymentPanel({
 
   // ── Waiting for the shop to review ──
   if (status === 'awaiting_verification') {
+    const lateText = lateOutcome ? LATE_SLIP_TEXT[lateOutcome] : null;
     return (
       <LiffSection title="ชำระเงิน">
-        <Alert severity="warning">
-          <Typography variant="body2" sx={{ fontWeight: 700 }}>รอร้านตรวจสอบสลิป</Typography>
-          <Typography variant="caption">ยอด {formatTHB(amount)} บาท — ร้านจะแจ้งผลผ่าน LINE</Typography>
-        </Alert>
+        {lateText ? (
+          <Alert severity={lateText.severity}>
+            <Typography variant="body2" sx={{ fontWeight: 700 }}>{lateText.title}</Typography>
+            <Typography variant="caption">{lateText.detail}</Typography>
+          </Alert>
+        ) : (
+          <Alert severity="warning">
+            <Typography variant="body2" sx={{ fontWeight: 700 }}>รอร้านตรวจสอบสลิป</Typography>
+            <Typography variant="caption">ยอด {formatTHB(amount)} บาท — ร้านจะแจ้งผลผ่าน LINE</Typography>
+          </Alert>
+        )}
         {state.slip?.image_url && (
           <Box
             component="img"
@@ -457,6 +509,19 @@ export function LiffPaymentPanel({
       )}
 
       {amountBlock}
+
+      {countdown.urgent && (
+        <Alert severity="warning">
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>ใกล้หมดเวลาชำระ</Typography>
+          <Typography variant="caption">โอนแล้วกรุณาส่งสลิปทันที เพื่อไม่ให้คิวถูกยกเลิก</Typography>
+        </Alert>
+      )}
+      {countdown.expired && (
+        <Alert severity="error">
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>หมดเวลาชำระแล้ว</Typography>
+          <Typography variant="caption">ถ้าโอนแล้ว ส่งสลิปได้เลย ระบบจะคืนคิวให้ถ้ารอบยังว่าง</Typography>
+        </Alert>
+      )}
 
       {state.qr_image_url && (
         <Stack alignItems="center" spacing={1}>

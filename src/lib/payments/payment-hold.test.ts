@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   PAYMENT_EXPIRY_GRACE_MINUTES,
+  LATE_SLIP_RESTORED_MARKER,
+  NOTE_MARKER,
   appendPaymentExpiredNote,
+  decideLateSlipRevival,
+  lateSlipEligibility,
+  lateSlipOutcomeFromBooking,
   isAwaitingPayment,
   isPaymentHoldExpired,
   shouldHoldForPayment,
@@ -77,5 +82,49 @@ describe('appendPaymentExpiredNote', () => {
     expect(once).toBe('โต๊ะริมหน้าต่าง | ยกเลิกอัตโนมัติ: เลยเวลาชำระเงิน');
     expect(appendPaymentExpiredNote(once)).toBe(once);
     expect(appendPaymentExpiredNote(null)).toBe('ยกเลิกอัตโนมัติ: เลยเวลาชำระเงิน');
+  });
+});
+
+describe('lateSlipEligibility', () => {
+  it('treats a live booking as the normal flow', () => {
+    expect(lateSlipEligibility('pending_approval', null)).toBe('active');
+    expect(lateSlipEligibility('confirmed', NOTE_MARKER)).toBe('active');
+  });
+  it('accepts a slip on a queue the cron cancelled', () => {
+    expect(lateSlipEligibility('cancelled', `โต๊ะ 3 | ${NOTE_MARKER}`)).toBe('late');
+  });
+  it('refuses a queue cancelled by the customer or the shop', () => {
+    expect(lateSlipEligibility('cancelled', 'ลูกค้ายกเลิกเอง')).toBe('refuse');
+    expect(lateSlipEligibility('cancelled', null)).toBe('refuse');
+  });
+});
+
+describe('decideLateSlipRevival', () => {
+  const base = { evaluationStatus: 'plausible', bookingDate: '2026-11-19', today: '2026-11-19', alreadyRevived: false };
+  it('revives a plausible slip for today or later', () => {
+    expect(decideLateSlipRevival(base)).toEqual({ revive: true });
+    expect(decideLateSlipRevival({ ...base, evaluationStatus: 'verified', bookingDate: '2026-11-20' })).toEqual({ revive: true });
+  });
+  it('never revives on a suspicious slip', () => {
+    expect(decideLateSlipRevival({ ...base, evaluationStatus: 'suspicious' })).toEqual({ revive: false, reason: 'suspicious' });
+  });
+  it('never revives a queue whose day is over', () => {
+    expect(decideLateSlipRevival({ ...base, bookingDate: '2026-11-18' })).toEqual({ revive: false, reason: 'past' });
+  });
+  it('revives a queue only once', () => {
+    expect(decideLateSlipRevival({ ...base, alreadyRevived: true })).toEqual({ revive: false, reason: 'already_revived' });
+  });
+});
+
+describe('lateSlipOutcomeFromBooking', () => {
+  it('reads a restored queue', () => {
+    expect(lateSlipOutcomeFromBooking('pending_approval', `โต๊ะ 3 | ${LATE_SLIP_RESTORED_MARKER}`)).toBe('restored');
+  });
+  it('reads a queue still cancelled for non-payment', () => {
+    expect(lateSlipOutcomeFromBooking('cancelled', NOTE_MARKER)).toBe('not_restored');
+  });
+  it('is null for a normal slip', () => {
+    expect(lateSlipOutcomeFromBooking('pending_approval', null)).toBeNull();
+    expect(lateSlipOutcomeFromBooking('cancelled', 'ลูกค้ายกเลิกเอง')).toBeNull();
   });
 });

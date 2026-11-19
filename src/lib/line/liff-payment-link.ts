@@ -1,4 +1,5 @@
 import { isBankAppMethod } from '@/lib/payments/mobile-banking/banks';
+import { lateSlipEligibility } from '@/lib/payments/payment-hold';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -73,4 +74,22 @@ export function pickLinkedPaymentTarget(linkedId: string | null, bookings: reado
   if (!linkedId) return null;
   const match = bookings.find((b) => b.id.toLowerCase() === linkedId);
   return match ? paymentResumeTarget(match) : null;
+}
+
+/**
+ * Whether a queue the payment cron cancelled still offers "โอนแล้ว ส่งสลิป":
+ * a bank transfer that was never paid, for today or later. The slip route then
+ * brings the queue back when the seat is still free.
+ *
+ * @param b - Queue from `/me` (history).
+ * @param today - Today `YYYY-MM-DD` in Asia/Bangkok (from `/me`); empty = unknown, no button.
+ */
+export function canSendLateSlip(
+  b: PayableBooking & { status?: string | null; note?: string | null; booking_date?: string | null },
+  today: string,
+): boolean {
+  if (!today || !b.booking_date || String(b.booking_date) < today) return false;
+  if (b.payment_method !== 'bank_transfer') return false;
+  if (b.payment_status !== 'pending_payment' && b.payment_status !== 'rejected') return false;
+  return lateSlipEligibility(b.status, b.note) === 'late';
 }

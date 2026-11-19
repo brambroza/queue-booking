@@ -332,12 +332,32 @@ export function deeplinkPaymentFlex(payload: {
   };
 }
 
+/**
+ * Text under "ได้รับสลิปแล้ว" — differs when the slip came after the queue was
+ * cancelled for non-payment (see `/payment/slip` late outcomes).
+ */
+export function slipReceivedHint(late?: 'restored' | 'slot_taken' | 'not_restored' | null): string {
+  switch (late) {
+    case 'restored':
+      return 'สลิปมาหลังหมดเวลา แต่รอบยังว่าง ระบบคืนคิวให้แล้ว กำลังรอร้านตรวจสลิปค่ะ';
+    case 'slot_taken':
+      return 'คิวนี้หมดเวลาชำระ และรอบนี้มีผู้จองแล้ว ร้านจะติดต่อกลับเรื่องคืนเงินหรือย้ายรอบค่ะ';
+    case 'not_restored':
+      return 'คิวนี้หมดเวลาชำระแล้ว ร้านจะตรวจสลิปและติดต่อกลับค่ะ';
+    default:
+      return 'กำลังรอร้านตรวจสอบ จะแจ้งผลให้ทราบทางนี้ค่ะ';
+  }
+}
+
 /** Flex Message ยืนยันว่าได้รับสลิปแล้ว กำลังรอร้านตรวจสอบ */
 export function slipReceivedFlex(payload: {
   shopName: string;
   queueNumber: string;
   amountTHB: number;
+  /** Set when the slip arrived after the queue was cancelled for non-payment. */
+  late?: 'restored' | 'slot_taken' | 'not_restored' | null;
 }) {
+  const lateBad = payload.late === 'slot_taken' || payload.late === 'not_restored';
   return {
     type: 'flex',
     altText: `ได้รับสลิปแล้ว – คิว ${payload.queueNumber}`,
@@ -358,11 +378,11 @@ export function slipReceivedFlex(payload: {
             type: 'box',
             layout: 'vertical',
             margin: 'lg',
-            backgroundColor: '#fffbeb',
+            backgroundColor: lateBad ? '#fff1f2' : '#fffbeb',
             cornerRadius: '8px',
             paddingAll: '10px',
             contents: [
-              { type: 'text', text: 'กำลังรอร้านตรวจสอบ จะแจ้งผลให้ทราบทางนี้ค่ะ', size: 'xs', color: '#b45309', wrap: true },
+              { type: 'text', text: slipReceivedHint(payload.late), size: 'xs', color: lateBad ? '#9f1239' : '#b45309', wrap: true },
             ],
           },
         ],

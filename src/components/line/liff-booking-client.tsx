@@ -55,7 +55,7 @@ import { composeLiffPackages, type LiffOwnedPackage, type ShopPackagesPublic } f
 import { LiffPriceBands } from '@/components/line/liff-price-bands';
 import { LiffPackagePayPicker, LiffPackagesPanel, packageChoicesFor, useLiffPackages } from '@/components/line/liff-packages';
 import { LiffPaymentPanel, openBankDeeplink } from '@/components/line/liff-payment-panel';
-import { paymentResumeKind, pickLinkedPaymentTarget, readLinkedBookingId } from '@/lib/line/liff-payment-link';
+import { canSendLateSlip, paymentResumeKind, pickLinkedPaymentTarget, readLinkedBookingId } from '@/lib/line/liff-payment-link';
 import {
   KeyValueList,
   LiffEmpty,
@@ -1661,8 +1661,9 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
       ...(b.resource_name ? [{ label: bookingResourceLabel(b.resource_id), value: b.resource_name }] : []),
     ];
     if (!opts.active) {
-      return (
-        <Stack key={b.id} direction="row" spacing={1.25} alignItems="center" sx={{ border: 1, borderColor: 'divider', borderRadius: '16px', p: 1.5 }}>
+      const lateSlip = canSendLateSlip(b, todayIso);
+      const card = (
+        <Stack key={lateSlip ? undefined : b.id} direction="row" spacing={1.25} alignItems="center" sx={{ border: 1, borderColor: 'divider', borderRadius: '16px', p: 1.5 }}>
           {resourceImage ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={resourceImage} alt="" loading="lazy" style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} />
@@ -1677,6 +1678,20 @@ export function LiffBookingClient({ shopKey, initialTab = 'booking' }: { shopKey
               {[b.branches?.branch_name ?? '-', b.services?.service_name ?? '-', b.resource_name ?? ''].filter(Boolean).join(' • ')}
             </Typography>
           </Box>
+        </Stack>
+      );
+      if (!lateSlip) return card;
+      // Cancelled for non-payment: a customer who did transfer can still send the slip.
+      return (
+        <Stack key={b.id} spacing={1}>
+          {card}
+          <Button
+            variant="outlined"
+            fullWidth
+            onClick={() => setResumeBooking({ booking_id: b.id, queue_number: b.queue_number, payment_method: 'bank_transfer' })}
+          >
+            โอนเงินแล้ว? ส่งสลิปเพื่อขอคืนคิว
+          </Button>
         </Stack>
       );
     }

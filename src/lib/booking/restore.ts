@@ -66,13 +66,14 @@ export function isPaymentExpiredCancel(note: string | null | undefined): boolean
  * cancelled) and append the restore marker once. Staff text is kept.
  *
  * @param existing - Current `bookings.note`.
+ * @param marker - Restore marker to append (staff restore by default).
  */
-export function restoredNote(existing: string | null | undefined): string {
+export function restoredNote(existing: string | null | undefined, marker: string = RESTORED_NOTE_MARKER): string {
   const parts = String(existing ?? '')
     .split(' | ')
     .map((p) => p.trim())
-    .filter((p) => p && p !== PAYMENT_EXPIRED_NOTE_MARKER && p !== RESTORED_NOTE_MARKER);
-  parts.push(RESTORED_NOTE_MARKER);
+    .filter((p) => p && p !== PAYMENT_EXPIRED_NOTE_MARKER && p !== marker);
+  parts.push(marker);
   return parts.join(' | ');
 }
 
