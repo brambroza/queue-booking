@@ -51,6 +51,7 @@ body{font-family:Kanit,sans-serif;color:var(--ink);width:var(--w);height:var(--h
 .bubble{position:absolute;background:#fff;border-radius:20px;padding:.6em 1em;font-weight:700;box-shadow:0 20px 50px -20px rgba(0,0,0,.35);font-size:var(--bub);color:var(--deep)}
 body.sq .foot{flex-direction:column;align-items:flex-start;gap:18px}
 .bubble.g{background:var(--line-green);color:#fff}
+.brand .mark{width:1.55em;height:1.55em;border-radius:24%;display:block;background:#fff}
 </style></head><body><div id="root"></div>
 <script>
 const p=new URLSearchParams(location.search);const theme=p.get('t')||'hero';const size=p.get('s')||'sq';const PUB='file:///Users/amnartkongpet/Project/GoAlong/2026/Queue/public';
@@ -65,13 +66,13 @@ set('--phw',sq?330:fb?250:330);set('--lpw',sq?600:fb?560:700);set('--tvw',sq?720
 set('--statcols',sq?'2':'4');set('--statgap',sq?22:18);set('--statpad',sq?'18px 26px':fb?'18px 22px':'24px 28px');set('--statv',sq?60:fb?52:64);set('--statl',sq?26:fb?20:24);
 if(sq)document.body.classList.add('sq');
 const img=n=>PUB+'/images/product/'+n;
-const brand=`<div class="brand"><span class="dot">Q</span>QueueBooking</div>`;
+const brand=`<div class="brand"><img class="mark" src="logo-mark.png" alt="">QueueBooking</div>`;
 const foot=(cta)=>`<div class="foot"><div><b>queuebooking.com</b><br>LINE OA @queuebooking${sq?'':' · ทีมคนไทยช่วยตั้งค่า'}</div><div class="cta">${cta}</div></div>`;
 const T={
 hero:()=>`<div class="canvas"><div class="grid"></div><div class="pad">${brand}
 <div style="margin-top:${sq?40:28}px;max-width:var(--textw)"><span class="pill">จองผ่าน LINE OA</span>
 <div class="h1">ลูกค้าจองคิวเอง<br>จาก LINE <em>ไม่ต้องโหลดแอป</em></div>
-<div class="sub">เห็นเฉพาะเวลาที่ว่างจริง กันคิวซ้อน ยืนยันในแชท เตือนก่อนถึงคิว ร้านดูทุกสาขาจากหลังบ้านเดียว</div>
+<div class="sub" style="${sq||fb?'':'max-width:740px'}">เห็นเฉพาะเวลาที่ว่างจริง กันคิวซ้อน ยืนยันในแชท เตือนก่อนถึงคิว ร้านดูทุกสาขาจากหลังบ้านเดียว</div>
 <div class="chips"><span class="chip">ร้านตัดผม</span><span class="chip">คลินิก</span><span class="chip">สนามแบด</span><span class="chip">ร้านอาหาร</span><span class="chip">+17 ธุรกิจ</span></div></div>
 ${foot('เริ่มใช้ฟรี')}</div>
 <div class="phone" style="${sq?'right:40px;bottom:-240px;--phw:300px;transform:rotate(-6deg)':fb?'right:56px;top:40px;--phw:240px':'right:90px;top:70px'}"><img src="${img('liff-services.webp')}"></div>
