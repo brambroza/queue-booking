@@ -7,19 +7,13 @@ import { LandingNavbar } from '@/components/public/landing-navbar';
 import { faqs, featureCompare, pricingPlans } from '@/components/public/content';
 import { FaqSection } from '@/components/public/faq-section';
 import { PricingCard } from '@/components/public/pricing-card';
+import { thaiAlternates } from '@/lib/seo/english-pages';
 
 export const metadata: Metadata = {
   title: 'ราคาระบบจองคิวผ่าน LINE OA | แพ็กเกจฟรีตลอดชีพ',
   description:
     'ราคาระบบจองคิวผ่าน LINE OA เริ่มต้นฟรีตลอดชีพ 50 คิวต่อเดือน ไม่ต้องใช้บัตรเครดิต อัปเกรดเมื่อร้านโต สำหรับร้านค้า คลินิก ร้านอาหาร และศูนย์บริการ',
-  alternates: {
-    canonical: '/pricing',
-    languages: {
-      'th-TH': '/pricing',
-      'en-US': '/en/pricing',
-      'x-default': '/pricing',
-    },
-  },
+  alternates: thaiAlternates('/pricing', '/en/pricing'),
   openGraph: {
     title: 'ราคาระบบจองคิวผ่าน LINE OA | แพ็กเกจฟรีตลอดชีพ',
     description: 'เลือกแผนการใช้งานระบบจองคิวผ่าน LINE OA ให้เหมาะกับธุรกิจของคุณ',

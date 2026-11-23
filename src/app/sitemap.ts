@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next';
 import { useCases } from '@/components/public/content';
 import { blogPosts } from '@/components/public/blog-content';
 import { blogPostsEn } from '@/components/public/blog-content-en';
+import { ENGLISH_PAGES_INDEXABLE } from '@/lib/seo/english-pages';
 import { SCENARIO_LIST } from '@/lib/demo/scenarios';
 import { SANDBOX_CONTENT_UPDATED, SANDBOX_INDEX_PATH, sandboxPath } from '@/lib/demo/scenarios/seo';
 
@@ -36,11 +37,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/solutions/fitness-class-booking-system`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${base}/solutions/meeting-room-booking-system`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${base}/solutions/appointment-booking-system`, lastModified: now, changeFrequency: 'weekly', priority: 0.85 },
-    { url: `${base}/en`, lastModified: now, changeFrequency: 'weekly', priority: 0.9 },
-    { url: `${base}/en/pricing`, lastModified: now, changeFrequency: 'weekly', priority: 0.82 },
-    { url: `${base}/en/contact`, lastModified: now, changeFrequency: 'monthly', priority: 0.75 },
-    { url: `${base}/en/use-cases`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
-    { url: `${base}/en/blog`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
     // /login and /register are intentionally absent: both pages set
     // robots: { index: false }, so submitting them produces
     // "Submitted URL marked noindex" errors in Search Console.
@@ -85,5 +81,19 @@ export default function sitemap(): MetadataRoute.Sitemap {
     })),
   ];
 
-  return [...staticPages, ...sandboxPages, ...useCasePages, ...useCasePagesEn, ...blogPages, ...blogPagesEn];
+  // English pages are noindex while ENGLISH_PAGES_INDEXABLE is off; listing them
+  // would submit noindexed URLs ("Submitted URL marked noindex").
+  const englishPages: MetadataRoute.Sitemap = ENGLISH_PAGES_INDEXABLE
+    ? [
+        { url: `${base}/en`, lastModified: now, changeFrequency: 'weekly', priority: 0.9 },
+        { url: `${base}/en/pricing`, lastModified: now, changeFrequency: 'weekly', priority: 0.82 },
+        { url: `${base}/en/contact`, lastModified: now, changeFrequency: 'monthly', priority: 0.75 },
+        { url: `${base}/en/use-cases`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
+        { url: `${base}/en/blog`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
+        ...useCasePagesEn,
+        ...blogPagesEn,
+      ]
+    : [];
+
+  return [...staticPages, ...sandboxPages, ...useCasePages, ...blogPages, ...englishPages];
 }

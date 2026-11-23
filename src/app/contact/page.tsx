@@ -10,6 +10,7 @@ import { LandingNavbar } from '@/components/public/landing-navbar';
 import { ContactForm } from '@/components/public/contact-form';
 import { FaqSection } from '@/components/public/faq-section';
 import { faqs } from '@/components/public/content';
+import { thaiAlternates } from '@/lib/seo/english-pages';
 
 const COMPANY = {
   name: 'GO Along Co., Ltd.',
@@ -80,14 +81,7 @@ export const metadata: Metadata = {
   title: 'ติดต่อเรา | ระบบจองคิวผ่าน LINE OA',
   description:
     'ติดต่อทีมงานเพื่อเริ่มใช้งานระบบจองคิวผ่าน LINE OA สำหรับธุรกิจของคุณ | Contact us for demo and onboarding.',
-  alternates: {
-    canonical: '/contact',
-    languages: {
-      'th-TH': '/contact',
-      'en-US': '/en/contact',
-      'x-default': '/contact',
-    },
-  },
+  alternates: thaiAlternates('/contact', '/en/contact'),
   openGraph: {
     title: 'ติดต่อเรา | ระบบจองคิวผ่าน LINE OA',
     description: 'ติดต่อทีมงานเพื่อรับเดโมและเริ่มใช้งานระบบจองคิวผ่าน LINE OA',

@@ -3,6 +3,7 @@ import { LandingPage } from '@/components/public/landing-page';
 import { pricingPlans } from '@/components/public/content';
 import { landingDefinition, landingFaqs } from '@/components/public/landing/landing-content';
 import { loadPublicShowcase } from '@/lib/showcase/showcase-server';
+import { thaiAlternates } from '@/lib/seo/english-pages';
 
 /** Showcase changes call revalidatePath('/'); this is the fallback refresh. */
 export const revalidate = 300;
@@ -15,14 +16,7 @@ export const metadata: Metadata = {
   // The root layout's template appends "| QueueBooking"; this title already carries the brand, so opt out.
   title: { absolute: TITLE },
   description: DESCRIPTION,
-  alternates: {
-    canonical: '/',
-    languages: {
-      'th-TH': '/',
-      'en-US': '/en',
-      'x-default': '/',
-    },
-  },
+  alternates: thaiAlternates('/', '/en'),
   openGraph: {
     title: TITLE,
     description: 'ให้ลูกค้าจองคิวเองใน LINE ร้านจัดคิวทุกสาขาจากหลังบ้านเดียว เริ่มใช้ฟรี',

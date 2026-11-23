@@ -10,6 +10,7 @@ import { CookieConsent } from '@/components/consent/cookie-consent';
 import { AuthLinkRedirect } from '@/components/auth/auth-link-redirect';
 import { BreadcrumbSchema } from '@/components/seo/breadcrumb-schema';
 import { lightSurface } from '@/theme/tokens';
+import { thaiAlternates } from '@/lib/seo/english-pages';
 
 const kanit = Kanit({
   subsets: ['latin', 'thai'],
@@ -37,14 +38,7 @@ export const metadata: Metadata = {
   authors: [{ name: 'QueueBooking Team' }],
   creator: 'QueueBooking',
   publisher: 'GO Along Co., Ltd.',
-  alternates: {
-    canonical: '/',
-    languages: {
-      'th-TH': '/',
-      'en-US': '/en',
-      'x-default': '/',
-    },
-  },
+  alternates: thaiAlternates('/', '/en'),
   openGraph: {
     type: 'website',
     locale: 'th_TH',

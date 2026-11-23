@@ -5,18 +5,12 @@ import { LandingNavbar } from '@/components/public/landing-navbar';
 import { LandingFooter } from '@/components/public/landing-footer';
 import { blogPosts } from '@/components/public/blog-content';
 import { formatDateDMY } from '@/lib/utils/date-format';
+import { thaiAlternates } from '@/lib/seo/english-pages';
 
 export const metadata: Metadata = {
   title: 'บทความระบบจองคิวออนไลน์และ LINE OA',
   description: 'บทความเกี่ยวกับระบบจองคิวผ่าน LINE OA, LIFF, การลด no-show และแนวทางเพิ่มประสิทธิภาพงานบริการ',
-  alternates: {
-    canonical: '/blog',
-    languages: {
-      'th-TH': '/blog',
-      'en-US': '/en/blog',
-      'x-default': '/blog',
-    },
-  },
+  alternates: thaiAlternates('/blog', '/en/blog'),
 };
 
 export default function BlogPage() {

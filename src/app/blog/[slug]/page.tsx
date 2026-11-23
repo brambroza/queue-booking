@@ -9,6 +9,7 @@ import { allBlogImages, blogPosts, getBlogBySlug, type BlogImage } from '@/compo
 import { getBlogBySlugEn } from '@/components/public/blog-content-en';
 import { BlogReadNext } from '@/components/public/related-articles';
 import { formatDateDMY } from '@/lib/utils/date-format';
+import { thaiAlternates } from '@/lib/seo/english-pages';
 
 type Params = { slug: string };
 
@@ -54,14 +55,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
     title: post.title,
     description: post.description,
     keywords: post.keywords,
-    alternates: {
-      canonical: `/blog/${post.slug}`,
-      languages: {
-        'th-TH': `/blog/${post.slug}`,
-        ...(hasEn ? { 'en-US': `/en/blog/${post.slug}` } : {}),
-        'x-default': `/blog/${post.slug}`,
-      },
-    },
+    alternates: thaiAlternates(`/blog/${post.slug}`, hasEn ? `/en/blog/${post.slug}` : undefined),
     openGraph: {
       title: post.title,
       description: post.description,

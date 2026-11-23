@@ -4,18 +4,12 @@ import { Box, Card, CardContent, Container, Grid, Stack, Typography } from '@mui
 import { LandingNavbar } from '@/components/public/landing-navbar';
 import { LandingFooter } from '@/components/public/landing-footer';
 import { useCases } from '@/components/public/content';
+import { thaiAlternates } from '@/lib/seo/english-pages';
 
 export const metadata: Metadata = {
   title: 'ตัวอย่างการใช้งาน | ระบบจองคิวผ่าน LINE OA',
   description: 'ตัวอย่างธุรกิจที่ใช้ระบบจองคิวผ่าน LINE OA เช่น ร้านตัดผม คลินิก ร้านอาหาร และศูนย์บริการ',
-  alternates: {
-    canonical: '/use-cases',
-    languages: {
-      'th-TH': '/use-cases',
-      'en-US': '/en/use-cases',
-      'x-default': '/use-cases',
-    },
-  },
+  alternates: thaiAlternates('/use-cases', '/en/use-cases'),
 };
 
 export default function UseCasesPage() {

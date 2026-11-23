@@ -8,6 +8,7 @@ import { LandingFooter } from '@/components/public/landing-footer';
 import { useCases } from '@/components/public/content';
 import { SCENARIO_LIST } from '@/lib/demo/scenarios';
 import { sandboxPath } from '@/lib/demo/scenarios/seo';
+import { thaiAlternates } from '@/lib/seo/english-pages';
 
 type Params = { slug: string };
 
@@ -22,14 +23,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   return {
     title: `${found.title} | ระบบจองคิวผ่าน LINE`,
     description: `${found.title}: ${found.summary}`,
-    alternates: {
-      canonical: `/use-cases/${found.slug}`,
-      languages: {
-        'th-TH': `/use-cases/${found.slug}`,
-        'en-US': `/en/use-cases/${found.slug}`,
-        'x-default': `/use-cases/${found.slug}`,
-      },
-    },
+    alternates: thaiAlternates(`/use-cases/${found.slug}`, `/en/use-cases/${found.slug}`),
   };
 }
 
