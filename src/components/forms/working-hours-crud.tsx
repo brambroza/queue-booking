@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { TablePaginationControls } from '@/components/ui/table-pagination-controls';
 import { ActionIconGroup } from '@/components/ui/action-icon-group';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import { breakTimeIssue } from '@/lib/booking/working-hours-break';
 
 type Branch = { id: string; branch_name: string };
 type WorkingHour = {
@@ -53,6 +54,37 @@ const EMPTY_DRAFT: Draft = {
   slot_interval_minutes: '30',
   active: true,
 };
+
+/**
+ * Optional time field with its own "ล้าง" button.
+ *
+ * The native time picker only offers a clear action on Android Chrome. iOS and
+ * iPadOS (every browser there is WebKit) have none, and they fill in the
+ * current time as soon as an empty field is tapped, so an owner could not
+ * remove a break once set. The button is shown on every device whenever the
+ * field has a value, so no user-agent detection is needed.
+ *
+ * @param props.label Field name, used for the clear button's accessible label.
+ * @param props.value Current value as "HH:mm", or '' when unset.
+ * @param props.onChange Called with the new value; '' when cleared.
+ */
+function ClearableTimeInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      <input className="input min-w-0 flex-1" type="time" aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} />
+      {value ? (
+        <button
+          type="button"
+          className="btn-outline min-h-[44px] shrink-0 sm:min-h-0"
+          aria-label={`ล้าง${label}`}
+          onClick={() => onChange('')}
+        >
+          ล้าง
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 export function WorkingHoursCrud() {
   const { push } = useToast();
@@ -110,6 +142,10 @@ export function WorkingHoursCrud() {
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    // Same rule as the API, checked first so the owner gets the reason at once.
+    const breakIssue = breakTimeIssue(draft);
+    if (breakIssue) return push(breakIssue.message, 'error');
 
     const basePayload = {
       branch_id: draft.branch_id,
@@ -358,11 +394,11 @@ export function WorkingHoursCrud() {
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-600">พักเริ่ม</label>
-                <input className="input" type="time" value={draft.break_start} onChange={(e) => setDraft((p) => ({ ...p, break_start: e.target.value }))} />
+                <ClearableTimeInput label="พักเริ่ม" value={draft.break_start} onChange={(v) => setDraft((p) => ({ ...p, break_start: v }))} />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-600">พักสิ้นสุด</label>
-                <input className="input" type="time" value={draft.break_end} onChange={(e) => setDraft((p) => ({ ...p, break_end: e.target.value }))} />
+                <ClearableTimeInput label="พักสิ้นสุด" value={draft.break_end} onChange={(v) => setDraft((p) => ({ ...p, break_end: v }))} />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-600">ช่วงเวลาต่อสล็อต (นาที)</label>

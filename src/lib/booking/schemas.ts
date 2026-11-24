@@ -5,6 +5,7 @@ import { RESOURCE_TYPES } from '@/lib/booking/resource-types';
 import { ADVANCE_WINDOW_RE } from '@/lib/booking/booking-window';
 import { bangkokLocalToIso } from '@/lib/booking/booking-release';
 import { endTimeMinutes, timeToMinutes } from '@/lib/booking/multi-slot';
+import { breakTimeIssue } from '@/lib/booking/working-hours-break';
 import { RESOURCE_IMAGE_MAX } from '@/lib/storage/shop-assets';
 
 /** A stored photo URL. Ownership (own shop-assets prefix) is checked in the route. */
@@ -162,7 +163,12 @@ export const workingHourSchema = z
       return open !== null && close !== null && close > open;
     },
     { path: ['close_time'], message: 'เวลาปิดต้องหลังเวลาเปิด (ปิดเที่ยงคืนให้ใส่ 00:00)' },
-  );
+  )
+  // Break must be a complete, ordered pair inside open–close (see breakTimeIssue).
+  .superRefine((v, ctx) => {
+    const issue = breakTimeIssue(v);
+    if (issue) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [issue.field], message: issue.message });
+  });
 
 /** HTML inputs send '' for an untouched field; treat that as "not provided". */
 const emptyToUndefined = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);

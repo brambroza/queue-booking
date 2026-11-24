@@ -5,9 +5,17 @@ import { workingHourSchema } from '@/lib/booking/schemas';
 import { writeAuditLog } from '@/lib/audit/activity-log';
 import type { ZodError } from 'zod';
 
-/** Thai message of the close-time rule, the only error the form can fix by itself. */
-function closeTimeIssue(error: ZodError): string | undefined {
-  return error.issues.find((issue) => issue.path[0] === 'close_time')?.message;
+/** Fields whose schema messages are written in Thai for the owner to act on. */
+const USER_FIXABLE_FIELDS = ['close_time', 'break_start', 'break_end'];
+
+/**
+ * Thai message of the first rule the owner can fix in the form (close time or
+ * break time), or undefined when the payload is malformed in another way.
+ *
+ * @param error - Zod error from `workingHourSchema`.
+ */
+function userFixableIssue(error: ZodError): string | undefined {
+  return error.issues.find((issue) => USER_FIXABLE_FIELDS.includes(String(issue.path[0])))?.message;
 }
 
 export async function GET(req: Request) {
@@ -39,7 +47,7 @@ export async function POST(req: Request) {
   try {
     const { supabase, user, profile, branchScope } = await requireAuthContext({ roles: ['super_admin', 'shop_owner', 'branch_manager'] });
     const parsed = workingHourSchema.safeParse(await req.json());
-    if (!parsed.success) return NextResponse.json({ error: closeTimeIssue(parsed.error) ?? 'Invalid payload' }, { status: 400 });
+    if (!parsed.success) return NextResponse.json({ error: userFixableIssue(parsed.error) ?? 'Invalid payload' }, { status: 400 });
     assertBranchAllowed(branchScope, parsed.data.branch_id);
 
     const { error } = await supabase.from('working_hours').insert({
@@ -94,7 +102,7 @@ export async function PATCH(req: Request) {
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
 
     const parsed = workingHourSchema.safeParse(body);
-    if (!parsed.success) return NextResponse.json({ error: closeTimeIssue(parsed.error) ?? 'Invalid payload' }, { status: 400 });
+    if (!parsed.success) return NextResponse.json({ error: userFixableIssue(parsed.error) ?? 'Invalid payload' }, { status: 400 });
     // Both the row being edited and the branch it is being moved to must be in scope.
     assertBranchAllowed(branchScope, parsed.data.branch_id);
     const { data: current } = await supabase
