@@ -6,6 +6,8 @@ import { AutomationSettingsCard } from '@/components/automation/automation-setti
 import { CustomerGuideCard } from '@/components/line-settings/customer-guide-card';
 import { OwnerLineCard } from '@/components/line-settings/owner-line-card';
 import { LineQuotaCard } from '@/components/line-settings/line-quota-card';
+import { LiffAutoCard } from '@/components/line-settings/liff-auto-card';
+import { WebhookAutoStatus, type WebhookAutoResult } from '@/components/line-settings/webhook-auto-status';
 import { useToast } from '@/components/ui/toast';
 import { track } from '@/lib/analytics/track';
 import { REMINDER_MINUTES_DEFAULT, REMINDER_PRESETS, reminderLeadLabel } from '@/lib/line/booking-reminder';
@@ -34,6 +36,8 @@ export default function LineSettingsPage() {
   });
   const [checks, setChecks] = useState<ConnectionCheck[] | null>(null);
   const [testing, setTesting] = useState(false);
+  const [webhookBusy, setWebhookBusy] = useState(false);
+  const [webhookResult, setWebhookResult] = useState<WebhookAutoResult | null>(null);
   /** Bumped after a passing connection test so the guide card re-reads the LINE id. */
   const [guideKey, setGuideKey] = useState(0);
 
@@ -81,7 +85,37 @@ export default function LineSettingsPage() {
     }
     if (!res.ok) return push(json.error ?? 'บันทึกไม่สำเร็จ', 'error');
     push('บันทึกตั้งค่า LINE แล้ว');
+    // A freshly typed token (not the masked hint) means a new channel: point
+    // its webhook at us right away so the owner never pastes the URL by hand.
+    const newToken = form.line_channel_access_token && !form.line_channel_access_token.startsWith('••••');
+    if (newToken) await setupWebhook(false);
     void testConnection();
+  }
+
+  /** ให้ระบบตั้ง Webhook URL ใน LINE เองแล้วให้ LINE ยิงทดสอบ */
+  async function setupWebhook(overwrite: boolean) {
+    setWebhookBusy(true);
+    try {
+      const res = await fetch('/api/line-settings/webhook-auto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ overwrite }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        push(json.error ?? 'ตั้งค่า Webhook ไม่สำเร็จ', 'error');
+        return;
+      }
+      const result = json.data as WebhookAutoResult;
+      setWebhookResult(result);
+      if (result.skipped) push('webhook ของ channel นี้ชี้ไปที่ระบบอื่นอยู่ ระบบไม่ได้เปลี่ยนให้ ดูรายละเอียดด้านบน', 'warning');
+      else if (result.active && result.test.success) push('ตั้งค่า Webhook อัตโนมัติสำเร็จ');
+      else push('ตั้ง Webhook URL แล้ว แต่ยังมีขั้นที่ต้องทำ ดูรายการด้านบน', 'warning');
+    } catch {
+      push('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง', 'error');
+    } finally {
+      setWebhookBusy(false);
+    }
   }
 
   /** ยิงตรวจ credential จริงกับ LINE API แทนการเดาว่ากรอกถูกหรือยัง */
@@ -135,6 +169,11 @@ export default function LineSettingsPage() {
           <code className="block rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700">
             {APP_URL}/api/line/webhook/{form.shop_key || '{shopKey}'}
           </code>
+          <button type="button" className="btn-outline" onClick={() => void setupWebhook(true)} disabled={webhookBusy}>
+            {webhookBusy ? 'กำลังตั้งค่า Webhook...' : 'ตั้งค่า Webhook ให้อัตโนมัติ'}
+          </button>
+          <p className="text-xs text-slate-500">ใช้ Channel Access Token ที่บันทึกไว้ ตั้ง URL นี้ใน LINE ให้ และให้ LINE ยิงทดสอบ (บันทึก token ใหม่ ระบบจะทำให้เอง)</p>
+          {webhookResult && <WebhookAutoStatus result={webhookResult} />}
           <p>LIFF Booking URL</p>
           <code className="block rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700">
             {APP_URL}/liff/{form.shop_key || '{shopKey}'}
@@ -145,6 +184,13 @@ export default function LineSettingsPage() {
           </code>
         </div>
       </section>
+
+      <LiffAutoCard
+        onProvisioned={({ liffId, liffIdLoginShop }) => {
+          setForm((s) => ({ ...s, liff_id: liffId, liff_id_login_shop: liffIdLoginShop }));
+          void testConnection();
+        }}
+      />
 
       <form onSubmit={onSubmit} className="mt-4 max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
         <div className="border-b border-slate-100 pb-3">
