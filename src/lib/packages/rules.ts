@@ -42,6 +42,9 @@ export const PACKAGE_NOT_COVERED_CODE = 'package_not_covered';
 /** Max windows per package. */
 export const MAX_USAGE_WINDOWS = 20;
 
+/** Longest package description (customer-facing terms) a shop may save. */
+export const MAX_PACKAGE_DESCRIPTION = 2000;
+
 /**
  * Parse `usage_windows` jsonb defensively; malformed entries are dropped.
  *

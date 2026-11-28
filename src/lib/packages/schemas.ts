@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MAX_USAGE_WINDOWS } from './rules';
+import { MAX_PACKAGE_DESCRIPTION, MAX_USAGE_WINDOWS } from './rules';
 
 const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, 'Invalid time');
 
@@ -16,7 +16,7 @@ export const usageWindowSchema = z
 /** Body of `POST /api/packages` (create a package template). */
 export const creditPackageSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  description: z.string().trim().max(500).nullish().transform((v) => v || null),
+  description: z.string().trim().max(MAX_PACKAGE_DESCRIPTION).nullish().transform((v) => v || null),
   credit_minutes: z.coerce.number().int().min(1).max(100000),
   price: z.coerce.number().min(0).max(10_000_000),
   valid_days: z.coerce.number().int().min(1).max(3650).nullable().default(null),

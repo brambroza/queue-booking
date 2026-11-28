@@ -34,7 +34,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { readPaywallDetail, useUpgrade } from '@/components/subscription/upgrade-provider';
-import { formatPackageMinutes, usageWindowsLabel, type UsageWindow } from '@/lib/packages/rules';
+import { formatPackageMinutes, MAX_PACKAGE_DESCRIPTION, usageWindowsLabel, type UsageWindow } from '@/lib/packages/rules';
 
 export type PackageTemplate = {
   id: string;
@@ -258,7 +258,17 @@ export function PackageTemplatesCard({ onChanged }: { onChanged?: (templates: Pa
                   <TextField label="ใช้ได้ (วัน)" type="number" value={draft.validDays} onChange={(e: ChangeEvent<HTMLInputElement>) => patchDraft({ validDays: e.target.value })} fullWidth size="small" helperText="ว่าง = ไม่หมดอายุ" slotProps={{ htmlInput: { min: 1 } }} />
                 </Grid>
                 <Grid size={12}>
-                  <TextField label="รายละเอียด (ลูกค้าเห็น)" value={draft.description} onChange={(e: ChangeEvent<HTMLInputElement>) => patchDraft({ description: e.target.value })} fullWidth size="small" multiline minRows={2} />
+                  <TextField
+                    label="รายละเอียด (ลูกค้าเห็น)"
+                    value={draft.description}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => patchDraft({ description: e.target.value })}
+                    fullWidth
+                    size="small"
+                    multiline
+                    minRows={2}
+                    helperText={`${draft.description.length.toLocaleString()}/${MAX_PACKAGE_DESCRIPTION.toLocaleString()} ตัวอักษร`}
+                    slotProps={{ htmlInput: { maxLength: MAX_PACKAGE_DESCRIPTION }, formHelperText: { sx: { textAlign: 'right' } } }}
+                  />
                 </Grid>
                 <Grid size={12}>
                   <FormControl fullWidth size="small">

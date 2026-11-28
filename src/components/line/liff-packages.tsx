@@ -245,7 +245,7 @@ export function LiffPackagesPanel({
                 {formatPackageMinutes(c.credit_minutes)} · {c.valid_days ? `ใช้ได้ ${c.valid_days} วันนับจากร้านอนุมัติ` : 'ไม่หมดอายุ'}
               </Typography>
               <Typography variant="caption" color="text.secondary" display="block">{usageWindowsLabel(c.usage_windows ?? [])}</Typography>
-              {c.description ? <Typography variant="caption" color="text.secondary" display="block">{c.description}</Typography> : null}
+              {c.description ? <Typography variant="caption" color="text.secondary" display="block" sx={{ whiteSpace: 'pre-line' }}>{c.description}</Typography> : null}
               {data.can_buy ? (
                 <Button variant="outlined" fullWidth sx={{ mt: 1 }} disabled={buying === c.id} onClick={() => void buy(c)}>
                   {buying === c.id ? 'กำลังสร้างรายการ...' : 'ซื้อแพ็กเกจนี้'}
